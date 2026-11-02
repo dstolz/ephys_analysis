@@ -80,6 +80,10 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %           for none), fill ("line") and nSamples (recording samples
 %           replaced). They hold for every signal and rate: row r of a
 %           signal at Fs lies at (r-1)/Fs (EphysDataset.intervalRows).
+%           INFO.lineNoise: Enabled (the lineNoise option) and, when on,
+%           removeLineNoise's settings as run (LineHz, Harmonics, WindowSec,
+%           MaxDeviationHz, Tracking, Gate, MinSNR) with the median
+%           frequency and SNR it found.
 %
 %   Options
 %   -------
@@ -104,9 +108,18 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %                        EphysDataset:deriveSignals:BadChannelGeometry warning
 %                        is issued and the channel is interpolated across the
 %                        neighboring columns instead, FILLMISSING(...,
-%                        'makima',2). A negative scalar flags channels with
-%                        abs(zscore(rms(LFP))) > abs(value), computed on
-%                        Y.LFP after any LFP filtering; requires "LFP".
+%                        'makima',2). A negative scalar flags channels whose
+%                        LFP rms is a robust z (|rms - median| / (1.4826 *
+%                        MAD) across the channels) above abs(value), computed
+%                        on the LFP after any LFP filtering; requires "LFP".
+%                        The channels flagged (or listed) are left out of
+%                        the common reference and of the donors of every
+%                        other bad channel's interpolation; so are the
+%                        dataset's excludedChannels that the columns keep.
+%                        With a reference the automatic detection runs
+%                        first, on the LFP as recorded (before the
+%                        reference, with the artifact periods erased), so
+%                        the reference is taken without them.
 %     LFP_Fs             Hz  1000
 %     LFP_bpLoHi         [low high] Hz  [0 Inf]  LFP band limits. low = 0 means
 %                        no high-pass, high = Inf means no low-pass, so [0 Inf]
@@ -188,7 +201,30 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %                        straight line from the mean of the 1 ms before the
 %                        period to the mean of the 1 ms after it. LFP, MUA
 %                        and SPIKE all derive from the filled data; AUX is
-%                        not touched. Reported in INFO.artifacts
+%                        not touched. Reported in INFO.artifacts. The levels
+%                        at the two ends are the 1 ms means beyond a guard
+%                        that keeps them off the artifact's skirt: 1 ms
+%                        less the padding the detection added
+%                        (ArtifactConfig.PadMs), none when that is 1 ms or
+%                        more. The weighted CAR tracks its weights through
+%                        the recording as recorded, the periods included,
+%                        and the periods are erased after it.
+%     lineNoise          struct  struct()  mains interference removed, before
+%                        the reference and so from every signal and from the
+%                        reference itself: removeLineNoise on the amplifier
+%                        data, the artifact periods left out of its fits.
+%                        Fields (all optional): Enabled (false by default),
+%                        Hz (the nominal line frequency, 60), Harmonics
+%                        (1:3), and removeLineNoise's WindowSec,
+%                        MaxDeviationHz, Tracking, SmoothWindows, PerChannel,
+%                        Gate, MinSNR. Reported in INFO.lineNoise.
+%     memoryLimit        bytes  NaN  the memory the read may need. The need is
+%                        estimated before the recording is read (samples x
+%                        channels x 4 bytes, times the copies the code
+%                        holds at its peak) and EphysDataset:deriveSignals:
+%                        Memory is raised when it exceeds this. NaN = 80% of
+%                        MATLAB's largest possible array (the MEMORY
+%                        function, Windows only; no check elsewhere).
 %     ProgressFcn        function handle, called as ProgressFcn(nDone, nTotal,
 %                        message) before each step (one per file read, then one
 %                        per processing stage) and once more as
@@ -203,12 +239,19 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %   INFO.importOptions.
 %
 %   Memory: the amplifier data are read as single (see readData Precision)
-%   and each signal is derived one channel at a time (8 at a time from 64
-%   channels up, where FILTER runs on several threads) into a preallocated
+%   and each signal is derived one channel at a time (8 at a time from 16
+%   channels up, where FILTER runs on several threads and the working
+%   copies stay within about the size of the recording) into a preallocated
 %   single matrix; the spike band at the original rate overwrites the
 %   amplifier data in place. Peak memory is about the single-precision
 %   recording plus the derived signals plus the double-precision working
 %   copies of one block of channels (at most about the recording again).
+%   The whole recording is held, so a long one can exceed memory (64
+%   channels at 30 kHz for an hour is 28 GB as single): the need is
+%   estimated before the read and EphysDataset:deriveSignals:Memory says
+%   what it is, with the remedy, instead of failing after the read (see
+%   memoryLimit). The streamed steps (the sorting .bin, spike detection)
+%   read a recording in chunks and have no such limit.
 %   The common reference is computed once, a block of rows at a time, as one
 %   [nSamples x 1] trace, and subtracted in place from the kept columns once
 %   the signals taken as recorded are derived; with a reference and
@@ -221,11 +264,17 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %   Weighted CAR and artifact periods: the weights are tracked through the
 %   recording before the periods are erased, so a large artifact can leave
 %   a weight transient that outlasts its erased period by the adaptation
-%   time (longer for smaller DriftPerSec).
+%   time (longer for smaller DriftPerSec). When the signals taken as recorded
+%   are derived first and the periods erased in them, the samples of the
+%   periods are kept (they are small) and put back before the weighted CAR,
+%   so the weights see the recording whole, as when every signal takes the
+%   reference.
 %
 %   Requires the Signal Processing Toolbox (BUTTER, FILTFILT, RESAMPLE);
-%   automatic bad-channel detection also needs ZSCORE, and the weighted CAR
-%   MAD and PRCTILE (Statistics and Machine Learning Toolbox).
+%   automatic bad-channel detection also needs MAD, and the weighted CAR
+%   MAD and PRCTILE (Statistics and Machine Learning Toolbox); the weighted
+%   CAR runs its columns on a thread pool when the Parallel Computing
+%   Toolbox is there.
 %
 %   See also INTAN2MATLAB, EphysDataset.toMat, EphysDataset.readData,
 %   EphysDataset.channelLayout, EphysDataset.filterContinuous, weightedCAR.
@@ -253,6 +302,8 @@ arguments
     opts.referenceMethod (1,1) string {mustBeMember(opts.referenceMethod, ["common" "weighted"])} = "common"
     opts.wcarOptions (1,1) struct = struct()
     opts.artifactIntervals (:,2) double {mustBeFinite} = zeros(0, 2)
+    opts.lineNoise (1,1) struct = struct()
+    opts.memoryLimit (1,1) double = NaN
     opts.ProgressFcn = []
 end
 
@@ -262,6 +313,12 @@ if ~isempty(opts.ProgressFcn) && ~isa(opts.ProgressFcn, 'function_handle')
 end
 progressFcn = opts.ProgressFcn;
 opts = rmfield(opts, 'ProgressFcn');   % never stored in info.importOptions
+memoryLimit = opts.memoryLimit;
+opts = rmfield(opts, 'memoryLimit');   % a machine's limit, not part of how the signals were made
+if ~isnan(memoryLimit) && ~(memoryLimit > 0)
+    error('EphysDataset:deriveSignals:memoryLimit', 'memoryLimit must be NaN or a positive number of bytes.');
+end
+[lineArgs, opts.lineNoise] = lineNoiseArguments(opts.lineNoise);
 
 % --- validate options (before reading anything) ---
 badType = setdiff(opts.dataTypeOut, ["LFP" "MUA" "SPIKE" "AUX"]);
@@ -346,6 +403,9 @@ if isfinite(obj.Fs)
         wcarDefaults(wcarArgs, wcarQ, obj.Fs);
     end
 end
+% The dataset's bad channels, settled whatever the reference (they are out of
+% the reference and of every read's step), as prepareBadChannels says.
+obj.prepareBadChannels();
 nKept = numel(opts.keepAmpChannels);
 if nKept == 0; nKept = obj.NumChannels; end
 if ~autoBad && ~isempty(opts.badChannels) && isfinite(nKept)
@@ -394,10 +454,15 @@ if refMode ~= "none"
     readKeep = [];
 end
 
+% The memory the whole recording and the working copies need, before the
+% long read rather than after it.
+checkMemory(obj, opts, has, refMode, passes, readKeep, nKept, artifacts, memoryLimit, wcarOpt);
+
 % Progress steps: one per file read, then one per processing stage.
 nRead  = obj.NumFiles;
 nProc  = (refMode ~= "none") + (refMode == "wcar") + numel(passes) * ~isempty(artifacts) + has.LFP + lfpFilter + has.MUA + has.SPIKE + ~isempty(opts.badChannels) ...
-    + ~isempty(opts.channelRemap) + 1;   % +1 = digital events
+    + ~isempty(opts.channelRemap) + 1 ...   % +1 = digital events
+    + opts.lineNoise.Enabled + (autoBad && refMode ~= "none");   % mains removal; bad channels found before the reference
 nSteps = nRead + nProc;
 
 readCb = [];
@@ -417,6 +482,83 @@ if isempty(AMPSIG)
     error('EphysDataset:deriveSignals:NoData', 'No amplifier data read from %s', obj.Folder);
 end
 origFs = data.Fs;
+nSamp = size(AMPSIG, 1);
+
+% A NaN or Inf sample is a broken file (no reader produces one), and one
+% would spread through every filter, the reference and the weights.
+colSum = sum(AMPSIG, 1);   % non-finite when any sample of the column is
+if ~all(isfinite(colSum))
+    badCol = find(~isfinite(colSum));
+    names = cellstr(string(data.channelNames(badCol)));
+    error('EphysDataset:deriveSignals:NonFinite', ...
+        ['%s holds NaN or Inf samples in %d channel(s) (%s%s): a corrupt file or reader; ' ...
+         'nothing is derived from it.'], obj.Name, numel(badCol), ...
+        strjoin(names(1:min(numel(names), 5)), ', '), repmat('...', 1, numel(names) > 5));
+end
+clear colSum
+
+% The samples the artifact periods cover, erased in each pass below.
+art = struct('intervals', artifacts, 'fill', "line", 'nSamples', 0);
+runs = zeros(0, 2);
+if ~isempty(artifacts)
+    runs = EphysDataset.artifactSamples(artifacts, origFs, nSamp);
+    art.nSamples = sum(runs(:, 2) - runs(:, 1) + 1);
+end
+% The line fill's edge levels are the 1 ms means beyond a guard that keeps
+% them off the artifact's skirt: 1 ms less the padding the detection added.
+fillW = max(1, round(1e-3 * origFs));
+fillSkip = max(0, fillW - round(1e-3 * origFs * EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).PadMs));
+% The rates the signals are produced at (RESAMPLE's P/Q), checked against
+% the rate actually read; the options report them from here on.
+rates = signalRates(opts, has, origFs);
+for s = string(fieldnames(rates)).'
+    opts.(s + "_Fs") = rates.(s).Fs;
+end
+% Columns: with a reference every channel was read and the kept ones are
+% picked after it; keep is the recording channel of each kept column.
+nAll = size(AMPSIG, 2);
+keep = opts.keepAmpChannels(:).';
+if isempty(keep); keep = 1:nAll; end
+nCol = numel(keep);
+if ~autoBad && ~isempty(opts.badChannels)
+    checkBadChannels(opts.badChannels, nCol);
+end
+
+% --- mains interference, before the reference and every signal ---
+if opts.lineNoise.Enabled
+    nDone = reportProgress(progressFcn, nDone, nSteps, ...
+        sprintf('Removing %g Hz line noise (harmonics %s)', opts.lineNoise.Hz, mat2str(opts.lineNoise.Harmonics)));
+    [AMPSIG, lnInfo] = removeLineNoise(AMPSIG, 'Fs', origFs, 'Exclude', runs, lineArgs{:});   % in place
+    lineInfo = struct('Enabled', true, 'LineHz', lnInfo.LineHz, 'Harmonics', lnInfo.Harmonics, ...
+        'WindowSec', lnInfo.WindowSec, 'MaxDeviationHz', lnInfo.MaxDeviationHz, 'Tracking', lnInfo.Tracking, ...
+        'Gate', lnInfo.Gate, 'MinSNR', lnInfo.MinSNR, ...
+        'medianFrequencyHz', median(lnInfo.frequency, 'all', 'omitnan'), ...
+        'medianSNRdB', median(lnInfo.snr, 'all', 'omitnan'));
+    clear lnInfo
+else
+    lineInfo = struct('Enabled', false);
+end
+
+k = blockColumns(nCol);
+
+% --- the bad channels the Signals step lists are out of the reference ---
+% Interpolated, so replaced in the output, they must not feed the reference
+% either. The automatic detection is made on the LFP, so with a reference it
+% runs first, on the LFP as recorded (the periods erased), before the
+% reference is taken; the LFP is kept when it is a signal taken as recorded.
+lfpDone = single([]);
+badRequested = ~isempty(opts.badChannels);   % a list, or the threshold of the automatic detection
+if autoBad && refMode ~= "none"
+    nDone = reportProgress(progressFcn, nDone, nSteps, 'Detecting bad channels from the LFP, before the reference');
+    lfpDone = lfpColumns(AMPSIG, keep, runs, fillW, fillSkip, rates.LFP, opts, lfpFilter, k);
+    opts.badChannels = autoBadColumns(lfpDone, abs(opts.badChannels), nCol);
+    autoBad = false;   % found
+    if any(refTypes == "LFP"); lfpDone = single([]); end   % that LFP takes the reference: derived again below
+end
+sigBad = zeros(1, 0);   % recording channels of the columns listed bad
+if ~isempty(opts.badChannels) && ~autoBad
+    sigBad = keep(opts.badChannels);
+end
 
 % --- the common reference, over every channel; then the kept channels ---
 % One [nSamples x 1] trace, subtracted later from the signals that take it
@@ -425,7 +567,7 @@ origFs = data.Fs;
 ref = struct('mode', refMode, 'channels', zeros(1, 0), 'signals', refTypes);
 R = [];
 if refMode ~= "none"
-    ref.channels = obj.referenceChannels();
+    ref.channels = obj.referenceChannels(Exclude=sigBad);
     if refMode == "wcar"
         msg = sprintf(['Adaptive weighted CAR (Khorasani et al. 2019): the plain CAR over %d channel(s), ' ...
             'for %s'], numel(ref.channels), strjoin(refTypes, ", "));
@@ -434,7 +576,7 @@ if refMode ~= "none"
             upper(refMode), numel(ref.channels), strjoin(refTypes, ", "));
     end
     nDone = reportProgress(progressFcn, nDone, nSteps, msg);
-    R = referenceRows(obj, AMPSIG, traceMode);
+    R = referenceRows(obj, AMPSIG, traceMode, sigBad);
     if refMode == "wcar"
         wcarDef = wcarDefaults(wcarArgs, wcarQ, origFs);
         wcarAuto = isnan(wcarQ);
@@ -445,32 +587,11 @@ if refMode ~= "none"
         end
     end
     if ~isempty(opts.keepAmpChannels)
-        keepCh = opts.keepAmpChannels(:).';
-        AMPSIG = AMPSIG(:, keepCh);
-        data.channelNames = data.channelNames(keepCh);
-        data.nativeNames = data.nativeNames(keepCh);
+        AMPSIG = AMPSIG(:, keep);
+        data.channelNames = data.channelNames(keep);
+        data.nativeNames = data.nativeNames(keep);
     end
 end
-[nSamp, nCol] = size(AMPSIG);
-
-% The samples the artifact periods cover, erased in each pass below.
-art = struct('intervals', artifacts, 'fill', "line", 'nSamples', 0);
-runs = zeros(0, 2);
-if ~isempty(artifacts)
-    runs = EphysDataset.artifactSamples(artifacts, origFs, nSamp);
-    art.nSamples = sum(runs(:, 2) - runs(:, 1) + 1);
-end
-% The rates the signals are produced at (RESAMPLE's P/Q), checked against
-% the rate actually read; the options report them from here on.
-rates = signalRates(opts, has, origFs);
-for s = string(fieldnames(rates)).'
-    opts.(s + "_Fs") = rates.(s).Fs;
-end
-if ~autoBad && ~isempty(opts.badChannels)
-    checkBadChannels(opts.badChannels, nCol);
-end
-keep = opts.keepAmpChannels(:).';
-if isempty(keep); keep = 1:nCol; end   % the recording channel of each column
 
 if opts.labelField == "native"
     labels = cellstr(data.nativeNames);
@@ -503,8 +624,14 @@ SPIKE = single([]);
 % 1 ms levels on either side, so no signal carries an artifact or its filter
 % ringing. A line depends only on the samples outside the periods, which the
 % first pass's fill leaves as they were, so the referenced pass's fill is
-% the referenced recording's own.
-k = blockColumns(nCol);
+% the referenced recording's own. The weighted CAR is the exception: it
+% tracks its weights through the recording as recorded, the periods included
+% (R is the common average of that recording), so the samples the first
+% pass erases are kept and put back before it.
+savedRuns = {};
+if refMode == "wcar" && numel(passes) > 1 && ~passes(1).referenced && ~isempty(runs)
+    savedRuns = takeRuns(AMPSIG, runs);
+end
 for p = 1:numel(passes)
     types = passes(p).types;
     last = p == numel(passes);
@@ -512,6 +639,10 @@ for p = 1:numel(passes)
         nDone = reportProgress(progressFcn, nDone, nSteps, ...
             sprintf('Weighted CAR: Kalman weights of %d column(s) (Order %d, %s estimate, Q %.4g uV^2%s)', ...
             nCol, wcarDef.Order, wcarDef.Estimate, wcarQ, wcarQSource));
+        if ~isempty(savedRuns)
+            AMPSIG = putRuns(AMPSIG, runs, savedRuns);
+            savedRuns = {};
+        end
         [AMPSIG, ref.wcar] = weightedCAR(AMPSIG, R, wcarArgs{:}, 'Fs', origFs, 'Q', wcarQ);   % in place
         ref.wcar.QAuto = wcarAuto;
         R = [];
@@ -529,16 +660,24 @@ for p = 1:numel(passes)
         nDone = reportProgress(progressFcn, nDone, nSteps, ...
             sprintf('Erasing %d artifact period(s) (line fill)%s', size(artifacts, 1), forTypes));
         AMPSIG = bridgeRuns(AMPSIG, runs(:, 1), runs(:, 2), [], zeros(1, nCol, 'like', AMPSIG), ...
-            [], max(1, round(1e-3 * origFs)));
+            [], fillW, fillSkip);
     end
     if any(types == "LFP")
         nDone = reportProgress(progressFcn, nDone, nSteps, ...
             sprintf('LFP: resampling to %g Hz', opts.LFP_Fs));
-        LFP = resampleColumns(AMPSIG, rates.LFP, k);
+        lfpReady = ~isempty(lfpDone);   % derived, filter included, before the reference from this same data
+        if lfpReady
+            LFP = lfpDone;
+            lfpDone = single([]);
+        else
+            LFP = resampleColumns(AMPSIG, rates.LFP, k);
+        end
         if lfpFilter
             nDone = reportProgress(progressFcn, nDone, nSteps, ...
                 "LFP: " + describeLFPFilter(opts));
-            LFP = filterLFP(LFP, opts);
+            if ~lfpReady
+                LFP = filterLFP(LFP, opts);
+            end
         end
     end
     if any(types == "MUA")
@@ -565,7 +704,7 @@ clear AMPSIG
 % --- interpolate bad channels, after processing, before remap ---
 bad = struct('columns', zeros(1, 0), 'channels', zeros(1, 0), ...
     'method', strings(1, 0), 'weights', zeros(nCol, 0));
-if ~isempty(opts.badChannels)
+if badRequested
     layout = obj.channelLayout(ProbeFile=opts.probeFile);
     if layout.hasProbe
         how = 'probe geometry';
@@ -574,16 +713,13 @@ if ~isempty(opts.badChannels)
     end
     nDone = reportProgress(progressFcn, nDone, nSteps, ...
         sprintf('Interpolating bad channels (%s)', how));
-    if autoBad
-        r = rms(LFP, 1);
-        zr = abs(zscore(r));
-        opts.badChannels = find(zr > abs(opts.badChannels));
-        if ~isempty(opts.badChannels)
-            checkBadChannels(opts.badChannels, nCol);
-        end
+    if autoBad   % no reference: the detection waited for the finished LFP
+        opts.badChannels = autoBadColumns(LFP, abs(opts.badChannels), nCol);
     end
     if ~isempty(opts.badChannels) && (has.LFP || has.MUA || has.SPIKE)   % not for AUX alone
-        [W, method] = badChannelWeights(layout, keep, opts.badChannels);
+        % The channels the dataset leaves out and the columns keep are no donors either.
+        notDonors = find(ismember(keep, obj.excludedChannels()));
+        [W, method] = badChannelWeights(layout, keep, opts.badChannels, notDonors);
         if any(method == "columns")
             if layout.hasProbe
                 why = 'they are off the probe or have no good site on their shank';
@@ -595,9 +731,9 @@ if ~isempty(opts.badChannels)
                  'columns (fillmissing makima), not from the probe geometry: %s.'], ...
                 obj.Name, mat2str(opts.badChannels(method == "columns")), why);
         end
-        LFP   = fillBadChannels(LFP, opts.badChannels, W, method);
-        MUA   = fillBadChannels(MUA, opts.badChannels, W, method);
-        SPIKE = fillBadChannels(SPIKE, opts.badChannels, W, method);
+        LFP   = fillBadChannels(LFP, opts.badChannels, W, method, notDonors);
+        MUA   = fillBadChannels(MUA, opts.badChannels, W, method, notDonors);
+        SPIKE = fillBadChannels(SPIKE, opts.badChannels, W, method, notDonors);
         bad = struct('columns', opts.badChannels, 'channels', keep(opts.badChannels), ...
             'method', method, 'weights', W);
     end
@@ -631,6 +767,7 @@ info.invertedLines   = invertedApplied;   % digital lines whose events are low r
 info.badChannels     = bad;               % what was interpolated, and how
 info.reference       = ref;               % the common reference, and the signals it was subtracted from
 info.artifacts       = art;               % what was erased before deriving
+info.lineNoise       = lineInfo;          % the mains removal, when it ran
 if has.LFP
     info.LFP.Fs       = opts.LFP_Fs;
     info.LFP.bpLoHi   = opts.LFP_bpLoHi;
@@ -721,17 +858,195 @@ labels = cellstr(names);
 end
 
 
-function R = referenceRows(obj, X, mode)
+function R = referenceRows(obj, X, mode, exclude)
 %referenceRows  The common reference of X (referenceTrace, "car" | "cmr"),
 %   [nRows x 1] in X's class, a block of rows at a time: each sample is
 %   referenced on its own, so the result is the same as for the whole
-%   matrix at once, with a bounded copy.
+%   matrix at once, with a bounded copy. EXCLUDE: recording channels left
+%   out of it besides the dataset's own.
 nRows = size(X, 1);
 R = zeros(nRows, 1, 'like', X);
 blk = max(1, floor(2^24 / max(1, size(X, 2))));   % about 16M samples per block
 for r0 = 1:blk:nRows
     r = r0:min(nRows, r0 + blk - 1);
-    R(r) = obj.referenceTrace(X(r, :), Mode=mode);
+    R(r) = obj.referenceTrace(X(r, :), Mode=mode, Exclude=exclude);
+end
+end
+
+
+function [args, ln] = lineNoiseArguments(ln)
+%lineNoiseArguments  The lineNoise option as removeLineNoise name-value pairs
+%   (none when it is not Enabled), and the option with its defaults filled.
+known = ["Enabled" "Hz" "Harmonics" "WindowSec" "MaxDeviationHz" "Tracking" ...
+    "SmoothWindows" "PerChannel" "Gate" "MinSNR"];
+extra = setdiff(string(fieldnames(ln)).', known);
+if ~isempty(extra)
+    error('EphysDataset:deriveSignals:lineNoise', ...
+        'Unknown lineNoise field(s): %s. Use any of %s.', strjoin(extra, ', '), strjoin(known, ', '));
+end
+out = struct('Enabled', false, 'Hz', 60, 'Harmonics', 1:3);
+for f = string(fieldnames(ln)).'
+    out.(f) = ln.(f);
+end
+if ~(isscalar(out.Enabled) && (islogical(out.Enabled) || isnumeric(out.Enabled)))
+    error('EphysDataset:deriveSignals:lineNoise', 'lineNoise.Enabled must be true or false.');
+end
+out.Enabled = logical(out.Enabled);
+if ~(isnumeric(out.Hz) && isscalar(out.Hz) && isfinite(out.Hz) && out.Hz > 0)
+    error('EphysDataset:deriveSignals:lineNoise', 'lineNoise.Hz must be a positive number of Hz.');
+end
+args = {};
+if out.Enabled
+    args = {'LineHz', out.Hz, 'Harmonics', out.Harmonics};
+    for f = ["WindowSec" "MaxDeviationHz" "Tracking" "SmoothWindows" "PerChannel" "Gate" "MinSNR"]
+        if isfield(out, f)
+            args = [args, {char(f), out.(f)}]; %#ok<AGROW>
+        end
+    end
+end
+ln = out;
+end
+
+
+function checkMemory(obj, opts, has, refMode, passes, readKeep, nKept, artifacts, limit, wcarOpt)
+%checkMemory  Error when the recording and the working copies would not fit.
+%   The peak of the three phases is estimated from the header before the
+%   read: the read (the single-precision recording, twice for a reader that
+%   joins its files' cells), the reference (the recording, the kept columns
+%   copied out of it and the reference trace) and the passes (the kept
+%   columns, the derived signals, the samples kept for the weighted CAR, one
+%   block of columns in double with its working copies, the weighted CAR's
+%   gains). It is compared with LIMIT bytes, else 80% of MATLAB's largest
+%   possible array (the MEMORY function, Windows only; no check elsewhere).
+S = obj.NumSamples;
+Fs = obj.Fs;
+nCh = obj.NumChannels;
+if ~(isfinite(S) && isfinite(Fs) && isfinite(nCh) && S > 0 && nCh > 0)
+    return
+end
+source = "memoryLimit";
+if isnan(limit)
+    if ~ispc || ~exist('memory', 'file')
+        return
+    end
+    try
+        m = memory;
+        limit = 0.8 * m.MaxPossibleArrayBytes;
+    catch
+        return
+    end
+    source = "80% of the largest array MATLAB can make";
+end
+nRead = nCh;
+if refMode == "none" && ~isempty(readKeep)
+    nRead = numel(readKeep);
+end
+nCol = nKept;
+if ~isfinite(nCol); nCol = nCh; end
+rates = signalRates(opts, has, Fs);
+rec = 4 * S * nRead;                                   % the recording, single
+readPeak = rec * (1 + (obj.RecordingFormat == "traditional"));
+refPeak = 0;
+if refMode ~= "none"
+    refPeak = rec + 4 * S * nCol * (nCol ~= nRead) + 4 * S;   % + the kept columns and the trace
+end
+amp = 4 * S * nCol;                                    % the kept columns
+outputs = 0;
+if has.LFP;   outputs = outputs + amp * rates.LFP.Fs / Fs;   end
+if has.MUA;   outputs = outputs + amp * rates.MUA.Fs / Fs;   end
+if has.SPIKE
+    if rates.SPIKE.p ~= rates.SPIKE.q
+        outputs = outputs + amp * rates.SPIKE.Fs / Fs;
+    elseif numel(passes) > 1 && any(passes(1).types == "SPIKE")
+        outputs = outputs + amp;                       % a copy: the next pass needs the data
+    end
+end
+kept = 0;                                              % the samples the weighted CAR gets back
+if refMode == "wcar" && numel(passes) > 1 && ~isempty(artifacts)
+    rows = EphysDataset.artifactSamples(artifacts, Fs, S);
+    if ~isempty(rows)
+        kept = 4 * nCol * sum(rows(:, 2) - rows(:, 1) + 1);
+    end
+end
+block = 3 * 8 * S * blockColumns(nCol);                % double working copies of one block
+wcar = 0;
+if refMode == "wcar"
+    wcar = 8 * S * (wcarOpt.Order + 4);                % gains, high-passed trace, a column in double
+end
+passPeak = amp + outputs + kept + block + wcar + 4 * S * (refMode ~= "none");
+need = max([readPeak, refPeak, passPeak]);
+if need <= limit
+    return
+end
+gb = @(b) b / 2^30;
+error('EphysDataset:deriveSignals:Memory', ...
+    ['Deriving the signals of %s needs about %.1f GB (%d samples x %d channel(s) read, %d kept, held as single ' ...
+     'with the derived signals and working copies), more than the %.1f GB allowed (%s). ' ...
+     'Remedy: derive fewer channels (keepAmpChannels) or fewer signal types, split the recording, ' ...
+     'or use a machine with more memory; the sorting .bin and spike detection read it in chunks and need none.'], ...
+    obj.Name, gb(need), S, nRead, nCol, gb(limit), source);
+end
+
+
+function lfp = lfpColumns(X, cols, runs, w, skip, rate, opts, lfpFilter, k)
+%lfpColumns  The LFP of columns COLS of X as the passes derive it: the
+%   artifact periods erased (a line fill on a copy of K columns at a time, so
+%   X is not changed), resampled, filtered. Used to find the bad channels
+%   before the reference is taken; the same values the pass would give.
+nCol = numel(cols);
+lfp = single([]);
+h = [];
+for c0 = 1:k:nCol
+    cc = c0:min(nCol, c0 + k - 1);
+    B = X(:, cols(cc));
+    if ~isempty(runs)
+        B = bridgeRuns(B, runs(:, 1), runs(:, 2), [], zeros(1, numel(cc), 'like', B), [], w, skip);
+    end
+    [y, h] = resampleBlock(B, rate, h);
+    if c0 == 1
+        lfp = zeros(size(y, 1), nCol, 'like', y);
+    end
+    lfp(:, cc) = y;
+end
+if lfpFilter
+    lfp = filterLFP(lfp, opts);
+end
+end
+
+
+function bad = autoBadColumns(LFP, thr, nCol)
+%autoBadColumns  The columns whose LFP rms is a robust z above THR.
+%   A robust z (|rms - median| / (1.4826 * MAD) across the channels): with
+%   mean and SD the outlier itself inflates the SD, and |z| cannot exceed
+%   (n-1)/sqrt(n) (2.5 on 8 channels), so a threshold of 3 could never flag a
+%   channel on a small probe.
+r = rms(LFP, 1);
+s = 1.4826 * mad(r, 1);
+if s > 0
+    zr = abs(r - median(r)) / s;
+else
+    zr = zeros(size(r));
+end
+bad = find(zr > thr);
+if ~isempty(bad)
+    checkBadChannels(bad, nCol);
+end
+end
+
+
+function saved = takeRuns(X, runs)
+%takeRuns  The rows of X inside the runs (rows [first last]), one cell per run.
+saved = cell(size(runs, 1), 1);
+for j = 1:size(runs, 1)
+    saved{j} = X(runs(j, 1):runs(j, 2), :);
+end
+end
+
+
+function X = putRuns(X, runs, saved)
+%putRuns  Put the rows kept by takeRuns back (X is changed in place).
+for j = 1:size(runs, 1)
+    X(runs(j, 1):runs(j, 2), :) = saved{j};
 end
 end
 
@@ -778,12 +1093,18 @@ function q = wcarAutoQ(obj, X, R, ch, hpHz, Fs)
 nS = size(X, 1);
 rows = 1:max(1, ceil(nS / 2^22)):nS;
 v = zeros(1, numel(ch));
-for j = 1:numel(ch)
-    x = double(X(:, ch(j))) - double(R);
+% Several channels at a time (the filter runs on several threads from 8
+% columns), as many as fit in about 256 MB of double.
+nBlk = min(8, max(1, floor(2^28 / (8 * nS))));
+for j0 = 1:nBlk:numel(ch)
+    jj = j0:min(numel(ch), j0 + nBlk - 1);
+    x = double(X(:, ch(jj))) - double(R);
     if hpHz > 0
         x = obj.filterContinuous(x, Type="highpass", Cutoff=hpHz, Fs=Fs);
     end
-    v(j) = (1.4826 * mad(x(rows), 1))^2;
+    for i = 1:numel(jj)
+        v(jj(i)) = (1.4826 * mad(x(rows, i), 1))^2;
+    end
 end
 q = median(v);
 if ~(q > 0)
@@ -909,12 +1230,12 @@ end
 function k = blockColumns(nCol)
 %blockColumns  How many columns are resampled / filtered together. FILTER
 %   runs on several threads from about 8 columns, which makes the MUA and
-%   spike-band filtering several times faster; from 64 channels up the
-%   double-precision working copies of 8 columns stay within about the size
-%   of the single-precision recording, so smaller recordings go one column
-%   at a time.
+%   spike-band filtering several times faster; from 16 channels up the
+%   double-precision working copies of 8 columns (8 x 8 bytes a sample) stay
+%   within about the size of the single-precision recording (4 bytes x 16
+%   channels), so smaller recordings go one column at a time.
 k = 1;
-if nCol >= 64
+if nCol >= 16
     k = 8;
 end
 end
@@ -1068,7 +1389,7 @@ error('EphysDataset:deriveSignals:ResampleRatio', ...
 end
 
 
-function [W, method] = badChannelWeights(layout, keep, bad)
+function [W, method] = badChannelWeights(layout, keep, bad, notDonors)
 %badChannelWeights  Interpolation weights of the bad columns from the probe.
 %   Column c is recording channel keep(c), placed by the probe layout
 %   (EphysDataset.channelLayout). Column j of W holds bad column bad(j)'s
@@ -1076,7 +1397,8 @@ function [W, method] = badChannelWeights(layout, keep, bad)
 %   shank nearest to it (and any as near as the last of those), each
 %   1/distance, normalized to sum to 1. METHOD(j) is "geometry" for those,
 %   and "columns" (weights all zero) for a bad column off the probe or with
-%   no good site on its shank.
+%   no good site on its shank. The columns NOTDONORS (channels the dataset
+%   leaves out that the columns keep) are not good sites either.
 NearestSites = 4;
 nCol = numel(keep);
 x = NaN(1, nCol);
@@ -1088,6 +1410,7 @@ y(on) = layout.y(keep(on));
 shank(on) = layout.shank(keep(on));
 good = isfinite(x) & isfinite(y) & isfinite(shank);
 good(bad) = false;
+good(notDonors) = false;
 W = zeros(nCol, numel(bad));
 method = repmat("columns", 1, numel(bad));
 for j = 1:numel(bad)
@@ -1111,12 +1434,12 @@ end
 end
 
 
-function X = fillBadChannels(X, bad, W, method)
+function X = fillBadChannels(X, bad, W, method, notDonors)
 %fillBadChannels  Replace the bad columns of X: from the probe geometry
 %   (X(:, good) * weights) or, for the "columns" method, by FILLMISSING
-%   makima across the columns with every bad column missing. FILLMISSING
-%   works row by row, so it runs on blocks of rows (the same result as on the
-%   whole matrix, with a bounded copy).
+%   makima across the columns with every bad column, and the NOTDONORS
+%   columns, missing. FILLMISSING works row by row, so it runs on blocks of
+%   rows (the same result as on the whole matrix, with a bounded copy).
 if isempty(X)
     return
 end
@@ -1126,7 +1449,7 @@ if any(col)
     for r0 = 1:nRow:size(X, 1)
         r = r0:min(size(X, 1), r0 + nRow - 1);
         B = X(r, :);
-        B(:, bad) = NaN;
+        B(:, [bad notDonors]) = NaN;
         B = fillmissing(B, 'makima', 2);
         X(r, bad(col)) = B(:, bad(col));
     end

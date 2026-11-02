@@ -16,8 +16,10 @@ function runSignals(obj, opts)
 %   signal is derived and recorded in every file (info.artifacts). Output:
 %   <Signals.OutputDir or output folder>/
 %   <Name><Suffix>.mat, or <Name><Suffix>_<TYPE>.mat per signal type when
-%   Signals.SeparateFiles, skipped when any exists unless Signals.Overwrite.
-%   One result row per output file.
+%   Signals.SeparateFiles, skipped when any exists unless Signals.Overwrite,
+%   or Signals.OverwriteStale and the files were made with other options
+%   than the config's now (existingOutput). A dataset another session works
+%   on (RunLock) is skipped. One result row per output file.
 %
 %   Options: Datasets (indices), DryRun (log only).
 
@@ -44,9 +46,18 @@ for k = 1:n
         addRows("skipped", "no recording files");
         continue
     end
-    if any(isfile(out)) && ~G.Overwrite
-        addRows("skipped", "output exists (Overwrite is off)");
+    busy = obj.inUse(d);
+    if busy ~= ""
+        addRows("skipped", busy);
         continue
+    end
+    overwrite = G.Overwrite;
+    if any(isfile(out))
+        [overwrite, ~, kept] = obj.existingOutput("signals", d, G.Overwrite, G.OverwriteStale);
+        if ~overwrite
+            addRows("skipped", kept);
+            continue
+        end
     end
     try
         d.prepareBadChannels();   % settled before the channels are picked
@@ -80,7 +91,7 @@ for k = 1:n
         cb = @(done, total, msg) obj.progress("signals", d.Name, k, n, lo + (1 - lo) * done / max(total, 1), 1, msg);
         r = d.toMat(File=obj.outputPathFor("signals:base", d), SeparateFiles=G.SeparateFiles, ...
             SignalOptions=sigOpts, MatVersion=G.MatVersion, ...
-            Overwrite=G.Overwrite, ProgressFcn=cb, Provenance=obj.provenance());
+            Overwrite=overwrite, ProgressFcn=cb, Provenance=obj.provenanceFor("signals", d));
         d.writeManifest();   % its processing block: how the signals were made
         if any(sigOpts.dataTypeOut == "AUX") && ~any(contains(r.types, "AUX"))
             obj.log("[signals] %s: no aux (accelerometer) inputs recorded; AUX not written", d.Name);

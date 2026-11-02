@@ -44,6 +44,26 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
    artifact periods erased again between the referenced levels (step 2
    depends only on the samples outside the periods, so the second fill is
    the referenced recording's own).
+   Before the read, the dataset's bad channels are settled whatever the
+   reference (`prepareBadChannels`) and the memory the read needs is
+   estimated: samples × channels × 4 bytes times the copies held at the peak
+   (the recording, the kept columns, the derived signals, one block of
+   columns in double, the weighted CAR's gains). When it exceeds the
+   `memoryLimit` option, by default 80% of MATLAB's largest possible array
+   (the `memory` function; Windows only), `EphysDataset:deriveSignals:Memory`
+   says what it is and what to do (fewer channels or signal types, a shorter
+   recording, more memory) instead of the machine running out after the long
+   read. A NaN or Inf sample after the read is an error
+   (`EphysDataset:deriveSignals:NonFinite`): no reader produces one, so the
+   file is broken.
+   With `lineNoise.Enabled`, mains interference is removed first
+   (`removeLineNoise`, the artifact periods left out of its fits), so every
+   signal and the reference itself derive from the cleaned recording.
+   With a reference, the channels the Signals step lists bad (`badChannels`,
+   as columns, or found by the automatic detection, which then runs first on
+   the LFP as recorded with the artifact periods erased) are left out of the
+   reference; the dataset's `excludedChannels` that the columns keep are not
+   donors of any interpolation either.
    With `ArtifactConfig.Reference` `"wcar"`, or `referenceMethod =
    "weighted"`, the referenced signals take the
    [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car)
@@ -52,14 +72,20 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
    computed the same way (the `ReferenceExclude` suggestion runs as for
    `"car"`), the automatic `Q` over the reference channels before the kept
    ones are picked, and each kept column is replaced, in place, by itself
-   minus its own Kalman-tracked share of the CAR.
+   minus its own Kalman-tracked share of the CAR. The weights are tracked
+   through the recording as recorded, the artifact periods included: when the
+   signals taken as recorded are derived (and their periods erased) first,
+   the samples of the periods are kept and put back before the weighted CAR.
 2. **Artifact periods**, if given (`artifactIntervals`, merged): the samples
    each period covers (`EphysDataset.artifactSamples`: 0-based
    `round(t0·Fs)` .. `round(t1·Fs) − 1`, the samples the `.bin` and spike
    rejection take) are replaced in the amplifier data, per channel, by a
-   straight line from the mean of the 1 ms before the period to the mean of
-   the 1 ms after it (a period at an end of the recording is held at the level
-   on its other side). LFP, MUA and SPIKE all derive from the filled data, so
+   straight line from the mean of 1 ms before the period to the mean of
+   1 ms after it (a period at an end of the recording is held at the level
+   on its other side). Those 1 ms are taken beyond a guard of 1 ms less the
+   padding the detection added (`ArtifactConfig.PadMs`; none when that is
+   1 ms or more), so the levels do not sit on the skirt of the artifact.
+   LFP, MUA and SPIKE all derive from the filled data, so
    no filter or resampler spreads an artifact past its period: a 20 mV, 50 ms
    artifact otherwise leaves about 770 µV in a 1 Hz high-passed LFP 0.3 s
    away and 120–150 µV in MUA / SPIKE 5 ms away; filled, under 0.1 µV. AUX and
@@ -83,7 +109,7 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
    The MUA and SPIKE bandpasses run in double through
    `EphysDataset.filterContinuous` (stable second-order sections at low
    cut-offs, the exact and faster transfer function otherwise), one channel at
-   a time (8 at a time from 64 channels up), into single outputs.
+   a time (8 at a time from 16 channels up), into single outputs.
 6. **Bad channels**, if given: the listed **columns** (after `keepAmpChannels`,
    before `channelRemap`: column c is recording channel `keepAmpChannels(c)`)
    are replaced in every signal by the 1/distance-weighted mean of the 4
@@ -99,10 +125,14 @@ out = ds.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "SPIKE"]));
      column count, and not every column.
    - `info.badChannels` records the columns, their recording channels, the
      method per column (`"geometry"` or `"columns"`) and the weights.
-   - A negative scalar `badChannels = -z` auto-flags channels with
-     `abs(zscore(rms(Y.LFP))) > z`, computed on the LFP after any LFP filtering.
-     This requires `"LFP"` and uses `zscore`, from the Statistics and Machine
-     Learning Toolbox.
+   - A negative scalar `badChannels = -z` auto-flags channels whose LFP rms is
+     a robust z above `z`: `|rms − median| / (1.4826 · MAD)` across the
+     channels (median and `mad`, so a broken channel does not inflate the
+     spread it is measured against), computed on the LFP after any LFP
+     filtering. This requires `"LFP"` and uses `mad`, from the Statistics and
+     Machine Learning Toolbox. With a common reference the detection runs
+     before it, on the LFP as recorded, so the flagged channels are left out
+     of the reference.
 7. **Remap**, if given: `channelRemap` reorders the columns of every signal (a
    permutation of all of them in place), and `info.labels` is reordered to
    match.
@@ -141,6 +171,8 @@ the rate actually produced is the one reported in `info.<type>.Fs` and
 | `referenceMethod` | `"common"` | `"common"`: the referenced signals take the dataset's common reference, as above (for `ArtifactConfig.Reference` `"wcar"`, the weighted CAR). `"weighted"`: the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car) (`weightedCAR`; Khorasani, Shalchyan & Daliri 2019, *Front. Neurosci.* 13:350) instead, even with `ArtifactConfig.Reference` `"none"`. Reported as `info.reference.mode` `"wcar"`, with `info.reference.wcar` |
 | `wcarOptions` | `struct()` | `weightedCAR`'s options for the weighted CAR, over the dataset's `ArtifactConfig.ReferenceWCAR` (whose defaults are weightedCAR's): any of `Order` (1), `Alpha1k` (1), `DriftPerSec` (1), `Q` (`NaN` = automatic: the median over the reference channels of the robust variance `(1.4826·MAD)²` of the high-passed plain-CAR residual), `HighpassHz` (0.5), `Estimate` (`"prior"` or `"posterior"`), `W0` (1) and `P0` (1). An unknown field is an error (`EphysDataset:deriveSignals:wcarOptions`); the values are checked against the header rate before the read |
 | `artifactIntervals` | `zeros(0,2)` | `[k x 2]` artifact periods, `[tStart tEnd)` seconds from the recording start (half-open, as `EphysDataset.artifactIntervals` gives them), erased before any signal is derived (step 2). Reported in `info.artifacts`, not stored in `info.importOptions` |
+| `lineNoise` | `struct()` | mains interference removed before the reference and every signal (`removeLineNoise`; the artifact periods are left out of its fits). Fields, all optional: `Enabled` (`false`), `Hz` (60), `Harmonics` (`1:3`) and `removeLineNoise`'s `WindowSec`, `MaxDeviationHz`, `Tracking`, `SmoothWindows`, `PerChannel`, `Gate`, `MinSNR`. An unknown field is an error (`EphysDataset:deriveSignals:lineNoise`). Reported in `info.lineNoise` and `info.importOptions.lineNoise`. Not wired to the pipeline's Signals config yet: pass it in `SignalOptions` |
+| `memoryLimit` | `NaN` | bytes the read may need; `NaN` = 80% of MATLAB's largest possible array (Windows only; no check elsewhere). Not stored in `info.importOptions` |
 | `ProgressFcn` | `[]` | `ProgressFcn(nDone, nTotal, message)`: one step per file read, one per processing stage (erasing the artifact periods is one), then `(nTotal, nTotal, "Done")`. It may throw to abort. Not stored in `info` |
 
 All options are validated before any data is read. Band edges are checked
@@ -177,9 +209,10 @@ base. Onset/offset times are (1-based sample index)/Fs; see
 | `labels` | amplifier labels in `Y` column order |
 | `origFs` | amplifier sample rate |
 | `invertedLines` | the digital lines whose events are low runs |
-| `reference` | the common reference: `mode` (`"none"`, `"car"`, `"cmr"` or `"wcar"`), `channels` (the recording channels it was taken over) and `signals` (the derived signals it was subtracted from); `mode` is `"none"` when it was subtracted from none. With `"wcar"` also `wcar`: `weightedCAR`'s `info` (`Fs`, `Order`, `Alpha1k`, `DriftPerSec`, `Q` as used, `HighpassHz`, `Estimate`, `W0`, `P0`, `alpha` and `V` per sample, `weights` with `p5` / `median` / `p95` / `final` per column) and `QAuto` |
+| `reference` | the common reference: `mode` (`"none"`, `"car"`, `"cmr"` or `"wcar"`), `channels` (the recording channels it was taken over, without the dataset's excluded channels and the columns the Signals step lists bad) and `signals` (the derived signals it was subtracted from); `mode` is `"none"` when it was subtracted from none. With `"wcar"` also `wcar`: `weightedCAR`'s `info` (`Fs`, `Order`, `Alpha1k`, `DriftPerSec`, `Q` as used, `HighpassHz`, `Estimate`, `W0`, `P0`, `alpha` and `V` per sample, `weights` with `p5` / `median` / `p95` / `final` per column) and `QAuto` |
 | `badChannels` | what was interpolated, and how: `columns` (before `channelRemap`), `channels` (their recording channels), `method` per column (`"geometry"` or `"columns"`) and `weights` (`[nKept x nBad]`, each geometry column's weights over the kept columns) |
 | `artifacts` | what was erased before any signal was derived: `intervals` (`[k x 2]` `[tStart tEnd)` seconds on the continuous clock, merged; `zeros(0,2)` for none), `fill` (`"line"`) and `nSamples` (recording samples replaced). They hold for every signal and rate: on a signal at `Fs` (row r at `(r−1)/Fs`) a period touches the rows `EphysDataset.intervalRows(intervals, Fs, nRows)` gives |
+| `lineNoise` | `Enabled`; when on, `removeLineNoise`'s settings as run (`LineHz`, `Harmonics`, `WindowSec`, `MaxDeviationHz`, `Tracking`, `Gate`, `MinSNR`) with `medianFrequencyHz` and `medianSNRdB` |
 | `LFP` | `Fs`, `bpLoHi`, `NotchHz`, `NotchBW`, `filter` (text description of the filters applied), `nSamples`, `reference` |
 | `MUA` | `Fs`, `IntegrationHz`, `bpLoHi`, `nSamples`, `reference` |
 | `SPIKE` | `Fs`, `nSamples`, `reference` (each: the common reference subtracted from that signal, `"none"`, `"car"`, `"cmr"` or `"wcar"`) |
@@ -200,12 +233,18 @@ time vectors).
   single-precision recording plus the derived signals plus the
   double-precision working copies of one block of channels (at most about the
   recording again); measured, about 1.7x the single-precision recording with
-  16 channels and 2.3x with 64, not counting the read.
+  16 channels and 2.3x with 64, not counting the read. The whole recording is
+  held (64 channels at 30 kHz for an hour is 28 GB as single), so the need is
+  estimated from the header before the read (`memoryLimit`,
+  `EphysDataset:deriveSignals:Memory`); the streamed steps (the sorting
+  `.bin`, spike detection) read in chunks and have no such limit.
 - Requires the Signal Processing Toolbox (`butter`, `filtfilt`, `resample`,
   `zp2sos`, `sos2tf`). Auto bad-channel detection
-  needs `zscore`, and the weighted CAR `mad` and `prctile` (Statistics and
-  Machine Learning Toolbox).
-- The weighted CAR works in place, one column at a time in double; its gains
-  (`[Order x nSamples]` double) are held whole.
+  needs `mad`, and the weighted CAR `mad` and `prctile` (Statistics and
+  Machine Learning Toolbox). The weighted CAR runs its columns on a thread
+  pool (`parfor` over the background pool) when the Parallel Computing
+  Toolbox is there and the recording is large.
+- The weighted CAR works in place, a column at a time in double (a few at a
+  time on threads); its gains (`[Order x nSamples]` double) are held whole.
 - `intan2matlab`'s console progress bar uses
   [`compute/parfor_progress.m`](../vendor/compute/parfor_progress.m).

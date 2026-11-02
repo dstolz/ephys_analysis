@@ -16,12 +16,22 @@ function r = referenceTrace(obj, X, opts)
 %   (EphysDataset:applyReference:Positional): read it with readChunkUV or
 %   readWindowUV.
 %
+%   R = ds.referenceTrace(X, Exclude=CH) also leaves the recording channels
+%   CH out of the reference (referenceChannels(Exclude=CH)): deriveSignals
+%   leaves out the channels it replaces by interpolation.
+%
+%   A reference channel beyond the columns of X is an error
+%   (EphysDataset:applyReference:BadChannels): X must hold all of the
+%   recording's amplifier channels, in recording order, as the channels
+%   would otherwise be dropped from the reference without a word.
+%
 %   See also EphysDataset.applyReference, EphysDataset.referenceChannels.
 
 arguments
     obj (1,1) EphysDataset
     X
     opts.Mode (1,1) string = ""   % "" = ArtifactConfig.Reference
+    opts.Exclude (1,:) double = double.empty(1, 0)
 end
 
 r = [];
@@ -38,11 +48,20 @@ if mode == "wcar"
          'with readChunkUV or readWindowUV, which take it from its state (prepareWCAR).'], obj.Name);
 end
 
-ch = obj.referenceChannels();
-ch = ch(ch <= size(X, 2));
+ch = obj.referenceChannels(Exclude=opts.Exclude);
+if any(ch > size(X, 2))
+    error('EphysDataset:applyReference:BadChannels', ...
+        ['The common reference of %s is taken over channel(s) %s, but the data has %d column(s); ' ...
+         'it must hold all %d of the recording''s amplifier channels, in recording order.'], ...
+        obj.Name, mat2str(ch(ch > size(X, 2))), size(X, 2), obj.NumChannels);
+end
 if isempty(ch)
     error('EphysDataset:applyReference:NoChannels', ...
         'Every channel of %s is left out of the common reference; include at least one.', obj.Name);
+elseif isscalar(ch)
+    error('EphysDataset:applyReference:TooFewChannels', ...
+        ['The common reference of %s is taken over channel %d alone, which would subtract that ' ...
+         'channel from itself (zeros) and mirror it onto the others; include at least two.'], obj.Name, ch);
 end
 
 switch mode

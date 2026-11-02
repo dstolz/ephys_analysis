@@ -18,8 +18,7 @@ function test_WeightedCAR()
 %        suggestion runs) or "cmr" (still the plain CAR), the automatic Q;
 %        Reference "wcar" with the dataset's ReferenceWCAR options
 %     7. the Reference section's Mode "wcar" and WCAR_* fields (defaults,
-%        artifactConfig, validate, save / load, a config saved with the
-%        Signals fields), the runSignals log / dry-run text, and the
+%        artifactConfig, validate, save / load), the runSignals log / dry-run text, and the
 %        spikes step's bar moving through the state's windows
 %     8. weightedCAR in pieces (Rows, Initial, StateRows, Output): the
 %        recursion of one run, piece by piece
@@ -29,7 +28,10 @@ function test_WeightedCAR()
 %        Estimate, the automatic Q of deriveSignals, applyReference
 %        refused, artifactIntervals, the .bin and its sidecar, do_CAR off
 %        in Kilosort4's settings and the reference in SpikeInterface's,
-%        the pipeline's artifact fingerprint
+%        the pipeline's artifact fingerprint; deriveSignals puts the samples
+%        of the artifact periods back before the weighted CAR when the signals
+%        taken as recorded were derived (and erased) first
+%    9b. the columns of a large Z on the thread pool (same output as one at a time)
 %    10. an informational timing (seconds per channel-hour at 30 kHz)
 %   Needs the Signal Processing and the Statistics and Machine Learning
 %   Toolboxes; no Intan files or Python.
@@ -278,22 +280,8 @@ cfg.save(cfgFile);
 cfg2 = EphysPipelineConfig.load(cfgFile);
 check(isequaln(cfg2.Reference, cfg.Reference) && isnan(cfg2.Reference.WCAR_Q) && cfg2.Reference.Mode == "wcar", ...
     'the fields survive a JSON save / load round trip (NaN Q included)');
-old = cfg.toStruct();
-old.Reference = rmfield(old.Reference, {'WCAR_Order', 'WCAR_Q'});
-old.Reference.Mode = "car";
-old.Signals.ReferenceMethod = "weighted";
-old.Signals.WCAR_Order = 3;
-old.Signals.WCAR_Q = 25;
-c3 = EphysPipelineConfig.fromStruct(old);
-check(c3.Reference.WCAR_Order == 3 && c3.Reference.WCAR_Q == 25 && c3.Reference.Mode == "car" ...
-    && ~isfield(c3.Signals, 'ReferenceMethod') && ~isfield(c3.Signals, 'WCAR_Order') ...
-    && isscalar(c3.LoadWarnings) && contains(c3.LoadWarnings, "Signals.ReferenceMethod") ...
-    && contains(c3.LoadWarnings, "Reference.Mode (""car"")"), ...
-    ['a config saved with the Signals fields: WCAR_* move to Reference; ReferenceMethod "weighted" is ' ...
-     'reported, not applied (Mode stays "car")']);
-old.Signals.ReferenceMethod = "common";
-c4 = EphysPipelineConfig.fromStruct(old);
-check(isempty(c4.LoadWarnings) && c4.Reference.WCAR_Order == 3, 'ReferenceMethod "common" is dropped without a word');
+% (A config saved with the retired Signals.WCAR_* / ReferenceMethod fields is no
+% longer migrated: file shapes change cleanly, the old fields are not read.)
 
 % runSignals: the dry-run text and the log
 proj = fullfile(root, 'proj');
@@ -458,19 +446,52 @@ SA = weightedCAR(X, mean(X(:, ch), 2), Fs=Fs, Q=stA.Q);
 aR.Enabled = true; aR.Method = "rms"; aR.Threshold = 9; aR.MinChannels = 2;
 dsR.ArtifactConfig = aR;
 iv = dsR.artifactIntervals(IncludeManual=false, MaxChunkSamples=round(17.3 * Fs));
-ivRef = zeros(0, 2);
-for i = 1:numel(plan)
-    rows = plan(i).sampleOffset + (1:plan(i).nSamples);
-    [~, ivc] = dsR.detectArtifacts(SA(rows, :), Method="rms", Threshold=9, MinChannels=2, Fs=Fs, ...
-        Channels=setdiff(1:nC, dsR.ExcludeChannels));
-    ivRef = [ivRef; ivc + plan(i).sampleOffset / Fs]; %#ok<AGROW>
-end
+% The chunks (17.3 s, off the checkpoint grid) are detected against the
+% recording's own baselines, so the periods are those of one detection over
+% the whole referenced recording.
+[~, ivRef] = dsR.detectArtifacts(SA, Method="rms", Threshold=9, MinChannels=2, Fs=Fs, ...
+    Channels=setdiff(1:nC, dsR.ExcludeChannels));
 ivRef = EphysDataset.mergeIntervals(ivRef);
 check(~isempty(iv) && isequal(size(iv), size(ivRef)) && max(abs(iv - ivRef), [], 'all') < 1e-9 ...
     && all(any(iv(:, 1) <= burst / Fs + 0.02 & iv(:, 2) >= burst / Fs, 1)), ...
     'artifactIntervals detects on the weighted-CAR referenced signal (both bursts found)');
 aR.Enabled = false;
 dsR.ArtifactConfig = aR;
+
+% deriveSignals with the artifact periods erased: the weighted CAR tracks the
+% recording as recorded, the periods included, whichever signals are derived
+% with it. A 10 ms artifact common to every channel (gains 0.5-1.5) on top of
+% the common noise: with the LFP as recorded derived first (its pass erases
+% the periods in place) the SPIKE band must still be the one the weighted CAR
+% alone gives, the period's aftermath included.
+rng(41);
+nW = 20 * Fs;
+comW = 40 * randn(nW, 1);
+XW = 8 * randn(nW, 4) + comW .* [0.5 0.8 1.2 1.5];
+pw = round(8.5 * Fs) + (1:round(0.01 * Fs));
+XW(pw, :) = XW(pw, :) + 4000 .* [0.5 0.8 1.2 1.5];                  % common to all, scaled like the noise
+dsW = EphysDataset(writeRecording(root, 'wcarfill', XW, Fs));
+dsW.ReferenceExclude = double.empty(1, 0); dsW.ReferenceExcludeSource = "manual";
+aW = dsW.ArtifactConfig; aW.Reference = "wcar"; aW.ReferenceWCAR.Q = 30; dsW.ArtifactConfig = aW;
+perW = [8.5 8.51];
+base = {'SPIKE_Fs', Inf, 'SPIKE_bpLoHi', [300 900], 'artifactIntervals', perW};
+[Ymw, ~, Imw] = dsW.deriveSignals('dataTypeOut', ["LFP" "SPIKE"], 'LFP_Fs', Fs, base{:});   % LFP as recorded first, then wcar
+[Ysw, ~, ~] = dsW.deriveSignals('dataTypeOut', "SPIKE", base{:});                           % wcar alone
+[Ylw, ~, ~] = dsW.deriveSignals('dataTypeOut', "LFP", 'LFP_Fs', Fs, 'artifactIntervals', perW);
+check(isequal(Ymw.SPIKE, Ysw.SPIKE) && isequal(Ymw.LFP, Ylw.LFP) && Imw.reference.mode == "wcar" ...
+    && Imw.SPIKE.reference == "wcar" && Imw.LFP.reference == "none", ...
+    ['wcar: the SPIKE band after the LFP''s pass erased the periods is the one the weighted CAR alone gives ' ...
+     '(the periods put back first, so no common noise is left after them)']);
+% The same without the fix would differ: the weights run on the filled data against the unfilled average.
+xW = single(XW);
+chW = dsW.referenceChannels();
+Rw = mean(xW(:, chW), 2);
+filled = bridgeFill(xW, pw);
+Sbad = weightedCAR(filled, Rw, Fs=Fs, Q=30);
+Sgood = weightedCAR(xW, Rw, Fs=Fs, Q=30);
+tail = pw(end) + (1:round(0.005 * Fs));
+check(max(abs(Sbad(tail, :) - Sgood(tail, :)), [], 'all') > 1, ...
+    'the fixture is sensitive: weights run on the filled data against the unfilled average leave residue in the 5 ms after the period');
 
 binFile = fullfile(dsR.OutputDir, 'wcar_sort.bin');
 wsClip = warning('off', 'EphysDataset:toBin:Clipping');
@@ -508,6 +529,20 @@ check(EphysPipeline.artifactFingerprint(acC, dsR) == EphysPipeline.artifactFinge
     && EphysPipeline.artifactFingerprint(acW, dsR) ~= EphysPipeline.artifactFingerprint(acW2, dsR) ...
     && ~contains(EphysPipeline.artifactFingerprint(acC, dsR), "ReferenceWCAR"), ...
     'the artifact cache: the WCAR options decide only the weighted CAR''s detections (other caches stay valid)');
+
+fprintf('\n== 9b. the columns on threads ==\n');
+% A large Z runs its columns on the background (thread) pool when the Parallel
+% Computing Toolbox is there: the same numbers as one column at a time.
+rng(51);
+nT = 1.3e6;
+Zt = single(10 * randn(nT, 4) + 30 * randn(nT, 1));
+nt = mean(Zt, 2);
+t0 = tic; [St, it] = weightedCAR(Zt, nt, Fs=20000, Q=100); tPar = toc(t0);
+t0 = tic; [Ss, is] = weightedCAR(Zt, nt, Fs=20000, Q=100, Threads=false); tSer = toc(t0);
+check(isequal(St, Ss) && isequal(it.weights, is.weights) && isequal(it.final, is.final), ...
+    sprintf('4 columns of 1.3M samples: the thread pool gives the same output and weights as one at a time (%.1f s vs %.1f s)', tPar, tSer));
+[Sn, ~] = weightedCAR(Zt, nt, Fs=20000, Q=100, Output=false);
+check(isequal(Sn, Zt), 'Output=false leaves Z as given, on threads too');
 
 fprintf('\n== 10. timing (informational) ==\n');
 Fs = 30000; nS = 60 * Fs; nC = 4;
@@ -566,6 +601,16 @@ function y = hp(x, cutHz, Fs)
 [z, p, k] = butter(4, cutHz / (Fs / 2), 'high');
 [sos, g] = zp2sos(z, p, k);
 y = filtfilt(sos, g, x);
+end
+
+
+function X = bridgeFill(X, rows)
+%bridgeFill  A line across the rows ROWS (contiguous) between the means of the 2 rows on either side.
+a = rows(1);
+b = rows(end);
+before = mean(X(a-2:a-1, :), 1);
+after = mean(X(b+1:b+2, :), 1);
+X(rows, :) = before + (after - before) .* ((1:numel(rows)).' / (numel(rows) + 1));
 end
 
 

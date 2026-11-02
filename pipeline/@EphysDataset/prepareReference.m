@@ -25,7 +25,10 @@ function tf = prepareReference(obj, opts)
 %
 %   A reference over fewer than MinReferenceChannels (5) channels warns: one
 %   large unit can then dominate the average and appear on every channel
-%   (Ludwig et al. 2009).
+%   (Ludwig et al. 2009). Over none it is an error
+%   (EphysDataset:applyReference:NoChannels), and over one too
+%   (:TooFewChannels): a channel referenced to itself is zeros, and it
+%   would be mirrored, inverted, onto every other.
 %
 %   It first settles the bad channels (prepareBadChannels), whatever the
 %   reference, so they are out of the reference and of every read's step.
@@ -68,6 +71,11 @@ n = numel(obj.referenceChannels());
 if n == 0
     error('EphysDataset:applyReference:NoChannels', ...
         'Every channel of %s is left out of the common reference; include at least one.', obj.Name);
+elseif n == 1
+    error('EphysDataset:applyReference:TooFewChannels', ...
+        ['The common reference of %s is taken over channel %d alone, which would subtract that ' ...
+         'channel from itself (zeros) and mirror it onto the others; include at least two.'], ...
+        obj.Name, obj.referenceChannels());
 elseif n < EphysDataset.MinReferenceChannels
     warning('EphysDataset:prepareReference:FewChannels', ...
         ['The common reference of %s is taken over %d channel(s); with fewer than %d ' ...

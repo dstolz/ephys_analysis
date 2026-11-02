@@ -29,7 +29,14 @@ function test_CommonReference()
 %        noise-floor rule on the first read, whatever the reference, saved
 %        in and restored from the manifest, and left out of the reference,
 %        spike detection, the signals and the artifact cache's fingerprint
-%   No Intan files, toolboxes or Python are needed.
+%    12. artifact detection does not depend on the chunking (recording-wide
+%        baselines, context beside each chunk, one stitch and pad over the
+%        whole list); under a reference the unreferenced common-mode test also
+%        finds a broad artifact the reference cancels; stitching and padding
+%        by runs equal the sample-by-sample rule; a reference over one channel,
+%        or beyond the data's columns, is refused (section 5)
+%   No Intan files or Python are needed (the derived signals need the Signal
+%   Processing Toolbox).
 %
 %   Usage:  test_CommonReference
 
@@ -159,7 +166,23 @@ catch ME
     errId = ME.identifier;
 end
 check(strcmp(errId, 'EphysDataset:applyReference:NoChannels'), 'a reference over no channel is an error');
+ds.ExcludeChannels = [1 2 4 5 7];       % channel 8 alone is left (3 and 6 are out of the reference)
+check(strcmp(errorId(@() ds.prepareReference()), 'EphysDataset:applyReference:TooFewChannels') ...
+    && strcmp(errorId(@() ds.readChunkUV(plan(1))), 'EphysDataset:applyReference:TooFewChannels'), ...
+    'a reference over one channel is an error (it would be zeros, and mirror that channel onto the rest)');
+ds.ExcludeChannels = [1 2 4 5];         % two channels: allowed, with the warning
+ws = warning('off', 'EphysDataset:prepareReference:FewChannels');
+ds.prepareReference();
+Rtwo = ds.readChunkUV(plan(1));
+warning(ws);
+check(isequal(ds.referenceChannels(), [7 8]) && max(abs(Rtwo(:, 7) + Rtwo(:, 8))) < 1e-9, ...
+    'over two channels the reference works (the two mirror each other)');
 ds.ExcludeChannels = double.empty(1, 0);
+check(strcmp(errorId(@() ds.referenceTrace(X(:, 1:6))), 'EphysDataset:applyReference:BadChannels'), ...
+    'a reference channel beyond the columns of X is an error, not dropped from the average');
+check(isequal(ds.referenceChannels(Exclude=[1 8]), [2 4 5 7]) ...
+    && max(abs(ds.referenceTrace(X, Exclude=[1 8]) - median(X(:, [2 4 5 7]), 2))) < 1e-9, ...   % CMR here
+    'referenceChannels / referenceTrace take Exclude: more channels left out of the average');
 
 fprintf('\n== 6. toBin ==\n');
 acfg.Reference = "car";
@@ -354,8 +377,9 @@ if license('test', 'Signal_Toolbox')
     [Ya, ~, ~] = dsS.deriveSignals(lfp{:}, refLFP{:}, artifactIntervals=art);
     rows = (round(art(1) * Fs) + 1):round(art(2) * Fs);
     w = round(1e-3 * Fs);
-    fillRef = mean(carS(rows(1)-w:rows(1)-1, :), 1) + (mean(carS(rows(end)+1:rows(end)+w, :), 1) ...
-        - mean(carS(rows(1)-w:rows(1)-1, :), 1)) .* ((1:numel(rows)).' / (numel(rows) + 1));
+    lvB = mean(carS(rows(1)-2*w:rows(1)-1-w, :), 1);   % the 1 ms means 1 ms beyond the period (the guard of an unpadded detection)
+    lvA = mean(carS(rows(end)+1+w:rows(end)+2*w, :), 1);
+    fillRef = lvB + (lvA - lvB) .* ((1:numel(rows)).' / (numel(rows) + 1));
     check(near(Ya.LFP(rows, :), fillRef), 'the artifact periods are erased after the reference, between the referenced levels');
     % Mixed: the LFP as recorded and the SPIKE band referenced, from one read.
     % Each is exactly what it is derived alone, the artifact periods included:
@@ -379,6 +403,13 @@ if license('test', 'Signal_Toolbox')
         errId = ME.identifier;
     end
     check(strcmp(errId, 'EphysDataset:deriveSignals:referenceSignals'), 'referenceSignals takes LFP / MUA / SPIKE only');
+    ws = warning('off', 'EphysDataset:deriveSignals:BadChannelGeometry');
+    [Yb2, ~, Ib2] = dsS.deriveSignals(lfp{:}, refLFP{:}, badChannels=2);   % column 2 listed bad: interpolated, no probe here
+    warning(ws);
+    good2 = setdiff(good, 2);
+    carB = xs - mean(xs(:, good2), 2);
+    check(isequal(Ib2.reference.channels, good2) && near(Yb2.LFP(:, [1 4 5 7 8]), carB(:, [1 4 5 7 8])), ...
+        'a channel the Signals step lists bad is out of the reference too (the others: minus the mean without it)');
     tm = dsS.toMat(File=fullfile(root, 'sig_out', 'sigref_extract.mat'), ...
         SignalOptions=struct('dataTypeOut', ["LFP" "MUA"], 'LFP_Fs', 1000), Overwrite=true);
     ps = dsS.Processing.signals;
@@ -394,7 +425,7 @@ if license('test', 'Signal_Toolbox')
     check(D.detected.reference.mode == "car" && isequal(D.detected.reference.channels, good) ...
         && pk.reference.channels == "1-2,4-5,7-8" && pk.channels == "1-2" && pk.options.ThresholdMethod == "mad" ...
         && isequal(pk.options.ChannelOrder, [1 2]) && pk.options.Fs == Fs && isequal(pk.options.Band, [500 5000]) ...
-        && pk.options.ArtifactMode == "reject" && isfinite(pk.threshold_input), ...
+        && pk.options.ArtifactMode == "erase" && isfinite(pk.threshold_input), ...
         'spikesToMat records the reference in the file (detected.reference) and every option it detected with (Processing.spikes)');
     aS.Reference = "cmr"; dsS.ArtifactConfig = aS;
     [Ym, ~, Im] = dsS.deriveSignals(lfp{:}, refLFP{:});
@@ -466,6 +497,101 @@ check(isempty(dsB.BadChannels) && dsB.BadChannelsSource == "suggested" ...
     && strcmp(wid, 'EphysDataset:prepareBadChannels:SuggestionNotApplied'), ...
     'a suggestion that leaves too few channels is not applied');
 
+fprintf('\n== 12. artifact detection does not depend on how the recording is cut ==\n');
+% Four 5 ms pulses (the second straddles the 4.0 s chunk boundary), 0.96 s of
+% stimulation noise that is 48% of the chunk (4, 6) -- its own median and MAD
+% would be those of a mixture -- and a 20 ms, 70 uV burst after it.
+rng(21);
+Xk = 8 * randn(12 * Fs, 8);
+pulses = [1.003 3.9985 7.4 9.1];
+for s = pulses
+    rr = round(s * Fs) + (1:100);
+    Xk(rr, :) = Xk(rr, :) + 3000 * (0.6 + 0.8 * (0:7) / 7);
+end
+stim = round(4.1 * Fs):round(5.06 * Fs);
+Xk(stim, :) = Xk(stim, :) + 25 * randn(numel(stim), 8);
+burst = round(5.5 * Fs) + (1:400);
+Xk(burst, :) = Xk(burst, :) + 70 * randn(numel(burst), 8);
+dsK = EphysDataset(writeRecording(root, 'cutrec', Xk, Fs));
+dsK.ArtifactConfig.Enabled = true;                 % rms, 9 robust SDs, MinChannels 2
+dsK.ArtifactConfig.MergeGapMs = 2;
+dsK.ArtifactConfig.PadMs = 3;
+cuts = [2 * Fs, round(2.7 * Fs), round(1.3 * Fs)];
+iv0 = dsK.artifactIntervals();
+sm0 = dsK.analyzeArtifacts();
+same = true; sameSm = true;
+for c = cuts
+    ivC = dsK.artifactIntervals(MaxChunkSamples=c);
+    smC = dsK.analyzeArtifacts(MaxChunkSamples=c);
+    same = same && isequal(size(ivC), size(iv0)) && max(abs(ivC - iv0), [], 'all') < 0.5 / Fs;
+    sameSm = sameSm && isequal(smC.intervals, ivC) && smC.nBlanked == sm0.nBlanked && smC.nIntervals == sm0.nIntervals ...
+        && isequal(smC.channelCounts, sm0.channelCounts) && smC.nSamples == sm0.nSamples;
+end
+inIv = @(a, b) any(iv0(:, 1) <= a & iv0(:, 2) >= b);
+check(~isempty(iv0) && same, ...
+    sprintf('artifactIntervals: the same %d periods whatever MaxChunkSamples is (one chunk, 2 s, 2.7 s and 1.3 s chunks)', size(iv0, 1)));
+check(sameSm && isequal(sm0.intervals, iv0) && sm0.nBlanked == sum(round(diff(iv0, 1, 2) * Fs)), ...
+    'analyzeArtifacts: the same summary and intervals (stitched and padded once) whatever the chunks');
+check(nnz(iv0(:, 1) < 4.0035 & iv0(:, 2) > 3.9985) == 1 && inIv(3.9985, 4.0035) && inIv(1.003, 1.008) && inIv(7.4, 7.405), ...
+    'a pulse across a chunk boundary is one period; the others are found');
+check(inIv(4.1, 5.06) && inIv(5.5, 5.52), ...
+    'the stimulation and the burst after it are found: the baselines are the recording''s, not the chunk''s that is half stimulation');
+% The chunk's own baselines (the old behavior, detectArtifacts on the chunk) miss them.
+Xc4 = Xk(4 * Fs + 1:6 * Fs, :);
+[~, ivOwn] = dsK.detectArtifacts(Xc4, Method="rms", Threshold=9, MinChannels=2, Fs=Fs);
+check(~any(ivOwn(:, 1) <= 1.5 + 0.005 & ivOwn(:, 2) >= 1.5 + 0.01), ...
+    'for comparison, the chunk''s own baselines miss the burst');
+dsK.ArtifactConfig.Filter = true;                  % 300 Hz high-pass, 4th order
+ivF0 = dsK.artifactIntervals();
+ivF1 = dsK.artifactIntervals(MaxChunkSamples=round(2.3 * Fs));
+check(~isempty(ivF0) && isequal(size(ivF0), size(ivF1)) && max(abs(ivF0 - ivF1), [], 'all') < 0.5 / Fs, ...
+    'on a filtered view too: the chunks are read with context, so the filter has no edge at their ends');
+dsK.ArtifactConfig.Filter = false;
+% detectArtifacts: stitching and padding by runs equal the sample-by-sample rule.
+rng(8);
+Xr = 8 * randn(40000, 3);
+for s = sort(randi(39000, 1, 25))
+    Xr(s + (0:randi(6)), randi(3)) = 100;
+end
+okRuns = true; nSeen = 0;
+for gapMs = [0 1 3]
+    for padMs = [0 0.5 4]
+        [mk, ivR] = dsK.detectArtifacts(Xr, Method="microvolts", Threshold=50, MinChannels=1, Fs=Fs, ...
+            MergeGapMs=gapMs, PadMs=padMs);
+        [mkRef, ivRef] = naiveStitchPad(any(abs(Xr) > 50, 2), round(gapMs * 1e-3 * Fs), round(padMs * 1e-3 * Fs), Fs);
+        okRuns = okRuns && isequal(mk, mkRef) && isequal(ivR, ivRef);
+        nSeen = nSeen + size(ivR, 1);
+    end
+end
+check(okRuns && nSeen > 0, ...
+    'detectArtifacts: runs stitched and padded O(runs) equal the sample-by-sample rule (gap and pad, clipped at the ends)');
+% Rows: a block with context scores only its own rows.
+[mkR, ivRows] = dsK.detectArtifacts(Xr, Method="microvolts", Threshold=50, MinChannels=1, Fs=Fs, Rows=[10001 20000]);
+[~, ivAll] = dsK.detectArtifacts(Xr, Method="microvolts", Threshold=50, MinChannels=1, Fs=Fs);
+clip = [max(ivAll(:, 1), 10000 / Fs), min(ivAll(:, 2), 20000 / Fs)];
+clip = clip(clip(:, 2) > clip(:, 1), :) - 10000 / Fs;
+check(numel(mkR) == 10000 && isequal(size(ivRows), size(clip)) && max(abs(ivRows - clip), [], 'all') < 1e-9, ...
+    'Rows: only those rows are scored and returned, the intervals counted from the first');
+
+% A broad artifact the common reference cancels is still found for the signals derived without it.
+rng(22);
+Xm = 8 * randn(4 * Fs, 8);
+Xm(2 * Fs + (1:2000), :) = Xm(2 * Fs + (1:2000), :) + 3000;   % the same on every channel
+dsM = EphysDataset(writeRecording(root, 'commonart', Xm, Fs));
+dsM.ReferenceExcludeSource = "manual";
+dsM.ArtifactConfig.Enabled = true;
+dsM.ArtifactConfig.Reference = "car";
+ivNo = dsM.artifactIntervals(CommonModeUnreferenced=false);
+ivYes = dsM.artifactIntervals();
+smYes = dsM.analyzeArtifacts();
+check(isempty(ivNo) && size(ivYes, 1) == 1 && abs(ivYes(1) - 2) < 1e-3 && abs(ivYes(2) - 2.1) < 1e-3 ...
+    && isequal(smYes.intervals, ivYes), ...
+    'under CAR the referenced signal has no artifact, but the unreferenced common-mode test finds it (the LFP is derived without the reference)');
+check(dsM.Processing.artifacts.options.CommonModeUnreferenced && dsM.Processing.artifacts.options.CommonModeThreshold == 1500, ...
+    'the detection record says the extra test ran');
+dsM.ArtifactConfig.Reference = "none";
+check(size(dsM.artifactIntervals(), 1) == 1, 'with no reference the same artifact is found by the main test, once');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_CommonReference:Failures', '%d checks failed.', nFail);
@@ -482,4 +608,42 @@ fwrite(fid, single(X.'), 'single');
 fclose(fid);
 BinaryReader.writeDescriptor(recDir, struct('data_file', string(name) + ".bin", 'dtype', "float32", ...
     'n_chan', size(X, 2), 'fs', Fs, 'gain_to_uV', 1, 'offset', 0));
+end
+
+
+function [m, iv] = naiveStitchPad(m, gap, pad, Fs)
+%naiveStitchPad  The sample-by-sample rule detectArtifacts follows: fill the
+%   clean gaps of at most GAP samples between flagged runs, then dilate by
+%   PAD samples (clipped at the ends); the mask and its half-open intervals.
+m = m(:);
+if gap > 0
+    d = diff([0; m; 0]);
+    on = find(d == 1);
+    off = find(d == -1) - 1;
+    for k = 1:numel(on) - 1
+        if on(k+1) - off(k) - 1 <= gap
+            m(off(k)+1:on(k+1)-1) = true;
+        end
+    end
+end
+if pad > 0 && any(m)
+    m = movsum(double(m), [pad pad]) > 0;
+end
+d = diff([0; m; 0]);
+on = find(d == 1);
+off = find(d == -1) - 1;
+iv = zeros(0, 2);
+if ~isempty(on)
+    iv = [on - 1, off] ./ Fs;
+end
+end
+
+
+function id = errorId(fcn)
+id = '';
+try
+    fcn();
+catch ME
+    id = ME.identifier;
+end
 end

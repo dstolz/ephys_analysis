@@ -75,6 +75,11 @@ function [Z, info] = weightedCAR(Z, n, opts)
 %                  rows whose prior state INFO.states holds.
 %     Output       true (default); false leaves Z as given (the state alone
 %                  is wanted), so Z is not copied.
+%     Threads      true (default): with the Parallel Computing Toolbox, the
+%                  columns run a few at a time on the background (thread)
+%                  pool when Z has at least 4M samples (they are independent
+%                  given the shared gain, so the numbers are those of one
+%                  at a time); false runs them one at a time.
 %   INFO.final is the prior state of the row after Rows(2), and
 %   INFO.states the prior states at StateRows, so one piece continues
 %   where the last left off (Initial = INFO.final) or any piece starts at
@@ -98,10 +103,12 @@ function [Z, info] = weightedCAR(Z, n, opts)
 %   each of StateRows).
 %
 %   Memory: the high-passed N and the gains ([Order x nSamples] double) are
-%   held whole; each column is worked on in double, one at a time.
+%   held whole; each column is worked on in double, one at a time (a few at a
+%   time on threads, see Threads, each with its own double copies).
 %
 %   Requires the Signal Processing Toolbox (BUTTER, ZP2SOS, FILTFILT) and
-%   the Statistics and Machine Learning Toolbox (PRCTILE).
+%   the Statistics and Machine Learning Toolbox (PRCTILE); the Parallel
+%   Computing Toolbox speeds up a large run (Threads) and is not needed.
 %
 %   See also EphysDataset.deriveSignals, EphysDataset.prepareWCAR,
 %   EphysDataset.referenceTrace, EphysDataset.applyReference.
@@ -122,6 +129,7 @@ arguments
     opts.Initial (1,1) struct = struct()
     opts.StateRows (1,:) double = []
     opts.Output (1,1) logical = true
+    opts.Threads (1,1) logical = true
 end
 
 [nS, nCol] = size(Z);
@@ -156,28 +164,40 @@ nSnap = floor(nR / snapEvery);
 wts = struct('p5', zeros(M, nCol), 'median', zeros(M, nCol), ...
     'p95', zeros(M, nCol), 'final', zeros(M, nCol));
 Wst = zeros(M, nCol, numel(st));
-for c = 1:nCol
-    z = double(Z(:, c));
-    zh = filterHP(z, hp);
-    z = z(r1:r2);
-    zh = zh(r1:r2);
-    if M == 1
-        [s, w, snaps, ws] = channelLag0(z, zh, nPad, K, kn, alpha, init.W(:, c), snapEvery, nSnap, st);
-    else
-        [s, w, snaps, ws] = channelLags(z, zh, nPad, K, kn, alpha, init.W(:, c), snapEvery, nSnap, st);
+% The columns are independent given the shared gain, so a thread pool takes
+% a few at a time (the same numbers as one at a time); only those columns
+% are copied, and Z is written in place from the results.
+pool = columnPool(nCol, nS, opts.Threads);
+nBatch = 1;
+if ~isempty(pool); nBatch = pool.NumWorkers; end
+for c0 = 1:nBatch:nCol
+    cc = c0:min(nCol, c0 + nBatch - 1);
+    res = cell(1, numel(cc));
+    if ~isempty(pool) && numel(cc) > 1
+        Zb = Z(:, cc);
+        Wb = init.W(:, cc);
+        try
+            parfor (j = 1:numel(cc), pool)
+                res{j} = runColumn(Zb(:, j), hp, r1, r2, nPad, K, kn, alpha, Wb(:, j), snapEvery, nSnap, st, M);
+            end
+        catch
+            pool = [];     % a function the threads cannot run: this batch and the rest one at a time
+        end
     end
-    if opts.Output
-        Z(r1:r2, c) = s;   % in Z's class
+    for j = find(cellfun(@isempty, res))
+        res{j} = runColumn(Z(:, cc(j)), hp, r1, r2, nPad, K, kn, alpha, init.W(:, cc(j)), snapEvery, nSnap, st, M);
     end
-    wts.final(:, c) = w;
-    Wst(:, c, :) = reshape(ws, M, 1, []);
-    if nSnap == 0
-        snaps = w;
+    for j = 1:numel(cc)
+        c = cc(j);
+        if opts.Output
+            Z(r1:r2, c) = res{j}.s;   % in Z's class
+        end
+        wts.final(:, c) = res{j}.w;
+        Wst(:, c, :) = res{j}.ws;
+        wts.p5(:, c) = res{j}.pr(:, 1);
+        wts.median(:, c) = res{j}.pr(:, 2);
+        wts.p95(:, c) = res{j}.pr(:, 3);
     end
-    pr = prctile(snaps, [5 50 95], 2);
-    wts.p5(:, c) = pr(:, 1);
-    wts.median(:, c) = pr(:, 2);
-    wts.p95(:, c) = pr(:, 3);
 end
 
 lagSt = zeros(M - 1, numel(st));
@@ -337,6 +357,49 @@ for t = 1:nS
     K(:, t) = pn / d;
     P = a2 * (P - (pn * pn.') / d) + V;   % symmetric by construction
 end
+end
+
+
+function pool = columnPool(nCol, nS, allow)
+%columnPool  The thread pool the columns run on, or [] to run them one at a
+%   time: ALLOW, at least two columns and 4M samples (a smaller run is
+%   quicker serially), the Parallel Computing Toolbox, and not already on a
+%   worker. The background pool is a thread pool, so Z is never copied to
+%   other processes and an open process pool is left alone.
+pool = [];
+if ~allow || nCol < 2 || nS * nCol < 2^22 || ~license('test', 'Distrib_Computing_Toolbox')
+    return
+end
+try
+    if ~isempty(getCurrentTask())
+        return
+    end
+    p = backgroundPool;
+    if p.NumWorkers >= 2
+        pool = p;
+    end
+catch
+end
+end
+
+
+function r = runColumn(zc, hp, r1, r2, nPad, K, kn, alpha, w0, snapEvery, nSnap, st, M)
+%runColumn  One column: its output rows s, final weights w, weights at the
+%   state rows ws ([M x 1 x k]) and the 5th / 50th / 95th percentiles pr of
+%   its weights over time ([M x 3]).
+z = double(zc);
+zh = filterHP(z, hp);
+z = z(r1:r2);
+zh = zh(r1:r2);
+if M == 1
+    [s, w, snaps, ws] = channelLag0(z, zh, nPad, K, kn, alpha, w0, snapEvery, nSnap, st);
+else
+    [s, w, snaps, ws] = channelLags(z, zh, nPad, K, kn, alpha, w0, snapEvery, nSnap, st);
+end
+if nSnap == 0
+    snaps = w;
+end
+r = struct('s', s, 'w', w, 'ws', reshape(ws, M, 1, []), 'pr', prctile(snaps, [5 50 95], 2));
 end
 
 

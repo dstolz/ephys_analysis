@@ -8,6 +8,11 @@ function summary = analyzeArtifacts(obj, opts)
 %   counterpart to toBin's blanking step, used by the Artifacts tab to preview
 %   how much of the recording would be zeroed. ExcludeChannels take no part
 %   in the detection (as in artifactIntervals) and count 0 in channelCounts.
+%   The chunks are detected against the recording's own baselines, with
+%   context beside each, and their runs stitched (MergeGapMs) and padded
+%   (PadMs) once over the whole list (artifactRun), so the summary is the
+%   same whatever MaxChunkSamples is, and its intervals are
+%   artifactIntervals' automatic ones.
 %
 %   Options (any omitted option falls back to ds.ArtifactConfig)
 %   -----------------------------------------------------------
@@ -21,6 +26,9 @@ function summary = analyzeArtifacts(obj, opts)
 %     ProgressFcn    function handle  ProgressFcn(i, nChunks, chunkName), before
 %                    each chunk (serial) or as each chunk finishes (parallel)
 %     MaxChunkSamples (1,1) double  cap on samples per chunk (split formats)
+%     CommonModeUnreferenced, CommonModeThreshold   under a common reference,
+%                    also test the unreferenced recording for a common mode
+%                    (default true, 1500 uV; see artifactIntervals)
 %     UseParallel    (1,1) logical  run the chunks on a process pool (default
 %                    false; the result is identical; the rules and the memory
 %                    cap on workers are those of detectSpikes)
@@ -36,10 +44,12 @@ function summary = analyzeArtifacts(obj, opts)
 %     nBlanked       combined samples flagged (would be zeroed on every channel)
 %     fraction       nBlanked / nSamples
 %     pctDuration    100 * fraction
-%     nIntervals     number of contiguous artifact intervals (summed per file)
+%     nIntervals     number of contiguous artifact intervals
 %     intervals      [nIntervals x 2] those intervals, [tStart tEnd] in
 %                    recording-relative seconds (the artifactIntervals
-%                    convention; one per chunk, never merged across chunks)
+%                    convention; stitched and padded, a run cut by a chunk
+%                    boundary is one row; not combined with the manual
+%                    periods)
 %     files          files analyzed
 %
 %   See also EphysDataset.detectArtifacts, EphysDataset.toBin.
@@ -60,6 +70,8 @@ arguments
     opts.FilterOrder (1,1) double = NaN
     opts.ProgressFcn = []
     opts.MaxChunkSamples (1,1) double = NaN
+    opts.CommonModeUnreferenced (1,1) logical = true
+    opts.CommonModeThreshold (1,1) double {mustBePositive} = 1500
     opts.UseParallel (1,1) logical = false
     opts.MaxWorkers (1,1) double = NaN
 end
@@ -105,7 +117,6 @@ if ~isempty(opts.ChannelOrder)
 end
 
 Fs = obj.Fs;
-nChunks = numel(plan);
 chanOrder = opts.ChannelOrder;
 % The columns (after ChannelOrder) that take part in detection: every one but
 % the ExcludeChannels.
@@ -115,43 +126,19 @@ filt = struct('use', useFilter, 'type', fType, 'cutoff', fCut, 'order', fOrd);
 det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
     'minChannels', minCh, 'mergeGapMs', mergeGapMs, 'padMs', padMs, ...
     'channels', find(~ismember(recCh, obj.excludedChannels())));
+run  = struct('UseParallel', opts.UseParallel, 'MaxWorkers', opts.MaxWorkers, ...
+    'ProgressFcn', {opts.ProgressFcn}, 'caller', "analyzeArtifacts", ...
+    'CommonModeUnreferenced', opts.CommonModeUnreferenced, 'CommonModeThreshold', opts.CommonModeThreshold);
 
-pool = [];
-nWorkers = 1;
-if opts.UseParallel && nChunks > 1
-    [pool, nWorkers] = parallelChunkPool(plan, obj.NumChannels, opts.MaxWorkers, 5 + wcarCopies(obj, plan), "analyzeArtifacts");
-end
-R = mapChunks(@(i) artifactChunk(obj, plan(i), chanOrder, filt, det, Fs), ...
-    reshape(string({plan.name}), 1, []), Pool=pool, NumWorkers=nWorkers, ...
-    ProgressFcn=opts.ProgressFcn);
-
-% Reduce in recording order. The sums are integer-valued, so the result does
-% not depend on the order the chunks finished in. Each chunk's intervals are
-% shifted by the samples read before it, as artifactIntervals does.
-nSamples = 0;
-nBlanked = 0;
-nIntervals = 0;
-intervals = zeros(0, 2);
-channelCounts = [];     % [1 x nChan], from the first chunk that held data
-rmsWindowMsUsed = NaN;
-for i = 1:nChunks
-    r = R{i};
-    if isempty(r)
-        continue
-    end
-    if isempty(channelCounts)
-        channelCounts = r.channelCounts;
-    else
-        channelCounts = channelCounts + r.channelCounts;
-    end
-    if ~isempty(r.intervals)
-        intervals = [intervals; r.intervals + nSamples / Fs]; %#ok<AGROW>
-    end
-    nBlanked   = nBlanked + r.nBlanked;
-    nIntervals = nIntervals + r.numIntervals;
-    nSamples   = nSamples + r.nSamples;
-    if isnan(rmsWindowMsUsed); rmsWindowMsUsed = r.rmsWindowMs; end
-end
+% The chunks' detections, reduced in recording order and joined and padded
+% once over the whole list, exactly as artifactIntervals does (artifactRun).
+res = artifactRun(obj, plan, chanOrder, filt, det, Fs, run);
+nSamples = res.nSamples;
+nBlanked = res.nBlanked;
+nIntervals = res.numIntervals;
+intervals = res.intervals;
+channelCounts = res.channelCounts;     % [1 x nChan], from the chunks that held data
+rmsWindowMsUsed = res.rmsWindowMs;
 
 if isempty(channelCounts); channelCounts = zeros(1, 0); end
 

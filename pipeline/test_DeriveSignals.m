@@ -28,8 +28,17 @@ function test_DeriveSignals()
 %        and info.artifacts reports them; a 20 mV artifact then leaves the
 %        1 Hz high-passed LFP 0.3 s away (and MUA / SPIKE 5 ms away) as
 %        without it, where unerased it rings hundreds of uV into them; AUX
-%        is not touched
-%   Needs the Signal Processing Toolbox (and zscore for automatic detection).
+%        is not touched; the line's edge levels are the 1 ms means 1 ms
+%        beyond an unpadded period (off the artifact's skirt)
+%     8. a recording that cannot fit memoryLimit is refused before the read
+%        (EphysDataset:deriveSignals:Memory); a NaN sample is an error; 16
+%        channels run in 8-column blocks, as the whole-matrix references
+%     9. a channel the Signals step lists bad, listed or found from the LFP
+%        before the reference, is out of the common reference; a kept
+%        channel the dataset excludes is no donor; prepareBadChannels runs
+%        without a reference
+%    10. lineNoise removes the mains line before the signals are derived
+%   Needs the Signal Processing Toolbox (and MAD for automatic detection).
 %
 %   Usage:  test_DeriveSignals
 
@@ -209,14 +218,14 @@ check(strcmp(wid, 'EphysDataset:deriveSignals:BadChannelGeometry') && isequal(Im
     'a channel off the probe falls back to the columns, the other still uses the geometry');
 [~, ~, Io2] = dsP.deriveSignals(dataTypeOut="LFP", badChannels=[3 14], probeFile=probeFile);
 check(isequal(Io2.badChannels.method, ["geometry" "geometry"]), 'probeFile wins over the dataset''s own probe');
-if exist('zscore', 'file')
+if exist('mad', 'file')
     [Ya, ~, Ia] = dsD.deriveSignals(dataTypeOut="LFP", badChannels=-3);
     Yca = dsC.deriveSignals(dataTypeOut="LFP");
     relA = max(abs(Ya.LFP(:, 12) - Yca.LFP(:, 12))) / max(abs(Yca.LFP(:, 12)));
     check(isequal(Ia.importOptions.badChannels, 12) && isequal(Ia.badChannels.method, "geometry") && relA < 1e-4, ...
         'automatic detection flags the broken channel, which is then rebuilt from the probe');
 else
-    fprintf('  (automatic detection skipped: no zscore)\n');
+    fprintf('  (automatic detection skipped: no mad)\n');
 end
 
 fprintf('\n== 4. MUA / SPIKE filters in double ==\n');
@@ -356,12 +365,31 @@ dsArt = EphysDataset(writeRecording(root, "art", Xa, Fa));
 x = single(Xa);
 w = round(1e-3 * Fa);
 a = artRows(1); b = artRows(end); L = b - a + 1;
-before = mean(x(a-w:a-1, :), 1);
-after = mean(x(b+1:b+w, :), 1);
+% Unpadded (ArtifactConfig.PadMs 0), the edge levels are the 1 ms means 1 ms
+% beyond the period, off the artifact's skirt.
+before = mean(x(a-2*w:a-1-w, :), 1);
+after = mean(x(b+1+w:b+2*w, :), 1);
 fillLine = before + (after - before) .* ((1:L).' / (L + 1));
 clean = setdiff(1:size(x, 1), artRows);
 check(isequal(Yid.LFP(artRows, :), fillLine) && isequal(Yid.LFP(clean, :), x(clean, :)), ...
-    'the period''s samples become a line between the 1 ms means on either side; every other sample is as recorded');
+    'the period''s samples become a line between the 1 ms means 1 ms beyond either side; every other sample is as recorded');
+% A detection padded by 1 ms or more is clear of the skirt already: the means are next to the period.
+dsArt.ArtifactConfig.PadMs = 1;
+[Yp1, ~, ~] = dsArt.deriveSignals(dataTypeOut="LFP", LFP_Fs=Fa, artifactIntervals=art);
+dsArt.ArtifactConfig.PadMs = 0;
+before1 = mean(x(a-w:a-1, :), 1);
+after1 = mean(x(b+1:b+w, :), 1);
+check(isequal(Yp1.LFP(artRows, :), before1 + (after1 - before1) .* ((1:L).' / (L + 1))), ...
+    'with a detection padded by 1 ms the levels are the 1 ms means next to the period');
+% A skirt: the artifact's tail just outside the unpadded period must not set the level.
+Xs = Xa0;
+tail = 3000 * exp(-(0:w).' / 10);                              % decays over ~10 samples, 0.3 ms
+Xs(artRows, :) = Xs(artRows, :) + 20000;
+Xs(b+1:b+w+1, :) = Xs(b+1:b+w+1, :) + tail;
+dsSk = EphysDataset(writeRecording(root, "skirt", Xs, Fa));
+[Ysk, ~, ~] = dsSk.deriveSignals(dataTypeOut="LFP", LFP_Fs=Fa, artifactIntervals=art);
+check(max(abs(Ysk.LFP(b, :))) < 100 && max(abs(mean(Xs(b+1:b+w, :), 1))) > 400, ...
+    'the skirt of the artifact (a ~1000 uV mean just outside the period) does not set the fill level: the line ends at the noise level');
 check(isequal(Iid.artifacts.intervals, art) && Iid.artifacts.nSamples == L && Iid.artifacts.fill == "line" ...
     && ~isfield(Iid.importOptions, 'artifactIntervals'), ...
     'info.artifacts holds the merged periods and the samples replaced (importOptions does not)');
@@ -387,6 +415,99 @@ dsX = EphysDataset(T2.folder);
     ProgressFcn=@(varargin) []);
 check(isequal(Yx1.AUX, Yx0.AUX) && ~isequal(Yx1.LFP, Yx0.LFP), ...
     'AUX is not touched; intan2matlab passes artifactIntervals on');
+
+fprintf('\n== 8. memory, non-finite samples, 16-channel blocks ==\n');
+% The need is estimated from the header before the read.
+errId = '';
+errMsg = '';
+try
+    dsC.deriveSignals(dataTypeOut=["LFP" "SPIKE"], memoryLimit=1e4);
+catch ME
+    errId = ME.identifier;
+    errMsg = ME.message;
+end
+check(strcmp(errId, 'EphysDataset:deriveSignals:Memory') && contains(errMsg, 'GB') && contains(errMsg, 'keepAmpChannels') ...
+    && contains(errMsg, sprintf('%d samples', nSamp)) && contains(errMsg, '16 channel'), ...
+    'a recording that cannot fit memoryLimit is refused before the read, with the numbers and the remedy');
+msgs = strings(0, 1);
+errId = errorId(@() dsC.deriveSignals(dataTypeOut="LFP", memoryLimit=1e4, ProgressFcn=@logProgress));
+check(strcmp(errId, 'EphysDataset:deriveSignals:Memory') && isempty(msgs), 'and nothing was read');
+Yok = dsC.deriveSignals(dataTypeOut=["LFP" "SPIKE"], memoryLimit=1e10);
+check(size(Yok.LFP, 2) == 16, 'a limit that holds it changes nothing');
+check(strcmp(errorId(@() dsC.deriveSignals(dataTypeOut="LFP", memoryLimit=-1)), 'EphysDataset:deriveSignals:memoryLimit'), ...
+    'a negative memoryLimit is an error');
+Xnan = Xclean(:, 1:4);
+Xnan(1000, 3) = NaN;
+dsNaN = EphysDataset(writeRecording(root, "nanrec", Xnan, Fs));
+check(strcmp(errorId(@() dsNaN.deriveSignals(dataTypeOut="LFP")), 'EphysDataset:deriveSignals:NonFinite'), ...
+    'a NaN sample is a broken file: an error naming the channel, not a spread NaN');
+XC = dsC.readData(Precision="single").amplifier;
+Y16 = dsC.deriveSignals(dataTypeOut=["LFP" "MUA" "SPIKE"]);
+check(isequal(Y16.SPIKE, band(XC, Fs)) && isequal(Y16.MUA, mua(XC)) && isequal(Y16.LFP, resample(XC, 1, 30)), ...
+    '16 channels now run in 8-column blocks: the same as the whole-matrix references');
+
+fprintf('\n== 9. bad channels and the reference ==\n');
+% The broken channel 12 (not excluded by the dataset) must not feed the
+% common reference once the Signals step lists it bad, however it is found.
+dsR = EphysDataset(dirtyDir, ProbeFile=probeFile);
+aR = dsR.ArtifactConfig; aR.Reference = "car"; dsR.ArtifactConfig = aR;
+dsR.ReferenceExclude = double.empty(1, 0); dsR.ReferenceExcludeSource = "manual";
+xs16 = single(Xdirty);
+all16 = {'dataTypeOut', ["LFP" "SPIKE"], 'LFP_Fs', Fs, 'referenceSignals', ["LFP" "SPIKE"], 'SPIKE_Fs', Inf};
+[Yw, ~, Iw] = dsR.deriveSignals(all16{:});                         % no bad list: the broken channel is in the average
+[Ym, ~, Im] = dsR.deriveSignals(all16{:}, badChannels=12);
+good12 = setdiff(1:16, 12);
+refExp = xs16 - mean(xs16(:, good12), 2);
+check(isequal(Iw.reference.channels, 1:16) && isequal(Im.reference.channels, good12), ...
+    'a channel listed bad is left out of the reference (info.reference.channels)');
+c1 = [1:11 13:16];
+check(max(abs(double(Ym.LFP(:, c1)) - double(refExp(:, c1))), [], 'all') < 1e-2 ...
+    && max(abs(double(Yw.LFP(:, 1)) - double(xs16(:, 1) - mean(xs16, 2)))) < 1e-2 ...
+    && max(abs(Yw.LFP(:, 1) - Ym.LFP(:, 1))) > 100, ...
+    'the other channels are referenced to the average without it (with it, the broken site''s 20 mV noise is on every channel)');
+if exist('mad', 'file')
+    [Ya, ~, Ia] = dsR.deriveSignals(all16{:}, badChannels=-3);          % found from the LFP, before the reference
+    check(isequal(Ia.reference.channels, good12) && isequal(Ia.importOptions.badChannels, 12) ...
+        && isequal(Ya.LFP, Ym.LFP) && isequal(Ya.SPIKE, Ym.SPIKE), ...
+        'found automatically (from the LFP as recorded) it is out of the reference too: the same as listing it');
+    two = {'dataTypeOut', ["LFP" "SPIKE"], 'LFP_Fs', Fs, 'SPIKE_Fs', Inf};   % LFP as recorded, SPIKE referenced
+    msgs = strings(0, 1);
+    [Yd, ~, Id] = dsR.deriveSignals(two{:}, badChannels=-3, ProgressFcn=@logProgress);
+    [Yd2, ~, ~] = dsR.deriveSignals(two{:}, badChannels=12);
+    check(isequal(Yd.LFP, Yd2.LFP) && isequal(Yd.SPIKE, Yd2.SPIKE) && isequal(Id.reference.channels, good12) ...
+        && any(contains(msgs, "before the reference")) && msgs(end) == "Done", ...
+        'LFP as recorded + SPIKE referenced: the LFP found bad is the LFP kept, the SPIKE reference is without it');
+end
+% A channel the dataset leaves out that the columns keep is no donor.
+dsX = EphysDataset(dirtyDir, ProbeFile=probeFile);
+[~, ~, Ix0] = dsX.deriveSignals(dataTypeOut="LFP", badChannels=12);
+dsX.ExcludeChannels = 11;
+[~, ~, Ix1] = dsX.deriveSignals(dataTypeOut="LFP", badChannels=12);
+check(Ix0.badChannels.weights(11) > 0 && Ix1.badChannels.weights(11) == 0 && abs(sum(Ix1.badChannels.weights) - 1) < 1e-12 ...
+    && all(Ix1.badChannels.method == "geometry"), ...
+    'a kept channel the dataset excludes (ExcludeChannels) is not a donor of the interpolation');
+% prepareBadChannels runs whatever the reference, as its header says.
+dsP2 = EphysDataset(dirtyDir, ProbeFile=probeFile);
+aP = dsP2.ArtifactConfig; aP.ExcludeBadChannels = true; dsP2.ArtifactConfig = aP;
+dsP2.deriveSignals(dataTypeOut="LFP");
+check(dsP2.BadChannelsSource == "suggested" && ismember(12, dsP2.BadChannels), ...
+    'without a reference deriveSignals still settles the dataset''s bad channels first');
+
+fprintf('\n== 10. line noise ==\n');
+tl = (0:4*Fs-1).' / Fs;
+rng(31);
+Xl = 8 * randn(numel(tl), 4) + 100 * sin(2*pi*60*tl + [0 1 2 3]);
+dsLn = EphysDataset(writeRecording(root, "mains", Xl, Fs));
+amp60 = @(y) 2 * abs(mean(double(y) .* exp(-2i*pi*60*(0:size(y, 1)-1).' / 1000), 1));
+[Yl0, ~, Il0] = dsLn.deriveSignals(dataTypeOut="LFP");
+[Yl1, ~, Il1] = dsLn.deriveSignals(dataTypeOut="LFP", lineNoise=struct('Enabled', true), artifactIntervals=[1.0 1.02]);
+check(all(amp60(Yl0.LFP) > 80) && all(amp60(Yl1.LFP(100:end-100, :)) < 4) && ~Il0.lineNoise.Enabled ...
+    && Il1.lineNoise.Enabled && Il1.lineNoise.LineHz == 60 && abs(Il1.lineNoise.medianFrequencyHz - 60) < 0.3, ...
+    'lineNoise removes the 60 Hz line (100 uV) before the signals are derived; off by default; info.lineNoise says so');
+check(Il1.importOptions.lineNoise.Enabled && isequal(Il1.importOptions.lineNoise.Harmonics, 1:3), ...
+    'importOptions.lineNoise holds the settings with their defaults');
+check(strcmp(errorId(@() dsLn.deriveSignals(dataTypeOut="LFP", lineNoise=struct('Frequency', 50))), ...
+    'EphysDataset:deriveSignals:lineNoise'), 'an unknown lineNoise field is an error');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

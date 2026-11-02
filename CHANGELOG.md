@@ -8,6 +8,295 @@ says how to cut a release.
 
 ## [Unreleased]
 
+### Changed
+
+- Spike detection: `Spikes.Align` defaults to `"auto"`, the extremum the polarity looks for (the trough for
+  `"negative"`, the peak for `"positive"`, the extremum for `"both"`). A positive spike aligned to the trough, the old
+  default for every polarity, was timestamped at its undershoot. `info.align` names the alignment used.
+- Spike detection: `Spikes.ArtifactMode` defaults to `"erase"` (the periods erased before detection), in the pipeline,
+  the app and `spikesToMat`. The old default, `"reject"`, filtered the artifacts unerased and their band-pass ringing
+  crossed threshold for milliseconds on either side of every period (about four false spikes per 2 ms pulse in a
+  synthetic test). `"reject"` now drops the events inside a period before the coincident copies are found
+  (`detectSpikes(RejectIntervals=)`, `info.nRejectedArtifact`), so an artifact no longer claims a neighboring site's
+  real spike as its copy and leaves it deleted.
+- `detectSpikes(Filter=false)` tests the crossings relative to each channel's median (`info.center`); the raw trace's
+  offset no longer crosses the threshold on its own.
+- `firingRate(Measure="count")` scales the baseline's count to each epoch window's length for `Normalize` (`R.baseline`
+  stays the baseline window's own count); the baseline of a 0.5 s window was compared with the count of a 0.2 s one.
+  `"probability"` with a `Normalize` needs windows as long as the baseline.
+- `spikePSTH(MaskAfterStop=true)` also masks the bin the stop falls inside: its count covered only part of the bin,
+  so its rate read low (the raster dropped the spikes from the stop on already).
+- Spectrogram baselines (`chronuxNormalize`) take the moving windows that lie wholly inside the baseline window; one
+  centered inside it but reaching past the event held post-event power.
+- `aurocCurves` draws each unit's and group's resamples from its own substream, so a unit's bootstrap or shuffle p
+  no longer changes when other units are added or removed.
+- `groupDetected`'s `RadiusUm` defaults to the spikes file's Coincidence radius; a jitter at least `RefractoryMs`
+  long is refused (`groupDetected:NoGap`) instead of testing nothing.
+- Trial filters refuse a chained comparison (`0 < Depth < 5`, which MATLAB reads as `(0 < Depth) < 5`) and `&&` / `||`
+  mixed with `&` / `|`, with the way to write them; a trial whose `RespCode` is missing matches no response word
+  instead of failing the filter.
+- `loadAnalysisSource` warns when a dataset's trial pairing is not approved (`src.pairingStatus`).
+- Traditional Intan recordings are read in the order of the files' first timestamps (then modification time); a
+  copy that reset the modification times put the files out of order.
+- `EphysPipelineConfig.spikeChannels` refuses a selection that leaves no channel (`EphysPipelineConfig:NoSpikeChannels`)
+  instead of detecting on every channel, bad ones included.
+- Pipeline app, Artifacts tab: **Clear all** (was **Clear**) asks before removing the hand-marked periods.
+- The pipeline's Export step skips a dataset whose sort is still running instead of writing its NWB with no units;
+  a sorting dry run no longer writes the manifest; a failed Analysis step records an error row for every dataset it
+  never reached.
+- `icsdEstimate(Method="standard")` refuses unequally spaced channels, as `"step"` and `"delta"` do.
+- `S_DatasetBrowserToNeuroGLM.m` saves to the workspace only by default (`opts.outDir = ""`), not to one user's
+  folder.
+- Trial pairing: `pairEpsychTrials` cross-checks the pairing against the Epsych2 `computerTimestamp` (gaps between paired trial ends by that clock against the TTL offsets, tolerance max(0.5 s, 5% of the median gap)); the first disagreement is `P.timingMismatch` with a `pairEpsychTrials:TimingMismatch` warning when the counts agree. A glitch pulse plus a missing last pulse kept the counts equal and paired every later trial wrongly.
+- `autoApproveTrialPairing` also requires no timing mismatch, no `partial` trial and no dropped interval.
+- New `DropIntervals` cut (`Cuts.drop` of `pairTrials`, `drop_intervals` in the manifest pairing record) drops single intervals from the middle of the trial line's list, so a glitch pulse can be removed.
+- The trial-pairing fingerprint holds the session's start time and first `computerTimestamp`: a different session with the same file name and trial count no longer inherits approved cuts (existing recorded pairings go stale once).
+- An event on the first low row after a trial (`TrialOffset + 1/Fs`) belongs to the trial in `resolveEvents`, `deriveEvents` (new `Fs` option) and `TrialEvents`; one vectorized `containingTrial` replaces three O(intervals x trials) loops, and a derived event's interval that begins between trials belongs to the first trial it overlaps, as `TrialEvents` lists it.
+- `epochTable`, recording scope: the pairing flags always drop the events of unpaired, partial and cut trials; events between trials stay unless the selection has a filter, response, trials or `groupBy`.
+- `behaviorToMat` writes `-v7` (`-v7.3` only over 2 GB; load 0.04 s against 1.79 s at 2000 trials) with a small `pairing` variable that `setTrialPairing` reads instead of the whole `behavior`; event sequences and stop events binary-search sorted events prepared once per reference.
+- `EphysDataset.writeManifest` no longer reverts what another session saved while a long run was going. The dataset
+  notes the manifest's `updated` value and size, and the editable state, whenever it reads (`applyManifest`) or writes
+  the file; when the file's stamp is another at the next write, the file is read back first and every property this
+  object did not change since (tags, manual periods, probe, exclusions, pairing, sorting folder, `Custom`, each
+  record of `Processing`) takes the file's value. What this object changed stays and is saved.
+- `addToManifest` splices the `custom` block and `updated` into the file's text, so the rest of the manifest is no
+  longer decoded and encoded again (a `null` stayed `null` only by luck, a list of one became a scalar). The block
+  is the dataset's new `Custom` property: `applyManifest` reads it and `writeManifest` writes it. `writeJsonFile`
+  takes `Text=true` to write JSON text as it is, atomically.
+- `toBin` writes `<BinFile>.partial`, deletes the previous sidecar first, checks the size and renames the file
+  when it is whole, then writes the sidecar: a crash, a full disk or an error leaves no `.bin` that looks
+  complete (`EphysDataset:toBin:MoveFailed` when a sort has the old one open). The sidecar gets a `fingerprint`
+  (the recording's files and sizes, chunks, channels, dtype, scale, write filter, the periods erased and the
+  common reference), and `toBin(Reuse=true)`, which `runKilosort` and `runSpikeInterface` now set, keeps a `.bin`
+  whose sidecar has the call's fingerprint instead of writing it again on every sort.
+- `toBin`'s `FilterEdgeMode="overlap"` repairs the chunk ends as well as the starts: each chunk is filtered behind
+  the last `2K` raw rows of the one before it and its own last `K` rows (`K = OverlapSamples`) are held back and
+  filtered again behind the next chunk, so only the recording's first and last rows carry the filter's edge
+  transient.
+- A cross-session lock (`RunLock`): `EphysPipeline.run` takes `<Name>_run.lock.json` for each selected dataset for
+  the whole run (host, pid, run id, start, a heartbeat refreshed as the run reports progress), and `runKilosort` /
+  `runSpikeInterface` take `<Name>_sort.lock.json` while a sort is prepared and going. Sorting, signals, spikes and
+  export skip a dataset another live process holds ("in use by another session (HOST, since T)"), and `plan()` lists
+  the row as `skip: in use by another session`. A stale lock (dead process, silent heartbeat, a sort that ended) is
+  ignored and replaced.
+- "Up to date" no longer means "the file exists". Every `Processing` record carries `options_hash`
+  (`EphysDataset.optionsHash`; a pipeline run gives the hash of the config options and what else decides the result
+  for the dataset, `EphysPipeline.stepHash`, `cfg-...`). `plan()` shows `exists: up to date` or
+  `exists: stale (options changed)` (the Note says which for a sort), `EphysPipeline.outputState` / `existingOutput`
+  decide what a step does, and Signals, Spikes and Export take `OverwriteStale` (`false`): with `Overwrite` off, a
+  file made with other options than the config's is written again. A record without a pipeline hash (a script made
+  the file) is kept as before.
+- `Sorting.SkipExisting` is on by default (a re-run took hours and set the curation aside); the Sorting tab's check
+  box starts ticked.
+- A sort's record goes into `Processing.sorting` only once the run is `"done"`: `launchSorting` leaves it in the run
+  folder (`sorting_record.json`) and `settleSortRun` takes it into the dataset at once after a blocking run, or at
+  the next `writeManifest` after a background run; a run that fails or is stopped records nothing. The earlier
+  sort's phy curation still moves aside at launch (`run_ks4.py` removes the old sort's files at its start), and goes
+  back when the launch does not start.
+- `sortingSlot`, `EphysPipeline.activeRun` and the output transfer's wait for a sort count a run whose launcher was
+  killed as ended (`sortRunLive`: about every 30 s one process search; a run with none left gets its exit marker
+  and reads `"error"`), so it frees its slot instead of reading `"running"` for ever. `run()` / `transferOutputs`
+  wait for the output transfer at most `TransferTimeout` seconds (a day) and log a timeout instead of hanging.
+- `plan()`, `checkRun()` and `runSorting` block on a probe with more sites than the recording has channels
+  (`error: probe-channel mismatch`): the `.bin` was written and Kilosort4 failed on it.
+- `stringifyNonFinite` writes a matrix with a non-finite number row by row (`[[1,"NaN"],[3,4]]`); a `[2x2]` was
+  flattened column by column.
+- The manifest's `metadata` lists `per_file` (name, samples, gaps inside, samples missing before) and `gaps` (the
+  jumps of the acquisition clock, `EphysDataset.Gaps`), always as lists. New config fields:
+  `Acquisition.OpenEphys.EventStream`, `Artifacts.CommonModeUnreferenced` / `CommonModeThreshold` (in the artifact
+  cache's fingerprint and passed to `artifactIntervals`) and `Signals.LineNoise` (passed to `deriveSignals` as its
+  `lineNoise` option when enabled).
+- Speed: the output transfer lists a folder once without walking phy's hidden cache folders (`listTree`),
+  `OutputFileIndex.put` no longer runs `unique` on a growing list, `writeManifest` reads an Epsych2 session's
+  details once while the file is unchanged, and `plan()` over eight or more datasets asks one listing of the
+  output root whether the outputs exist.
+- Automatic artifact detection no longer depends on how the recording is cut into chunks (`artifactIntervals`,
+  `analyzeArtifacts`, shared `artifactRun`). The baselines of the `"rms"` and `"mad"` methods are the recording's own,
+  from a fixed sample of it (the whole recording when short, else 32 pieces spread along it), not each chunk's, so a
+  chunk that is nearly all stimulation no longer sets its own baseline and under-detects; each chunk is read with
+  context beside it (the filter's settling time and the running-RMS window), so the filter and the running RMS have no
+  edge at its ends; and `MergeGapMs` / `PadMs` are applied once to the whole list, so a run cut by a chunk boundary is
+  one run. `analyzeArtifacts.intervals` are now artifactIntervals' automatic periods (stitched and padded, one row for a
+  run across a chunk boundary) instead of one row per chunk; `nIntervals` and `nBlanked` count them. A moved bound
+  (`ArtifactAdjustments`) is matched against these rows.
+- `detectArtifacts` has the options `Baseline` (the recording's median / robust SD) and `Rows` (score only these rows of
+  a block with context), stitches and pads the runs in O(runs) instead of O(samples), and takes the running RMS's
+  baseline from every 8th sample over 2^17 rows. `artifactScore` leaves NaN samples out of its baselines.
+- Under a common reference, artifact detection also tests the recording as recorded for a common mode above
+  `CommonModeThreshold` (1500 uV, `CommonModeUnreferenced` true by default) and combines the two masks: the LFP is
+  derived without the reference by default, and a broad artifact the reference cancels was never flagged for it. The
+  detection record (`Processing.artifacts.options`) says it ran.
+- `deriveSignals`' line fill takes its two edge levels from the 1 ms means beyond a guard of 1 ms less
+  `ArtifactConfig.PadMs` (none from 1 ms of padding), so an unpadded period's levels are not taken from the artifact's
+  skirt (`bridgeRuns` has a `skip` argument for it).
+- `deriveSignals` leaves the channels the Signals step lists bad (a `badChannels` list, or the automatic detection,
+  which with a reference now runs first on the LFP as recorded) out of the common reference and the weighted CAR, and
+  the kept channels the dataset excludes are no donors of an interpolation. `referenceChannels` and `referenceTrace`
+  take `Exclude`. `deriveSignals` calls `prepareBadChannels` whatever the reference.
+- `deriveSignals` estimates the memory the read needs before reading (samples x channels x 4 bytes times the copies at
+  the peak) and raises `EphysDataset:deriveSignals:Memory` with the numbers and the remedy when it exceeds 80% of
+  MATLAB's largest possible array (the `memory` function, Windows only; `memoryLimit` overrides), instead of running
+  out of memory after the long read.
+- `deriveSignals(lineNoise=struct('Enabled', true, ...))` removes mains interference (`removeLineNoise`, the artifact
+  periods left out of its fits) before the reference and every signal; `info.lineNoise` reports it. Not yet a field of
+  the pipeline's Signals config.
+- `deriveSignals` runs 16-channel recordings in 8-column blocks (the multithreaded filter; was 64 channels and up); the
+  weighted CAR's columns run a few at a time on the background thread pool when the Parallel Computing Toolbox is there
+  and the recording is large (`weightedCAR(Threads=)`, the same numbers); the weighted CAR's automatic Q filters
+  several reference channels at a time.
+- A common reference over a single channel is an error (`EphysDataset:applyReference:TooFewChannels`; it was zeros
+  mirrored onto the other channels).
+- Intan readers check the acquisition clock. `refreshMetadata` compares each traditional file's first timestamp with where the file before it ended, and the block starts inside a file (a strided read of 4 bytes a block when the first and last stamps do not span the file's samples); a split recording's `time.dat` gets the same check. A jump (a 5-minute pause between two `.rhd` files is 9e6 samples) warns `IntanReader:TimestampGap` with the samples, and is kept in the reader's new `Gaps` list (`file`, `row`, `samples`; also in `metadataStruct`) and in `PerFile` (`firstTimestamp`, `endTimestamp`, `numGaps`, `gapBefore`). The rows are still the stored samples, read as contiguous. `read_Intan_RHD2000_file_modified` now warns `read_Intan_RHD2000_file_modified:TimestampGap` (a printed count before, even when silent), and not when silent.
+- Open Ephys: TTL events on another stream (Neuropixels data with the TTLs on an NI-DAQ stream) are no longer ignored silently: `OpenEphysReader:TTLOtherStream` lists those folders, and the new `Acquisition.OpenEphys.EventStream` option reads the TTL lines from that stream, putting each event on the continuous stream's clock through the `timestamps.npy` of both (dropped samples followed). Each recording's own `structure.oebin` is parsed; recordings joined into one dataset must share the stream's sample rate and channels (`OpenEphysReader:RecordingsDiffer`), where recording 1's layout used to be applied to all. `Gaps` lists the dropped samples and the wall-clock pauses between recordings.
+- Traditional Intan `streamPlan` cuts a file bigger than `MaxChunkSamples` into windows (the default is the same ~250 MB budget as the split layouts), and `readChunkUV` reads the chunk's `nSamples`; a multi-GB `.rhd` or four or five parallel workers no longer need a whole file (plus temporaries) in memory each. A file smaller than the chunk size is still one chunk. Spike detection and the other streaming passes therefore see more chunks of a big file.
+- Digital events are documented as inclusive rows (`t_on` the first high row, `t_off` the last, so a pulse of n rows lasts n/Fs). `ChronuxDataset.eventOnsets` measures durations as `t_off - t_on + 1/Fs` (`info.durations`, `MinDurationSec`, `MaxDurationSec`; a 10 ms pulse is 10 ms, a one-sample pulse 1/Fs and not 0) and returns `info.eventFs`; `ChronuxDataset.spikeTrials` takes `EventFs=` to move digital-event onsets (`t = row/EventFs`) onto the spikes' continuous clock as `trials`' `"event"` rule does (`info.onsetTimes`, `info.eventFs`).
+- `EphysDataset.digitalEvents` keys its `<Name>_events.mat` cache also on `EphysReader.eventFingerprint`: the event-decoding version (`EphysReader.EventsVersion`, bumped when a convention changes), the Open Ephys options that choose the events, and, for a split Intan recording, the names, sizes and times of `digitalin.dat` / the `board-*.dat` files; a replaced digital file or a later convention fix is no longer served from the cache.
+- Reader speed: the Intan header strings are read with one `fread`; the traditional `readDigitalEvents` reads only the digital-input words of each block (a strided `fread`, `IntanReader.blockLayout`) instead of every byte of every file; the split-Intan and binary window reads read `int16` and convert afterwards (about 6x faster); the notch table of the traditional files is worked out once per `refreshMetadata`, not per window read; the Open Ephys binary read skips the channel index when every channel is read.
+- `spikePSTH(BaselineMode="zscore")` takes the mean and SD over the baseline's whole `BinSec` bins of the group's trial-averaged PSTH, the definition of `epochMatrixNormalize`'s `"zscore"`. The SD over the epochs of the baseline-window rate it took before scaled z with the baseline's length (a baseline twice as long multiplied z by 1.41 for the same data) and differed from the browser's z. `R.baselineRate` / `R.baselineSD` are that mean and SD (the SD is of the unsmoothed bins, in every baseline mode); a baseline of fewer than two whole bins is `spikePSTH:BadBaseline` for `"zscore"`.
+- `unitCorrelation` detrends by default (`Detrend=true`): each unit's responses lose their moving mean over about 20% of the group's epochs (`movmean`, odd, at least 5) in time order before they are correlated, so two units whose rates drift together over the session no longer correlate through the drift (`R.response` stays as measured; `Detrend=false` gives the old matrix). The result gains `q` (Benjamini-Hochberg, `pAdjust`, over each group's pairs of units, each pair once), `detrend` and `peakBins`. With `"between"` windows `Metric="peak"` searches only the first bins of every window, the whole bins of the shortest, because the peak over a longer window had more bins to take a maximum over and grew with the epoch's length.
+- `firstSpikeLatency(Method="poisson")`: `lat` is documented as the significance spike (the spike at which the count since `MinSec` first has P(N >= k) < `Alpha`), which lags the response's first spike by the few spikes the count needs; the new `latFirst` is the first spike of the run that made the count improbable (back from the significance spike while each interval is under half the baseline's mean interval), and equals `lat` for the other rules. `latencyMethodText` says "the spike at which the count first becomes improbable". The Poisson probabilities are `gammainc` over all of an epoch's spikes at once (the surprise rule's burst growth and shedding too), not a `poisscdf` call per spike, with the same latencies.
+- `aurocCurves` / `aurocCall` gain `Cutoff="shuffle"`: the rule of `"ci"` with c the `1 - Alpha` quantile (the 95th percentile at `Alpha` 0.05) of the phasic modulation of the shuffled data pooled over every unit and group. The `"ci"` cutoff sits barely above the mean phasic modulation, so many units with no response exceed it. The draws are the circular shuffles of `Test="shuffle"` (`NResamples` per unit and group, from the unit's own substream), the unit's `p` is the share reaching its phasic modulation, and `Call=false` keeps `A.null` (single) for `aurocCall` over a larger pool, which `populationAnalysis` does over its family. `"ci"` stays the default and as it was. `EphysAnalysisConfig` `Auroc.cutoff` accepts `"shuffle"` (`defaults`, `validate`).
+- `responseOnset` takes `Direction` (`"up"` default, `"down"`, `"both"`) and a gate: with `Gate="evoked"` (default; `"none"` for the old behavior) an onset is kept only for a unit whose epochs respond, a signed rank test (`signrank`, as `responseStats`' evoked response) of each epoch's rate in the search window against its baseline, at `GateAlpha` (0.05), the median change going the way `Direction` says, for the unit's onset and each group's. A sparse unit's clustered pair of spontaneous spikes, many SDs of a tiny baseline SD, no longer gives an onset. The CUSUM is `Z = cumsum(z - Drift)`, `C = Z - min(0, cummin(Z))` instead of a loop. `O.gateP` / `O.groupGateP` hold the p values. A figure's latency block gains `cusumDirection`, `cusumGate` and `cusumGateAlpha` (`defaults`, `validate`, `latencyMethodText`).
+- `tuningCurve` returns `nValid` `[nX x nUnits x nSeries]`, the epochs with a rate for each unit (the n of its mean, `sem` and `err`); `n` stays the epochs having the value, a NaN rate included.
+- `populationAnalysis(Workers=)` analyzes the datasets on the workers of a process pool (`parfor`): the open one (`Workers` 0, the default, when a pool is open), or one of N started; one after the other here otherwise. The results are the same.
+- `spikePSTH(ErrorType="ci95")` bootstraps the bands of all the units in one `bootci` call per group (the bands are the units' own: the resamples depend on the epochs only), the stop mask is one comparison, and `epochMatrixRaster` counts every epoch's spikes in one `discretize` / `accumarray` pass instead of a `binCounts` call per epoch.
+- The neuroGLM browser script holds out the last block of consecutive trials (`NeuroGLMExport.split`,
+  `opts.trainFraction`), not trials drawn at random from all over the session: neighbors share drift and spike
+  history. The mTRF script's `opts.folds` and `opts.holdOut` count folds.
+- `mTRFExport.resample` mirrors the signal past both ends (`padarray`, a multiple of `q` samples) before `resample` and
+  cuts the extra output, so the first and last 10 output samples are no longer filtered against zeros (16% of a 1 s
+  epoch at 128 Hz); a constant stays constant to its ends. `epochMatrixMTRF` resamples all of a dataset's epochs in one
+  call and bins spike epochs with one `accumarray` per unit. The Image Processing Toolbox is now used here.
+- `NeuroGLMExport.experiment` snaps each trial's start to the bin grid, `round(start * fsBin) / fsBin`, once, when a
+  continuous signal is given, so spikes and events are binned from the same edge as the signal's rows (they sat up to
+  half a bin apart); the duration stays the span's whole bins. It finds each trial's spikes and events by binary search
+  on the sorted times instead of testing every time against every trial.
+- The artifact overlap tests of `mTRFExport.trials`, `sessionDataNeuroGLM` and the Chronux script call
+  `EphysDataset.overlapsIntervals` (1 ns tolerance) instead of bare comparisons.
+- The Chronux script cuts the spike trials to the recording's duration (the signal's own length when unknown), so they
+  match the signal trials; the spike-only connector knows no recording length.
+- `FieldTripExport.event` builds its struct array once instead of growing it one pulse at a time.
+- The kCSD browser script estimates all its profiles (epochs and sessions) in one Python run.
+- `test_CSDEstimate` checks that spline, delta, step and standard iCSD agree in amplitude on a Gaussian bump (within
+  30%; delta with a 5 mm column meets standard within 2%); the units are consistent, `icsdEstimate` is unchanged.
+- Pipeline app: failures use one wording, "Could not <action> on <dataset>.", the message, "Try: ..." and "Details: Run tab >
+  Log" (`reportFailure`, `AppDialog.failure`), and everything that needs a scanned project says "No project is loaded. On
+  the Project tab choose the folder that holds your recordings (the project root) and press Scan." with a **Go to Project
+  tab** button (`alertNoProject`). A run that cannot start, or stops, says so by an alert and the log; the status bar holds
+  the whole message in its tooltip.
+- Pipeline app: the Run tab's **Plan (writes nothing)** is **Show plan** and **Dry run** is **Rehearse (no files)** (menu,
+  toolbar and tooltips too); the Project tab's **None** is **Clear ticks (= all)**; cancel says "Canceling after the
+  current dataset..."; the window is "Ephys pipeline"; the Behavior panel is "Behavior files (Epsych2)".
+- Pipeline app labels: µV (not uV), the Spikes **Threshold** label follows the method (x noise MAD, x SD, x RMS,
+  percentile, µV), panel titles lose "(config: ...)", and tooltips that began with a config key end with "Script name: <key>".
+- `AppSplash.alert` goes through `AppDialog.alert`, so the tests can read it.
+- Analysis app: what stops an action is an alert that says what to do and takes the tab that fixes it: Scan with no
+  project root ("Choose the project root on the Data tab first."), a root that cannot be read ("Could not scan for
+  datasets." with the reason, "Try: check the project root on the Data tab.", "Details: Log tab"), a root without
+  recordings ("No processed recordings under <root>. Check the root, or run the pipeline app first."), Plan with no
+  project (the one "No project is loaded" message, with a "Go to Data tab" button), Run with no dataset ticked or with
+  config errors (the first error is named; the Export tab's table lists them). A run that throws still fills the
+  results table with the rows it finished. Save config, Generate script, Export code, the design and unit-mapping
+  failures use the same words. A scan is refused while a run goes.
+- Analysis app: the run's progress is a bar, the runner's message and a Cancel button in the status bar, not a modal
+  dialog; the other tabs stay usable. The status bar is 30 px high and its tooltip holds the whole message when the
+  bar clips it.
+- Analysis app and dataset browser wording: **Project root** everywhere; the Export tab's sections are "Figure files"
+  and "Report" ("Resolution (dpi, PNG)"); the Data tab's SPIKE column is "Spike band"; "Across sessions" is "Across
+  datasets" and "Load whole sessions" is "Load whole recordings"; "Keep single trials, not just averages" loses its
+  "(R.epochs)"; the epoch window says under Pre and Post that a negative Pre is before the event; the browser's
+  "Bin (s)" is "Bin (ms)", as the figures' PSTH bin is (`binSec` stays in seconds).
+- The skip reason "no sort event (rasterSortEvent)" reads "no sort event chosen".
+- `detectSpikes` holds far less memory per chunk. The artifact erasing, the band-pass and the detector work on a group
+  of channels at a time (new option `GroupChannels`, default about 64 MB of the block per group, at least 8 channels,
+  never a lone column), the context and the chunk are never joined into one array, and the artifact periods are erased in
+  the group's copy, not in a copy of the chunk. Measured peaks on 64 channels x 20 s chunks, in copies of the chunk: 2.2
+  (was 5.2), 2.5 with artifact periods erased (was 7.3), 2.5 with `ThresholdScope="recording"` (was 8.4); a block passed
+  to `detectSpikes(X)` costs 1.24 copies on top of itself (was 3.27). The result is bit for bit what it was (indices,
+  amplitudes, waveforms, thresholds, whatever the group size), and the `UseParallel` worker cap counts the new copies
+  (`1 + 8 * group / channels` chunks, about 2 to 2.6 for 64 channels; was a flat 6), so the same RAM runs two to three
+  times as many chunks in flight. The block stays in double: single would change the amplitudes and could move a crossing.
+- `detectSpikes` no longer walks events one by one where it can take them together: the runs of above-threshold samples
+  come from `find`, the alignment windows of all runs no longer than the search window are one matrix (the longer runs
+  keep the loop), the dead time visits only the events with a neighbor inside it (and the join pass across chunks uses
+  the same routine), the windows that lie entirely inside the block are cut without the mask, and the per-chunk results
+  are gathered with one reshape instead of an `arrayfun` per channel and chunk. An event-heavy block (70,000 events on 16
+  channels) runs 20-25% faster; the MAD estimate (two medians per channel, half the time of a quiet block) is unchanged.
+- The spikes file is smaller: `detected.wf` is saved as single and `detected.info.index` as int32 (double for a
+  recording of 2^31 samples or more); `ts` and `info.amplitude` stay double. Every reader in the repository already casts
+  with `double()`; no old file needs converting.
+- `detectSpikes` reports per chunk what it was detected against and found: `info.chunks` has `startSec` (the time of
+  the chunk's first sample on the timestamps' clock) and the new `info.chunkThreshold` holds `startSec`, `durationSec`
+  `[nChunks x 1]` and `threshold`, `noise`, `degenerate`, `count`, `rate` `[nChunks x nChan]`, so a QC plot can show
+  the threshold steps at file boundaries. It is saved in the spikes file.
+
+### Fixed
+
+- Artifact detection lost its `PadMs` padding, and every flagged sample but one, for the rest of a chunk whenever two
+  or more flagged samples fell in its first `PadMs` (`padMask` indexed a difference array with repeated rows).
+- Automatic bad-channel detection (`Signals.BadMode`, a negative value) uses a robust z (median and MAD): with the
+  mean and SD the largest attainable |z| on 8 channels was 2.5, so a threshold of 3 could never flag one.
+- `colorcet`'s aliases `L17` and `L18` were unreachable (`L17` repeated `L16`'s name); they are `WORB` and `WYOR`.
+- `spikesToMat(DetectOptions=struct('Waveforms', []))` errored; `ds.detectSpikes(zeros(0, n))` streamed the whole
+  recording instead of detecting on the empty block.
+- Spike-field coherence returned NaN for a group when one trial's only spikes lay within half a sample outside the
+  field's grid (Chronux then keeps every spike); such spikes are placed on the grid's ends.
+- `populationAnalysis` took the first of tied PSTH maxima (and auROC peaks) as the latency, biased early for sparse
+  units; it takes the middle one.
+- `epochMatrix(measure="auroc")` tells `epochTable` the baseline window, so a baseline before the recording's start
+  or in an artifact drops the epoch instead of counting as silence.
+- `epochTable` counted a window reaching one sample before the recording's first sample as complete.
+- `firingRate` and `spikePSTH` could disagree by one spike on a window edge (`countIn` now takes the same 1 ns
+  tolerance as `binCounts`); a group key of `-0` was a group of its own.
+- `readEpsychSession` returns a numeric column (NaN where empty) for a field some trials of a stitched session lack,
+  which `struct2table` left as a cell.
+- Intan readers: an empty or truncated `.rhd` gave a cryptic error (now `IntanReader:parseIntanHeader:BadMagic`); a
+  null QString could loop forever (`hex2num('ffffffff')` is NaN); a sample-rate change between files was silent
+  (`IntanReader:refreshMetadata:RateMismatch`); a one-file-per-channel recording took its length from the first
+  channel's file (now the shortest, with a warning when they differ).
+- `toBin` checks every write and the final file size (`EphysDataset:toBin:ShortWrite`, `SizeMismatch`) and counts
+  the NaN or Inf samples it writes as 0 (`EphysDataset:toBin:NonFinite`); a full disk left a short `.bin` under a
+  sidecar claiming the full length.
+- `writeJsonFile` writes through a temporary name of its own, so two sessions writing one manifest no longer share
+  it; `EphysProject.findByKey` matches dataset keys case-insensitively on Windows.
+- `run_ks4.py` removes the previous sort's result files before sorting (as `run_si.py` does), so a run that fails
+  midway no longer reads as a complete sort of the old spikes; `sortSweep` keeps comparing the other variants when
+  one has no output.
+- NeuroGLM: a time on a bin edge (the trial's own event, a spike on the sample grid) fell in either neighboring bin
+  with floating-point noise; the null log-likelihood of a fold with no spike was NaN; an unknown standard error
+  became 0.
+- mTRF: `epochMatrixMTRF` failed when a dataset had no epochs left and placed the spike grid off the event by up to
+  half a sample; overlapping trials (cross-validation folds sharing samples) warn (`mTRFExport:Overlap`).
+- NWB export: a failure inside nwbinspector deleted the finished file; the check's failure is reported in its
+  findings instead. `S_DatasetBrowserToChronux.m` drops unpaired trials and partial windows before cutting;
+  `S_DatasetBrowserToMTRF.m` skips the trial packaging when a dataset has no paired trials.
+- `benchmarkDetection` judged a unit visible on the raw template against a threshold set on the filtered trace, and
+  subtracted overlapping artifact margins twice from the scored time.
+- `noiseLevels` left a channel NaN when one chunk's value was, and `filtfilt` failed on a chunk of a few samples.
+- `matchEpsychSession` vetoes a time match whose `Subject` is not in the recording's name or file names.
+- `loadAnalysisSource` warns (`loadAnalysisSource:PairingMismatch`) when the extract's inverted lines, rate or length differ from the pairing's.
+- `toBin(Files=...)` mapped the artifact periods with the running sample count instead of each chunk's place in
+  the recording (`plan(i).sampleOffset`), so a subset that did not start at the first file erased the wrong
+  samples.
+- `deriveSignals` with the weighted CAR on some signals and the LFP (or another signal) as recorded: the first pass
+  line-filled the artifact periods in place, so the weights then ran on the filled data against the unfilled common
+  average and left about 9 uV rms of common noise in the 5 ms after each period. The samples of the periods are now
+  kept and put back before the weighted CAR.
+- `referenceTrace` no longer drops a reference channel that lies beyond the columns of its input without a word
+  (`EphysDataset:applyReference:BadChannels`).
+- `deriveSignals` raises `EphysDataset:deriveSignals:NonFinite` for a NaN or Inf sample after the read (a broken
+  file) instead of spreading it through every filter and the reference.
+- The documented automatic bad-channel threshold (`documentation/intan2matlab.md`, `deriveSignals`) said
+  `abs(zscore(rms(LFP)))`; it is a robust z (median and MAD across the channels), as coded.
+- `chronuxSpikeSpectrum` and `chronuxUnitCoherence` move spikes stamped past the grid's last point onto it, as `chronuxSpikeField` does (the shared private `chronuxOntoGrid`): Chronux's `mtfftpt` keeps every spike of a trial when none lies inside the grid, so a trial whose only spikes sit in that margin made the spectrum or coherence NaN.
+
+### Removed
+
+- The back-compatibility shims: `EphysPipelineConfig`'s `movedWCARFields` and `retiredExports` (a config of an old
+  shape loads with its unknown fields dropped and named in `LoadWarnings`, and `validate` refuses a retired export
+  format), manifest schema `intan-dataset-manifest/1` (`ManifestSchemasAccepted` is the current schema only) and
+  `DatasetTracker`'s reading of a run with results but no status file as `"done"` (its `State` is empty).
+
 ### Added
 
 - `S_DatasetBrowserToNeuroGLM.m` models the trial's response: a kernel per response word on `opts.responseEvents`
@@ -1631,6 +1920,63 @@ says how to cut a release.
   HTML), in a share of the run of its own: `writeHtmlReport` and `writePdfReport` take `ProgressFcn=`, and
   so does `writeUnitQualityReport` (each good unit's waveform). Selecting a dataset in the analysis app
   says which one of how many it is loading, and Scan names the root it scans.
+- `splitTrials`: assigns trials to cross-validation folds (or a train/test split) in blocks of consecutive trials;
+  trials whose windows overlap always share a fold (`S.fold`, `S.group`, `S.train` / `S.test`). `Blocked=false` deals
+  whole groups out at random (`Seed`, a private random stream); `TestFraction` makes a two-fold split whose test fold is
+  the last block of the session.
+- `mTRFExport.folds(M, K)` regroups a package's trials into folds with `splitTrials` (overlapping trials together,
+  blocks in time order; `K = Inf` is leave-one-trial-out), and `mTRFExport.overlaps` says which windows overlap an
+  earlier one. `epochMatrixMTRF` warns (`mTRFExport:Overlap`) when its epochs overlap; the mTRF browser script
+  cross-validates over `opts.folds`.
+- `NeuroGLMExport.split(expt, TestFraction=)`: the trials to fit and the trials to hold out, by `splitTrials`.
+- `EphysDataset.exportNWB` reopens the finished file with pynwb and compares its units with the staged arrays (the
+  number of units, of spike times, and a SHA-256 of the spike times): `OUT.verified` is `"verified"`, or `"unchecked"`
+  with the warning `EphysDataset:exportNWB:Unchecked` when the file cannot be read back; a difference is the error
+  `EphysDataset:exportNWB:Mismatch`. `nwb_status.json` carries the result (`verified`).
+- `kcsdEstimate` takes cell arrays of profiles (`{pos1, pos2, ...}`, `{pots1, pots2, ...}`, with `PerProfile=` for
+  options that differ) and runs them in one Python process; `kcsd_estimate.py` takes numbered jobs.
+- Pipeline app: before a run, one question, "Run <steps> on <n> datasets?" with **Run**, **Show plan** and **Cancel** and a
+  *Don't ask again* box (the preference `ConfirmRun`; **Run > Ask before running** turns it back on). A rehearsal is not
+  asked about; `runPipeline(Confirm=false)` skips the question.
+- Pipeline app: a run that ends with failed datasets says "k of n datasets failed:" with each one's step and message and
+  **Show results** / **Show log** buttons; closing the app during a run asks "A run is in progress (<step> i/n). Closing
+  cancels it after the current dataset." (**Keep running** / **Cancel run and close**).
+- Pipeline app: double-clicking a row of the Run tab's **Issues (Validate)** table goes to the setting it is about (its tab,
+  the control scrolled into view, marked and focused; `issueTarget`, `openSetting`).
+- Pipeline app: an amber tab reads "Probe !" and a red one "Run x", and the status bar's right side gives the selected tab's
+  first reason; a red banner on the Run tab shows while the Sorting tab's **Dry run** box is ticked.
+- Pipeline app: the Project tab shows a "No project is loaded yet." card with **Choose project root...** and **Try with
+  made-up data** until a project is scanned; **Help > Keyboard shortcuts and right-click menus** lists the shortcuts and the
+  right-click menus; a hint line under the Project table says what the right-click menu offers.
+- Pipeline app: the startup window has a **Skip scan** button (`AppSplash.offerSkip`, `skipRequested`) for a slow network
+  share; the Project tab's Open Ephys source settings have an **Event stream** field
+  (`Acquisition.OpenEphys.EventStream`); the Artifacts tab has **Also test the unreferenced signal for common-mode
+  artifacts** (`Artifacts.CommonModeUnreferenced`).
+- `AppDialog` (`pipeline/`): the alerts the apps share. `failure` / `alertFailure` word a failure as "Could not <action>
+  on <subject>.", the message, "Try: ..." and "Details: ..."; `noProject` / `alertNoProject` are the one "No project is
+  loaded" message with a "Go to <tab> tab" button; `showText` is the small window the Help menus' "Keyboard shortcuts
+  and right-click menus" use. `AppDialog.capture(true)` keeps the alerts in `AppDialog.captured()` instead of showing
+  them, so the tests read what would be shown.
+- Dataset browser: a dataset that gave nothing is said so. Its Cached cell reads "skipped: no sorted units" or "error"
+  in red (an error keeps no part, so the browser remembers the failure while the outputs and the settings are the
+  same), the status line names them after a Compute, `forEach` or Load ("2 not computed: recA (no sorted units), recB
+  (error: ...). Details... lists them."), and **Details...** (and **Details of the last run...** in the table's
+  right-click menu) opens a window with a row per dataset and kind of Data and the whole reason. `B.runDetails`,
+  `B.notComputedText`, `B.showDetails`; `DatasetRuns.message(name, key)` returns why a dataset was skipped.
+- Analysis app: double-clicking a row of the Export tab's issues table goes to what it is about (a Source issue to the
+  Data tab's box, a Defaults issue to the Alignment tab, an Export or Report issue to its box, a Figures issue such as
+  `<figure>.<panel>.layers(2).source` to the figure, panel, layer and section of the editor); a row of the plan or of
+  the results shows its figure and dataset on the Figures tab (`onIssueActivated`).
+- Analysis app: **Add Raster + PSTH** beside **Add** (and in the empty preview, which is now a card with the button)
+  adds a unit's raster flush above its PSTH, built from the config's own panel defaults. A gray line under the preview
+  reads "Right-click the plot to change colors, fonts and labels."
+- `figureSkipRemedy`: a skip reason in plain words with what to do about it ("No LFP signal: switch on LFP in the
+  pipeline's Signals tab and run it.", "No paired trials: approve the pairing on the pipeline's Trials tab."). The plan
+  and the results of the Export tab have a `WhatToDo` column, and the Figures tab's preview says it when a dataset
+  cannot draw a figure. The reasons of `figureSkipReason` stay as short as they were.
+- **Help > Keyboard shortcuts and right-click menus** in the analysis app (the old "Figures tab keys" window, with the
+  right-click menus added) and in the dataset browser (a small window); "Right-click for more" hints under the
+  datasets tables.
 
 ### Changed
 

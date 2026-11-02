@@ -45,7 +45,17 @@ function L = firstSpikeLatency(R, opts)
 %                 the manner of Chase & Young 2007 (PNAS 104:5175-5180):
 %                 the k-th spike in the window, at t_k, is the latency when
 %                 P(N >= k) < Alpha, N Poisson with mean
-%                 r*(t_k - MinSec) (MinSec clipped to the raster's span)
+%                 r*(t_k - MinSec) (MinSec clipped to the raster's span).
+%                 This significance spike is L.lat: it lags the response's
+%                 first spike by the few spikes the count needs. L.latFirst
+%                 is the first spike of the run that made it significant:
+%                 from the significance spike back, each earlier spike joins
+%                 while the interval after it is under half the baseline's
+%                 mean interval, 1/(2r), as in the seed of a "surprise" burst
+%                 (at r = 0 every interval is short: the run reaches the
+%                 window's first spike). The probabilities are gammainc(mean,
+%                 n, "lower"), P(N >= n) for a Poisson N, over all of an
+%                 epoch's spikes at once
 %   The baseline rate r (spikes/s) of "surprise" and "poisson" is the
 %   spike count in the Baseline window over its length: every epoch's
 %   counted together (BaselineRate "unit", the default) or each epoch's own
@@ -71,8 +81,13 @@ function L = firstSpikeLatency(R, opts)
 %                   (default 3; at least 2)
 %
 %   L fields
-%     lat         [nEpochs x nUnits] the first response spike's latency, s
-%                 (NaN: none)
+%     lat         [nEpochs x nUnits] the latency, s (NaN: none): the first
+%                 response spike's ("first"; "surprise": the first spike of
+%                 the burst), or with "poisson" the significance spike's
+%     latFirst    [nEpochs x nUnits] the first spike of the response: the
+%                 same as lat for "first" and "surprise", with "poisson" the
+%                 first spike of the run that made the count improbable (at
+%                 or before lat; see the method)
 %     spikeTime   [nEpochs x nUnits] that spike's time on the continuous
 %                 clock, lat + R.epochs.t0Continuous (NaN where lat is, or
 %                 everywhere when R.epochs has no t0Continuous, as a result
@@ -101,7 +116,7 @@ function L = firstSpikeLatency(R, opts)
 %   with a window starting at or after it), firstSpikeLatency:BadUnit.
 %
 %   See also responseOnset, figureLatencies, spikePSTH, rasterInto,
-%   drawPsthPanel, combineSessions, poisscdf.
+%   drawPsthPanel, combineSessions, gammainc.
 
 arguments
     R (1,1) struct
@@ -168,6 +183,7 @@ grp = double(R.epochGroup(:));
 nE = numel(grp);
 nU = numel(units);
 lat = NaN(nE, nU);
+latFirst = NaN(nE, nU);
 rate = NaN(nE, nU);
 for k = 1:nU
     t = double(R.raster(units(k)).times(:));
@@ -200,12 +216,14 @@ for k = 1:nU
         e = es(first(i));
         te = ts(first(i):last(i));
         if method == "poisson"
-            lat(e, k) = countOnset(te, r(e), lo, opts.Alpha);
+            [lat(e, k), latFirst(e, k)] = countOnset(te, r(e), lo, opts.Alpha);
         else
             lat(e, k) = burstOnset(te, r(e), opts.MinSpikes, opts.Surprise);
         end
     end
 end
+
+if method ~= "poisson"; latFirst = lat; end   % the first spike of the response is the latency itself
 
 spikeTime = NaN(nE, nU);
 if isfield(R, 'epochs') && istable(R.epochs) && height(R.epochs) == nE ...
@@ -227,18 +245,28 @@ end
 labels = strings(1, nU);
 if isfield(R, 'labels') && numel(R.labels) >= max([units 0]); labels = reshape(string(R.labels(units)), 1, []); end
 
-L = struct('lat', lat, 'spikeTime', spikeTime, 'rate', rate, 'window', [lo hi], 'baseline', B, 'method', method, ...
+L = struct('lat', lat, 'latFirst', latFirst, 'spikeTime', spikeTime, 'rate', rate, 'window', [lo hi], 'baseline', B, 'method', method, ...
     'settings', settings, 'units', units, 'labels', labels, 'epochGroup', grp, 'groups', G, 'n', n, 'nEpochs', nEpochs);
 end
 
 
-function t = countOnset(te, r, lo, alpha)
+function [t, tFirst] = countOnset(te, r, lo, alpha)
 %countOnset  The first spike (of TE, in time order) at which the count since LO is improbable at rate R: P(N >= k) < ALPHA.
+%   T is that significance spike; TFIRST the first spike of the run that made it so: from T back, each earlier spike
+%   joins while the interval after it is under 1/(2 R) (half the baseline's mean interval, the seed of a burst).
+%   P(N >= n) for N Poisson with mean m is gammainc(m, n, 'lower'), computed for all the spikes at once.
 t = NaN;
+tFirst = NaN;
+te = te(:);
 k = (1:numel(te)).';
-p = poisscdf(k - 1, r * max(0, te(:) - lo), 'upper');   % P(N >= k), N ~ Poisson(r (t_k - lo))
+p = gammainc(r * max(0, te - lo), k, 'lower');   % P(N >= k), N ~ Poisson(r (t_k - lo))
 at = find(p < alpha, 1);
-if ~isempty(at); t = te(at); end
+if isempty(at); return; end
+t = te(at);
+broke = find(diff(te(1:at)) >= 1 / (2 * r), 1, 'last');   % the latest interval too long to belong to the run
+first = 1;
+if ~isempty(broke); first = broke + 1; end
+tFirst = te(first);
 end
 
 
@@ -254,12 +282,14 @@ lookAhead = 10;
 for i = 1:n - minSpikes + 1
     if any(isi(i:i + minSpikes - 2) >= short); continue; end   % a seed: MinSpikes spikes, each interval short
     a = i;
-    b = i + minSpikes - 1;
-    best = surprise(te, a, b, r);
-    j = b + 1;
+    b0 = i + minSpikes - 1;
+    Sb = surprise(te(a), te(b0:n), b0 - a + 1:n - a + 1, r);   % the surprise of spikes a to j, for every j from b0 on
+    best = Sb(1);
+    b = b0;
     miss = 0;
+    j = b0 + 1;
     while j <= n && miss < lookAhead   % take the following spikes on while the surprise rises
-        s = surprise(te, a, j, r);
+        s = Sb(j - b0 + 1);
         if s > best
             best = s;
             b = j;
@@ -269,13 +299,16 @@ for i = 1:n - minSpikes + 1
         end
         j = j + 1;
     end
-    while b - a + 1 > minSpikes   % shed spikes from the start while that raises it
-        s = surprise(te, a + 1, b, r);
-        if s > best
-            best = s;
-            a = a + 1;
-        else
-            break
+    starts = a + 1:b - minSpikes + 1;   % shed spikes from the start while that raises it
+    if ~isempty(starts)
+        Sa = surprise(te(starts), te(b), b - starts + 1, r);   % the surprise of spikes a' to b, for every start a'
+        for m = 1:numel(starts)
+            if Sa(m) > best
+                best = Sa(m);
+                a = starts(m);
+            else
+                break
+            end
         end
     end
     if best >= thresh
@@ -286,7 +319,8 @@ end
 end
 
 
-function s = surprise(te, a, b, r)
-%surprise  The Poisson surprise of spikes A to B of TE at rate R: -log10 P(N >= n), N Poisson with mean R (t_b - t_a).
-s = -log10(poisscdf(b - a, r * (te(b) - te(a)), 'upper'));
+function s = surprise(ta, tb, n, r)
+%surprise  The Poisson surprise of N spikes from TA to TB at rate R: -log10 P(N >= n), N Poisson with mean R (TB - TA).
+%   TA, TB and N may be vectors of one length (or scalars): gammainc(m, n, 'lower') is P(N >= n) for a Poisson N of mean m.
+s = -log10(gammainc(r * (tb(:) - ta(:)), n(:), 'lower'));
 end

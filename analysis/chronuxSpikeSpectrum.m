@@ -49,6 +49,7 @@ nTr = zeros(nU, nG);
 zs = zeros(nU, nG);
 for u = 1:nU
     [data, counts] = chronuxSpikeCut(SP.times(u), TB.starts, TB.window, "window");
+    data = chronuxOntoGrid(data, t(end));   % spikes stamped past the last grid point count there (mtfftpt keeps all when none is inside)
     for g = 1:nG
         sel = TB.groupIndex == g;
         nTr(u, g) = nnz(sel);

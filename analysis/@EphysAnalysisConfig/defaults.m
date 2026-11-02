@@ -150,12 +150,12 @@ switch section
             'windowSec',        0.1, ...         % the auROC window: a whole number of bins
             'stepSec',          0.01, ...        % sliding: the step, a whole number of bins
             'modulationWindow', [0 0.5], ...     % s from the event: the windows inside it decide each unit's call
-            'cutoff',           "ci", ...        % "ci" (the paper's 95% CI) | "fixed" (threshold) | "test" (a p per unit) | "none"
+            'cutoff',           "ci", ...        % "ci" (the paper's 95% CI) | "fixed" (threshold) | "shuffle" (the 1 - alpha quantile of the shuffled phasic modulation) | "test" (a p per unit) | "none"
             'threshold',        0.1, ...         % fixed: modulated when |mean auROC - 0.5| is above this
             'test',             "bootstrap", ... % test: "bootstrap" (epochs) | "ranksum" | "shuffle" (circular time shift)
-            'nResamples',       1000, ...        % bootstrap / shuffle
+            'nResamples',       1000, ...        % bootstrap / shuffle (the test, or the shuffle cutoff)
             'correction',       "bh", ...        % test: over the units and groups (pAdjust)
-            'alpha',            0.05, ...        % test: modulated when the adjusted p is at most alpha
+            'alpha',            0.05, ...        % test: modulated when the adjusted p is at most alpha; shuffle: the cutoff is the 1 - alpha quantile
             'marks',            true, ...        % draw each unit's call (PSTH titles, heatmap rows)
             'modulatedOnly',    false);          % keep only the units modulated in some group
 
@@ -197,7 +197,10 @@ switch section
             'cusumBinSec',     0.002, ...       % the onset: the PSTH's bins, s
             'cusumThreshold',  5, ...           % the onset: the CUSUM's threshold, baseline SDs
             'cusumDrift',      1, ...           % the onset: the allowance each bin takes off, baseline SDs (0: the plain excess)
-            'cusumSustainSec', 0.005);          % the onset: how long the CUSUM stays over the threshold and rising, s
+            'cusumSustainSec', 0.005, ...       % the onset: how long the CUSUM stays over the threshold and rising, s
+            'cusumDirection',  "up", ...        % the onset: "up" (the rate rises) | "down" (it falls) | "both" (either)
+            'cusumGate',       "evoked", ...    % the onset: "evoked" (kept only for a unit that responds: a signed rank test of the epochs' rates, search window against baseline) | "none"
+            'cusumGateAlpha',  0.05);           % the onset, gate "evoked": the test's p value
 
     case "FirstSpike"
         % a raster panel's first-spike latency marks: a mark on each epoch's first spike (the figure's latency block finds it:

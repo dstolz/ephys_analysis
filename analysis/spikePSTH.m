@@ -27,7 +27,11 @@ function R = spikePSTH(spikeTimes, E, opts)
 %                    so it may lie outside Window; "probability" uses whole
 %                    BinSec bins from b0)
 %     BaselineMode   "none" (default) | "subtract" (rate - baseline) |
-%                    "zscore" ((rate - mean) / SD over the group's epochs) |
+%                    "zscore" ((rate - mean) / SD, both over the baseline's
+%                    whole BinSec bins of the group's trial-averaged PSTH,
+%                    the definition of epochMatrixNormalize's "zscore": the
+%                    SD does not depend on the baseline's length; the
+%                    baseline needs at least two whole bins) |
 %                    "percent" (100 (rate - mean) / mean) | "auroc" (each
 %                    window's auROC against the baseline, 0 to 1:
 %                    aurocCurves with Auroc's settings; see below)
@@ -36,8 +40,11 @@ function R = spikePSTH(spikeTimes, E, opts)
 %                    modulationWindow, cutoff, threshold, test, nResamples,
 %                    correction, alpha, modulatedOnly; marks is for the
 %                    renderers); missing ones take their defaults
-%     MaskAfterStop  drop each epoch's bins from its stop event t1 on (the
-%                    mean then covers only the epochs still going)
+%     MaskAfterStop  drop each epoch's bins from its stop event t1 on, the
+%                    bin the stop falls inside included (its count covers
+%                    only part of the bin, so its rate would read low), and
+%                    the raster's spikes from the stop on (the mean then
+%                    covers only the epochs still going)
 %     Raster         keep every spike's time for rasters (default true)
 %     Groups         the groups table from epochTable (labels, colors);
 %                    default: built from E.groupIndex / E.group
@@ -62,7 +69,10 @@ function R = spikePSTH(spikeTimes, E, opts)
 %   [nGroups x 1], raster (1 x nUnits struct: times relative to the event,
 %   epoch = row of E, group), epochGroup / epochStop [nEpochs x 1] (group
 %   and t1 - t0 of every epoch), stopMean [nGroups x 1] mean t1 - t0,
-%   baselineRate / baselineSD [nUnits x nGroups], groups, labels, meta, n
+%   baselineRate [nUnits x nGroups] (the baseline's mean: spikes counted in
+%   [b0, b1), for "zscore" the mean of the whole bins) and baselineSD
+%   (the SD of the group's trial-averaged baseline bins, unsmoothed; NaN
+%   with fewer than two whole bins), groups, labels, meta, n
 %   (= nEpochs), units, params, auroc ([] but with BaselineMode "auroc"),
 %   err (the error band: type, lo / hi [nBins x nUnits x nGroups], over
 %   "epochs", nBoot; R.rate +/- R.sem for "sem"), created.
@@ -137,9 +147,13 @@ if opts.BaselineMode ~= "none"
     end
 end
 if useBase
-    baseEdges = b(1) + (0:floor((b(2) - b(1)) / bin + 1e-9)) * bin;   % "probability": whole bins from b0
+    baseEdges = b(1) + (0:floor((b(2) - b(1)) / bin + 1e-9)) * bin;   % the baseline's whole bins from b0
     if opts.Measure == "probability" && numel(baseEdges) < 2
         error('spikePSTH:BadBaseline', 'A probability baseline needs a whole %g s bin: [%g %g] is shorter.', bin, b(1), b(2));
+    end
+    if opts.BaselineMode == "zscore" && numel(baseEdges) < 3
+        error('spikePSTH:BadBaseline', ['BaselineMode "zscore" takes the SD over the baseline''s whole %g s bins, so it needs ' ...
+            'at least two of them: [%g %g] holds %d.'], bin, b(1), b(2), numel(baseEdges) - 1);
     end
 end
 
@@ -148,18 +162,19 @@ errLo = NaN(nB, nU, nG); errHi = NaN(nB, nU, nG);
 baseRate = NaN(nU, nG); baseSD = NaN(nU, nG);
 raster = struct('times', cell(1, nU), 'epoch', cell(1, nU), 'group', cell(1, nU));
 mask = false(nB, nE);
-if opts.MaskAfterStop
-    for e = 1:nE
-        if isfinite(stopRel(e)); mask(:, e) = edges(1:end-1).' >= stopRel(e); end
-    end
+if opts.MaskAfterStop   % the bins reaching past the stop (a bin the stop falls inside counts only part of its width)
+    mask = isfinite(stopRel).' & edges(2:end).' > stopRel.' + 1e-9;
 end
+batchCI = opts.ErrorType == "ci95" && ~isAuroc;   % the bootstrap bands of all the units at once, after the loop (errorBounds)
+rAll = [];
+if batchCI; rAll = NaN(nB, nE, nU); end
 for u = 1:nU
     if ~isempty(opts.Check); opts.Check(); end
     if opts.Raster
         [c, rel, ep] = binCounts(st{u}, ta, edges);
         keepR = true(size(rel));
         if opts.MaskAfterStop
-            keepR = ~(isfinite(stopRel(ep)) & rel >= stopRel(ep));
+            keepR = ~(isfinite(stopRel(ep)) & rel >= stopRel(ep) - 1e-9);   % the spikes from the stop on
         end
         raster(u).times = rel(keepR);
         raster(u).epoch = ep(keepR);
@@ -178,7 +193,17 @@ for u = 1:nU
     if opts.SmoothSec > 0
         r = gaussianSmooth(r, opts.SmoothSec / opts.BinSec);
     end
+    if batchCI; rAll(:, :, u) = r; end
     if useBase
+        bb = [];   % the baseline's whole bins, [nBaseBins x nE], in the Measure's unit
+        if numel(baseEdges) >= 2
+            bc = binCounts(st{u}, ta, baseEdges);
+            switch opts.Measure
+                case "rate",        bb = bc / opts.BinSec;
+                case "count",       bb = bc;
+                case "probability", bb = double(bc > 0);
+            end
+        end
         switch opts.Measure
             case "rate"
                 bc = binCounts(st{u}, ta, [b(1) b(2)]);
@@ -187,8 +212,7 @@ for u = 1:nU
                 bc = binCounts(st{u}, ta, [b(1) b(2)]);
                 br = bc(:) / (b(2) - b(1)) * opts.BinSec;   % spikes per bin
             case "probability"
-                bc = binCounts(st{u}, ta, baseEdges);
-                br = mean(double(bc > 0), 1, 'omitnan').';
+                br = mean(bb, 1, 'omitnan').';
         end
     end
     for g = 1:nG
@@ -196,10 +220,19 @@ for u = 1:nU
         if ~any(cols); continue; end
         m = mean(r(:, cols), 2, 'omitnan');
         s = semOf(r(:, cols), 2);
-        [lo, hi] = errorBounds(r(:, cols), 2, opts.ErrorType, opts.ErrorResamples);
+        if batchCI
+            lo = NaN(nB, 1); hi = lo;   % bootstrapped below, for all the units at once
+        else
+            [lo, hi] = errorBounds(r(:, cols), 2, opts.ErrorType, opts.ErrorResamples);
+        end
         if useBase
             mu = mean(br(cols));
-            sd = std(br(cols));
+            sd = NaN;
+            if size(bb, 1) >= 2   % mean and SD over the bins of the group's trial-averaged baseline, as epochMatrixNormalize
+                trace = mean(bb(:, cols), 2);
+                sd = std(trace);
+                if opts.BaselineMode == "zscore"; mu = mean(trace); end
+            end
             baseRate(u, g) = mu;
             baseSD(u, g) = sd;
             switch opts.BaselineMode
@@ -225,6 +258,25 @@ for u = 1:nU
         errHi(:, u, g) = hi;
         count(:, u, g) = sum(c(:, cols), 2);
     end
+end
+
+if batchCI   % bootci for a group's units together (its resamples depend on the epochs only, so each unit's band is the one alone)
+    chunk = max(1, floor(4000 / nB));   % units per call: bootci holds nBoot x bins x units
+    for g = 1:nG
+        cols = find(gIdx == g);
+        if isempty(cols); continue; end
+        for u1 = 1:chunk:nU
+            us = u1:min(nU, u1 + chunk - 1);
+            [lo, hi] = errorBounds(rAll(:, cols, us), 2, "ci95", opts.ErrorResamples);   % [nB x 1 x numel(us)]
+            if useBase
+                lo = bandAs(lo, opts.BaselineMode, baseRate(us, g), baseSD(us, g));
+                hi = bandAs(hi, opts.BaselineMode, baseRate(us, g), baseSD(us, g));
+            end
+            errLo(:, us, g) = reshape(lo, nB, []);
+            errHi(:, us, g) = reshape(hi, nB, []);
+        end
+    end
+    rAll = [];
 end
 
 nEpochs = accumarray(gIdx, 1, [nG 1]);
@@ -315,6 +367,23 @@ for f = ["mean" "phasic" "p" "q" "direction" "modulated"]
     aur.(f) = aur.(f)(keep, :);
 end
 aur.settings = a;
+end
+
+
+function x = bandAs(x, mode, mu, sd)
+%bandAs  A band's edges X [nBins x 1 x nUnits] moved as the baseline mode moves the mean (MU, SD: one per unit).
+mu = reshape(mu, 1, 1, []);
+sd = reshape(sd, 1, 1, []);
+switch mode
+    case "subtract"
+        x = x - mu;
+    case "zscore"
+        x = (x - mu) ./ sd;
+        x(:, :, ~(sd > 0)) = NaN;
+    case "percent"
+        x = 100 * (x - mu) ./ mu;
+        x(:, :, ~(mu > 0)) = NaN;
+end
 end
 
 

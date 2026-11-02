@@ -102,8 +102,24 @@ check(isequal(Rk.count(:).', [0 1]) && Rk.raster.times == 0 && Fk.count == 1 && 
 R0 = spikePSTH({st}, E, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="subtract");
 check(abs(mean(R0.rate)) < 0.05 * lambda && abs(R0.baselineRate - lambda) / lambda < 0.05 && R0.units == "spikes/s - baseline", ...
     sprintf('baseline subtraction of a flat train is %.2f (about 0)', mean(R0.rate)));
-Rz = spikePSTH({st}, E, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="zscore");
-check(abs(mean(Rz.rate)) < 0.3 && Rz.units == "z (baseline)", 'z-scored flat train is about 0');
+Rz = spikePSTH({st}, E, Window=[-0.2 0.5], BinSec=0.01, Baseline=[-0.2 0], BaselineMode="zscore");   % 20 baseline bins for the SD
+check(abs(mean(Rz.rate)) < 0.5 && Rz.units == "z (baseline)", 'z-scored flat train is about 0');
+Rn0 = spikePSTH({st}, E, Window=[-0.4 0.5], BinSec=0.05);
+inBase = Rn0.t > -0.2 & Rn0.t < 0;
+Rz2 = spikePSTH({st}, E, Window=[-0.4 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="zscore");
+muB = mean(Rn0.rate(inBase)); sdB1 = std(Rn0.rate(inBase));
+check(max(abs(Rz2.rate - (Rn0.rate - muB) / sdB1)) < 1e-9 && abs(Rz2.baselineRate - muB) < 1e-9 && abs(Rz2.baselineSD - sdB1) < 1e-9, ...
+    'zscore: mean and SD over the baseline''s whole bins of the trial-averaged PSTH (epochMatrixNormalize''s definition)');
+perT = (10:0.2:70).';   % a train that repeats every 0.2 s: the same epoch every time
+sPer = (0:1:380).' * 0.2 + [0.013 0.047 0.052 0.1495];
+Ep = epochs(perT, ones(numel(perT), 1));
+Rp1 = spikePSTH({sort(sPer(:))}, Ep, Window=[-0.4 0.5], BinSec=0.01, Baseline=[-0.2 0], BaselineMode="zscore");
+Rp2 = spikePSTH({sort(sPer(:))}, Ep, Window=[-0.4 0.5], BinSec=0.01, Baseline=[-0.4 0], BaselineMode="zscore");
+check(isfinite(Rp1.baselineSD) && Rp1.baselineSD > 0 && abs(Rp2.baselineSD / Rp1.baselineSD - 1) < 0.02 ...
+    && max(abs(Rp1.rate - Rp2.rate), [], 'all') < 0.05 * max(abs(Rp1.rate), [], 'all'), ...
+    'zscore: doubling the baseline (the same data) leaves the SD, and so z, unchanged (it scaled z by 1.41 with the SD over epochs)');
+check(strcmp(errorId(@() spikePSTH({st}, E, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.05 0], BaselineMode="zscore")), 'spikePSTH:BadBaseline'), ...
+    'zscore needs two whole bins in the baseline: spikePSTH:BadBaseline');
 Rg = spikePSTH({st}, E, Window=[-0.2 0.5], BinSec=0.01, SmoothSec=0.02);
 Rr = spikePSTH({st}, E, Window=[-0.2 0.5], BinSec=0.01);
 check(abs(mean(Rg.rate) - mean(Rr.rate)) / mean(Rr.rate) < 0.01 && std(Rg.rate) < std(Rr.rate), ...
@@ -116,9 +132,9 @@ check(mean(Rd.rate(inWin, 2)) > mean(Rd.rate(~inWin, 2)) + 40 && abs(mean(Rd.rat
 E2 = epochs(t0, 1 + (mod((1:numel(t0)).', 2) == 0));
 E2.t1 = E2.t0 + 0.21;
 Rm = spikePSTH({st}, E2, Window=[-0.2 0.5], BinSec=0.05, MaskAfterStop=true);
-after = Rm.t - 0.025 >= 0.21;
+after = Rm.t + 0.025 > 0.21;   % the bins reaching past the stop, the one it falls inside included
 check(all(isnan(Rm.rate(after, 1, :)), 'all') && all(isfinite(Rm.rate(~after, 1, :)), 'all') && size(Rm.rate, 3) == 2 ...
-    && all(abs(Rm.stopMean - 0.21) < 1e-12) && all(Rm.raster(1).times < 0.21), 'MaskAfterStop drops the bins after the stop event');
+    && all(abs(Rm.stopMean - 0.21) < 1e-12) && all(Rm.raster(1).times < 0.21), 'MaskAfterStop drops the bins from the stop event on');
 
 fprintf('\n== 2. firingRate: between windows and baselines ==\n');
 nE = 200;
@@ -145,6 +161,17 @@ check(isequal(Tc.x, [0; 1; 2; 3]) && max(abs(Tc.mean(:, 1, 1) - (10 + 5 * (0:3).
     && max(abs(Tc.mean(:, 1, 2) - (17 + 5 * (0:3).')), [], 'all') < 0.3 && isequal(Tc.n, 25 * ones(4, 2)) ...
     && isequal(Tc.series, ["Kind = a"; "Kind = b"]), 'the curves recover 10 + 5 x and the series offset');
 Tt = tuningCurve(rates(:, 1), string(x));
+rN = rates; rN(2, 1) = NaN; rN(1:2, 2) = NaN;   % a NaN rate: unit 1 in epoch 2, unit 2 in epochs 1 and 2
+TN = tuningCurve(rN, x, Series=series, Param="Depth", SeriesParam="Kind");
+nHave = zeros(4, 2, 2);
+for iN = 1:4
+    for jN = 1:2
+        nHave(iN, :, jN) = sum(~isnan(rN(x == TN.x(iN) & series == TN.seriesValues(jN), :)), 1);
+    end
+end
+check(isequal(TN.n, Tc.n) && isequal(TN.nValid, nHave) && TN.nValid(2, 1, 1) == 24 && TN.nValid(1, 2, 1) == 24 ...
+    && TN.nValid(1, 1, 1) == 25 && abs(TN.sem(2, 1, 1) - std(rN(x == 1 & series == "a", 1), 'omitnan') / sqrt(24)) < 1e-12, ...
+    'tuningCurve: n counts the epochs having the value, nValid the epochs with a rate for each unit (the n of its mean and sem)');
 check(~Tt.xIsNumeric && isequal(Tt.x, ["0"; "1"; "2"; "3"]) && Tt.series == "all", 'a text parameter works too');
 check(strcmp(errorId(@() tuningCurve(rates, NaN(size(x)), Param="Depth")), 'tuningCurve:NoValues') ...
     && strcmp(errorId(@() tuningCurve(rates, x, Series=repmat(string(missing), size(x)), Param="Depth", SeriesParam="Kind")), 'tuningCurve:NoValues'), ...
@@ -370,7 +397,7 @@ for e = 1:nC
     uC = [uC; tc(e) - 0.2 + 0.7 * rand(randi([0 10]), 1)]; %#ok<AGROW>
 end
 Ec = epochs(tc, ones(nC, 1));
-C = unitCorrelation({uA, uB, uC, uD, uF}, Ec);
+C = unitCorrelation({uA, uB, uC, uD, uF}, Ec, Detrend=false);
 [r0, p0] = corrcoef(C.response);
 check(C.kind == "corrmap" && isequal(size(C.r), [5 5]) && C.nEpochs == nC ...
     && max(abs(C.response(:, 1) - k / 0.7)) < 1e-9, 'mean metric: spikes in [tStart, tStop) over the window length');
@@ -380,15 +407,15 @@ check(max(abs(C.r(:) - r0(:))) < 1e-12 && abs(C.r(1, 2) - 1) < 1e-12 && abs(C.r(
 off = ~eye(5);
 check(max(abs(C.p(off) - p0(off))) < 1e-9 && all(isnan(diag(C.p))), 'p values match corrcoef''s');
 check(abs(C.meanR - mean(r0(off))) < 1e-12, 'meanR is the mean over the pairs');
-Z = unitCorrelation({uA, uB, uC, uD, uF}, Ec, FisherZ=true);
+Z = unitCorrelation({uA, uB, uC, uD, uF}, Ec, FisherZ=true, Detrend=false);
 rc = max(min(C.r, 1 - eps), -1 + eps);
 check(Z.fisherZ && isequal(Z.r, C.r) && all(isnan(diag(Z.z))) && max(abs(Z.z(off) - atanh(rc(off)))) < 1e-12 ...
     && abs(Z.meanR - tanh(mean(atanh(rc(off))))) < 1e-12 && all(isfinite(Z.z(off))) && ~isfield(C, 'z') && ~C.fisherZ, ...
     'FisherZ: z = atanh r (r = +-1 kept finite), the mean taken in z and transformed back; r unchanged');
-S = unitCorrelation({uA, uB, uC, uD, uF}, Ec, Type="spearman");
+S = unitCorrelation({uA, uB, uC, uD, uF}, Ec, Type="spearman", Detrend=false);
 check(abs(S.r(1, 5) - 1) < 1e-12 && abs(S.r(1, 4) + 1) < 1e-12 && max(abs(S.r - corrcoef(ranks(S.response))), [], 'all') < 1e-12, ...
     'Spearman: a monotone transform correlates 1, and it is Pearson of the (tie-averaged) ranks');
-P = unitCorrelation({uA, uG}, Ec, Metric="peak", BinSec=0.01);
+P = unitCorrelation({uA, uG}, Ec, Metric="peak", BinSec=0.01, Detrend=false);
 check(max(abs(P.response(:, 2) - 100 * k)) < 1e-9 && max(abs(P.response(:, 1) - 100 * (k > 0))) < 1e-9 ...
     && abs(P.r(1, 2) - corr1(P.response)) < 1e-12, 'peak metric: the largest 10 ms bin (a burst of k spikes = 100 k/s)');
 Ps = unitCorrelation({uG}, Ec, Metric="peak", BinSec=0.01, SmoothSec=0.01);
@@ -399,15 +426,21 @@ Eb.duration = Eb.tStop - Eb.tStart;
 sb = Eb.tStart + [0.032; 0.005; 0.5; 0.6];
 Pb = unitCorrelation({sb}, Eb, Metric="peak", BinSec=0.01);
 Mb = unitCorrelation({sb}, Eb);
-check(max(abs(Pb.response.' - [0 100 100 100])) < 1e-9 && max(abs(Mb.response.' - 1 ./ Eb.duration.')) < 1e-9, ...
-    'between windows: the peak skips a bin that runs past tStop; the mean divides by each window''s length');
+check(max(abs(Pb.response.' - [0 100 0 0])) < 1e-9 && Pb.peakBins == 3 && max(abs(Mb.response.' - 1 ./ Eb.duration.')) < 1e-9 && isnan(Mb.peakBins), ...
+    'between windows: the peak searches only the shortest window''s 3 whole bins (a longer window would have more to take a maximum over); the mean divides by each window''s length');
+Es = Eb; Es.tStop = Es.tStart + [0.035; 0.035; 0.2; 0.7]; Es.duration = Es.tStop - Es.tStart;
+sEq = Es.tStart + [0.012; 0.012; 0.012; 0.012];
+sLong = [sEq; Es.tStart(3:4) + [0.1; 0.5]];   % the longer windows hold an extra spike each, after the shortest's bins
+Pe = unitCorrelation({sort(sLong)}, Es, Metric="peak", BinSec=0.01);
+check(max(abs(Pe.response.' - [100 100 100 100])) < 1e-9, ...
+    'between windows: windows of any length give a spike at the same latency the same peak, extra spikes late in a longer window change nothing');
 B = unitCorrelation({uA, uC}, Ec, Baseline=[-0.2 0], BaselineMode="subtract");
 bC = arrayfun(@(t) nnz(uC >= t - 0.2 & uC < t), tc) / 0.2;
 check(max(abs(B.response(:, 2) - (C.response(:, 3) - bC))) < 1e-9 && B.units == "spikes/s - baseline", ...
     'baseline subtract: each epoch minus its own baseline rate');
 g2 = 1 + (tc > 100);
 Eg = epochs(tc, g2);
-Rg = unitCorrelation({uA, uC, uD}, Eg);
+Rg = unitCorrelation({uA, uC, uD}, Eg, Detrend=false);
 r1 = corrcoef(C.response(g2 == 1, [1 3 4]));
 r2 = corrcoef(C.response(g2 == 2, [1 3 4]));
 check(isequal(size(Rg.r), [3 3 2]) && isequal(Rg.n, [nnz(g2 == 1); nnz(g2 == 2)]) ...
@@ -418,6 +451,32 @@ check(all(isnan(Z.r(2, :))) && all(isnan(Z.r(:, 2))) && Z.r(1, 1) == 1 && abs(Z.
     'a unit with the same count every epoch has NaN correlations');
 Z = unitCorrelation({uA, uD}, epochs(tc(1:2), [1; 1]));
 check(all(isnan(Z.r(:))) && isnan(Z.meanR) && Z.n == 2, 'fewer than 3 epochs: NaN');
+tri5 = triu(true(5), 1);
+check(isequal(size(C.q), [5 5]) && max(abs(C.q(tri5) - pAdjust(C.p(tri5), "bh"))) < 1e-12 && isequaln(C.q, C.q.') ...
+    && all(isnan(diag(C.q))) && all(C.q(tri5) >= C.p(tri5) - 1e-12) && all(C.q(tri5) <= 1), ...
+    'q is Benjamini-Hochberg over the pairs of units (each pair once), symmetric, NaN on the diagonal, never below p');
+rngState = rng;   % the drift check draws its own numbers, so the checks after it keep theirs
+rng(31, 'twister');
+nD = numel(tc);
+drift = 2 + 28 * (0:nD - 1).' / (nD - 1);   % both units' rate climbs from 2 to 30 Hz over the session
+uX = zeros(0, 1); uY = zeros(0, 1);
+for e = 1:nD
+    uX = [uX; tc(e) - 0.2 + 0.7 * rand(poissrnd0(drift(e) * 0.7), 1)]; %#ok<AGROW>
+    uY = [uY; tc(e) - 0.2 + 0.7 * rand(poissrnd0(drift(e) * 0.7), 1)]; %#ok<AGROW>
+end
+rng(rngState);
+Dn = unitCorrelation({uX, uY}, Ec, Detrend=false);
+Dt = unitCorrelation({uX, uY}, Ec);
+kD = max(5, round(0.2 * nD)); kD = kD + (mod(kD, 2) == 0);
+rDt = corrcoef(Dn.response - movmean(Dn.response, kD, 1, 'omitnan'));
+check(Dn.r(1, 2) > 0.5 && abs(Dt.r(1, 2)) < 0.25 && abs(Dt.r(1, 2) - rDt(1, 2)) < 1e-12 && Dt.detrend && ~Dn.detrend ...
+    && isequal(Dt.response, Dn.response) && Dt.params.Detrend, ...
+    sprintf(['Detrend (the default): two independent units that drift together correlate %.2f raw and %.2f once ' ...
+    'each response loses its moving mean over %d epochs'], Dn.r(1, 2), Dt.r(1, 2), kD));
+Ds = unitCorrelation({uX, uY}, epochs(tc, 1 + mod((1:nD).', 2)));   % groups: detrended along their own epochs
+Dh = unitCorrelation({uX, uY}, epochs(tc, 1 + mod((1:nD).', 2)), Detrend=false);
+check(isequal(size(Ds.q), [2 2 2]) && Ds.q(1, 2, 1) == Ds.q(2, 1, 1) && abs(Ds.r(1, 2, 1)) < abs(Dh.r(1, 2, 1)), ...
+    'Detrend runs within each group, in time order; q has a matrix per group');
 check(strcmp(errorId(@() unitCorrelation({uA}, Eb, Metric="peak", BinSec=1)), 'unitCorrelation:BadWindow') ...
     && strcmp(errorId(@() unitCorrelation({uA}, Ec, BaselineMode="subtract")), 'unitCorrelation:BadBaseline'), ...
     'a window shorter than a bin, and subtract without a baseline window, are errors');
@@ -643,6 +702,24 @@ Rz = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], Ba
 sdB = reshape(Rz.baselineSD, 1, size(Rz.baselineSD, 1), []);
 check(max(abs((Rz.err.hi - Rz.rate) .* sdB - (Rsd.err.hi - Rsd.rate)), [], 'all') < 1e-9, ...
     'a z-scored PSTH''s band is scaled by the baseline''s SD, as its mean is');
+if haveBoot   % ErrorType "ci95": the units' bootstraps in one call
+    rawC = binCounts(trains{2}, Ee.t0Continuous, (-4:10) * 0.05) / 0.05;   % unit 2's rate per bin and epoch
+    [bl, bh] = errorBounds(rawC(:, Ee.groupIndex == 1), 2, "ci95", 300);
+    Rb2 = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, ErrorType="ci95", ErrorResamples=300);
+    Rb1 = spikePSTH(trains(2), Ee, Window=[-0.2 0.5], BinSec=0.05, ErrorType="ci95", ErrorResamples=300);
+    Rsub = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="subtract", ...
+        ErrorType="ci95", ErrorResamples=300);
+    Rzc = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="zscore", ...
+        ErrorType="ci95", ErrorResamples=300);
+    Rz1 = spikePSTH(trains(2), Ee, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="zscore", ...
+        ErrorType="ci95", ErrorResamples=300);
+    check(max(abs(Rb2.err.lo(:, 2, 1) - bl)) < 1e-12 && max(abs(Rb2.err.hi(:, 2, 1) - bh)) < 1e-12 ...
+        && isequaln(Rb2.err.lo(:, 2, :), Rb1.err.lo) && isequaln(Rb2.err.hi(:, 2, :), Rb1.err.hi) ...
+        && max(abs(Rsub.err.lo(:, 2, 1) - (bl - Rsub.baselineRate(2, 1)))) < 1e-9 ...
+        && isequaln(Rzc.err.lo(:, 2, :), Rz1.err.lo) && isequaln(Rzc.err.hi(:, 2, :), Rz1.err.hi) ...
+        && max(abs(Rzc.err.lo(:, 2, 1) - (bl - Rzc.baselineRate(2, 1)) / Rzc.baselineSD(2, 1))) < 1e-9, ...
+        'spikePSTH "ci95": the bootstrap bands of all the units at once are each unit''s alone, and move with the baseline mode');
+end
 if haveBoot   % the auROC needs the toolbox too
     Ra0 = spikePSTH(trains, Ee, Window=[-0.2 0.5], BinSec=0.05, Baseline=[-0.2 0], BaselineMode="auroc", ...
         Auroc=struct('cutoff', "none"), ErrorType="std");

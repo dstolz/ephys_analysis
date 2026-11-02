@@ -116,10 +116,9 @@ if R.rowKind == "unit"
     if R.settings.measure ~= "auroc"
         b = R.settings.binSec;
         edges = (ceil(X.window(1) / b - 1e-9) : floor(X.window(2) / b + 1e-9)) * b;   % spikePSTH's: whole bins, an edge at the event
-        X.counts = zeros(nE, numel(edges) - 1);
-        for j = 1:nE
-            X.counts(j, :) = binCounts(X.times(X.trial == j), 0, edges).';   % spikePSTH's rule for a spike on an edge
-        end
+        bin = discretize(X.times + 1e-9, edges);   % [a, b), binCounts' rule: a spike on an edge (within 1e-9 s) in the bin that starts there
+        ok = ~isnan(bin) & X.trial >= 1 & X.trial <= nE;
+        X.counts = accumarray([X.trial(ok) bin(ok)], 1, [nE numel(edges) - 1]);   % one pass, not a pass per epoch
     end
 else
     D = reshape(e.data(i, :, :), size(e.data, 2), size(e.data, 3));   % time x epoch

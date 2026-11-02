@@ -12,9 +12,23 @@ function R = unitCorrelation(spikeTimes, E, opts)
 %     Metric         "mean" (default): spikes in the window / its length |
 %                    "peak": the largest binned rate in the window (bins of
 %                    BinSec from tStart, smoothed by SmoothSec; a bin that
-%                    runs past tStop is not used)
+%                    runs past tStop is not used). With windows of different
+%                    lengths ("between" epochs) only the first nB bins of
+%                    every window are searched, nB the whole bins of the
+%                    shortest window that holds one (R.peakBins): a longer
+%                    window has more bins to take a maximum over, so its
+%                    peak would grow with its length
 %     Type           "pearson" (default) | "spearman" (Pearson of the ranks,
 %                    ties averaged)
+%     Detrend        true (default) | false: before correlating, subtract
+%                    from each unit's responses their moving mean over k
+%                    epochs of the group in time order (movmean, k about 20%
+%                    of the group's epochs, odd, at least 5; omitting NaN),
+%                    so two units whose rates drift slowly over the session
+%                    (anesthesia, adaptation) do not correlate through the
+%                    drift. R.response keeps the responses as measured; r, p
+%                    and q are those of the detrended ones (p assumes n-2
+%                    degrees of freedom, which the detrending lowers a bit)
 %     FisherZ        false (default) | true: also give Fisher's z = atanh(r)
 %                    (R.z) and take the mean over the pairs in z, back-
 %                    transformed (meanR = tanh(mean z)): r is bounded and
@@ -32,10 +46,13 @@ function R = unitCorrelation(spikeTimes, E, opts)
 %   is left out of its group. A unit whose responses do not vary has NaN
 %   correlations; so does every pair of a group with fewer than 3 epochs.
 %
-%   R fields: kind "corrmap", r / p [nUnits x nUnits x nGroups] (z, with
+%   R fields: kind "corrmap", r / p / q [nUnits x nUnits x nGroups] (z, with
 %   FisherZ; fisherZ: the option; p: two-sided,
 %   from t = r sqrt((n-2) / (1-r^2)) with n-2 degrees of freedom; for
-%   Spearman an approximation), meanR [nGroups x 1] (mean over the pairs),
+%   Spearman an approximation; q: p adjusted for the group's pairs of units
+%   by Benjamini-Hochberg, pAdjust(p, "bh") over each group's off-diagonal
+%   pairs, each pair once; the diagonal is NaN), detrend (the option),
+%   peakBins (nB, "peak" only, else NaN), meanR [nGroups x 1] (mean over the pairs),
 %   nEpochs [nGroups x 1] (epochs used), response [nEpochs x nUnits] (after
 %   BaselineMode), epochIndex (E.epoch), groupIndex, groups, labels, meta,
 %   n (= nEpochs), metric, type, units (of the response), params, created.
@@ -48,6 +65,7 @@ arguments
     opts.Metric (1,1) string {mustBeMember(opts.Metric, ["mean" "peak"])} = "mean"
     opts.Type (1,1) string {mustBeMember(opts.Type, ["pearson" "spearman"])} = "pearson"
     opts.FisherZ (1,1) logical = false
+    opts.Detrend (1,1) logical = true
     opts.BinSec (1,1) double {mustBePositive} = 0.01
     opts.SmoothSec (1,1) double {mustBeNonnegative} = 0
     opts.Baseline double = []
@@ -70,13 +88,16 @@ if useBase && (numel(b) ~= 2 || ~(b(2) > b(1)))
 end
 
 dur = round((E.tStop - E.tStart) * 1e9) / 1e9;   % to the ns: equal windows give equal rates (ties, constant units)
+nB = NaN;
 if opts.Metric == "peak"
-    nB = floor(max([dur; 0]) / opts.BinSec + 1e-9);
-    if nB < 1
+    nWhole = floor(dur / opts.BinSec + 1e-9);   % whole bins in each window
+    usable = nWhole >= 1;                       % a shorter window has no response
+    if ~any(usable)
         error('unitCorrelation:BadWindow', 'Every epoch window is shorter than one %g s bin.', opts.BinSec);
     end
+    nB = min(nWhole(usable));   % the same bins for every window: a longer one would have more to take the peak over
     edges = (0:nB) * opts.BinSec;
-    whole = edges(2:end).' <= dur.' + 1e-9;   % [nBins x nEpochs]: bins inside each window
+    whole = repmat(usable.', nB, 1);   % [nBins x nEpochs]
 end
 shift = E.t0Continuous - E.t0;   % the digital-event clock -> the spikes' clock
 wStart = E.tStart + shift;
@@ -103,7 +124,11 @@ rho = NaN(nU, nU, nG); p = NaN(nU, nU, nG);
 nUsed = zeros(nG, 1); meanR = NaN(nG, 1);
 off = ~eye(nU);
 for g = 1:nG
-    X = resp(gIdx == g, :);
+    rows = find(gIdx == g);
+    X = resp(rows, :);
+    if opts.Detrend
+        X = detrendTrials(X, E.t0Continuous(rows));
+    end
     X = X(all(isfinite(X), 2), :);
     n = size(X, 1);
     nUsed(g) = n;
@@ -121,11 +146,27 @@ for g = 1:nG
     end
 end
 
+q = NaN(nU, nU, nG);   % Benjamini-Hochberg over each group's pairs of units, each pair once
+[ia, ib] = find(triu(true(nU), 1));
+fwd = sub2ind([nU nU], ia, ib);
+bwd = sub2ind([nU nU], ib, ia);
+for g = 1:nG
+    pg = p(:, :, g);
+    qg = NaN(nU);
+    qq = pAdjust(pg(fwd), "bh");
+    qg(fwd) = qq;
+    qg(bwd) = qq;
+    q(:, :, g) = qg;
+end
+
 R = struct();
 R.kind = "corrmap";
 R.r = rho;
 R.p = p;
+R.q = q;
 R.fisherZ = opts.FisherZ;
+R.detrend = opts.Detrend;
+R.peakBins = nB;
 if opts.FisherZ
     z = atanh(max(min(rho, 1 - eps), -1 + eps));
     z(repmat(eye(nU) ~= 0, 1, 1, nG)) = NaN;
@@ -145,9 +186,26 @@ R.metric = opts.Metric;
 R.type = opts.Type;
 R.units = "spikes/s";
 if useBase; R.units = "spikes/s - baseline"; end
-R.params = struct('Metric', opts.Metric, 'Type', opts.Type, 'FisherZ', opts.FisherZ, 'BinSec', opts.BinSec, 'SmoothSec', opts.SmoothSec, ...
+R.params = struct('Metric', opts.Metric, 'Type', opts.Type, 'FisherZ', opts.FisherZ, 'Detrend', opts.Detrend, 'BinSec', opts.BinSec, 'SmoothSec', opts.SmoothSec, ...
     'Baseline', b, 'BaselineMode', opts.BaselineMode);
 R.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+end
+
+
+function X = detrendTrials(X, t)
+%detrendTrials  Subtract each column's moving mean over k epochs in time order (NaN ignored).
+%   k is about 20% of the epochs, odd and at least 5. A column that does not
+%   vary stays constant (zero), not rounding noise from the moving mean.
+n = size(X, 1);
+if n < 2; return; end
+k = max(5, round(0.2 * n));
+k = k + (mod(k, 2) == 0);
+[~, ord] = sort(t);
+Xs = X(ord, :);
+flat = max(Xs, [], 1, 'omitnan') == min(Xs, [], 1, 'omitnan');
+Xd = Xs - movmean(Xs, k, 1, 'omitnan');
+Xd(isfinite(Xs) & flat) = 0;
+X(ord, :) = Xd;
 end
 
 

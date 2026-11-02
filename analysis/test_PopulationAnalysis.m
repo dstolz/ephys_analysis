@@ -227,6 +227,59 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
             tc.verifyEqual(Pt.units.aurocDirection == "decrease", sig & Pt.units.aurocMean < 0.5);
         end
 
+        function shuffleCutoffOverTheFamily(tc)
+            % the shuffle cutoff pooled over every dataset's units: the (1 - Alpha) quantile of all their shuffled
+            % phasic modulations, as one aurocCall over the stacked nulls gives it
+            tc.assumeTrue(license('test', 'Statistics_Toolbox') && exist('signrank', 'file') > 0 ...
+                && exist('tiedrank', 'file') > 0 && exist('quantile', 'file') > 0, "needs the Statistics and Machine Learning Toolbox");
+            au = struct('cutoff', "shuffle", 'nResamples', 100);
+            P = populationAnalysis(tc.Config, Auroc=au, Alpha=0.1, LogFcn=[]);
+            r = EphysAnalysisRunner(tc.Config, LogFcn=[]);
+            ref = eventRef(line="Stim");
+            mw = EphysAnalysisConfig.defaults("Auroc").modulationWindow;
+            A = cell(1, numel(r.Outputs));
+            for k = 1:numel(r.Outputs)
+                src = r.source(k);
+                st = selectUnits(src, struct());
+                E = epochTable(src, ref, Window=epochWindow(pre=-0.2, post=0.5), Selection=trialSelection(), Baseline=[-0.2 0]);
+                A{k} = aurocCurves(st, E, Window=[-0.2 0.5], Baseline=[-0.2 0], BinSec=0.01, ModulationWindow=mw, ...
+                    Cutoff="shuffle", NResamples=100, Call=false);
+            end
+            C = aurocCall(struct('mean', cat(1, A{1}.mean, A{2}.mean), 'phasic', cat(1, A{1}.phasic, A{2}.phasic), ...
+                'p', cat(1, A{1}.p, A{2}.p), 'null', cat(2, A{1}.null, A{2}.null)), Cutoff="shuffle", Alpha=0.1);
+            F = P.auroc.families;
+            tc.verifyEqual(F.cutoffValue, C.cutoffValue, 'AbsTol', 1e-12, 'one pooled null over both datasets');
+            tc.verifyEqual(P.units.aurocP, cat(1, A{1}.p(:, 1), A{2}.p(:, 1)), 'AbsTol', 1e-12, 'each unit''s p: the shuffles reaching its phasic modulation');
+            tc.verifyEqual(P.units.aurocDirection == "increase", C.direction == "increase");
+            tc.verifyEqual(P.units.aurocDirection == "decrease", C.direction == "decrease");
+            Pd = populationAnalysis(tc.Config, Auroc=au, Alpha=0.1, Family="dataset", LogFcn=[]);
+            tc.verifyEqual(height(Pd.auroc.families), numel(r.Outputs), 'Family "dataset": a cutoff each');
+            for k = 1:numel(r.Outputs)
+                Ck = aurocCall(struct('mean', A{k}.mean, 'phasic', A{k}.phasic, 'p', A{k}.p, 'null', A{k}.null), Cutoff="shuffle", Alpha=0.1);
+                tc.verifyEqual(Pd.auroc.families.cutoffValue(k), Ck.cutoffValue, 'AbsTol', 1e-12, 'each dataset''s own pooled null');
+            end
+        end
+
+        function workersGiveTheSameResult(tc)
+            % the datasets analyzed on the workers of a process pool are the datasets analyzed here
+            tc.assumeTrue(license('test', 'Statistics_Toolbox') && exist('signrank', 'file') > 0 && exist('tiedrank', 'file') > 0, ...
+                "needs the Statistics and Machine Learning Toolbox");
+            tc.assumeTrue(~isempty(ver('parallel')) && license('test', 'Distrib_Computing_Toolbox'), ...
+                "needs the Parallel Computing Toolbox");
+            Ps = populationAnalysis(tc.Config, Param="Depth", Auroc=struct('nResamples', 100), LogFcn=[]);
+            try
+                Pw = populationAnalysis(tc.Config, Param="Depth", Auroc=struct('nResamples', 100), Workers=2, LogFcn=[]);
+            catch ME
+                tc.assumeFail("no process pool could be used: " + string(ME.message));
+            end
+            tc.verifyEqual(Pw.units, Ps.units, 'the same unit table');
+            tc.verifyEqual(Pw.psth.rate, Ps.psth.rate);
+            tc.verifyEqual(Pw.tuning.rate, Ps.tuning.rate);
+            tc.verifyEqual(Pw.auroc.auroc, Ps.auroc.auroc);
+            tc.verifyEqual(Pw.datasets.status, Ps.datasets.status);
+            tc.verifyEqual(Pw.datasets.nEpochs, Ps.datasets.nEpochs);
+        end
+
         function writesFiles(tc)
             tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
             out = fullfile(tmp.Folder, "pop");

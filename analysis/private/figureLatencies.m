@@ -191,7 +191,8 @@ switch L.method
         T.Alpha = L.alpha;
 end
 O = struct('MinSec', L.minSec, 'MaxSec', L.maxSec, 'Baseline', B, 'BinSec', L.cusumBinSec, ...
-    'Threshold', L.cusumThreshold, 'Drift', L.cusumDrift, 'SustainSec', L.cusumSustainSec);
+    'Threshold', L.cusumThreshold, 'Drift', L.cusumDrift, 'SustainSec', L.cusumSustainSec, ...
+    'Direction', L.cusumDirection, 'Gate', L.cusumGate, 'GateAlpha', L.cusumGateAlpha);
 end
 
 
@@ -210,7 +211,7 @@ catch ME
     nG = 0;
     if istable(G); nG = height(G); end
     ok = isfinite(grp) & grp >= 1 & grp <= nG;
-    L = struct('lat', NaN(nE, 1), 'spikeTime', NaN(nE, 1), 'rate', NaN(nE, 1), 'window', [NaN NaN], 'baseline', [], ...
+    L = struct('lat', NaN(nE, 1), 'latFirst', NaN(nE, 1), 'spikeTime', NaN(nE, 1), 'rate', NaN(nE, 1), 'window', [NaN NaN], 'baseline', [], ...
         'method', o.Method, 'settings', o, 'units', u, 'labels', unitLabel(R, u), 'epochGroup', grp, 'groups', G, ...
         'n', zeros(nG, 1), 'nEpochs', accumarray(grp(ok), 1, [nG 1]), 'why', string(ME.message));
 end
@@ -230,7 +231,7 @@ catch ME
     if isfield(R, 'groups'); G = R.groups; end
     if istable(G); nG = height(G); end
     O = struct('onset', NaN, 'groupOnset', NaN(nG, 1), 't', zeros(0, 1), 'cusum', zeros(0, 1), 'baselineMean', NaN, ...
-        'baselineSD', NaN, 'window', [NaN NaN], 'baseline', [], 'settings', o, 'units', u, 'labels', unitLabel(R, u), ...
+        'baselineSD', NaN, 'gateP', NaN, 'groupGateP', NaN(nG, 1), 'window', [NaN NaN], 'baseline', [], 'settings', o, 'units', u, 'labels', unitLabel(R, u), ...
         'groups', G, 'why', string(ME.message));
 end
 end
@@ -248,7 +249,7 @@ end
 function L = joinLatency(Ls, R)
 %joinLatency  The layer's latencies: each unit's (firstSpikeLatency of one unit) side by side, in R.raster's order.
 L = Ls{1};
-for f = ["lat" "spikeTime" "rate" "n"]
+for f = ["lat" "latFirst" "spikeTime" "rate" "n"]
     L.(f) = cell2mat(cellfun(@(x) x.(f), Ls, 'UniformOutput', false));
 end
 L.units = 1:numel(Ls);
@@ -274,9 +275,13 @@ O.groupOnset = NaN(nG, nU);
 O.cusum = NaN(n, nU);
 O.baselineMean = NaN(1, nU);
 O.baselineSD = NaN(1, nU);
+O.gateP = NaN(1, nU);
+O.groupGateP = NaN(nG, nU);
 for u = 1:nU
     x = Os{u};
     if numel(x.groupOnset) == nG; O.groupOnset(:, u) = x.groupOnset(:); end
+    if numel(x.groupGateP) == nG; O.groupGateP(:, u) = x.groupGateP(:); end
+    O.gateP(u) = x.gateP(1);
     if size(x.cusum, 1) == n; O.cusum(:, u) = x.cusum(:, 1); end
     O.baselineMean(u) = x.baselineMean(1);
     O.baselineSD(u) = x.baselineSD(1);

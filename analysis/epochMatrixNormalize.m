@@ -23,7 +23,8 @@ function R = epochMatrixNormalize(R, N)
 %   The SD is over the baseline's bins (spikes) or samples (signals) of the
 %   group's mean trace, not over the epochs, so it shrinks with more epochs
 %   and grows with narrower bins. (spikePSTH's BaselineMode "zscore", which
-%   the analysis app's PSTH panels use, takes the SD over the epochs.)
+%   the analysis app's PSTH panels use, takes the same mean and SD of the
+%   group's trial-averaged baseline bins, so scope "group" gives the same z.)
 %   Where b is 0 (ratio, percent), SD is 0 (zscore) or the trace is flat
 %   (minmax), or no baseline value is finite, the row's values are NaN in
 %   that group (with scope "row": in every group); R.normalization.undefined

@@ -257,6 +257,27 @@ else
     Su.unitPartner = 2;
     check(strcmp(errorId(@() chronuxUnitCoherence(pickTrains(SPall, [1 3]), TBp, Su)), ...
         'chronuxUnitCoherence:BadPair'), 'a partner not among the trains picked is refused');
+    % the margin: trials 1.9995 s long on a 1 kHz grid that ends at 1.999 s; the second trial's only spike is stamped
+    % 1.9993 s, past the grid, where Chronux's mtfftpt (which keeps every spike of a trial when none lies inside) gives NaN
+    TBm = chronuxTimeBase("range", Range=[0 8], Duration=8, Segment=2);
+    TBm.window = [0 1.9995];
+    uA = [0.2; 0.5; 1.1; 3.9993; 4.4; 5.2; 7.0];
+    uB = [0.3; 0.6; 1.3; 3.9992; 4.5; 5.1; 7.1];
+    SPm = struct('times', struct('times', {uA, uB}), 'labels', ["u1" "u2"], 'index', 1:2, 'class', ["su" "su"], 'source', "units");
+    Sm = Ss;
+    Sm.err = "none";
+    [dm, ~] = chronuxSpikeCut(SPm.times(1), TBm.starts, TBm.window, "window");
+    pm = chronuxParams(Sm, 1000, diff(TBm.window));
+    raw = mtspectrumpt(dm, pm, double(Sm.fscorr), 0:0.001:1.9995);
+    Rm = chronuxSpikeSpectrum(SPm, TBm, Sm);
+    Smu = Su;
+    Smu.unitPartner = 2;
+    Smu.err = "none";
+    Rmu = chronuxUnitCoherence(SPm, TBm, Smu);
+    check(any(isnan(raw)) && all(isfinite(Rm.S(:))) && all(Rm.zerosp(:) == 0) && all(isfinite(Rm.rate(:))) ...
+        && all(isfinite(Rmu.C(:))) && Rmu.nTrials == 4, ...
+        ['spikes stamped past the grid''s last point count there (chronuxOntoGrid): a spectrum and a coherence with ' ...
+        'a trial whose only spike sits in the margin are finite, where Chronux''s own is NaN']);
     lam4 = 80 * ones(n, 1);
     for e = ev.'
         on = t >= e & t < e + 0.5;

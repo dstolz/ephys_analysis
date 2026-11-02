@@ -23,8 +23,10 @@ function [P, S, files] = populationAnalysis(source, opts)
 %   curve of the family: the 95% CI cutoff (Auroc cutoff "ci") is taken
 %   over all of them, as Macedo-Lima, Hamlette & Caras (2024) pooled every
 %   unit's hit and false-alarm curves, rather than over one dataset's few
-%   units; a "test" cutoff's p values (per curve) are adjusted with
-%   Correction over the family and called at Alpha. It returns
+%   units; the "shuffle" cutoff is the (1 - Alpha) quantile of the shuffled
+%   phasic modulations of all of them; a "test" cutoff's p values (per
+%   curve) are adjusted with Correction over the family and called at
+%   Alpha. It returns
 %   S = populationSummary(P, GroupBy=, DepthBinUm=, TuningNormalize=).
 %   With Folder, [P, S, FILES] = ... also writes the tables, figures and a
 %   JSON record there (writePopulation).
@@ -133,6 +135,13 @@ function [P, S, files] = populationAnalysis(source, opts)
 %     Datasets       the datasets to use (keys, names or indices; [] = all)
 %     Folder, Formats (["png"]), Dpi (150), FigureSizeCm ([18 12])
 %                    writePopulation's ("" = write nothing)
+%     Workers        0 (default): the datasets one after the other here, or,
+%                    when a process pool is open, on its workers (parfor).
+%                    N >= 1: on the open process pool, else on one of N
+%                    workers started (Parallel Computing Toolbox; a worker
+%                    loads each dataset itself). With a single dataset, or
+%                    without the toolbox or a pool, they are analyzed here.
+%                    The results are the same either way
 %     LogFcn         LogFcn(message) per dataset (default: print; [] = quiet)
 %
 %   Errors: populationAnalysis:BadSource, populationAnalysis:BadOption,
@@ -169,6 +178,7 @@ arguments
     opts.DepthBinUm (1,1) double {mustBePositive} = 100
     opts.TuningNormalize (1,1) string = "peak"
     opts.Datasets = []
+    opts.Workers (1,1) double {mustBeInteger, mustBeNonnegative} = 0
     opts.Folder (1,1) string = ""
     opts.Formats (1,:) string = "png"
     opts.Dpi (1,1) double {mustBePositive} = 150
@@ -260,52 +270,29 @@ t = [];
 psthUnits = "";
 psthWindow = [];
 A1 = [];   % the first dataset's auROC result: its windows
+job = struct('namePattern', cfg.Source.NamePattern, 'ref', ref, 'win', win, 'sel', sel, 'usel', usel, 'au', au, ...
+    'bPSTH', bPSTH, 'skipIds', skipIds, 'binSec', opts.BinSec, 'smoothSec', opts.SmoothSec, 'measure', opts.Measure, ...
+    'baselineMode', opts.BaselineMode, 'baseline', opts.Baseline, 'response', opts.Response, 'param', opts.Param, ...
+    'alpha', opts.Alpha, 'tests', opts.Tests, 'aurocGroupBy', opts.AurocGroupBy);
+results = popDatasets(runner, idx, job, opts.Workers, say);   % each dataset's selection, PSTHs, tests and auROCs
 for j = 1:nD
+    r = results{j};
     k = idx(j);
     D.datasetKey(j) = runner.Keys(k);
     D.dataset(j) = runner.Names(k);
-    say(sprintf('populationAnalysis: %s (%d of %d)', runner.Names(k), j, nD));
-    fav = [];
-    try
-        fav = DatasetFavorites(runner.Outputs(k));   % the stars beside the data (no file: none)
-        D.starred(j) = fav.Dataset;
-    catch
-    end
-    try
-        src = runner.source(k);
-        subject = subjectOf(src, cfg.Source.NamePattern);
-        D.subject(j) = subject;
-        D.tags(j) = TagSet.toText(src.tags, TagSet.ExportDelimiter);
-        [st, meta] = selectUnits(src, usel, Ref=ref, Selection=sel);
-        E = epochTable(src, ref, Window=win, Selection=sel, Baseline=opts.Baseline);
-        R = spikePSTH(st, E, Window=[win.pre win.post], BinSec=opts.BinSec, SmoothSec=opts.SmoothSec, ...
-            Measure=opts.Measure, Baseline=bPSTH, BaselineMode=opts.BaselineMode, Raster=false, Meta=meta);
-        Er = responseEpochs(src, ref, sel, Baseline=opts.Baseline, Window=opts.Response, Param=opts.Param);
-        [T, info] = responseStats(st, Er, Baseline=opts.Baseline, Window=opts.Response, Param=opts.Param, ...
-            Correction="none", Alpha=opts.Alpha, Meta=meta, Tests=opts.Tests);
-        A = [];
-        if opts.Tests   % each unit's auROC per group; the call is made over the family below
-            Ea = E;
-            Ga = [];
-            if ~isempty(opts.AurocGroupBy)
-                selA = sel;
-                selA.groupBy = opts.AurocGroupBy;
-                [Ea, Ga] = epochTable(src, ref, Window=win, Selection=selA, Baseline=opts.Baseline);
-            end
-            A = aurocCurves(st, Ea, Window=[win.pre win.post], Baseline=opts.Baseline, BinSec=opts.BinSec, ...
-                Measure=opts.Measure, Method=au.method, Windows=au.windows, WindowSec=au.windowSec, StepSec=au.stepSec, ...
-                ModulationWindow=au.modulationWindow, Cutoff=au.cutoff, Threshold=au.threshold, Test=au.test, ...
-                NResamples=au.nResamples, Call=false, Groups=Ga);
-            A.nEpochs = accumarray(Ea.groupIndex, 1, [height(A.groups) 1]);
-        end
-    catch ME
-        D.message(j) = string(ME.message);
-        if ismember(string(ME.identifier), skipIds)
-            D.status(j) = "skipped";
-        end
-        say(sprintf('  %s: %s', D.status(j), ME.message));
+    D.starred(j) = r.starred;
+    D.subject(j) = r.subject;
+    D.tags(j) = r.tags;
+    if r.status ~= "done"
+        D.status(j) = r.status;
+        D.message(j) = r.message;
         continue
     end
+    meta = r.meta;
+    R = r.R;
+    T = r.T;
+    info = r.info;
+    A = r.A;
     if isempty(t)
         t = R.t(:);
         psthUnits = string(R.units);
@@ -315,19 +302,14 @@ for j = 1:nD
     end
     n = height(meta);
     U = meta;
-    U = addvars(U, repmat(D.dataset(j), n, 1), repmat(D.datasetKey(j), n, 1), repmat(subject, n, 1), repmat(D.tags(j), n, 1), ...
+    U = addvars(U, repmat(D.dataset(j), n, 1), repmat(D.datasetKey(j), n, 1), repmat(r.subject, n, 1), repmat(D.tags(j), n, 1), ...
         'Before', 1, 'NewVariableNames', {'dataset', 'datasetKey', 'subject', 'tags'});
-    U.rateHz = double(U.nSpikes) / src.durationSec;
-    U.starred = false(n, 1);
-    if ~isempty(fav) && usel.source == "detected"
-        U.starred = reshape(fav.isStarred("channel", double(meta.channel)), [], 1);
-    elseif ~isempty(fav)
-        U.starred = reshape(fav.isStarred("unit", double(meta.unitId)), [], 1);
-    end
+    U.rateHz = double(U.nSpikes) / r.durationSec;
+    U.starred = r.unitStarred;
     for c = setdiff(string(T.Properties.VariableNames), ["unit" "label"], 'stable')
         U.(c) = T.(c);
     end
-    rate = R.rate(:, :, 1);
+    rate = R.rate;
     [pk, lat] = peakIn(rate, t, opts.Response);
     U.psthPeak = pk;
     U.psthLatency = lat;
@@ -349,7 +331,7 @@ for j = 1:nD
     lev{j} = struct('levels', info.levels, 'rate', info.levelRate, 'n', info.levelN);
     D.status(j) = "done";
     D.nUnits(j) = n;
-    D.nEpochs(j) = height(E);
+    D.nEpochs(j) = r.nEpochs;
     D.nTestEpochs(j) = info.nEpochs;
     D.nTestEpochsLeftOut(j) = info.nEpochsLeftOut;
 end
@@ -377,8 +359,8 @@ if opts.Tests
         U.qTuning = adjust(U.pTuning, U.datasetKey, opts.Correction, opts.Family);
         U.tuned = U.qTuning <= opts.Alpha;
     end
-    [calls, curves] = aurocRows(U, aur(done));
-    [calls, families] = aurocFamilies(calls, au, opts.Correction, opts.Alpha, opts.Family);
+    [calls, curves, nulls] = aurocRows(U, aur(done));
+    [calls, families] = aurocFamilies(calls, au, opts.Correction, opts.Alpha, opts.Family, nulls);
     U = aurocPerUnit(U, calls);
 end
 
@@ -429,6 +411,135 @@ end
 end
 
 
+function results = popDatasets(runner, idx, job, workers, say)
+%popDatasets  popDataset of each dataset IDX of RUNNER: one after the other here, or on the workers of a process pool (parfor).
+%   The datasets go to the workers when two or more are asked for and a process pool is open (WORKERS 0, or N), or one of
+%   N >= 1 workers can be started; a worker loads each dataset's source itself (the dataset's outputs, their cache cleared).
+%   LOGFCN lines come as each dataset starts and when it is left out.
+nD = numel(idx);
+results = cell(nD, 1);
+pool = [];
+if nD >= 2; pool = processPool(workers); end
+if isempty(pool)
+    for j = 1:nD
+        k = idx(j);
+        say(sprintf('populationAnalysis: %s (%d of %d)', runner.Names(k), j, nD));
+        results{j} = popDataset(job, runner.Outputs(k), runner.Keys(k), @() runner.source(k));
+        if results{j}.status ~= "done"
+            say(sprintf('  %s: %s', results{j}.status, results{j}.message));
+        end
+    end
+    return
+end
+outs = cell(nD, 1);
+names = strings(nD, 1);
+keys = strings(nD, 1);
+for j = 1:nD
+    outs{j} = runner.Outputs(idx(j));
+    outs{j}.clearCache();   % not copied to the workers
+    names(j) = runner.Names(idx(j));
+    keys(j) = runner.Keys(idx(j));
+end
+q = parallel.pool.DataQueue;
+afterEach(q, say);
+say(sprintf('populationAnalysis: %d datasets on %d workers ...', nD, pool.NumWorkers));
+parfor j = 1:nD
+    send(q, sprintf('populationAnalysis: %s (%d of %d)', names(j), j, nD));
+    r = popDataset(job, outs{j}, keys(j), []);
+    if r.status ~= "done"
+        send(q, sprintf('  %s: %s', r.status, r.message));
+    end
+    results{j} = r;
+end
+end
+
+
+function pool = processPool(workers)
+%processPool  The open process pool, else (WORKERS >= 1) a process pool of WORKERS workers started; [] when there is none to use.
+pool = [];
+if isempty(ver('parallel')) || ~license('test', 'Distrib_Computing_Toolbox'); return; end
+p = gcp('nocreate');
+if isempty(p)
+    if workers < 1; return; end
+    try
+        p = parpool("Processes", workers);
+    catch ME
+        warning('populationAnalysis:Serial', 'The datasets are analyzed here, not on workers: no process pool could be started (%s).', ...
+            ME.message);
+        return
+    end
+end
+if isa(p, 'parallel.ProcessPool'); pool = p; end
+end
+
+
+function r = popDataset(job, out, key, load)
+%popDataset  One dataset's part of populationAnalysis: its units, PSTHs, response tests and auROCs, before the family's table.
+%   JOB: the settings (populationAnalysis' options and what it resolved); OUT the dataset's outputs and KEY its key; LOAD
+%   gives its source ([]: loaded from OUT, on a worker). R.status is "done", "skipped" (nothing to analyze: JOB.skipIds) or
+%   "error", with R.message; the subject, tags and stars are set as far as the dataset got.
+r = struct('status', "error", 'message', "", 'starred', false, 'subject', "", 'tags', "", 'meta', [], 'nEpochs', 0, ...
+    'R', [], 'T', [], 'info', [], 'A', [], 'unitStarred', [], 'durationSec', NaN);
+fav = [];
+try
+    fav = DatasetFavorites(out);   % the stars beside the data (no file: none)
+    r.starred = fav.Dataset;
+catch
+end
+try
+    if isempty(load)
+        src = loadAnalysisSource(out, Key=key);
+    else
+        src = load();
+    end
+    r.subject = subjectOf(src, job.namePattern);
+    r.tags = TagSet.toText(src.tags, TagSet.ExportDelimiter);
+    win = job.win;
+    au = job.au;
+    [st, meta] = selectUnits(src, job.usel, Ref=job.ref, Selection=job.sel);
+    E = epochTable(src, job.ref, Window=win, Selection=job.sel, Baseline=job.baseline);
+    R = spikePSTH(st, E, Window=[win.pre win.post], BinSec=job.binSec, SmoothSec=job.smoothSec, ...
+        Measure=job.measure, Baseline=job.bPSTH, BaselineMode=job.baselineMode, Raster=false, Meta=meta);
+    Er = responseEpochs(src, job.ref, job.sel, Baseline=job.baseline, Window=job.response, Param=job.param);
+    [T, info] = responseStats(st, Er, Baseline=job.baseline, Window=job.response, Param=job.param, ...
+        Correction="none", Alpha=job.alpha, Meta=meta, Tests=job.tests);
+    A = [];
+    if job.tests   % each unit's auROC per group; the call is made over the family later
+        Ea = E;
+        Ga = [];
+        if ~isempty(job.aurocGroupBy)
+            selA = job.sel;
+            selA.groupBy = job.aurocGroupBy;
+            [Ea, Ga] = epochTable(src, job.ref, Window=win, Selection=selA, Baseline=job.baseline);
+        end
+        A = aurocCurves(st, Ea, Window=[win.pre win.post], Baseline=job.baseline, BinSec=job.binSec, ...
+            Measure=job.measure, Method=au.method, Windows=au.windows, WindowSec=au.windowSec, StepSec=au.stepSec, ...
+            ModulationWindow=au.modulationWindow, Cutoff=au.cutoff, Threshold=au.threshold, Test=au.test, ...
+            NResamples=au.nResamples, Call=false, Groups=Ga);
+        A.nEpochs = accumarray(Ea.groupIndex, 1, [height(A.groups) 1]);
+    end
+    unitStarred = false(height(meta), 1);
+    if ~isempty(fav) && job.usel.source == "detected"
+        unitStarred = reshape(fav.isStarred("channel", double(meta.channel)), [], 1);
+    elseif ~isempty(fav)
+        unitStarred = reshape(fav.isStarred("unit", double(meta.unitId)), [], 1);
+    end
+    r.meta = meta;
+    r.nEpochs = height(E);
+    r.R = struct('t', R.t, 'units', R.units, 'window', R.window, 'rate', R.rate(:, :, 1));
+    r.T = T;
+    r.info = info;
+    r.A = A;
+    r.unitStarred = unitStarred;
+    r.durationSec = src.durationSec;
+    r.status = "done";
+catch ME
+    r.message = string(ME.message);
+    if ismember(string(ME.identifier), job.skipIds); r.status = "skipped"; end
+end
+end
+
+
 function checkOption(v, allowed, name)
 if ~ismember(v, allowed)
     error('populationAnalysis:BadOption', '%s is %s (got "%s").', name, strjoin(allowed, ", "), v);
@@ -456,20 +567,23 @@ Y = rate(in, :);
 for u = 1:n
     y = Y(:, u);
     if all(isnan(y)) || max(y) == min(y); continue; end
-    [pk(u), i] = max(y);
-    lat(u) = tt(i);
+    pk(u) = max(y);
+    top = find(y == pk(u));   % tied maxima (a sparse unit: many bins at one spike): the middle one, not the first
+    lat(u) = tt(top(ceil(end / 2)));
 end
 end
 
 
-function [C, curves] = aurocRows(U, aur)
+function [C, curves, nulls] = aurocRows(U, aur)
 %aurocRows  One row per unit and auROC group, from each dataset's aurocCurves result (AUR, in the order of U's rows).
 %   C: the unit's identity (dataset, datasetKey, subject, label, unitId),
 %   unit (its row of U), group, nEpochs, mean, phasic, peak, peakTime, p;
-%   CURVES [nWindows x height(C)] its auROC curve. A unit's groups are
-%   adjacent.
+%   CURVES [nWindows x height(C)] its auROC curve; NULLS [nDraws x
+%   height(C)] its shuffled phasic modulations (Cutoff "shuffle"; else
+%   empty). A unit's groups are adjacent.
 C = table();
 curves = [];
+nulls = [];
 row0 = 0;
 for j = 1:numel(aur)
     A = aur{j};
@@ -481,6 +595,7 @@ for j = 1:numel(aur)
     C = [C; table(row0 + ui, string(A.groups.label(gi)), A.nEpochs(gi), rows(A.mean), rows(A.phasic), rows(pk), ...
         rows(at), rows(A.p), 'VariableNames', {'unit', 'group', 'nEpochs', 'mean', 'phasic', 'peak', 'peakTime', 'p'})]; %#ok<AGROW>
     curves = [curves, reshape(permute(A.auroc, [1 3 2]), size(A.auroc, 1), [])]; %#ok<AGROW>
+    if isfield(A, 'null'); nulls = [nulls, reshape(permute(A.null, [1 3 2]), size(A.null, 1), [])]; end %#ok<AGROW>
     row0 = row0 + n;
 end
 id = intersect(["dataset" "datasetKey" "subject" "label" "unitId"], string(U.Properties.VariableNames), 'stable');
@@ -500,7 +615,8 @@ for g = 1:nG
     for u = 1:n
         d = abs(a(:, u, g) - 0.5);
         if all(isnan(d)) || max(d) == min(d); continue; end
-        [~, i] = max(d);
+        top = find(d == max(d));   % tied: the middle window, not the first
+        i = top(ceil(end / 2));
         pk(u, g) = a(i, u, g);
         at(u, g) = tt(i);
     end
@@ -508,9 +624,10 @@ end
 end
 
 
-function [C, F] = aurocFamilies(C, a, correction, alpha, mode)
+function [C, F] = aurocFamilies(C, a, correction, alpha, mode, nulls)
 %aurocFamilies  The auROC calls (aurocCall) over every unit and group, or over each dataset's; each family's cutoff.
-%   C: aurocRows' table, given q, direction and modulated. F: one row per
+%   C: aurocRows' table, given q, direction and modulated; NULLS: its
+%   shuffled phasic modulations (aurocRows'). F: one row per
 %   family: family, nUnits, nCurves (the unit x group curves with an auROC,
 %   the n of the 95% CI), cutoffValue, nModulated / nIncrease / nDecrease
 %   (curves).
@@ -529,6 +646,7 @@ F = table(names, zeros(nF, 1), zeros(nF, 1), NaN(nF, 1), zeros(nF, 1), zeros(nF,
 for i = 1:nF
     rows = family == names(i);
     K = struct('mean', C.mean(rows), 'phasic', C.phasic(rows), 'p', C.p(rows));
+    if a.cutoff == "shuffle"; K.null = nulls(:, rows); end
     K = aurocCall(K, Cutoff=a.cutoff, Threshold=a.threshold, Correction=correction, Alpha=alpha);
     C.q(rows) = K.q;
     C.direction(rows) = K.direction;

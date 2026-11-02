@@ -149,6 +149,53 @@ classdef test_Auroc < matlab.unittest.TestCase
                 'aurocCall:WideCutoff', 'two units: the interval is too wide to call any');
         end
 
+        function shuffleCutoff(tc)
+            % the "ci" cutoff sits barely above the mean phasic modulation, so many flat units exceed it; the shuffle
+            % cutoff is the (1 - Alpha) quantile of the pooled shuffled phasic modulation, so few do
+            tc.assumeTrue(hasStats(), "needs the Statistics and Machine Learning Toolbox");
+            args = {'Window', [-0.5 1], 'Baseline', [-0.5 0], 'ModulationWindow', [0 0.3], 'NResamples', 200};
+            [st, E] = fixture(Units=6);
+            A = aurocCurves(st, E, args{:}, Cutoff="shuffle", Call=false);
+            v = A.null(isfinite(A.null));
+            tc.verifyEqual(size(A.null), [200 6 2]);
+            tc.verifyClass(A.null, 'single');
+            tc.verifyTrue(all(isfinite(A.null), 'all') && all(isfinite(A.p), 'all'), 'a null and a p for every unit and group');
+            C = aurocCall(A, Cutoff="shuffle");
+            tc.verifyEqual(C.cutoffValue, quantile(double(v), 0.95), 'AbsTol', 1e-12, 'c: the 95th percentile of the pooled null');
+            tc.verifyEqual(C.direction, repmat(["increase"; "decrease"; "none"], 2, 2), 'driven up, suppressed down, flat not');
+            C2 = aurocCall(A, Cutoff="shuffle", Alpha=0.2);
+            tc.verifyEqual(C2.cutoffValue, quantile(double(v), 0.8), 'AbsTol', 1e-12, 'Alpha sets the quantile');
+            tc.verifyLessThan(C2.cutoffValue, C.cutoffValue);
+            B = aurocCurves(st, E, args{:}, Cutoff="shuffle");
+            tc.verifyEqual(B.cutoffValue, C.cutoffValue, 'aurocCurves calls with the same cutoff');
+            tc.verifyEqual(B.direction, C.direction);
+            tc.verifyFalse(isfield(B, 'null'), 'the draws are kept only for a call over a larger pool (Call=false)');
+            tc.verifyEqual(B.p, A.p, 'the same seed, the same p: the share of shuffles reaching the unit''s phasic modulation');
+            % stacked from two measurements: one cutoff over all
+            A1 = aurocCurves(st(1:3), E, args{:}, Cutoff="shuffle", Call=false);
+            A2 = aurocCurves(st(4:6), E, args{:}, Cutoff="shuffle", Call=false);
+            K = aurocCall(struct('mean', [A1.mean; A2.mean], 'phasic', [A1.phasic; A2.phasic], 'p', [A1.p; A2.p], ...
+                'null', cat(2, A1.null, A2.null)), Cutoff="shuffle");
+            tc.verifyEqual(K.cutoffValue, quantile(double([A1.null(:); A2.null(:)]), 0.95), 'AbsTol', 1e-12, 'the stacked units'' pooled null');
+            tc.verifyEqual(K.direction, C.direction);
+            tc.verifyError(@() aurocCall(struct('mean', A.mean, 'phasic', A.phasic, 'p', A.p), Cutoff="shuffle"), 'aurocCall:NoNull');
+            % flat units: the 95% CI cutoff calls many, the shuffle cutoff about Alpha of them
+            rs = RandStream('mt19937ar', 'Seed', 5);
+            T = E.t0Continuous(end) + 10;
+            flat = cell(30, 1);
+            for u = 1:30
+                flat{u} = sort(rand(rs, round(8 * T), 1) * T);
+            end
+            Fc = aurocCurves(flat, E, args{:});
+            Fs = aurocCurves(flat, E, args{:}, Cutoff="shuffle");
+            nCi = sum(Fc.nModulated);
+            nSh = sum(Fs.nModulated);
+            tc.verifyGreaterThan(nCi / 60, 0.2, sprintf('ci calls %d of 60 flat unit x group rows', nCi));
+            tc.verifyLessThanOrEqual(nSh / 60, 0.1, sprintf('shuffle calls %d of 60', nSh));
+            tc.verifyLessThan(nSh, nCi);
+            tc.verifyError(@() aurocCurves(st, E, Cutoff="shuffle", NResamples=0), 'aurocCurves:BadOption');
+        end
+
         function silentUnits(tc)
             tc.assumeTrue(hasStats(), "needs the Statistics and Machine Learning Toolbox");
             [st, E] = fixture(Units=6);

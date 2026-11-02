@@ -308,7 +308,11 @@ end
 function part = spikePart(src, S, check)
 %spikePart  One dataset's spike histograms (the script's per-dataset loop).
 [st, u] = selectUnits(src, S.units, Ref=S.ref, Selection=S.selection);
-[E, G] = epochTable(src, S.ref, Window=S.window, Selection=S.selection);
+eArgs = {};
+if S.measure == "auroc"
+    eArgs = {'Baseline', S.baseline};   % a baseline outside the window still has to lie in the recording, clear of artifacts
+end
+[E, G] = epochTable(src, S.ref, 'Window', S.window, 'Selection', S.selection, eArgs{:});
 args = {'Window', [S.window.pre S.window.post], 'BinSec', S.binSec, 'Raster', S.keepEpochs, 'Meta', u, 'Groups', G, 'Check', check};
 if S.measure == "auroc"
     P = spikePSTH(st, E, args{:}, 'BaselineMode', "auroc", 'Baseline', S.baseline, 'Auroc', S.auroc);

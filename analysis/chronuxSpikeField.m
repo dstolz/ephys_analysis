@@ -80,6 +80,7 @@ if ~S.overTime
     if jack; lo = C; hi = C; end
     for u = 1:nU
         [sp, counts] = chronuxSpikeCut(SP.times(u), first, [-0.5 nTime - 0.5] / fs, "onset");
+        sp = chronuxOntoGrid(sp, (nTime - 1) / fs);
         for g = 1:nG
             sel = gi == g;
             nTr(u, g) = nnz(sel);
@@ -132,6 +133,7 @@ else
         first = (round(TB.starts(kept) * fs) + round(TB.window(1) * fs)) / fs;
         for u = 1:nU
             [sp, counts] = chronuxSpikeCut(SP.times(u), first, [-0.5 nTime - 0.5] / fs, "onset");
+            sp = chronuxOntoGrid(sp, (nTime - 1) / fs);
             for i = 1:numel(sp); sp(i).times = sp(i).times + 1 / fs; end   % cohgramcpt: sample k at k/fs
             for g = 1:nG
                 sel = gi == g;

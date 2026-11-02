@@ -22,7 +22,10 @@ function R = tuningCurve(rates, x, opts)
 %   is tuningCurve:NoValues. R fields: kind "tuning", x (sorted unique
 %   values: numeric ascending, text alphabetical), xIsNumeric, series
 %   (labels), seriesValues, mean / sem [nX x nUnits x nSeries], n [nX x
-%   nSeries], groups (one row per series: index, label, color), param,
+%   nSeries] (the epochs having the value, a NaN rate included), nValid
+%   [nX x nUnits x nSeries] (the epochs with a rate for that unit: the n
+%   of its mean, sem and err; n where no rate is NaN), groups (one row per
+%   series: index, label, color, n = the epochs of the series), param,
 %   seriesParam, labels, meta, units, err (type, lo / hi [nX x nUnits x
 %   nSeries], over "epochs", nBoot), params, created.
 %
@@ -75,13 +78,14 @@ end
 ux = unique(x(ok));
 us = unique(s(ok));
 nX = numel(ux); nS = numel(us);
-M = NaN(nX, nU, nS); SE = NaN(nX, nU, nS); N = zeros(nX, nS);
+M = NaN(nX, nU, nS); SE = NaN(nX, nU, nS); N = zeros(nX, nS); NV = zeros(nX, nU, nS);
 LO = NaN(nX, nU, nS); HI = NaN(nX, nU, nS);
 for i = 1:nX
     for j = 1:nS
         rows = ok & x == ux(i) & s == us(j);
         N(i, j) = nnz(rows);
         if N(i, j) == 0; continue; end
+        NV(i, :, j) = sum(~isnan(rates(rows, :)), 1);
         M(i, :, j) = mean(rates(rows, :), 1, 'omitnan');
         SE(i, :, j) = semOf(rates(rows, :), 1);
         [LO(i, :, j), HI(i, :, j)] = errorBounds(rates(rows, :), 1, opts.ErrorType, opts.ErrorResamples);
@@ -107,6 +111,7 @@ R.mean = M;
 R.sem = SE;
 R.err = struct('type', opts.ErrorType, 'lo', LO, 'hi', HI, 'over', "epochs", 'nBoot', opts.ErrorResamples);
 R.n = N;
+R.nValid = NV;
 R.groups = G;
 R.param = opts.Param;
 R.seriesParam = opts.SeriesParam;

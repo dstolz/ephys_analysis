@@ -145,6 +145,7 @@ classdef test_FirstSpikeLatency < matlab.unittest.TestCase
             R = spikePSTH(st, E, Window=[-0.2 0.3], BinSec=0.01, Raster=true);
             L = firstSpikeLatency(R, Method="poisson", Alpha=0.01);
             tc.verifyEqual(L.lat, [0.006; NaN], 'AbsTol', 1e-12, 'the spike at which the count turns improbable; none');
+            tc.verifyEqual(L.latFirst, [0.005; NaN], 'AbsTol', 1e-12, 'latFirst: the first spike of the run (5 and 6 ms, 1 ms apart); none');
             L05 = firstSpikeLatency(R, Method="poisson", Alpha=0.05);
             tc.verifyEqual(L05.lat(1), 0.005, 'AbsTol', 1e-12, 'alpha 0.05: the first spike already (p 0.049)');
             Lt = firstSpikeLatency(R, Method="poisson", BaselineRate="trial", Baseline=[-0.1 0]);
@@ -156,6 +157,70 @@ classdef test_FirstSpikeLatency < matlab.unittest.TestCase
             tc.verifyError(@() firstSpikeLatency(R0, Method="poisson"), 'firstSpikeLatency:NoBaseline');
             tc.verifyError(@() firstSpikeLatency(R0, Method="surprise"), 'firstSpikeLatency:NoBaseline');
             tc.verifyEqual(firstSpikeLatency(R0).lat, [0.005; 0.1], 'AbsTol', 1e-12, 'the first-spike rule needs no baseline');
+        end
+
+        function poissonRun(tc)
+            % a baseline of 10 Hz (mean interval 100 ms: the run's intervals are under 50 ms); in epoch 1 a lone spike at
+            % 20 ms, then a dense run from 200 ms. The count since 0 first has P(N >= k) < 0.01 at the 7th spike, 205 ms
+            % (P(N >= 7 | 2.05) = 0.0056; at 204 ms P(N >= 6 | 2.04) = 0.018): that is lat; the run it makes starts at
+            % 200 ms (the interval after the lone spike, 180 ms, is too long): latFirst. Epoch 2 has one spike: none
+            Fs = tc.Fs;
+            [st, E] = tc.planted({[-150 -50 20 200 201 202 203 204 205 206], [-150 -50 100]}, Fs);
+            R = spikePSTH(st, E, Window=[-0.2 0.3], BinSec=0.01, Raster=true);
+            L = firstSpikeLatency(R, Method="poisson", Alpha=0.01);
+            tc.verifyEqual(L.rate, [10; 10], 'AbsTol', 1e-9);
+            tc.verifyEqual(L.lat, [0.205; NaN], 'AbsTol', 1e-12, 'lat: the significance spike');
+            tc.verifyEqual(L.latFirst, [0.200; NaN], 'AbsTol', 1e-12, 'latFirst: the first spike of the run, after the lone one');
+            P = @(n, mu) poisscdf(n - 1, mu, 'upper');   % P(N >= n), N Poisson with mean mu
+            tc.verifyLessThan(P(7, 2.05), 0.01);
+            tc.verifyGreaterThan(P(6, 2.04), 0.01);
+            Lw = firstSpikeLatency(R, Method="poisson", Baseline=[-0.04 0]);   % rate 0: every interval is short, any spike improbable
+            tc.verifyEqual(Lw.lat(1), 0.020, 'AbsTol', 1e-12, 'at rate 0 the first spike is the significance spike');
+            tc.verifyEqual(Lw.latFirst(1), 0.020, 'AbsTol', 1e-12, 'and the run''s first');
+            for m = ["first" "surprise"]
+                Lm = firstSpikeLatency(R, Method=m);
+                tc.verifyEqual(Lm.latFirst, Lm.lat, ['latFirst is lat for ' char(m)]);
+            end
+        end
+
+        function matchesPerSpikeReference(tc)
+            % the vectorized gammainc against the per-spike poisscdf calls it replaced: the same probabilities, the same
+            % latencies and runs on synthetic trains (a 250 Hz response, and a weak one with MinSpikes 2)
+            [n, mu] = ndgrid(1:25, [0 1e-4 0.01 0.3 1 4.5 20]);
+            pOld = poisscdf(n - 1, mu, 'upper');
+            pNew = gammainc(mu, n, 'lower');
+            tc.verifyLessThan(max(abs(pNew(:) - pOld(:)) ./ max(pOld(:), realmin)), 1e-9, 'gammainc(mu, n, ''lower'') is P(N >= n)');
+            R = tc.synthetic(250);
+            R2 = tc.synthetic(60, 3);
+            cases = {R, "poisson", {}; R, "surprise", {}; R2, "surprise", {'MinSpikes', 2, 'Surprise', 2}; ...
+                R2, "poisson", {'BaselineRate', "trial", 'Alpha', 0.05}};
+            for c = 1:size(cases, 1)
+                Rc = cases{c, 1};
+                args = [{'Method', cases{c, 2}}, cases{c, 3}];
+                L = firstSpikeLatency(Rc, args{:});
+                o = struct(args{:});
+                if isfield(o, 'Alpha'); alpha = o.Alpha; else; alpha = 0.01; end
+                if isfield(o, 'MinSpikes'); minSpikes = o.MinSpikes; else; minSpikes = 3; end
+                if isfield(o, 'Surprise'); thresh = o.Surprise; else; thresh = 3; end
+                t = Rc.raster(1).times;
+                ep = Rc.raster(1).epoch;
+                nE = numel(Rc.epochGroup);
+                ref = NaN(nE, 1);
+                refFirst = NaN(nE, 1);
+                for e = 1:nE
+                    te = sort(t(ep == e & t >= L.window(1) - 1e-9 & t <= L.window(2) + 1e-9));
+                    if isempty(te); continue; end
+                    if cases{c, 2} == "poisson"
+                        [ref(e), refFirst(e)] = test_FirstSpikeLatency.countOnsetPerSpike(te, L.rate(e), L.window(1), alpha);
+                    else
+                        ref(e) = test_FirstSpikeLatency.burstOnsetPerSpike(te, L.rate(e), minSpikes, thresh);
+                        refFirst(e) = ref(e);
+                    end
+                end
+                tc.verifyEqual(L.lat, ref, 'AbsTol', 1e-12, sprintf('case %d: lat equals the per-spike poisscdf version', c));
+                tc.verifyEqual(L.latFirst, refFirst, 'AbsTol', 1e-12, sprintf('case %d: latFirst too', c));
+                tc.verifyGreaterThan(nnz(isfinite(ref)), 20, sprintf('case %d: latencies were found to compare', c));
+            end
         end
 
         function noisyOnset(tc)
@@ -225,6 +290,69 @@ classdef test_FirstSpikeLatency < matlab.unittest.TestCase
                 n = n + any(isfinite([O0.onset; O0.groupOnset(:)]));
             end
             tc.verifyEqual(n, 0, 'no onset on a baseline alone (10 synthetic runs, every epoch and each group)');
+        end
+
+        function sparseUnitNoOnset(tc)
+            % a sparse unit (0.6 Hz over 40 epochs: 0.05 spikes per 2 ms bin of the pooled histogram) with a clustered pair
+            % of spontaneous spikes, 1 ms apart in one epoch after the event: the baseline's SD is tiny, so the CUSUM alone
+            % finds an onset in some runs; the gate (a signed rank test across the epochs) in far fewer, and none when the
+            % epochs show no change
+            tc.assumeTrue(license('test', 'Statistics_Toolbox') && exist('signrank', 'file') > 0, 'needs signrank');
+            nE = 40;
+            row0 = 30001 + (0:nE - 1).' * 60000;
+            t0 = (row0 - 1) / tc.Fs;
+            E = test_FirstSpikeLatency.epochs(t0, ones(nE, 1));
+            nNone = 0;
+            nGate = 0;
+            for seed = 1:30
+                rs = RandStream('mt19937ar', 'Seed', seed);
+                s = [];
+                for e = 1:nE
+                    s = [s; t0(e) + test_FirstSpikeLatency.poissonTrain(rs, 0.6, -0.5, 0.5)]; %#ok<AGROW>
+                end
+                s = sort(round([s; t0(7) + 0.2 + [0; 0.001]] * tc.Fs) / tc.Fs);
+                R = spikePSTH({s}, E, Window=[-0.5 0.5], BinSec=0.002, Raster=true);
+                O0 = responseOnset(R, Gate="none");
+                O1 = responseOnset(R);
+                tc.verifyEqual(O1.settings.Gate, "evoked");
+                if isfinite(O1.onset); tc.verifyEqual(O1.onset, O0.onset, 'the gate only removes an onset'); end
+                tc.verifyEqual(O0.cusum, O1.cusum, 'the curve is the same either way');
+                nNone = nNone + isfinite(O0.onset);
+                nGate = nGate + isfinite(O1.onset);
+            end
+            tc.verifyGreaterThanOrEqual(nNone, 3, 'the CUSUM alone finds an onset in some of the sparse runs');
+            tc.verifyLessThanOrEqual(nGate, nNone / 2, sprintf('the gate leaves %d of the %d', nGate, nNone));
+        end
+
+        function onsetDirection(tc)
+            % 10 epochs at about 220 spikes/s (20 and 24 spikes in turn per 10 ms bin of the pooled histogram), then silence
+            nE = 10;
+            counts = [repmat([20 24], 1, 10) zeros(1, 10)];   % bins of [-0.2 0.2]
+            R = tc.histogramRaster(counts, nE, -0.2, 0.01);
+            args = {'BinSec', 0.01, 'SustainSec', 0.01, 'MaxSec', 0.2};
+            Ou = responseOnset(R, args{:});
+            Od = responseOnset(R, args{:}, Direction="down");
+            Ob = responseOnset(R, args{:}, Direction="both");
+            tc.verifyTrue(isnan(Ou.onset), 'up: a fall is not a rise');
+            tc.verifyEqual(Od.onset, 0, 'AbsTol', 1e-12, 'down: the fall at the event');
+            tc.verifyEqual(Ob.onset, 0, 'AbsTol', 1e-12, 'both: the first departure either way');
+            tc.verifyTrue(all(Od.cusum >= 0) && Od.cusum(1) > 5 && all(Ou.cusum == 0), 'the CUSUM of the fall, and none of the rise');
+            tc.verifyEqual(Od.settings.Direction, "down");
+            tc.verifyLessThan(Od.gateP, 0.05, 'every epoch fell: the gate''s p');
+            Odn = responseOnset(R, args{:}, Direction="down", Gate="none");
+            tc.verifyEqual(Odn.onset, 0, 'AbsTol', 1e-12);
+            tc.verifyTrue(isnan(Odn.gateP), 'no gate, no p');
+            % the CUSUM by Z = cumsum(z), C = Z - min(0, cummin(Z)) equals Page's loop
+            x = [repmat([1 3], 1, 10) 2 2 12 12 12 12 12 12 12 12] / (nE * 0.01);
+            m = mean(x(1:20));
+            sd = std(x(1:20));
+            z = (x(21:end) - m) / sd - 1;
+            Z = cumsum(z);
+            C = Z.' - min(0, cummin(Z.'));
+            c = 0;
+            L = zeros(size(z));
+            for i = 1:numel(z); c = max(0, c + z(i)); L(i) = c; end
+            tc.verifyEqual(C(:), L(:), 'AbsTol', 1e-9);
         end
 
         function figureOncePerUnit(tc)
@@ -300,6 +428,48 @@ classdef test_FirstSpikeLatency < matlab.unittest.TestCase
             end
             st = {sort(s)};
             E = test_FirstSpikeLatency.epochs(t0, ones(nE, 1));
+        end
+
+        function [t, tFirst] = countOnsetPerSpike(te, r, lo, alpha)
+            %countOnsetPerSpike  firstSpikeLatency's "poisson" rule as it was written first: poisscdf over the epoch's spikes, the run by a walk back.
+            t = NaN; tFirst = NaN;
+            te = te(:);
+            p = poisscdf((1:numel(te)).' - 1, r * max(0, te - lo), 'upper');
+            at = find(p < alpha, 1);
+            if isempty(at); return; end
+            t = te(at);
+            j = at;
+            while j > 1 && te(j) - te(j - 1) < 1 / (2 * r); j = j - 1; end
+            tFirst = te(j);
+        end
+
+        function t = burstOnsetPerSpike(te, r, minSpikes, thresh)
+            %burstOnsetPerSpike  firstSpikeLatency's "surprise" rule as it was written first: one poisscdf call per candidate spike.
+            S = @(a, b) -log10(poisscdf(b - a, r * (te(b) - te(a)), 'upper'));
+            t = NaN;
+            n = numel(te);
+            if n < minSpikes; return; end
+            te = te(:);
+            short = 1 / (2 * r);
+            isi = diff(te);
+            for i = 1:n - minSpikes + 1
+                if any(isi(i:i + minSpikes - 2) >= short); continue; end
+                a = i;
+                b = i + minSpikes - 1;
+                best = S(a, b);
+                j = b + 1;
+                miss = 0;
+                while j <= n && miss < 10
+                    s = S(a, j);
+                    if s > best; best = s; b = j; miss = 0; else; miss = miss + 1; end
+                    j = j + 1;
+                end
+                while b - a + 1 > minSpikes
+                    s = S(a + 1, b);
+                    if s > best; best = s; a = a + 1; else; break; end
+                end
+                if best >= thresh; t = te(a); return; end
+            end
         end
 
         function E = epochs(t0, g)

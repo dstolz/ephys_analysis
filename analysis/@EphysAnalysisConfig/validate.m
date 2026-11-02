@@ -1149,6 +1149,15 @@ issues = table(Section, Field, Severity, Message);
         if ~(isfinite(hL.cusumSustainSec) && hL.cusumSustainSec >= 0)
             add("Figures", hL0 + ".cusumSustainSec", "error", "The onset's sustain (cusumSustainSec) is 0 s or more.");
         end
+        if ~ismember(hL.cusumDirection, ["up" "down" "both"])
+            add("Figures", hL0 + ".cusumDirection", "error", "The onset's direction (cusumDirection) is up, down or both.");
+        end
+        if ~ismember(hL.cusumGate, ["evoked" "none"])
+            add("Figures", hL0 + ".cusumGate", "error", "The onset's gate (cusumGate) is evoked or none.");
+        end
+        if ~(isfinite(hL.cusumGateAlpha) && hL.cusumGateAlpha > 0 && hL.cusumGateAlpha < 1)
+            add("Figures", hL0 + ".cusumGateAlpha", "error", "The onset gate's p value (cusumGateAlpha) is above 0 and below 1.");
+        end
         onset = false;
         for hP = reshape(hFg.panels, 1, [])
             onset = onset || (isfield(hP.options, 'onsetLine') && hP.options.onsetLine ~= "off");
@@ -1351,13 +1360,16 @@ issues = table(Section, Field, Severity, Message);
         if a.windows == "sliding" && ~whole(a.stepSec)
             add(sec, field + ".stepSec", "error", sprintf("The sliding step (%g s) must be a whole number of %g s bins.", a.stepSec, binSec));
         end
-        if ~ismember(a.cutoff, ["ci" "fixed" "test" "none"])
-            add(sec, field + ".cutoff", "error", "The auROC cutoff is ci, fixed, test or none.");
+        if ~ismember(a.cutoff, ["ci" "fixed" "shuffle" "test" "none"])
+            add(sec, field + ".cutoff", "error", "The auROC cutoff is ci, fixed, shuffle, test or none.");
         elseif ~isPlot && a.cutoff == "none"
-            add(sec, field + ".cutoff", "error", "The auROC response test needs a cutoff (ci, fixed or test) to call units modulated.");
+            add(sec, field + ".cutoff", "error", "The auROC response test needs a cutoff (ci, fixed, shuffle or test) to call units modulated.");
         end
         if a.cutoff == "fixed" && ~(a.threshold >= 0 && a.threshold < 0.5)
             add(sec, field + ".threshold", "error", "The threshold is |auROC - 0.5|, from 0 up to (not including) 0.5.");
+        end
+        if a.cutoff == "shuffle" && ~(a.nResamples >= 1 && a.nResamples == round(a.nResamples))
+            add(sec, field + ".nResamples", "error", "nResamples must be a whole number >= 1.");
         end
         if a.cutoff == "test"
             if ~ismember(a.test, ["bootstrap" "ranksum" "shuffle"])
@@ -1377,8 +1389,11 @@ issues = table(Section, Field, Severity, Message);
                 end
                 if ~(a.alpha > 0 && a.alpha <= 1); add(sec, field + ".alpha", "error", "alpha must be in (0, 1]."); end
             end
+            if a.cutoff == "shuffle" && ~(a.alpha > 0 && a.alpha <= 1)
+                add(sec, field + ".alpha", "error", "alpha must be in (0, 1].");
+            end
             if a.modulatedOnly && a.cutoff == "none"
-                add(sec, field + ".modulatedOnly", "error", "Modulated units only needs a cutoff (ci, fixed or test) to call units modulated.");
+                add(sec, field + ".modulatedOnly", "error", "Modulated units only needs a cutoff (ci, fixed, shuffle or test) to call units modulated.");
             end
         end
         if ~(license('test', 'Statistics_Toolbox') && exist('tiedrank', 'file'))

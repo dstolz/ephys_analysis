@@ -1,9 +1,10 @@
 function O = responseOnset(R, opts)
-%responseOnset  A unit's response onset from its PSTH by CUSUM: when its rate rises above the baseline and stays up.
+%responseOnset  A unit's response onset from its PSTH by CUSUM: when its rate departs from the baseline and stays there.
 %   O = responseOnset(R, Name=Value) finds, for every unit asked for, the
-%   time its peri-event histogram departs upward from its baseline: once
-%   over every epoch of R (the unit's onset) and once over each trial
-%   group's epochs. It reads R.raster (spikePSTH with Raster=true, or a
+%   time its peri-event histogram departs from its baseline (upward, by
+%   default; Direction): once over every epoch of R (the unit's onset) and
+%   once over each trial group's epochs, and only for a unit that responds
+%   at all (Gate). It reads R.raster (spikePSTH with Raster=true, or a
 %   result merged across sessions by combineSessions), the spike times the
 %   raster draws, relative to each epoch's event, so the onset and the
 %   raster agree. Pure: no I/O, no graphics. A figure computes it once per
@@ -22,9 +23,11 @@ function O = responseOnset(R, opts)
 %   41:100-115), as Ellaway (1978, Electroencephalogr Clin Neurophysiol
 %   45:302-304) applied the cumulative sum to a PSTH: each bin adds its
 %   departure from the baseline in baseline SDs less an allowance,
-%   C_i = max(0, C_(i-1) + (x_i - m) / s - Drift), C_0 = 0, so it stays near
-%   zero while the rate is the baseline's (Drift 0: the plain cumulative
-%   excess over the baseline mean, floored at zero). The onset is found
+%   C_i = max(0, C_(i-1) + z_i - Drift), C_0 = 0, z_i = (x_i - m) / s
+%   (Direction "down": (m - x_i) / s; "both": |x_i - m| / s), so it stays
+%   near zero while the rate is the baseline's (Drift 0: the plain cumulative
+%   excess over the baseline mean, floored at zero). It is computed as
+%   Z = cumsum(z - Drift), C = Z - min(0, cummin(Z)). The onset is found
 %   where C first reaches Threshold (in baseline SDs) and stays up and
 %   rising: over the next SustainSec C never falls under Threshold and ends
 %   higher than it was. A crossing that does not last is passed over, and
@@ -32,6 +35,21 @@ function O = responseOnset(R, opts)
 %   edge of the bin after the last bin before the crossing where C was 0
 %   (Page's estimate of the change point; the search window's start when C
 %   never was). No crossing that lasts: NaN.
+%
+%   The gate (Gate "evoked", the default): the CUSUM alone finds a
+%   crossing in a unit that does not respond, most easily in a sparse one,
+%   whose baseline SD s is tiny (a clustered pair of spontaneous spikes in
+%   one epoch is then many SDs, though a single epoch shows no response).
+%   A found onset is kept only when the unit responds, by the test of
+%   responseStats' evoked response: across the epochs (every epoch of R for
+%   the unit's onset, each group's for its onset), each epoch's rate in the
+%   search window against its rate in the baseline window, Wilcoxon's signed
+%   rank test (signrank, Statistics and Machine Learning Toolbox), two-sided,
+%   p at most GateAlpha, the rate moving the way Direction says (the median of
+%   the epochs' changes above 0 for "up", below for "down"). Otherwise the
+%   onset is NaN (the curve C is still returned). p is not corrected for the
+%   number of units asked for. Gate "none" gives the onset of the CUSUM
+%   alone.
 %
 %   Options
 %     Units       the raster's units (indices into R.raster), default every
@@ -50,6 +68,13 @@ function O = responseOnset(R, opts)
 %     SustainSec  how long the CUSUM must stay over the threshold and
 %                 rising, s (default 0.005; rounded to whole bins, 0 = the
 %                 crossing alone)
+%     Direction   "up" (default): the rate rises above the baseline |
+%                 "down": it falls below it (a baseline rate near zero
+%                 leaves no room to fall) | "both": either (the CUSUM of
+%                 |x - m| / s, so it is the first departure either way)
+%     Gate        "evoked" (default): keep an onset only for a unit that
+%                 responds, by the signed rank test above | "none"
+%     GateAlpha   the gate's p value (default 0.05)
 %
 %   O fields
 %     onset          [1 x nUnits] the onset over every epoch, s from the
@@ -60,10 +85,14 @@ function O = responseOnset(R, opts)
 %     cusum          [nBins x nUnits] C over every epoch, in those bins
 %     baselineMean   [1 x nUnits] m over every epoch, spikes/s
 %     baselineSD     [1 x nUnits] s over every epoch, spikes/s
+%     gateP          [1 x nUnits] the gate's p over every epoch; groupGateP
+%                    [nGroups x nUnits] over each group's (NaN: Gate "none",
+%                    or no onset to test, or a group without epochs)
 %     window         [lo hi] the search window, after clipping
 %     baseline       [lo hi] the baseline window, after clipping
 %     settings       a struct of MinSec, MaxSec, Baseline, BinSec,
-%                    Threshold, Drift and SustainSec, as asked
+%                    Threshold, Drift, SustainSec, Direction, Gate and
+%                    GateAlpha, as asked
 %     units, labels, groups   as firstSpikeLatency's
 %
 %   Errors: responseOnset:NoRaster (R holds no raster rows),
@@ -71,7 +100,8 @@ function O = responseOnset(R, opts)
 %   window that holds no whole bin), responseOnset:NoBaseline (no whole
 %   bin inside the baseline window), responseOnset:BadUnit.
 %
-%   See also firstSpikeLatency, figureLatencies, spikePSTH, binCounts.
+%   See also firstSpikeLatency, figureLatencies, spikePSTH, binCounts,
+%   responseStats.
 
 arguments
     R (1,1) struct
@@ -83,6 +113,9 @@ arguments
     opts.Threshold (1,1) double {mustBePositive} = 5
     opts.Drift (1,1) double {mustBeNonnegative} = 1
     opts.SustainSec (1,1) double {mustBeNonnegative} = 0.005
+    opts.Direction (1,1) string {mustBeMember(opts.Direction, ["up" "down" "both"])} = "up"
+    opts.Gate (1,1) string {mustBeMember(opts.Gate, ["evoked" "none"])} = "evoked"
+    opts.GateAlpha (1,1) double {mustBePositive, mustBeLessThan(opts.GateAlpha, 1)} = 0.05
 end
 
 kept = isfield(R, 'raster') && isfield(R, 'epochGroup') && isfield(R, 'edges');
@@ -142,54 +175,98 @@ groupOnset = NaN(nG, nU);
 cusum = NaN(nnz(det), nU);
 mu = NaN(1, nU);
 sd = NaN(1, nU);
+gateP = NaN(1, nU);
+groupGateP = NaN(nG, nU);
+if opts.Gate == "evoked" && ~(license('test', 'Statistics_Toolbox') && exist('signrank', 'file') > 0)
+    error('responseOnset:NoToolbox', 'Gate "evoked" needs the Statistics and Machine Learning Toolbox (signrank); Gate "none" does not.');
+end
 for k = 1:nU
     t = double(R.raster(units(k)).times(:));
     ep = double(R.raster(units(k)).epoch(:));
     bin = discretize(t + tol, edges);   % [a, b): a spike on an edge in the bin starting there
     ok = ~isnan(bin) & ep >= 1 & ep <= nE & ep == round(ep);
     C = accumarray([bin(ok) ep(ok)], 1, [nB max(nE, 1)]);
-    [onset(k), cusum(:, k), mu(k), sd(k)] = onsetOf(sum(C, 2), nE, b, base, det, left, opts, sustain);
+    gate = [];
+    if opts.Gate == "evoked"; gate = @() evokedGate(C, 1:nE, base, det, b, opts); end
+    [onset(k), cusum(:, k), mu(k), sd(k), gateP(k)] = onsetOf(sum(C, 2), nE, b, base, det, left, opts, sustain, gate);
     for g = 1:nG
         in = grp == g;
         if ~any(in); continue; end
-        groupOnset(g, k) = onsetOf(sum(C(:, in), 2), nnz(in), b, base, det, left, opts, sustain);
+        if opts.Gate == "evoked"; gate = @() evokedGate(C, find(in).', base, det, b, opts); end
+        [groupOnset(g, k), ~, ~, ~, groupGateP(g, k)] = onsetOf(sum(C(:, in), 2), nnz(in), b, base, det, left, opts, sustain, gate);
     end
 end
 labels = strings(1, nU);
 if isfield(R, 'labels') && numel(R.labels) >= max([units 0]); labels = reshape(string(R.labels(units)), 1, []); end
 settings = struct('MinSec', opts.MinSec, 'MaxSec', opts.MaxSec, 'Baseline', opts.Baseline, 'BinSec', b, ...
-    'Threshold', opts.Threshold, 'Drift', opts.Drift, 'SustainSec', opts.SustainSec);
+    'Threshold', opts.Threshold, 'Drift', opts.Drift, 'SustainSec', opts.SustainSec, 'Direction', opts.Direction, ...
+    'Gate', opts.Gate, 'GateAlpha', opts.GateAlpha);
 O = struct('onset', onset, 'groupOnset', groupOnset, 't', left(det), 'cusum', cusum, 'baselineMean', mu, ...
-    'baselineSD', sd, 'window', [lo hi], 'baseline', B, 'settings', settings, 'units', units, 'labels', labels, 'groups', G);
+    'baselineSD', sd, 'gateP', gateP, 'groupGateP', groupGateP, 'window', [lo hi], 'baseline', B, 'settings', settings, ...
+    'units', units, 'labels', labels, 'groups', G);
 end
 
 
-function [onset, S, m, s] = onsetOf(counts, nEp, b, base, det, left, opts, sustain)
+function [onset, S, m, s, p] = onsetOf(counts, nEp, b, base, det, left, opts, sustain, gate)
 %onsetOf  The CUSUM onset of one histogram (COUNTS per bin over NEP epochs); S the CUSUM over the searched bins.
+%   GATE (a function with no input, or []) gives the p of the evoked test and whether the unit passes; an onset it does not clear is NaN (P is its p).
 onset = NaN;
-x = counts / (max(nEp, 1) * b);   % spikes/s
-m = mean(x(base));
-s = 0;
-if nnz(base) > 1; s = std(x(base)); end
-if ~(s > 0); s = 1 / (max(nEp, 1) * b); end   % no spread in the baseline: the rate of one spike in one bin
-z = (x(det) - m) / s - opts.Drift;
-n = numel(z);
-S = zeros(n, 1);
-c = 0;
-for i = 1:n
-    c = max(0, c + z(i));
-    S(i) = c;
-end
+p = NaN;
+[S, m, s] = cusumCurve(counts, nEp, b, base, det, opts);
 if nEp == 0; return; end
+n = numel(S);
 t = left(det);
 h = opts.Threshold;
 for i = find(S >= h).'
     j = i + sustain;
     if j > n; break; end   % no room left to see it last
     if sustain > 0 && ~(all(S(i:j) >= h) && S(j) > S(i)); continue; end
-    z0 = find(S(1:i-1) == 0, 1, 'last');   % the last bin at zero before the crossing: the rise starts after it
+    z0 = find(S(1:i-1) <= 1e-9, 1, 'last');   % the last bin at zero before the crossing: the rise starts after it
     if isempty(z0); z0 = 0; end
     onset = t(z0 + 1);
-    return
+    break
 end
+if isnan(onset) || isempty(gate); return; end
+[p, pass] = gate();
+if ~pass; onset = NaN; end
+end
+
+
+function [S, m, s] = cusumCurve(counts, nEp, b, base, det, opts)
+%cusumCurve  The CUSUM over the searched bins of each column of COUNTS (histograms over NEP epochs): S, with the baseline's mean M and SD S.
+%   z = (x - m) / s (Direction "down": the negative; "both": its absolute value), C = max(0, C + z - Drift) as
+%   Z = cumsum(z - Drift), C = Z - min(0, cummin(Z)).
+x = counts / (max(nEp, 1) * b);   % spikes/s
+m = mean(x(base, :), 1);
+s = zeros(1, size(x, 2));
+if nnz(base) > 1; s = std(x(base, :), 0, 1); end
+s(~(s > 0)) = 1 / (max(nEp, 1) * b);   % no spread in the baseline: the rate of one spike in one bin
+z = (x(det, :) - m) ./ s;
+switch opts.Direction
+    case "down", z = -z;
+    case "both", z = abs(z);
+end
+Z = cumsum(z - opts.Drift, 1);
+S = Z - min(0, cummin(Z, 1));
+end
+
+
+function [p, pass] = evokedGate(C, cols, base, det, b, opts)
+%evokedGate  The gate: do the epochs COLS (columns of the counts C [nBins x nEpochs]) respond? Signed rank test of rates, search window against baseline.
+%   P is signrank's two-sided p of the epochs' changes (1 when no epoch changes); PASS needs P <= GateAlpha and the median of the
+%   changes to go the way Direction says.
+cb = sum(C(base, cols), 1) / (nnz(base) * b);   % each epoch's baseline rate
+cr = sum(C(det, cols), 1) / (nnz(det) * b);     % and its rate in the search window
+d = cr - cb;
+d = d(d ~= 0);
+p = 1;
+pass = false;
+if isempty(d); return; end
+p = signrank(d);
+switch opts.Direction
+    case "up",   way = median(d) > 0;
+    case "down", way = median(d) < 0;
+    otherwise,   way = true;
+end
+pass = p <= opts.GateAlpha && way;
 end

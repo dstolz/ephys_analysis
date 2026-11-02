@@ -82,8 +82,10 @@ if ~S.overTime
     if hasErr; phistd = C; end
     if jack; lo = C; hi = C; end
     [d1, n1] = chronuxSpikeCut(SP.times(pos(S.unitSeed)), TB.starts, TB.window, "window");
+    d1 = chronuxOntoGrid(d1, tt(end));   % spikes stamped past the last grid point count there (mtfftpt keeps all when none is inside)
     for i = 1:nP
         [d2, n2] = chronuxSpikeCut(SP.times(pos(others(i))), TB.starts, TB.window, "window");
+        d2 = chronuxOntoGrid(d2, tt(end));
         for g = 1:nG
             sel = TB.groupIndex == g;
             nTr(i, g) = nnz(sel);

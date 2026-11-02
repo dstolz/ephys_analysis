@@ -334,7 +334,7 @@ A figure's `observe.units` and a fixed layer's `units` (the source is the figure
 | `maxUnits` | `Inf` | at most this many, in order (at least 1) |
 | `merge` | `enabled` false, `radiusUm` 50, `refractoryMs` 1.5, `flankMs` `[5 30]`, `minExpected` 20, `maxRatio` 0.25, `alpha` 0.001 | detected spikes only. With `enabled`, the channels of neighboring sites that hold one neuron's spikes are joined into one "unit" ([`groupDetected`](../analysis/groupDetected.m)); the Spikes step keeps a spike once (Coincidence) but the deepest site changes from spike to spike, so a neuron's spikes are cut between channels. Two sites within `radiusUm` are joined when the events of one that follow an event of the other by more than the Coincidence jitter and at most `refractoryMs` are fewer than `maxRatio` of the number the `flankMs` lags predict (the rates set that count), with at least `minExpected` expected and a Poisson p of at most `alpha`: a neuron has no two spikes that close, two neurons fire that close by chance. A joined group is one unit named for its channel with the largest mean waveform (`channel`, `unitId`, `label` with `+n` for the `n` channels joined) holding every spike of the group once; `ids`, `channels` and `shanks` see that channel. The unit table gains `nSites` and `sites` (`"3,4,12"`). Needs the Spikes step's `Coincidence` `"remove"` or `"tag"` (with `"tag"` the copies are left out first) and the Statistics and Machine Learning Toolbox |
 | `quality` | `enabled` false, and [`unitQualityCriteria`](../pipeline/unitQualityCriteria.m)'s thresholds (`isiViolationsRatioMax` 0.5, `presenceRatioMin` 0.9, `amplitudeCutoffMax` 0.1; `snrMin`, `driftPtpMax`, `firingRateMin` off; `unknown` `"pass"`) | with `enabled`, only the sorted units that meet the criteria are kept: their quality metrics come from the dataset (`EphysDataset.unitQuality`; the recording's noise only when `snrMin` is set) or, without it, from the recording's length the source knows (no SNR), through the sort folder's `quality_metrics.json` when current. The units' metrics and `qualityPass` / `qualityFails` / `qualityUnknown` are added to the unit table ([Unit quality metrics](EphysDataset.md#unit-quality-metrics)) |
-| `response` | `enabled` false, `test` `"evoked"`, `baseline` `[-0.2 0]`, `window` `[0 0.2]`, `param` `""`, `direction` `"any"`, `correction` `"bh"`, `alpha` 0.05, `auroc` (below) | with `enabled`, only the units that pass the test are kept ([response statistics](EphysAnalysis.md#response-statistics)), after the other fields and before `maxUnits`. The test runs over the figure's event reference and trial selection, on epochs of one fixed window that holds both test windows (those that leave the recording or touch an artifact period are left out). `test`: `"evoked"` (the response window's rate differs from the baseline window's, `signrank`), `"tuning"` (it differs across `param`'s levels, `kruskalwallis`), `"either"`, `"both"`, or `"auroc"`: the units the auROC calls modulated over `window` (`aurocCurves` over the same epochs, all of them one group; [auROC](#auroc)), with `auroc`'s `method`, `windows`, `windowSec`, `stepSec`, `binSec` (its own bins, 0.01), `cutoff` (`"ci"`, `"fixed"` or `"test"`; not `"none"`), `threshold`, `test` and `nResamples`. `baseline` and `window` are s from the event. `param` is needed by `"tuning"`, `"either"` and `"both"`. `direction` (every test but `"tuning"`) is `"any"`, `"excited"` or `"suppressed"` (auroc: called up or down). `correction` is `"bh"`, `"holm"`, `"bonferroni"` or `"none"`, over the units tested. A unit passes when its adjusted p is at most `alpha` (auroc: when called modulated; `correction` and `alpha` serve its `"test"` cutoff). The unit table gains the test's columns: `baselineRate`, `responseRate`, `pEvoked`, `qEvoked`, `direction`, `responsive` and, with `param`, `nLevels`, `pTuning`, `qTuning`, `tuned`, `bestLevel`, `bestRate`; for `"auroc"` instead `aurocMean`, `aurocPhasic`, `aurocP`, `aurocQ`, `aurocDirection` and `aurocModulated`. Needs the Statistics and Machine Learning Toolbox |
+| `response` | `enabled` false, `test` `"evoked"`, `baseline` `[-0.2 0]`, `window` `[0 0.2]`, `param` `""`, `direction` `"any"`, `correction` `"bh"`, `alpha` 0.05, `auroc` (below) | with `enabled`, only the units that pass the test are kept ([response statistics](EphysAnalysis.md#response-statistics)), after the other fields and before `maxUnits`. The test runs over the figure's event reference and trial selection, on epochs of one fixed window that holds both test windows (those that leave the recording or touch an artifact period are left out). `test`: `"evoked"` (the response window's rate differs from the baseline window's, `signrank`), `"tuning"` (it differs across `param`'s levels, `kruskalwallis`), `"either"`, `"both"`, or `"auroc"`: the units the auROC calls modulated over `window` (`aurocCurves` over the same epochs, all of them one group; [auROC](#auroc)), with `auroc`'s `method`, `windows`, `windowSec`, `stepSec`, `binSec` (its own bins, 0.01), `cutoff` (`"ci"`, `"fixed"`, `"shuffle"` or `"test"`; not `"none"`), `threshold`, `test` and `nResamples`. `baseline` and `window` are s from the event. `param` is needed by `"tuning"`, `"either"` and `"both"`. `direction` (every test but `"tuning"`) is `"any"`, `"excited"` or `"suppressed"` (auroc: called up or down). `correction` is `"bh"`, `"holm"`, `"bonferroni"` or `"none"`, over the units tested. A unit passes when its adjusted p is at most `alpha` (auroc: when called modulated; `correction` and `alpha` serve its `"test"` cutoff). The unit table gains the test's columns: `baselineRate`, `responseRate`, `pEvoked`, `qEvoked`, `direction`, `responsive` and, with `param`, `nLevels`, `pTuning`, `qTuning`, `tuned`, `bestLevel`, `bestRate`; for `"auroc"` instead `aurocMean`, `aurocPhasic`, `aurocP`, `aurocQ`, `aurocDirection` and `aurocModulated`. Needs the Statistics and Machine Learning Toolbox |
 
 ### Style
 
@@ -470,11 +470,11 @@ the auROC from 0.5 on a 0-1 axis, a heatmap colors it on `[0 1]`
 | `windows` | `"tiled"` | `"tiled"`: back to back, edged at whole multiples of `windowSec` from the event; `"sliding"`: one every `stepSec` |
 | `windowSec`, `stepSec` | 0.1, 0.01 | the window and the sliding step, s: each a whole number of the panel's bins |
 | `modulationWindow` | `[0 0.5]` | the call window, s from the event: the auROC windows wholly inside it give each unit's mean auROC and phasic modulation (mean \|auROC - 0.5\|) per group |
-| `cutoff` | `"ci"` | how a unit is called modulated (up or down, per group): `"ci"`, the paper's: its mean auROC beyond 0.5 +/- the upper bound of the 95% confidence interval of the mean phasic modulation over every unit and group (it depends on the units in the figure and needs many of them; a warning says when it is too wide to call any; `populationAnalysis`, which takes these settings as its `Auroc`, pools every dataset's units for it: [population analysis](EphysAnalysis.md#population-analysis)); `"fixed"`, beyond 0.5 +/- `threshold`; `"test"`, the adjusted p of `test` at most `alpha`; `"none"`, no call |
+| `cutoff` | `"ci"` | how a unit is called modulated (up or down, per group): `"ci"`, the paper's: its mean auROC beyond 0.5 +/- the upper bound of the 95% confidence interval of the mean phasic modulation over every unit and group (it depends on the units in the figure and needs many of them; a warning says when it is too wide to call any; `populationAnalysis`, which takes these settings as its `Auroc`, pools every dataset's units for it: [population analysis](EphysAnalysis.md#population-analysis)); `"fixed"`, beyond 0.5 +/- `threshold`; `"shuffle"`, the rule of `"ci"` with a cutoff calibrated by shuffling: the `1 - alpha` quantile (the 95th percentile at `alpha` 0.05) of the phasic modulation of the shuffled data (each epoch's bins shifted circularly, `nResamples` draws per unit and group) pooled over every unit and group, because the `"ci"` cutoff sits barely above the mean phasic modulation, so many units with no response exceed it, while about `alpha` of them exceed the shuffle cutoff (it also depends on the units in the figure; `populationAnalysis` pools every dataset's draws; the unit's `p` is the share of shuffles reaching its phasic modulation); `"test"`, the adjusted p of `test` at most `alpha`; `"none"`, no call |
 | `threshold` | 0.1 | `"fixed"`: the distance from 0.5, at least 0 and below 0.5 |
 | `test` | `"bootstrap"` | `"test"`: `"bootstrap"` (the epochs resampled `nResamples` times; p from how often the mean auROC lands across 0.5), `"ranksum"` (the call window's values against the baseline's; they share epochs, so p runs small) or `"shuffle"` (each epoch's bins shifted circularly at random `nResamples` times; p from how often the phasic modulation reaches the observed one) |
-| `nResamples` | 1000 | bootstrap, shuffle |
-| `correction`, `alpha` | `"bh"`, 0.05 | `"test"`: `pAdjust` (`"bh"`, `"holm"`, `"bonferroni"`, `"none"`) over every unit and group; modulated when the adjusted p is at most `alpha`. `populationAnalysis` uses its own `Correction` and `Alpha` instead |
+| `nResamples` | 1000 | bootstrap, shuffle (the `test`, or the `"shuffle"` cutoff) |
+| `correction`, `alpha` | `"bh"`, 0.05 | `"test"`: `pAdjust` (`"bh"`, `"holm"`, `"bonferroni"`, `"none"`) over every unit and group; modulated when the adjusted p is at most `alpha`; `"shuffle"`: the cutoff is the `1 - alpha` quantile. `populationAnalysis` uses its own `Correction` and `Alpha` instead |
 | `marks` | `true` | draw the calls (with a cutoff): the PSTH shades the call window and puts each group's call (up / down arrow, n.s.) by the unit's title, in the group's color (overlay: each group's count of units called up and down); the heatmap draws a bar over the call window and a red up or blue down triangle by each modulated row. The caption counts them either way |
 | `modulatedOnly` | `false` | draw only the units called modulated in at least one group (needs a cutoff); when none is, the panel fails (`spikePSTH:NoneModulated`) |
 
@@ -587,12 +587,17 @@ and only the epochs the panel draws. Three rules (`method`):
   ahead), then sheds spikes from its start while that raises S; every spike of
   the window is a possible start, and the first burst with S >= `surprise` gives
   the latency, its first spike.
-- **`"poisson"`**: the first spike at which the spikes counted since the
-  window's start are improbable at the baseline rate, in the manner of Chase &
+- **`"poisson"`**: the spike at which the spikes counted since the window's
+  start first become improbable at the baseline rate, in the manner of Chase &
   Young 2007 (*PNAS* 104:5175-5180): the k-th spike, at t_k, is the latency
-  when P(N >= k) < `alpha`, N Poisson with mean r (t_k - `minSec`). It is the
-  spike at which the count turns improbable, so it lags the response's first
-  spike by the few spikes the count needs.
+  when P(N >= k) < `alpha`, N Poisson with mean r (t_k - `minSec`). The latency
+  (`lat`) is this **significance spike**, not the response's first spike: it
+  lags that by the few spikes the count needs. `firstSpikeLatency` also returns
+  `latFirst`, the first spike of the run that made the count improbable: from
+  the significance spike back, each earlier spike joins while the interval after
+  it is under half the baseline's mean interval, 1/(2r), as in a surprise burst
+  (at r = 0 the run reaches the window's first spike). For the other rules
+  `latFirst` is the latency itself.
 
 The baseline rate r of the Poisson rules is the spike count in the baseline
 window over its length: `baseline "pre"` the part of the panel's window before
@@ -616,13 +621,23 @@ CUSUM: the spikes of every epoch (and of each trial group's epochs) in bins of
 and SD s (the same baseline window); then over the bins of the window, Page's
 one-sided cumulative sum (Page 1954, *Biometrika* 41:100-115), as Ellaway (1978,
 *Electroencephalogr Clin Neurophysiol* 45:302-304) applied the cumulative sum to
-a PSTH: C_i = max(0, C_(i-1) + (x_i - m) / s - `cusumDrift`). The onset is where
+a PSTH: C_i = max(0, C_(i-1) + z_i - `cusumDrift`), z_i = (x_i - m) / s
+(`cusumDirection "down"`: (m - x_i) / s, a fall; `"both"`: |x_i - m| / s, the
+first departure either way). The onset is where
 C first reaches `cusumThreshold` and stays up and rising for `cusumSustainSec`
 (never under the threshold, and higher at the end; a crossing that does not
 last is passed over), placed at the start of the rise: the bin after the last
 bin where C was 0. On a synthetic baseline the default allowance of 1 SD keeps
 C at zero (none of 40 runs found an onset), and the onset falls within a few ms
-of the true one.
+of the true one. The CUSUM alone finds a crossing in a unit that does not
+respond, most easily in a sparse one, whose baseline SD is tiny (a clustered
+pair of spontaneous spikes in one epoch is many SDs), so an onset is kept only
+for a unit that responds (`cusumGate "evoked"`, the default): across the
+epochs (all of them for the unit's onset, each group's for its own), each
+epoch's rate in the window against its rate in the baseline, Wilcoxon's signed
+rank test (`signrank`, the test of `responseStats`' evoked response), two-sided,
+p at most `cusumGateAlpha`, and the rate moving the way `cusumDirection` says;
+the curve is drawn either way. `cusumGate "none"` gives the CUSUM's onset alone.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -638,6 +653,9 @@ of the true one.
 | `cusumThreshold` | 5 | the onset: the CUSUM's threshold, baseline SDs |
 | `cusumDrift` | 1 | the onset: the allowance each bin takes off, baseline SDs (0: the plain excess, floored at zero) |
 | `cusumSustainSec` | 0.005 | the onset: how long the CUSUM stays over the threshold and rising, s (0: the crossing alone) |
+| `cusumDirection` | `"up"` | the onset: `"up"` (the rate rises above the baseline), `"down"` (falls below it; a baseline near zero leaves no room to fall) or `"both"` (the first departure either way) |
+| `cusumGate` | `"evoked"` | the onset: `"evoked"` keeps it only for a unit that responds (the signed rank test above; needs the Statistics and Machine Learning Toolbox), `"none"` the CUSUM's alone |
+| `cusumGateAlpha` | 0.05 | the onset, gate `"evoked"`: the test's p value, above 0 and below 1 |
 
 The panels that read them:
 
@@ -1332,7 +1350,11 @@ What each draws:
   can and spread apart where they would overlap (at the size drawn); the
   channel numbers are left off then.
 - `corrmap`: the pairwise correlation of the layer's units' per-epoch rates for
-  the trial group `options.group`.
+  the trial group `options.group`, each unit's rates first losing their moving
+  mean over about 20% of the group's epochs in time order (`unitCorrelation`'s
+  `Detrend`), so that two units drifting together over the session do not
+  correlate through the drift; with `metric "peak"` and `between` windows only
+  the first bins of every window, the shortest's, are searched.
 - `rate`: a firing rate panel for the observed unit: each
   epoch window's rate (`firingRate`, in the `measure` and `baseline`) per
   trial group, the groups along x (ticked with their values, the group-by
@@ -1515,7 +1537,7 @@ refuses.
 | all three | `spikeFs` | 1000 | spike layers: the time grid the spike trains are analyzed on, Hz |
 | `coherence` | `overTime` | `false` | a coherogram of the first pair (signals or spike trains) |
 | `spectrogram`, `coherence` | `movingwin` | `[0.5 0.05]` | `[window step]` s (a coherence only with `overTime`) |
-| `spectrogram` | `baseline` | `Mode "none"`, `Window [-0.5 0]` | `Mode` `"none"`, `"db"`, `"percent"`, `"zscore"` or `"ratio"` (`chronuxNormalize`'s) against the power in `Window`, which must lie inside the panel's window |
+| `spectrogram` | `baseline` | `Mode "none"`, `Window [-0.5 0]` | `Mode` `"none"`, `"db"`, `"percent"`, `"zscore"` or `"ratio"` (`chronuxNormalize`'s) against the power of the moving windows that lie wholly inside `Window` (a window reaching past its end would hold post-event power), which must lie inside the panel's window and be at least one moving window long |
 | `coherence` | `showPhase` | `true` | the phase strip under the magnitude (not over time) |
 | `spectrum`, `coherence` | `yLimMode`, `yLim` | `"auto"`, `[]` | the power or coherence axis ([Y limits](#y-limits)); a coherence's automatic axis is `[0 1]` |
 | `spectrogram`, `coherence` | `cLim` | `[]` | the color scale; a coherogram `[]` = `[0 1]` |

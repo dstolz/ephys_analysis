@@ -53,15 +53,29 @@ function A = aurocCurves(spikeTimes, E, opts)
 %               is above 0.5 + c, downwards when below 0.5 - c. c depends
 %               on the units passed in, and it narrows as more are added
 %     "fixed"   the same with c = Threshold
+%     "shuffle" the rule of "ci" with a cutoff calibrated by shuffling: c is
+%               the (1 - Alpha) quantile (quantile; the 95th percentile at
+%               the default Alpha 0.05) of the phasic modulation of the
+%               shuffled data, pooled over every unit and group (the draws
+%               of Test "shuffle", NResamples per unit and group, whatever
+%               Test is). The "ci" cutoff sits barely above the mean phasic
+%               modulation, so many units with no response exceed it; the
+%               phasic modulation of only about Alpha of such units
+%               exceeds this one, and a mean auROC's distance from 0.5
+%               never exceeds the phasic modulation. A unit is modulated
+%               upwards when its mean auROC is above 0.5 + c, downwards when
+%               below 0.5 - c. c depends on the units passed in, as the
+%               "ci" cutoff does. p is the share of shuffles (+1 smoothed)
+%               reaching the unit's phasic modulation
 %     "test"    a p value per unit and group (Test), adjusted over every
 %               unit and group tested (pAdjust, Correction); modulated
 %               when it is at most Alpha, upwards when the mean auROC is
 %               above 0.5, downwards when below
 %     "none"    no call
-%   With Call=false the units are measured (and, with Cutoff "test",
-%   tested) but not called: to call them with the units of other calls,
-%   their mean, phasic and p stacked, in one aurocCall (populationAnalysis
-%   pools every dataset's units so).
+%   With Call=false the units are measured (and, with Cutoff "test" or
+%   "shuffle", tested) but not called: to call them with the units of other
+%   calls, their mean, phasic and p (and, for "shuffle", null) stacked, in
+%   one aurocCall (populationAnalysis pools every dataset's units so).
 %   Test
 %     "bootstrap" (default) the epochs are resampled with replacement
 %               NResamples times and the mean auROC recomputed each time.
@@ -77,7 +91,9 @@ function A = aurocCurves(spikeTimes, E, opts)
 %               event. p is the share of shuffles (+1 smoothed) whose
 %               phasic modulation reaches the observed one
 %   The random draws come from their own stream (Seed), so a result can be
-%   reproduced and the global generator is left alone.
+%   reproduced and the global generator is left alone; each unit and group
+%   draws from its own substream, so a unit's p does not change when other
+%   units are added or taken out.
 %
 %   Options
 %     Window          [pre post] s around the event (default [-0.5 1])
@@ -94,12 +110,14 @@ function A = aurocCurves(spikeTimes, E, opts)
 %     MaskAfterStop   leave out each epoch's bins from its stop event t1 on
 %                     (epochs: an epoch's window or piece that has any)
 %     ModulationWindow  [m0 m1] s from the event (default [0 0.5])
-%     Cutoff          "ci" (default) | "fixed" | "test" | "none"
+%     Cutoff          "ci" (default) | "fixed" | "shuffle" | "test" | "none"
 %     Threshold       fixed: |mean auROC - 0.5| above this (default 0.1)
 %     Test            "bootstrap" (default) | "ranksum" | "shuffle"
-%     NResamples      bootstrap / shuffle: how many (default 1000)
+%     NResamples      bootstrap / shuffle (Test, or Cutoff "shuffle"): how
+%                     many (default 1000)
 %     Correction      test: "bh" (default) | "holm" | "bonferroni" | "none"
-%     Alpha           test: 0.05
+%     Alpha           test: 0.05; Cutoff "shuffle": the cutoff is the
+%                     (1 - Alpha) quantile of the shuffled phasic modulation
 %     Call            true (default): call the units here; false: leave
 %                     the call fields as Cutoff "none" gives them, for
 %                     aurocCall over a larger pool
@@ -120,12 +138,15 @@ function A = aurocCurves(spikeTimes, E, opts)
 %   ("increase" | "decrease" | "none"; "" without a call), modulated
 %   [nUnits x nGroups], cutoff (the Cutoff), cutoffValue (c; NaN for
 %   "test" and "none"), nModulated / nIncrease / nDecrease [nGroups x 1],
-%   nUnits, baseline, modulationWindow, method, windows, groups, params
+%   null ([nResamples x nUnits x nGroups] single, the shuffled phasic
+%   modulations, NaN where a unit has none: only with Cutoff "shuffle" and
+%   Call=false, for aurocCall over a larger pool), nUnits, baseline,
+%   modulationWindow, method, windows, groups, params
 %   (every option as used), toolbox (the Statistics and Machine Learning
 %   Toolbox's version), created.
 %
 %   Needs the Statistics and Machine Learning Toolbox (tiedrank; tinv for
-%   "ci"; ranksum for the ranksum test).
+%   "ci"; quantile for "shuffle"; ranksum for the ranksum test).
 %
 %   Errors: aurocCurves:BadOption, aurocCurves:BadWindow,
 %   aurocCurves:BadBaseline, aurocCurves:BadModulation,
@@ -165,7 +186,7 @@ end
 % --- options -------------------------------------------------------------------------------
 checkOption(opts.Method, ["psth" "epochs"], "Method");
 checkOption(opts.Windows, ["tiled" "sliding"], "Windows");
-checkOption(opts.Cutoff, ["ci" "fixed" "test" "none"], "Cutoff");
+checkOption(opts.Cutoff, ["ci" "fixed" "shuffle" "test" "none"], "Cutoff");
 checkOption(opts.Test, ["bootstrap" "ranksum" "shuffle"], "Test");
 checkOption(opts.Correction, ["bh" "holm" "bonferroni" "none"], "Correction");
 if ~(opts.Alpha > 0 && opts.Alpha <= 1)
@@ -175,12 +196,16 @@ if ~(opts.Threshold >= 0 && opts.Threshold < 0.5)
     error('aurocCurves:BadOption', 'Threshold is |auROC - 0.5| and must be in [0, 0.5) (got %g).', opts.Threshold);
 end
 runTest = opts.Cutoff == "test";
-resample = runTest && opts.Test ~= "ranksum";
+shuf = opts.Cutoff == "shuffle";   % the cutoff is calibrated on the shuffled data
+testKind = opts.Test;
+if shuf; testKind = "shuffle"; end
+resample = (runTest && opts.Test ~= "ranksum") || shuf;
 if resample && ~(opts.NResamples >= 1 && opts.NResamples == round(opts.NResamples))
     error('aurocCurves:BadOption', 'NResamples must be a whole number >= 1 (got %g).', opts.NResamples);
 end
 need = "tiedrank";
 if opts.Cutoff == "ci"; need(end+1) = "tinv"; end
+if shuf; need(end+1) = "quantile"; end
 if runTest && opts.Test == "ranksum"; need(end+1) = "ranksum"; end
 if ~license('test', 'Statistics_Toolbox') || any(arrayfun(@(f) exist(f, 'file') == 0, need))
     error('aurocCurves:NoToolbox', 'auROC needs the Statistics and Machine Learning Toolbox (%s).', strjoin(need, ", "));
@@ -259,7 +284,9 @@ prob = opts.Measure == "probability";
 auc = NaN(nW, nU, nG);
 cnt = zeros(nW, nU, nG);
 mn = NaN(nU, nG); ph = NaN(nU, nG); p = NaN(nU, nG);
-rs = RandStream('mt19937ar', 'Seed', opts.Seed);
+nullPh = zeros(0, nU, nG, 'single');
+if shuf; nullPh = NaN(opts.NResamples, nU, nG, 'single'); end   % the shuffled phasic modulations
+rs = RandStream('Threefry', 'Seed', opts.Seed);   % substreams: one per unit and group
 modW = find(inMod).';
 for u = 1:nU
     if ~isempty(opts.Check); opts.Check(); end
@@ -275,6 +302,7 @@ for u = 1:nU
     end
     for g = 1:nG
         if ~isempty(opts.Check); opts.Check(); end
+        rs.Substream = (u - 1) * nG + g;
         cols = find(gIdx == g);
         if isempty(cols); continue; end
         csum = sum(C(:, cols), 2);
@@ -290,8 +318,8 @@ for u = 1:nU
         if ~any(inMod); continue; end
         mn(u, g) = mean(a(inMod), 'omitnan');
         ph(u, g) = mean(abs(a(inMod) - 0.5), 'omitnan');
-        if ~runTest || ~isfinite(mn(u, g)); continue; end
-        switch opts.Test
+        if ~(runTest || shuf) || ~isfinite(mn(u, g)); continue; end
+        switch testKind
             case "ranksum"
                 if opts.Method == "psth"
                     x = v(unique(winIdx(:, inMod))); y = v(baseIdx);
@@ -316,6 +344,7 @@ for u = 1:nU
                 end
                 dstar = dstar(isfinite(dstar));
                 p(u, g) = (1 + sum(dstar >= ph(u, g) - 1e-12)) / (numel(dstar) + 1);
+                if shuf; nullPh(1:numel(dstar), u, g) = single(dstar); end
         end
     end
 end
@@ -332,9 +361,11 @@ A.inModulation = inMod;
 A.mean = mn;
 A.phasic = ph;
 A.p = p;
+if shuf; A.null = nullPh; end
 cut = opts.Cutoff;
 if ~opts.Call; cut = "none"; end   % the units' call is made elsewhere, over a larger pool
 A = aurocCall(A, Cutoff=cut, Threshold=opts.Threshold, Correction=opts.Correction, Alpha=opts.Alpha);
+if shuf && opts.Call; A = rmfield(A, 'null'); end   % the cutoff is made; the draws are only for a larger pool
 A.nUnits = nU;
 A.baseline = [bLo bHi] * bin;
 A.modulationWindow = m(:).';

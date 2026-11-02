@@ -15,7 +15,12 @@ function R = firingRate(spikeTimes, E, opts)
 %                 its epochs with a spike). The baseline window is measured
 %                 the same way
 %     Baseline    [b0 b1] s around the event: the baseline window of each
-%                 epoch ([] = none)
+%                 epoch ([] = none). R.baseline holds the window's own
+%                 value (its count with Measure "count"); for Normalize a
+%                 count is first scaled to the epoch window's length (the
+%                 count the baseline rate would give there), so the two
+%                 compare, and "probability" needs windows as long as the
+%                 baseline (firingRate:BadBaseline otherwise)
 %     Normalize   "none" (default) | "subtract" (value - that epoch's
 %                 baseline) | "ratio" (value / the unit's mean baseline) |
 %                 "zscore" ((value - mean baseline) / SD of the baseline over
@@ -77,15 +82,22 @@ for u = 1:nU
         base(:, u) = countIn(s, E.t0Continuous + b(1), E.t0Continuous + b(2));
     end
 end
+bLen = 0;
+if useBase; bLen = b(2) - b(1); end
 switch opts.Measure
     case "rate"
         raw = count ./ dur;
-        if useBase; base = base / (b(2) - b(1)); end
+        if useBase; base = base / bLen; end
         unit = "spikes/s";
     case "count"
         raw = count;
         unit = "spikes/window";
     case "probability"
+        if useBase && opts.Normalize ~= "none" && any(abs(dur - bLen) > 1e-9)
+            error('firingRate:BadBaseline', ...
+                ['Measure "probability" with Normalize "%s" needs epoch windows as long as the baseline (%g s): ' ...
+                 'a probability over a different length is not comparable.'], opts.Normalize, bLen);
+        end
         raw = double(count > 0);
         raw(~isfinite(count)) = NaN;
         none = isnan(base);
@@ -93,11 +105,15 @@ switch opts.Measure
         base(none) = NaN;
         unit = "P(spike)/window";
 end
+bN = base;
+if useBase && opts.Measure == "count"
+    bN = base .* (dur / bLen);   % the baseline rate's count over each epoch's window: what a window's count compares with
+end
 switch opts.Normalize
     case "none",     rate = raw; units = unit;
-    case "subtract", rate = raw - base; units = unit + " - baseline";
-    case "ratio",    rate = raw ./ mean(base, 1, 'omitnan'); units = "x baseline";
-    case "zscore",   rate = (raw - mean(base, 1, 'omitnan')) ./ std(base, 0, 1, 'omitnan'); units = "z (baseline)";
+    case "subtract", rate = raw - bN; units = unit + " - baseline";
+    case "ratio",    rate = raw ./ mean(bN, 1, 'omitnan'); units = "x baseline";
+    case "zscore",   rate = (raw - mean(bN, 1, 'omitnan')) ./ std(bN, 0, 1, 'omitnan'); units = "z (baseline)";
 end
 rate(~isfinite(rate)) = NaN;
 
@@ -142,5 +158,8 @@ end
 
 function c = countIn(s, a, b)
 %countIn  Spikes in [a, b) for each row (s sorted; NaN where a or b is not finite).
-c = countBelow(s, b) - countBelow(s, a);
+%   A spike within 1e-9 s of an end is on it (spikes and events on one sample
+%   grid), as binCounts counts: in at the start, out at the stop.
+tol = 1e-9;
+c = countBelow(s, b - tol) - countBelow(s, a - tol);
 end

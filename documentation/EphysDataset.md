@@ -1295,6 +1295,8 @@ serially or on a pool (`artifactRun`, which `artifactIntervals` shares).
   two masks are combined (`CommonModeUnreferenced`, default `true`; ignored for
   Reference `"none"` and for Method `"commonmode"`, which read it unreferenced
   already; the detection record in `Processing.artifacts.options` says which).
+  Both options fall back to `ArtifactConfig`, so a direct call detects as the
+  pipeline does.
 
 **`iv = artifactIntervals(Name=Value)`** returns the merged `[k x 2]` list of
 periods (seconds) that the pipeline passes to `runKilosort`, which erases them

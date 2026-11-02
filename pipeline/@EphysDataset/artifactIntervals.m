@@ -53,16 +53,16 @@ function [iv, detected] = artifactIntervals(obj, opts)
 %       (default: ds.ArtifactConfig.Filter etc., so a config with Filter=true
 %       is honored by runs, the preview and the Visualize overlay alike)
 %     MaxChunkSamples (1,1) double  cap on samples per chunk (split formats)
-%     CommonModeUnreferenced (1,1) logical  under a common reference, also flag
+%     CommonModeUnreferenced logical  under a common reference, also flag
 %       the samples where the unreferenced recording's mean across the
 %       channels that take part exceeds CommonModeThreshold, and combine the
-%       two (default true; ignored for Reference "none" and Method
-%       "commonmode", which read the recording unreferenced already). The
-%       reference removes a broad artifact from the signals that take it,
-%       but not from the ones derived without it (deriveSignals: the LFP
-%       unless referenceSignals says otherwise).
+%       two (default: ds.ArtifactConfig's, true; ignored for Reference "none"
+%       and Method "commonmode", which read the recording unreferenced
+%       already). The reference removes a broad artifact from the signals that
+%       take it, but not from the ones derived without it (deriveSignals: the
+%       LFP unless referenceSignals says otherwise).
 %     CommonModeThreshold (1,1) double  that test's threshold, microvolts
-%       (default 1500, detectArtifacts' "commonmode" default)
+%       (default: ds.ArtifactConfig's, 1500)
 %     UseParallel  (1,1) logical  run the chunks on a process pool (default
 %       false); the rules and the memory cap on workers are those of
 %       detectSpikes, and a warning reports a fall-back to serial
@@ -89,8 +89,8 @@ arguments
     opts.FilterCutoff (1,:) double {mustBePositive} = []
     opts.FilterOrder (1,1) double = NaN
     opts.MaxChunkSamples (1,1) double = NaN
-    opts.CommonModeUnreferenced (1,1) logical = true
-    opts.CommonModeThreshold (1,1) double {mustBePositive} = 1500
+    opts.CommonModeUnreferenced = []   % [] -> ds.ArtifactConfig.CommonModeUnreferenced
+    opts.CommonModeThreshold (1,1) double = NaN
     opts.UseParallel (1,1) logical = false
     opts.MaxWorkers (1,1) double = NaN
     opts.ProgressFcn = []
@@ -141,6 +141,9 @@ rmsWinMs = opts.RmsWindowMs; if isnan(rmsWinMs);   rmsWinMs = acfg.RmsWindowMs; 
 mergeGap = opts.MergeGapMs;  if isnan(mergeGap);   mergeGap = acfg.MergeGapMs;  end
 minCh    = opts.MinChannels; if isnan(minCh);      minCh    = acfg.MinChannels; end
 padMs    = opts.PadMs;       if isnan(padMs);      padMs    = acfg.PadMs;       end
+cmOn     = opts.CommonModeUnreferenced; if isempty(cmOn); cmOn = acfg.CommonModeUnreferenced; end
+cmThr    = opts.CommonModeThreshold; if isnan(cmThr);  cmThr    = acfg.CommonModeThreshold; end
+mustBePositive(cmThr);
 
 Fs   = obj.Fs;
 plan = obj.streamPlan(Files=opts.Files, MaxChunkSamples=opts.MaxChunkSamples);
@@ -150,7 +153,7 @@ det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
     'channels', setdiff(1:obj.NumChannels, obj.excludedChannels()));
 run  = struct('UseParallel', opts.UseParallel, 'MaxWorkers', opts.MaxWorkers, ...
     'ProgressFcn', {opts.ProgressFcn}, 'caller', "artifactIntervals", ...
-    'CommonModeUnreferenced', opts.CommonModeUnreferenced, 'CommonModeThreshold', opts.CommonModeThreshold);
+    'CommonModeUnreferenced', logical(cmOn), 'CommonModeThreshold', cmThr);
 
 % The chunks' detections, joined and padded once (artifactRun).
 res = artifactRun(obj, plan, [], filt, det, Fs, run);
@@ -171,8 +174,8 @@ s.FilterCutoff = fCut;
 s.FilterOrder = fOrd;
 s.Files = opts.Files;
 s.MaxChunkSamples = opts.MaxChunkSamples;
-s.CommonModeUnreferenced = opts.CommonModeUnreferenced;
-s.CommonModeThreshold = opts.CommonModeThreshold;
+s.CommonModeUnreferenced = logical(cmOn);
+s.CommonModeThreshold = cmThr;
 obj.recordDetection(s, auto, obj.referenceInfo());
 if opts.IncludeManual
     auto = obj.adjustArtifacts(auto);   % the bounds moved by hand, before any merge

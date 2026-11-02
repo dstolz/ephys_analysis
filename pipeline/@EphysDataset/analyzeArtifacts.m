@@ -28,7 +28,7 @@ function summary = analyzeArtifacts(obj, opts)
 %     MaxChunkSamples (1,1) double  cap on samples per chunk (split formats)
 %     CommonModeUnreferenced, CommonModeThreshold   under a common reference,
 %                    also test the unreferenced recording for a common mode
-%                    (default true, 1500 uV; see artifactIntervals)
+%                    (default: ds.ArtifactConfig's; see artifactIntervals)
 %     UseParallel    (1,1) logical  run the chunks on a process pool (default
 %                    false; the result is identical; the rules and the memory
 %                    cap on workers are those of detectSpikes)
@@ -70,8 +70,8 @@ arguments
     opts.FilterOrder (1,1) double = NaN
     opts.ProgressFcn = []
     opts.MaxChunkSamples (1,1) double = NaN
-    opts.CommonModeUnreferenced (1,1) logical = true
-    opts.CommonModeThreshold (1,1) double {mustBePositive} = 1500
+    opts.CommonModeUnreferenced = []   % [] -> ds.ArtifactConfig.CommonModeUnreferenced
+    opts.CommonModeThreshold (1,1) double = NaN
     opts.UseParallel (1,1) logical = false
     opts.MaxWorkers (1,1) double = NaN
 end
@@ -98,6 +98,9 @@ rmsWinMs = opts.RmsWindowMs;   if isnan(rmsWinMs);      rmsWinMs = cfg.RmsWindow
 mergeGapMs = opts.MergeGapMs;  if isnan(mergeGapMs);    mergeGapMs = cfg.MergeGapMs; end
 minCh    = opts.MinChannels;   if isnan(minCh);         minCh    = cfg.MinChannels;  end
 padMs    = opts.PadMs;         if isnan(padMs);         padMs    = cfg.PadMs;        end
+cmOn     = opts.CommonModeUnreferenced; if isempty(cmOn); cmOn = cfg.CommonModeUnreferenced; end
+cmThr    = opts.CommonModeThreshold; if isnan(cmThr);   cmThr    = cfg.CommonModeThreshold; end
+mustBePositive(cmThr);
 [useFilter, fType, fCut, fOrd] = EphysDataset.resolveFilterOptions(cfg, ...
     opts.Filter, opts.FilterType, opts.FilterCutoff, opts.FilterOrder);
 
@@ -128,7 +131,7 @@ det  = struct('method', method, 'threshold', thr, 'rmsWindowMs', rmsWinMs, ...
     'channels', find(~ismember(recCh, obj.excludedChannels())));
 run  = struct('UseParallel', opts.UseParallel, 'MaxWorkers', opts.MaxWorkers, ...
     'ProgressFcn', {opts.ProgressFcn}, 'caller', "analyzeArtifacts", ...
-    'CommonModeUnreferenced', opts.CommonModeUnreferenced, 'CommonModeThreshold', opts.CommonModeThreshold);
+    'CommonModeUnreferenced', logical(cmOn), 'CommonModeThreshold', cmThr);
 
 % The chunks' detections, reduced in recording order and joined and padded
 % once over the whole list, exactly as artifactIntervals does (artifactRun).

@@ -589,6 +589,21 @@ check(isempty(ivNo) && size(ivYes, 1) == 1 && abs(ivYes(1) - 2) < 1e-3 && abs(iv
     'under CAR the referenced signal has no artifact, but the unreferenced common-mode test finds it (the LFP is derived without the reference)');
 check(dsM.Processing.artifacts.options.CommonModeUnreferenced && dsM.Processing.artifacts.options.CommonModeThreshold == 1500, ...
     'the detection record says the extra test ran');
+% A direct call takes the two from the ArtifactConfig, like every other detection setting.
+dsM.ArtifactConfig.CommonModeUnreferenced = false;
+smOff = dsM.analyzeArtifacts();
+check(isempty(dsM.artifactIntervals()) && smOff.nIntervals == 0 ...
+    && ~dsM.Processing.artifacts.options.CommonModeUnreferenced, ...
+    'ArtifactConfig.CommonModeUnreferenced=false: the detection and the preview leave the extra test out');
+check(isequal(dsM.artifactIntervals(CommonModeUnreferenced=true), ivYes), 'the option overrides the config');
+dsM.ArtifactConfig.CommonModeUnreferenced = true;
+dsM.ArtifactConfig.CommonModeThreshold = 4000;
+smHigh = dsM.analyzeArtifacts();
+check(isempty(dsM.artifactIntervals()) && smHigh.nIntervals == 0 ...
+    && dsM.Processing.artifacts.options.CommonModeThreshold == 4000, ...
+    'ArtifactConfig.CommonModeThreshold above the artifact: not found, and recorded');
+check(isequal(dsM.artifactIntervals(CommonModeThreshold=1500), ivYes), 'the threshold option overrides the config');
+dsM.ArtifactConfig.CommonModeThreshold = 1500;
 dsM.ArtifactConfig.Reference = "none";
 check(size(dsM.artifactIntervals(), 1) == 1, 'with no reference the same artifact is found by the main test, once');
 

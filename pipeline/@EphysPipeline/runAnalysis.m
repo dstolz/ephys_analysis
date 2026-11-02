@@ -130,6 +130,15 @@ if A.Report
 end
 if ~isempty(failure)
     obj.log("[analysis] ERROR %s", failure.message);
+    % The datasets the run never reached get a row too: without one the
+    % summary would count no error and the run record would show nothing.
+    done = unique(string(R.Dataset));
+    for at = runIdx
+        nm = string(runner.Names(at));
+        if ~ismember(nm, done)
+            obj.addResult("analysis", nm, "error", "the analysis stopped before this dataset: " + string(failure.message), "", 0);
+        end
+    end
 end
 if obj.CancelRequested
     error('EphysPipeline:Canceled', 'Canceled by user.');

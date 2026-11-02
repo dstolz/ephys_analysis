@@ -77,7 +77,9 @@ classdef EphysPipeline < handle
     %     dataset has a "transfer" result row. Transfer is that run's
     %     OutputTransfer; TransferFcn(X) is called with it as it is made,
     %     so a caller can follow it. With TransferWait (the default) run()
-    %     waits for it at the end; without, it returns and the copy goes
+    %     waits for it at the end (at most TransferTimeout seconds, then it
+    %     logs the timeout and returns; the copy goes on as long as
+    %     something polls it); without, it returns and the copy goes
     %     on as long as something polls it (X.poll, X.wait).
     %     transferOutputs() copies the outputs of the Results rows on its
     %     own, for a script that calls the step methods one by one.
@@ -95,6 +97,7 @@ classdef EphysPipeline < handle
         PriorRuns   struct = EphysPipeline.emptyRuns()
         TransferFcn = []                       % TransferFcn(X): the run's OutputTransfer, as it is made
         TransferWait (1,1) logical = true      % run() waits at the end for its output transfer
+        TransferTimeout (1,1) double = 86400   % seconds run() / transferOutputs wait for it at most (Inf: no limit)
     end
 
     properties (SetAccess = protected)
@@ -122,6 +125,13 @@ classdef EphysPipeline < handle
         % (Transfer section; [] when it is off, for a dry run, and until the
         % run has an output to copy). See transferOutputs.
         Transfer = []
+    end
+
+    properties (SetAccess = protected, Transient)
+        % The datasets of the running run() whose run lock (RunLock) this
+        % pipeline holds; the others were in use by another session and are
+        % skipped by the steps that write. Empty outside run().
+        LockedDatasets EphysDataset = EphysDataset.empty(1, 0)
     end
 
     properties (Constant)
@@ -155,6 +165,12 @@ classdef EphysPipeline < handle
         runAnalysis(obj, opts)
         T = analysisTargets(obj, acfg, idx)
         X = transferOutputs(obj, opts)
+        h = stepHash(obj, step, d)
+        state = outputState(obj, step, d)
+        [write, status, message] = existingOutput(obj, step, d, overwrite, overwriteStale)
+        busy = inUse(obj, d)
+        lockDatasets(obj, runId)
+        unlockDatasets(obj)
 
         function obj = EphysPipeline(cfg, opts)
             %EphysPipeline  Build the project for a config (or use a given one).
@@ -280,7 +296,8 @@ classdef EphysPipeline < handle
             %   one of D's sort run folders (resultsDir: kilosort4 or
             %   si_<sorter>, in D's output folder, beside the .bin every
             %   sorter reads) that is not done: queued, or running by its
-            %   status file (EphysDataset.sortRunState). runSorting skips such
+            %   status file (EphysDataset.sortRunState; sortRunLive also counts a
+            %   run whose process is gone as ended). runSorting skips such
             %   a dataset, whichever sorter the config has now.
             run = [];
             runs = [obj.PriorRuns(:); obj.LaunchedRuns(:)];
@@ -288,7 +305,7 @@ classdef EphysPipeline < handle
             parents = arrayfun(@(r) string(fileparts(char(r.resultsDir))), runs);
             mine = runs(EphysDataset.pathKey(parents) == EphysDataset.pathKey(string(d.outputFolder())));
             for r = reshape(mine, 1, [])
-                if ~r.done && (r.queued || EphysDataset.sortRunState(r.statusFile) == "running")
+                if ~r.done && (r.queued || sortRunLive(string(r.statusFile)) == "running")
                     run = r;
                     return
                 end
@@ -314,6 +331,9 @@ classdef EphysPipeline < handle
                 error('EphysPipeline:Canceled', 'Canceled by user.');
             end
             obj.pollTransfer();
+            for held = obj.LockedDatasets   % the run locks stay live while the run reports progress
+                RunLock.touch(held, "run");
+            end
             if ~isempty(obj.ProgressFcn)
                 evt = struct('step', string(step), 'dataset', string(dataset), 'index', index, ...
                     'count', count, 'done', done, 'total', total, 'message', string(message));
@@ -333,6 +353,16 @@ classdef EphysPipeline < handle
                 obj.Provenance = ephysProvenance(Config=obj.Config);
             end
             p = obj.Provenance;
+        end
+
+        function p = provenanceFor(obj, step, d)
+            %provenanceFor  provenance() with the hash of the options STEP runs with on dataset D.
+            %   P = pipe.provenanceFor(STEP, D) is what a step passes its
+            %   writer as Provenance=: the writer records P.optionsHash
+            %   (stepHash) as options_hash in the output's Processing
+            %   record, which plan() compares with the config as it stands.
+            p = obj.provenance();
+            p.optionsHash = obj.stepHash(step, d);
         end
 
         function file = writeRunRecord(obj, steps, started, outcome, failure)
@@ -965,7 +995,8 @@ classdef EphysPipeline < handle
                 lo = 0.5 * obj.prepareWCARFor(d, report, [0 0.5]);
                 cb = @(i, nChunks, name) report(lo + (1 - lo) * (i - 1) / max(nChunks, 1), 1, "detecting: " + string(name));
                 popt = namedargs2cell(EphysPipelineConfig.parallelOptions(obj.Config.Parallel));
-                auto = d.artifactIntervals('IncludeManual', false, 'ProgressFcn', cb, popt{:});
+                auto = d.artifactIntervals('IncludeManual', false, 'ProgressFcn', cb, ...
+                    'CommonModeUnreferenced', acfg.CommonModeUnreferenced, 'CommonModeThreshold', acfg.CommonModeThreshold, popt{:});
                 source = "computed";
                 how = "computed";
                 recorded = isstruct(d.Processing.artifacts);   % by artifactIntervals, when it detected
@@ -1095,7 +1126,8 @@ classdef EphysPipeline < handle
             %artifactFingerprint  What decides dataset D's automatic artifact detection, as JSON text.
             %   [FP, REFERENCED] = EphysPipeline.artifactFingerprint(ACFG, D),
             %   ACFG a dataset ArtifactConfig (detectionConfig): the cache
-            %   schema, the detector settings (not the fill fields: they say
+            %   schema, the detector settings (CommonModeUnreferenced and
+            %   CommonModeThreshold too; not the fill fields: they say
             %   how the periods are erased, not which they are), the channels
             %   the common reference is taken over (detection runs on the
             %   referenced signal), the channels left out (excludedChannels), the recording files and

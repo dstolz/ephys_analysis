@@ -13,6 +13,10 @@ function [free, device, nRunning, nFinished] = sortingSlot(runs, maxRunning, dev
 %   [FREE, DEVICE, NRUNNING, NFINISHED] also returns how many of RUNS are
 %   running and how many have finished.
 %
+%   A run is going when sortRunLive says so: a run whose launcher was
+%   killed (no exit marker, no status) no longer holds a slot once no
+%   process of it is left.
+%
 %   It never waits: waitForSortingSlot waits on it, and the app's monitor
 %   calls it every tick to start queued runs.
 %
@@ -26,8 +30,8 @@ arguments
 end
 
 running = false(1, numel(runs));
-for i = 1:numel(runs)
-    running(i) = EphysDataset.sortRunState(runs(i).statusFile) == "running";
+if ~isempty(runs)
+    running = reshape(sortRunLive(string({runs.statusFile})) == "running", 1, []);
 end
 nRunning = nnz(running);
 nFinished = numel(runs) - nRunning;

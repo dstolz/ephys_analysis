@@ -131,6 +131,8 @@ check(strcmp(errorId(@() EphysPipeline(EphysPipelineConfig())), 'EphysPipeline:N
 fprintf('\n== 2. plan ==\n');
 cfg.Signals.Enabled = true; cfg.Spikes.Enabled = true; cfg.Export.Enabled = true; cfg.Export.Formats = "nwb";
 cfg.Sorting.Enabled = true; cfg.Sorting.PythonExe = "C:\envs\ks\python.exe"; cfg.Sorting.Execution = "blocking";
+check(EphysPipelineConfig.defaults("Sorting").SkipExisting, 'Sorting.SkipExisting is on by default: a re-sort takes hours');
+cfg.Sorting.SkipExisting = false;   % the sections below sort a dataset that has a sort already
 pipe.Config = cfg;
 T = pipe.plan();
 check(isempty(dir(fullfile(outRoot, '**', '*.mat'))) && ~isfolder(fullfile(outRoot, 'M1_260101_120000')), 'plan writes nothing');
@@ -184,6 +186,15 @@ pP = EphysPipeline(cfgP, Project=pipe.Project);   % refreshes mouse2: its channe
 TP = pP.plan(Steps="probe");
 check(TP.Status(1) == "probe-channel mismatch" && contains(TP.Note(1), "default probe") && TP.Output(1) == string(bigProbe), ...
     'plan checks the default probe for a dataset without one');
+TPs = pP.plan(Steps="sorting");
+check(TPs.Status(1) == "error: probe-channel mismatch" && contains(TPs.Note(1), "8 sites") && contains(TPs.Note(1), "4 channels"), ...
+    'the sorting row blocks on a probe with more sites than the recording has channels');
+check(strcmp(errorId(@() pP.checkRun(Steps="sorting")), 'EphysPipeline:PlanInvalid'), 'a run is refused before the .bin is written');
+pP.reset();
+pP.runSorting();
+check(pP.Results.Status(1) == "skipped" && contains(pP.Results.Message(1), "probe-channel mismatch") ...
+    && ~isfile(pP.selected().BinFile), 'runSorting skips it too, writing no .bin');
+pP.reset();
 cfgV = cfg; cfgV.Sorting.PythonExe = "";
 pV = EphysPipeline(cfgV, Project=pipe.Project, Refresh=false);
 check(strcmp(errorId(@() pV.run()), 'EphysPipeline:ConfigInvalid'), 'run refuses an invalid config');
@@ -350,6 +361,12 @@ cfgS = cfg; cfgS.Artifacts.NoiseSeed = cfg.Artifacts.NoiseSeed + 1;
 [okS, matchS] = EphysPipeline.cachedDetection(cfgS, d1);
 check(ok && ~match && isempty(ivT) && okS && matchS, ...
     'another threshold: known, not a match; another noise seed (how periods are filled, not which): still a match');
+cfgCM = cfg; cfgCM.Artifacts.CommonModeThreshold = 2000;
+[okCM, matchCM] = EphysPipeline.cachedDetection(cfgCM, d1);
+cfgCU = cfg; cfgCU.Artifacts.CommonModeUnreferenced = ~cfg.Artifacts.CommonModeUnreferenced;
+[okCU, matchCU] = EphysPipeline.cachedDetection(cfgCU, d1);
+check(okCM && ~matchCM && okCU && ~matchCU && cfg.Artifacts.CommonModeUnreferenced && cfg.Artifacts.CommonModeThreshold == 1500, ...
+    'CommonModeUnreferenced / CommonModeThreshold are in the cache''s fingerprint: a changed value detects again (defaults true, 1500 uV)');
 cfgOff = cfg; cfgOff.Artifacts.Enabled = false;
 [ok, match] = EphysPipeline.cachedDetection(cfgOff, d1);
 check(~ok && ~match, 'automatic detection off: cachedDetection cannot tell');
@@ -433,6 +450,7 @@ cfg.Sorting.DryRun = false; cfg.Sorting.Enabled = false;
 
 fprintf('\n== 6. spikes step ==\n');
 cfg.Spikes.Filter = false; cfg.Spikes.ThresholdMethod = "absolute"; cfg.Spikes.Threshold = 2000;
+cfg.Spikes.ArtifactMode = "reject";   % the checks below take the events out of the periods by hand; the default "erase" is test_EphysDataset's
 cfgC = cfg;                          % coincident spikes on (the default): checked below
 cfg.Spikes.Coincidence = "none";
 pipe.Config = cfg;
@@ -452,6 +470,118 @@ check(uRef.label(1) == "su000_M1_260101T1200" && uRef.datasetKey(1) == "mouse1/M
 pipe.reset();
 pipe.runSpikeDetection();
 check(pipe.Results.Status(1) == "skipped" && contains(pipe.Results.Message(1), "exists"), 'existing output is skipped without Overwrite');
+
+fprintf('\n== 6a. up to date or stale; OverwriteStale ==\n');
+check(contains(pipe.Results.Message(1), "up to date") && pipe.plan(Steps="spikes").Status(1) == "exists: up to date" ...
+    && ~isempty(d1.Processing.spikes.options_hash) && startsWith(d1.Processing.spikes.options_hash, "cfg-"), ...
+    'the output was made with these options: "exists: up to date", the record holds the config''s hash');
+cfgT = cfg; cfgT.Spikes.Threshold = 2500;
+pipe.Config = cfgT;
+Tst = pipe.plan(Steps="spikes");
+check(Tst.Status(1) == "exists: stale (options changed)" && contains(Tst.Note(1), "OverwriteStale"), ...
+    'a changed option makes the output stale in the plan');
+pipe.reset();
+pipe.runSpikeDetection();
+check(pipe.Results.Status(1) == "skipped" && contains(pipe.Results.Message(1), "stale"), 'a stale output is kept without Overwrite and OverwriteStale');
+cfgT.Spikes.OverwriteStale = true;
+pipe.Config = cfgT;
+check(pipe.plan(Steps="spikes").Status(1) == "exists: overwrite (stale)", 'with OverwriteStale the plan says it is written again');
+pipe.reset();
+pipe.runSpikeDetection();
+check(pipe.Results.Status(1) == "done" && pipe.plan(Steps="spikes").Status(1) == "exists: up to date" ...
+    && pipe.outputState("spikes", d1) == "current", 'OverwriteStale writes the stale output again; it is then up to date');
+pipe.reset();
+pipe.runSpikeDetection();
+check(pipe.Results.Status(1) == "skipped" && contains(pipe.Results.Message(1), "up to date"), 'OverwriteStale leaves an up to date output alone');
+cfgT2 = cfgT; cfgT2.Reference.Mode = "car";
+pipe.Config = cfgT2;
+check(pipe.outputState("spikes", d1) == "stale", 'the reference counts: another one makes the output stale');
+pipe.Config = cfgT;
+dSave = d1.ManualArtifacts;
+d1.ManualArtifacts = [0.003 0.004];
+check(pipe.outputState("spikes", d1) == "stale", 'the dataset''s own artifact periods count too');
+d1.ManualArtifacts = dSave;
+check(pipe.outputState("spikes", d1) == "current", 'put back, it is up to date again');
+recSave = d1.Processing.spikes;
+d1.Processing.spikes.options_hash = "0123456789abcdef";   % a hash a script''s writer made of its own options
+check(pipe.outputState("spikes", d1) == "unknown" && pipe.plan(Steps="spikes").Status(1) == "exists: skip", ...
+    'a record without a pipeline hash cannot be compared: kept, "exists: skip"');
+d1.Processing.spikes = [];
+check(pipe.outputState("spikes", d1) == "unknown", 'no record: unknown');
+d1.Processing.spikes = recSave;
+pipe.Config = cfg;
+cfgSK = cfg; cfgSK.Sorting.SkipExisting = true;
+pipe.Config = cfgSK;
+recSort = d1.Processing.sorting;
+d1.Processing.sorting = struct('results_dir', string(phyDir), 'created', "2026-10-31 00:00:00", 'run_id', "", ...
+    'options', struct(), 'options_hash', pipe.stepHash("sorting", d1));
+Tsk = pipe.plan(Steps="sorting");
+check(Tsk.Status(1) == "exists: skip (SkipExisting)" && endsWith(Tsk.Note(1), "; up to date"), ...
+    'a sort made with these options: skipped, the note says up to date');
+cfgSK2 = cfgSK; cfgSK2.Sorting.KS4ExtraJSON = '{"nblocks": 3}';
+pipe.Config = cfgSK2;
+Tsk = pipe.plan(Steps="sorting");
+check(Tsk.Status(1) == "exists: skip (SkipExisting)" && contains(Tsk.Note(1), "stale: sorted with other options"), ...
+    'other Kilosort4 settings: still skipped (a re-sort is never automatic), the note says stale');
+d1.Processing.sorting = recSort;
+pipe.Config = cfg;
+
+fprintf('\n== 6b. a dataset another session works on ==\n');
+lkFile = RunLock.file(d1, "run");
+lk = struct('kind', "run", 'host', "OTHERHOST", 'pid', 4242, 'user', "someone", 'what', "pipeline run 'other'", 'run_id', "r1", ...
+    'started', "2026-10-31 08:00:00", 'heartbeat', "2026-10-31 08:00:00", ...
+    'heartbeat_epoch', posixtime(datetime('now', 'TimeZone', 'UTC')), 'status_file', "");
+writeJsonFile(lkFile, lk);
+[held, info] = RunLock.heldElsewhere(d1);
+check(held && info.host == "OTHERHOST" && contains(RunLock.describe(info), "in use by another session (OTHERHOST, since 2026-10-31 08:00:00)"), ...
+    'a fresh lock of another host is held elsewhere');
+Tl = pipe.plan(Steps=["spikes" "signals"]);
+check(all(Tl.Status == "skip: in use by another session") && all(contains(Tl.Note, "OTHERHOST")), ...
+    'plan: the steps that write skip a dataset in use by another session');
+cfgL = cfg; cfgL.Spikes.Overwrite = true;
+pipe.Config = cfgL; pipe.reset();
+nBefore = numel(dir(fullfile(d1.outputFolder(), '*_spikes.mat')));
+pipe.runSpikeDetection();
+check(pipe.Results.Status(1) == "skipped" && contains(pipe.Results.Message(1), "in use by another session") ...
+    && numel(dir(fullfile(d1.outputFolder(), '*_spikes.mat'))) == nBefore, 'runSpikeDetection skips it, even with Overwrite');
+check(strcmp(errorId(@() RunLock.acquire(d1, "run", "mine")), 'RunLock:Held'), 'a second session cannot take the lock');
+lk.heartbeat_epoch = lk.heartbeat_epoch - 3600;   % silent for an hour: stale
+writeJsonFile(lkFile, lk);
+check(~RunLock.heldElsewhere(d1) && pipe.plan(Steps="spikes").Status(1) ~= "skip: in use by another session", 'a stale lock is ignored');
+mine = RunLock.acquire(d1, "run", "mine");
+check(mine.host == string(getenv('COMPUTERNAME')) && ~RunLock.heldElsewhere(d1) && RunLock.read(d1, "run").pid == feature('getpid'), ...
+    'a stale lock is replaced; the lock of this process is never held elsewhere');
+RunLock.release(d1, "run");
+check(~isfile(lkFile), 'release deletes the lock');
+lk.heartbeat_epoch = posixtime(datetime('now', 'TimeZone', 'UTC'));
+writeJsonFile(lkFile, lk);
+RunLock.release(d1, "run");
+check(isfile(lkFile), 'release leaves the lock of another process');
+delete(lkFile);
+cfgR2 = cfg; cfgR2.Spikes.Overwrite = true;
+cfgR2.Sorting.Enabled = false; cfgR2.Signals.Enabled = false; cfgR2.Export.Enabled = false;   % the run below is spikes alone
+pipe.Config = cfgR2; pipe.reset();
+nLogs = numel(logs);
+pipe.run(Steps="spikes", DryRun=true);
+check(~isfile(lkFile), 'a dry run takes no lock');
+pipe.reset();
+seen = false;
+pipe.ProgressFcn = @(e) lockSeen(e);
+    function lockSeen(~)
+        seen = seen || isfile(lkFile);
+    end
+pipe.run(Steps="spikes");
+pipe.ProgressFcn = [];
+check(seen && ~isfile(lkFile) && isempty(pipe.LockedDatasets), 'run() holds the dataset''s lock while it runs and gives it up at the end');
+writeJsonFile(lkFile, lk);
+pipe.reset();
+pipe.run(Steps="spikes");
+Rl = pipe.Results;
+check(Rl.Status(Rl.Step == "spikes") == "skipped" && contains(Rl.Message(Rl.Step == "spikes"), "in use by another session") ...
+    && any(contains(logs(nLogs+1:end), "[lock]")) && isfile(lkFile), ...
+    'run() logs a dataset another session holds and skips its writing steps; its lock stays');
+delete(lkFile);
+pipe.Config = cfg; pipe.reset();
 cfgX = cfg; cfgX.Spikes.Channels = "list"; cfgX.Spikes.ChannelList = "2"; cfgX.Spikes.Overwrite = true;
 pipe.Config = cfgX; pipe.reset(); pipe.runSpikeDetection();
 M2 = load(pipe.Results.Output(1));
@@ -465,14 +595,39 @@ cfgC.Spikes.Overwrite = true;
 pipe.Config = cfgC; pipe.reset(); pipe.runSpikeDetection();
 MC = load(pipe.Results.Output(1));
 Lp = d1.channelLayout(ProbeFile=pipe.probeFor(d1));
+% "reject" drops the periods' events before the copies are found (RejectIntervals), as the step does
 [tsC, ~, infoC] = d1.detectSpikes(Filter=false, ThresholdMethod="absolute", Threshold=2000, ...
-    Coincidence="remove", SitePositions=[Lp.x; Lp.y].');
-tsC = cellfun(@(t) t(~any(t >= iv(:, 1).' & t <= iv(:, 2).', 2)), tsC, 'UniformOutput', false);
+    Coincidence="remove", SitePositions=[Lp.x; Lp.y].', RejectIntervals=iv);
 check(pipe.Results.Status(1) == "done" && isequal(MC.detected.ts, tsC) && MC.detected.info.coincidence.mode == "remove" ...
     && MC.detected.detection.coincidence.probeFile == pipe.probeFor(d1) ...
     && contains(pipe.Results.Message(1), sprintf("%d coincident cop", sum(infoC.coincidence.nCopies))), ...
     'Spikes.Coincidence (on by default) removes the copies on the dataset''s probe, as detectSpikes does, and the result counts them');
 pipe.Config = cfg;
+
+fprintf('\n== 6c. plan over many datasets asks one listing of the output root ==\n');
+proj8 = fullfile(root, 'proj8');
+for q = 1:9
+    fq = fullfile(proj8, sprintf('N%d_260101_1200%02d', q, q));
+    mkdir(fq);
+    writeSyntheticRHD(fullfile(fq, 'rec.rhd'), ampRaw(:, 1:spb), digRaw(1:spb), Fs, spb);
+end
+cfg8 = EphysPipelineConfig();
+cfg8.Project.Root = proj8;
+cfg8.Project.OutputRoot = fullfile(root, 'out8');
+cfg8.Spikes.Enabled = true;
+p8 = EphysPipeline(cfg8);
+ds8 = p8.selected();
+T0 = p8.plan(Steps="spikes");
+made = [2 5];
+for q = made
+    out8 = p8.outputPathFor("spikes", ds8(q));
+    mkdir(fileparts(out8));
+    writelines("x", out8);
+end
+T1 = p8.plan(Steps="spikes");
+check(numel(ds8) == 9 && all(T0.Status == "ready") && all(T1.Status(made) == "exists: skip") ...
+    && all(T1.Status(setdiff(1:9, made)) == "ready"), ...
+    'nine datasets: the existing outputs are found from one listing of the output root, the others are ready');
 
 fprintf('\n== 7. export step (hand-made extract) ==\n');
 extract = pipe.outputPathFor("signals", d1);

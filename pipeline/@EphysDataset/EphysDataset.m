@@ -84,6 +84,7 @@ classdef EphysDataset < handle
         AcqDate      datetime = NaT              % recording start
         NumFiles     (1,1) double = 0            % number of recording files / parts
         PerFile      struct = struct([])         % per-file (per-part) summary (struct array)
+        Gaps         struct = struct('file', {}, 'row', {}, 'samples', {})   % jumps of the acquisition clock the rows hide (EphysReader.Gaps)
     end
 
     properties
@@ -212,7 +213,9 @@ classdef EphysDataset < handle
         % ("unreviewed" | "approved"), auto_approved (true when approved by
         % autoApproveTrialPairing rather than by a review), cut_trials and
         % cut_intervals ([start end] counts dropped before pairing in order),
-        % fingerprint (behavior session + trial line intervals it applies
+        % drop_intervals (indices of single trial-line intervals dropped
+        % from the middle of the list, e.g. a glitch pulse; [1 x k], empty
+        % by default), fingerprint (behavior session + trial line intervals it applies
         % to), trial_line, summary, updated. See pairTrials, setTrialPairing.
         TrialPairing struct = struct([])
         Manifest                                  % optional Manifest for provenance
@@ -263,6 +266,14 @@ classdef EphysDataset < handle
         % processing block, so it describes the outputs on disk, not the
         % config as it stands. See processingManifest.
         Processing (1,1) struct = EphysDataset.emptyProcessing()
+
+        % The manifest's "custom" block: the fields a script added with
+        % addToManifest, as jsondecode returns them. Metadata only: no step
+        % reads it. addToManifest writes it into the file as text (the rest
+        % of the file is never decoded and encoded again); applyManifest
+        % restores it and writeManifest carries it, so a Scan, a pipeline
+        % step or the app keeps what a script added. struct() = none.
+        Custom (1,1) struct = struct()
     end
 
     properties (SetAccess = protected)
@@ -283,6 +294,20 @@ classdef EphysDataset < handle
         % current ReaderOptions, so an empty Reader means no reader claims
         % it (see hasRecording).
         ReaderSearched (1,1) logical = false
+
+        % The manifest as this object last read or wrote it: stamp (the
+        % file's "updated" value and size, manifestStamp) and state (the
+        % editable properties then, editableState). writeManifest compares
+        % the file's stamp with it to see that another session has saved
+        % since, and keeps that session's edits (mergeManifest). [] until
+        % the object has read or written the file.
+        ManifestSeen = []
+
+        % The session details behaviorManifest read from BehaviorFile, with
+        % the file's size and time they were read at: writeManifest runs
+        % several times per dataset in a run, and opening a session .mat on a
+        % share costs a good part of a second. [] until read.
+        BehaviorMetaCache = []
     end
 
     properties (Dependent)
@@ -291,11 +316,12 @@ classdef EphysDataset < handle
     end
 
     properties (Constant)
-        % Dataset manifest schema written by manifestStruct. /2 adds
-        % manual_artifacts, sorting and behavior to /1; applyManifest reads
-        % both (v2 is a strict superset, so no migration is needed).
+        % Dataset manifest schema written by manifestStruct, the only one
+        % readManifest and applyManifest accept: a manifest of another
+        % schema is left as it is (EphysDataset:writeManifest:Kept) for the
+        % owner to fix or delete.
         ManifestSchema = "intan-dataset-manifest/2"
-        ManifestSchemasAccepted = ["intan-dataset-manifest/1", "intan-dataset-manifest/2"]
+        ManifestSchemasAccepted = EphysDataset.ManifestSchema
 
         % Default Project.NamePattern: "<subject>_<yyMMdd>_<HHmmss>" (Intan RHX
         % names files from the recording start). Open Ephys session folders use
@@ -322,6 +348,12 @@ classdef EphysDataset < handle
         % Empty file a background Kilosort4 run leaves next to its
         % ks4_status.json once its process exits (see sortRunState).
         SortExitMarker = "ks4_exit.txt"
+
+        % The record of how a launched sort was set up, kept in its run
+        % folder until the run ends (launchSorting writes it, settleSortRun
+        % takes it into Processing.sorting once the run is "done"; a failed
+        % run records nothing).
+        SortRecordFile = "sorting_record.json"
     end
 
     methods
@@ -353,7 +385,7 @@ classdef EphysDataset < handle
         tf     = prepareReference(obj, opts)
         [tf, info] = prepareBadChannels(obj)
         st     = prepareWCAR(obj, opts)
-        ch     = referenceChannels(obj)
+        ch     = referenceChannels(obj, opts)
         [ch, bad] = excludedChannels(obj)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs, iv)
@@ -455,7 +487,8 @@ classdef EphysDataset < handle
         function refreshMetadata(obj)
             %refreshMetadata  Fill header metadata for the recording (no data read).
             %   Re-scans the folder, then asks the reader for Fs, channel names,
-            %   duration and the per-file summary (PerFile). Header-only: no
+            %   duration, the per-file summary (PerFile) and the jumps of the
+            %   acquisition clock (Gaps: file, row, samples). Header-only: no
             %   amplifier data is read. A folder that holds the dataset's
             %   pipeline outputs but not its recording (see hasRecording)
             %   takes Fs, NumChannels, ChannelNames and Duration from them
@@ -480,6 +513,7 @@ classdef EphysDataset < handle
             obj.DigInNativeNames = r.DigInNativeNames;
             obj.Duration     = r.Duration;
             obj.PerFile      = r.PerFile;
+            obj.Gaps         = r.Gaps;
             obj.Files        = r.Files;
             obj.NumFiles     = r.NumFiles;
             if ~isnat(r.AcqDate); obj.AcqDate = r.AcqDate; end
@@ -959,7 +993,8 @@ classdef EphysDataset < handle
             m.metadata = struct( ...
                 'fs', obj.Fs, 'num_channels', obj.NumChannels, ...
                 'duration_s', obj.Duration, 'num_files', obj.NumFiles, ...
-                'acq_date', acq, 'files', obj.Files);
+                'acq_date', acq, 'files', obj.Files, ...
+                'per_file', {num2cell(perFileSummary(obj.PerFile))}, 'gaps', {num2cell(reshape(obj.Gaps, 1, []))});   % lists, also of one
 
             probe = struct('file', obj.ProbeFile, 'exists', false, 'num_channels', NaN, ...
                 'num_shanks', NaN, 'depth_um', NaN, 'notes', "");
@@ -1031,6 +1066,9 @@ classdef EphysDataset < handle
 
             % Epsych2 behavioral session association (see BehaviorFile).
             m.behavior = obj.behaviorManifest();
+
+            % The fields a script added (addToManifest); none, none written.
+            if ~isempty(fieldnames(obj.Custom)); m.custom = obj.Custom; end
         end
 
         function tf = writeManifest(obj)
@@ -1042,8 +1080,16 @@ classdef EphysDataset < handle
             %   (EphysDataset:writeManifest:Kept) and leaves the file for you to
             %   fix or delete. Other failures warn too but never interrupt the
             %   caller (the manifest is a convenience, not the source of truth).
-            %   The file's "custom" block (addToManifest) is carried over as it
-            %   is: the file is its only home, so no object can hold a stale copy.
+            %   The file is rewritten from this object, so what another session
+            %   saved into it since this object last read or wrote it (its
+            %   "updated" value and size differ from what the object noted)
+            %   is read back first (mergeManifest): the editable state -
+            %   tags, manual periods, probe, exclusions, pairing, sorting
+            %   folder, the custom block (addToManifest), the records of how
+            %   each output was made - is restored from the file, except
+            %   what this object changed since, which stays and is saved.
+            %   An object that has never read or written the file overwrites
+            %   it, but for the custom block.
             tf = false;
             if obj.Folder == "" || ~isfolder(obj.Folder); return; end
             f = obj.manifestFile();
@@ -1055,9 +1101,11 @@ classdef EphysDataset < handle
                 return
             end
             try
+                if why == ""; obj.mergeManifest(old, f); end
+                obj.settleSortRun();   % the record of a sort that has finished since
                 m = obj.manifestStruct();
-                if isfield(old, 'custom'); m.custom = old.custom; end
                 writeJsonFile(f, m);
+                obj.noteManifest(f, m);
                 tf = true;
             catch ME
                 warning('EphysDataset:writeManifest:Failed', ...
@@ -1073,7 +1121,11 @@ classdef EphysDataset < handle
             %   EphysDataset:applyManifest:Tags), manual artifact periods, the
             %   detected artifacts' bounds moved by hand, an
             %   explicit ("manual") sorting folder, the behavior file and the
-            %   records of how each output was made (Processing). The
+            %   records of how each output was made (Processing) and the
+            %   custom block (Custom, addToManifest). The object notes the
+            %   file's "updated" value and size and the state it restored,
+            %   which writeManifest compares to see that another session has
+            %   saved since. The
             %   probe, sorting folder and behavior file are restored as
             %   recorded even while they are not there (an unplugged disk, a
             %   share that is down): the steps then report them missing rather
@@ -1082,8 +1134,8 @@ classdef EphysDataset < handle
             %   and when there is none; otherwise it says why the manifest was
             %   ignored ("not valid JSON", "unknown schema ..."), with a warning
             %   (EphysDataset:applyManifest:Unreadable / :Schema). Header
-            %   metadata is always re-parsed. Schema /1 (probe + exclusions
-            %   only) and /2 are accepted.
+            %   metadata is always re-parsed. Only the current schema
+            %   (ManifestSchema) is read.
             tf = false;
             f = obj.manifestFile();
             [m, why] = EphysDataset.readManifest(f);
@@ -1187,6 +1239,12 @@ classdef EphysDataset < handle
                 end
                 obj.Processing = p;
             end
+            if isfield(m, 'custom') && isstruct(m.custom) && isscalar(m.custom)
+                obj.Custom = m.custom;
+            else
+                obj.Custom = struct();   % none, or "custom": [] in a hand-edited file
+            end
+            obj.noteManifest(f, m);
             tf = true;
         end
 
@@ -1305,7 +1363,8 @@ classdef EphysDataset < handle
         function s = behaviorManifest(obj)
             %behaviorManifest  Manifest block for the associated Epsych2 session.
             %   file (as recorded, even while it is not there), exists,
-            %   subject, start_time, n_trials (only Info is read; any read
+            %   subject, start_time, n_trials (only Info is read, once while the
+            %   file's size and time stay the same; any read
             %   failure leaves the summary fields empty) and pairing (the
             %   recorded TrialPairing, [] when none).
             s = struct('file', obj.BehaviorFile, 'exists', false, 'subject', "", 'start_time', "", ...
@@ -1314,7 +1373,15 @@ classdef EphysDataset < handle
             if obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile); return; end
             s.exists = true;
             try
-                meta = epsychSessionMeta(obj.BehaviorFile);
+                L = dir(obj.BehaviorFile);
+                stamp = sprintf('%d|%.9f', L(1).bytes, L(1).datenum);
+                cache = obj.BehaviorMetaCache;
+                if isstruct(cache) && cache.file == obj.BehaviorFile && strcmp(cache.stamp, stamp)
+                    meta = cache.meta;   % the file is as it was when it was read
+                else
+                    meta = epsychSessionMeta(obj.BehaviorFile);
+                    obj.BehaviorMetaCache = struct('file', obj.BehaviorFile, 'stamp', stamp, 'meta', meta);
+                end
                 s.subject  = meta.subject;
                 s.n_trials = meta.nTrials;
                 if ~isnat(meta.startTime)
@@ -1420,6 +1487,91 @@ classdef EphysDataset < handle
                 return
             end
         end
+
+        function mergeManifest(obj, m, f)
+            %mergeManifest  Read back what another session saved into the manifest.
+            %   obj.mergeManifest(M, FILE), M the decoded manifest in FILE,
+            %   before writeManifest rewrites it. When the file's stamp is
+            %   the one this object noted when it last read or wrote it,
+            %   nothing has changed behind its back and nothing is done.
+            %   Otherwise the file's state is restored (applyManifest) and
+            %   every editable property this object changed since it last
+            %   read or wrote the file (EditableProperties) is put back, a
+            %   record of Processing by record: the other session's edits
+            %   stay unless this object changed the same thing.
+            %   An object that has never read or written the file keeps its
+            %   state, but takes the custom block when it has none.
+            seen = obj.ManifestSeen;
+            if isempty(seen)
+                if isempty(fieldnames(obj.Custom)) && isfield(m, 'custom') && isstruct(m.custom) && isscalar(m.custom)
+                    obj.Custom = m.custom;
+                end
+                return
+            end
+            if manifestStamp(f, m) == seen.stamp; return; end
+            mine = editableState(obj);
+            obj.applyManifest();
+            for name = string(fieldnames(mine)).'
+                if name == "Processing"
+                    for k = string(fieldnames(mine.Processing)).'
+                        if ~isequaln(mine.Processing.(k), seen.state.Processing.(k))
+                            obj.Processing.(k) = mine.Processing.(k);
+                        end
+                    end
+                elseif ~isequaln(mine.(name), seen.state.(name))
+                    obj.(name) = mine.(name);
+                end
+            end
+        end
+
+        function settleSortRun(obj, result)
+            %settleSortRun  Take the record of a sort run that has ended into Processing.sorting.
+            %   obj.settleSortRun() looks in the run folders of the dataset's
+            %   sorters for the SortRecordFile launchSorting left. A run that
+            %   has finished ("done", sortRunLive) gives its record to
+            %   Processing.sorting; one that failed or was stopped records
+            %   nothing; one still going is left for later. The file goes
+            %   with a run that has ended, and so does the sort lock
+            %   (RunLock). writeManifest calls it, so whoever writes the
+            %   manifest after the run adopts the record.
+            %   obj.settleSortRun(RESULT) settles the run of RESULT (a
+            %   launchSorting result with a processing field) at once, from
+            %   the record in memory, without waiting for the live check.
+            if nargin > 1
+                if ~isfield(result, 'processing') || isempty(result.processing); return; end
+                if EphysDataset.sortRunState(result.statusFile) == "done"
+                    obj.Processing.sorting = result.processing;
+                end
+                f = fullfile(fileparts(char(result.statusFile)), char(EphysDataset.SortRecordFile));
+                if isfile(f); delete(f); end
+                RunLock.releaseEnded(obj);
+                return
+            end
+            folders = unique(string({obj.sortRunDir(), obj.sortRunDir("kilosort4")}));
+            for folder = folders
+                f = fullfile(folder, EphysDataset.SortRecordFile);
+                if ~isfile(f); continue; end
+                rec = readJsonFile(f, ErrorOnFail=false);
+                if ~(isstruct(rec) && all(isfield(rec, {'status_file', 'record'})))
+                    delete(f);
+                    continue
+                end
+                state = sortRunLive(string(rec.status_file));
+                if state == "running"; continue; end
+                if state == "done" && isstruct(rec.record) && isscalar(rec.record)
+                    r = rec.record;
+                    if isfield(r, 'exists'); r = rmfield(r, 'exists'); end   % worked out at each write
+                    obj.Processing.sorting = r;
+                end
+                delete(f);
+                RunLock.releaseEnded(obj);
+            end
+        end
+
+        function noteManifest(obj, f, m)
+            %noteManifest  Note the manifest FILE (decoded or written as M) as this object has it.
+            obj.ManifestSeen = struct('stamp', manifestStamp(f, m), 'state', editableState(obj));
+        end
     end
 
     methods (Static)
@@ -1457,6 +1609,12 @@ classdef EphysDataset < handle
             %   on a filtered view of each chunk (e.g. high-pass 300 Hz) instead
             %   of broadband; they apply everywhere the config is consulted
             %   (artifactIntervals, analyzeArtifacts, the Visualize overlay).
+            %   CommonModeUnreferenced/CommonModeThreshold: under a common
+            %   reference the automatic detection also flags the samples where
+            %   the unreferenced recording's mean across the channels that take
+            %   part exceeds the threshold (artifactIntervals; the reference
+            %   removes a broad artifact from the signals that take it, not
+            %   from the ones derived without it).
             %   Fill/NoiseBandHz/NoiseSeed say how the flagged periods are
             %   erased rather than which ones they are: by default with
             %   Gaussian noise matched to the recording's own noise level
@@ -1491,6 +1649,8 @@ classdef EphysDataset < handle
                 'FilterType',   "highpass", ...
                 'FilterCutoff', 300, ...     % Hz (scalar, or [lo hi] for bandpass)
                 'FilterOrder',  4, ...
+                'CommonModeUnreferenced', true, ... % under a reference, also flag the unreferenced recording's common mode (artifactIntervals)
+                'CommonModeThreshold',    1500, ... % uV: that test's threshold
                 'Fill',         "noise", ... % "noise" (Gaussian) | "zero"
                 'NoiseBandHz',  300, ...     % Hz; band the noise level is measured in (0 = broadband)
                 'NoiseSeed',    0);          % RNG seed for the fill (NaN = a new draw each run)
@@ -1547,8 +1707,17 @@ classdef EphysDataset < handle
                 end
                 cuts{k} = v;
             end
+            drops = zeros(1, 0);                          % drop_intervals: positive integers, none by default
+            if isfield(p, 'drop_intervals') && ~isempty(p.drop_intervals)
+                drops = p.drop_intervals;
+                if ~isnumeric(drops) || ~all(isfinite(drops(:)) & drops(:) >= 1 & drops(:) == round(drops(:)))
+                    p = struct([]);
+                    return
+                end
+                drops = reshape(unique(double(drops)), 1, []);
+            end
             q = struct('status', string(p.status), 'auto_approved', false, ...
-                'cut_trials', cuts{1}, 'cut_intervals', cuts{2}, ...
+                'cut_trials', cuts{1}, 'cut_intervals', cuts{2}, 'drop_intervals', drops, ...
                 'fingerprint', string(p.fingerprint), 'trial_line', "", 'summary', "", 'updated', "");
             if isfield(p, 'auto_approved') && isscalar(p.auto_approved)
                 q.auto_approved = logical(p.auto_approved) && q.status == "approved";
@@ -2127,7 +2296,13 @@ classdef EphysDataset < handle
             %   FILE under FILEKEY ("file", "files" for a list, "results_dir"
             %   for a folder, or "" for none), created (now), run_id
             %   (PROV.runId: the pipeline run, "" outside one) and options:
-            %   every setting the output was made with, as run (optionsRecord).
+            %   every setting the output was made with, as run (optionsRecord),
+            %   and options_hash: the hash of those options (optionsHash), or
+            %   PROV.optionsHash when the caller gives one - the pipeline
+            %   gives the hash of the config options a step ran with
+            %   (EphysPipeline.stepHash, "cfg-..."), which plan() compares with
+            %   the config as it stands to tell a stale output from an up to
+            %   date one.
             %   The writer adds what it worked out (the reference applied, the
             %   artifact periods erased, the inputs read, ...).
             r = struct();
@@ -2139,6 +2314,22 @@ classdef EphysDataset < handle
             r.created = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
             r.run_id = string(prov.runId);
             r.options = EphysDataset.optionsRecord(options);
+            r.options_hash = EphysDataset.optionsHash(options);
+            if isfield(prov, 'optionsHash') && strlength(string(prov.optionsHash)) > 0
+                r.options_hash = string(prov.optionsHash);
+            end
+        end
+
+        function h = optionsHash(options)
+            %optionsHash  A hash of an options struct: 16 hexadecimal digits.
+            %   H = EphysDataset.optionsHash(OPTIONS) hashes the JSON text of
+            %   optionsRecord(OPTIONS), so two structs the manifest would
+            %   record alike hash alike, whatever their field order in memory
+            %   (the order is the struct's, so build them in one place).
+            %   Two FNV-1a hashes of 32 bits each, in MATLAB: no Java and no
+            %   toolbox. It tells a changed option from an unchanged one, it
+            %   is not a security hash.
+            h = string(textHash(jsonencode(EphysDataset.optionsRecord(options))));
         end
 
         function o = optionsRecord(o)
@@ -2202,6 +2393,65 @@ classdef EphysDataset < handle
         end
     end
 
+end
+
+
+function s = perFileSummary(pf)
+%perFileSummary  The manifest's per-file list: name, samples and, where the reader
+%   found the acquisition clock jump (PerFile.numGaps, .gapBefore), the number
+%   of jumps inside the file and the samples missing before it (null for the
+%   first file). [] when the reader gave no per-file summary.
+s = struct('name', {}, 'samples', {}, 'num_gaps', {}, 'gap_before', {});
+for k = 1:numel(pf)
+    e = struct('name', "", 'samples', NaN, 'num_gaps', NaN, 'gap_before', NaN);
+    if isfield(pf, 'name'); e.name = string(pf(k).name); end
+    if isfield(pf, 'numAmplifierSamples'); e.samples = pf(k).numAmplifierSamples; end
+    if isfield(pf, 'numGaps') && ~isempty(pf(k).numGaps); e.num_gaps = pf(k).numGaps; end
+    if isfield(pf, 'gapBefore') && ~isempty(pf(k).gapBefore); e.gap_before = pf(k).gapBefore; end
+    s(end+1) = e; %#ok<AGROW>
+end
+end
+
+
+function h = textHash(txt)
+%textHash  Two 32-bit FNV-1a hashes of the UTF-8 bytes of TXT, as 16 hexadecimal digits.
+b = uint64(unicode2native(char(txt), 'UTF-8'));
+m = uint64(4294967296);
+h1 = uint64(2166136261); p1 = uint64(16777619);
+h2 = uint64(2654435769); p2 = uint64(2246822519);
+for k = 1:numel(b)
+    h1 = mod(bitxor(h1, b(k)) * p1, m);
+    h2 = mod(bitxor(h2, b(k)) * p2, m);
+end
+h = sprintf('%08x%08x', h1, h2);
+end
+
+
+function s = manifestStamp(file, m)
+%manifestStamp  What identifies the state of a manifest file: its "updated"
+%   value and its size in bytes, "<updated>|<bytes>". M is the manifest
+%   decoded or written (a hand-edited file may have no "updated").
+u = "";
+if isstruct(m) && isfield(m, 'updated') && (ischar(m.updated) || (isstring(m.updated) && isscalar(m.updated)))
+    u = string(m.updated);
+end
+d = dir(file);
+b = 0;
+if ~isempty(d); b = d(1).bytes; end
+s = u + "|" + b;
+end
+
+
+function s = editableState(obj)
+%editableState  The properties the manifest holds that someone can change:
+%   what applyManifest restores and writeManifest writes back, as a struct.
+%   mergeManifest compares it with the state noted at the last read or write.
+s = struct();
+for name = ["ProbeFile" "ExcludeChannels" "Tags" "ReferenceExclude" "ReferenceExcludeSource" ...
+        "BadChannels" "BadChannelsSource" "ManualArtifacts" "ArtifactAdjustments" "SortingDir" ...
+        "BehaviorFile" "TrialPairing" "Processing" "Custom"]
+    s.(name) = obj.(name);
+end
 end
 
 

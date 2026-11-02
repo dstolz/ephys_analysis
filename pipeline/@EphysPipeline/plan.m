@@ -10,11 +10,27 @@ function T = plan(obj, opts)
 %     behavior file missing        the associated session file is not there
 %                                  (kept; nothing is paired or written)
 %     no session                   none associated and Behavior.Search is off
-%     exists: skip / overwrite     the output file exists (Overwrite decides)
+%     exists: up to date           the output file exists and was made with these
+%                                  options (the hash its Processing record holds,
+%                                  stepHash); kept unless Overwrite is on
+%     exists: stale (options changed)
+%                                  it exists but was made with other options
+%                                  (the config, or what the step reads of the
+%                                  dataset, changed since); kept unless Overwrite
+%                                  is on or OverwriteStale rewrites stale outputs
+%     exists: overwrite (stale)    OverwriteStale is on and the output is stale
+%     exists: skip / overwrite     the output file exists (Overwrite decides); skip
+%                                  also when no record says what it was made with
 %     exists: skip (SkipExisting)  sorted output exists and Sorting.SkipExisting
+%                                  (the Note says "up to date" or "stale")
 %     skip: Kilosort4 running / queued
 %                                  a run for this dataset is going or waits
 %                                  in a queue (PriorRuns, LaunchedRuns)
+%     skip: in use by another session
+%                                  another MATLAB or machine holds the dataset's
+%                                  run or sort lock (RunLock); the Note says
+%                                  where and since when. The steps that write
+%                                  (sorting, signals, spikes, export) skip it
 %     no recording files           the folder holds no readable recording
 %     no sorting output            a step needs sorted units this dataset lacks
 %     no extract file              export needs the Signals output (the files
@@ -31,6 +47,10 @@ function T = plan(obj, opts)
 %                                  Sorting.BinDir is set and another dataset of
 %                                  the project has the same name, so both would
 %                                  write <BinDir>/<Name>.bin (sorting rows only)
+%     error: probe-channel mismatch
+%                                  the probe has more sites than the recording has
+%                                  channels (sorting rows; the .bin would be
+%                                  written and Kilosort4 fail on it)
 %     error: sorting folder missing
 %                                  a step reads sorted units but the dataset's
 %                                  hand-picked sorted-output folder (SortingDir)
@@ -80,6 +100,18 @@ allKeys = P.datasetKeys();
 ds = obj.selected();
 keys = allKeys(obj.DatasetIdx);
 
+% Whether each output exists is asked of one listing of the output root when
+% many datasets are planned: a share answers a listing far faster than a
+% single file check per output (hundreds of them over a project). Outputs
+% elsewhere (a step's OutputDir) are checked one by one.
+rootKey = "";
+listed = strings(0, 1);
+if numel(ds) >= 8 && P.OutputRoot ~= "" && isfolder(P.OutputRoot)
+    L = listTree(P.OutputRoot);
+    rootKey = EphysDataset.pathKey(string(P.OutputRoot)) + "/";
+    listed = sort(EphysDataset.pathKey(string(fullfile({L.folder}, {L.name})).'));
+end
+
 Step = strings(0, 1); Dataset = strings(0, 1); Key = strings(0, 1);
 Output = strings(0, 1); Status = strings(0, 1); Note = strings(0, 1);
 Idx = zeros(0, 1);      % the row's dataset: its index in Project.Datasets
@@ -89,6 +121,19 @@ Units = false(0, 1);    % the row reads sorted units (labeled from the dataset n
         Step(end+1, 1) = step; Dataset(end+1, 1) = ds(k).Name; Key(end+1, 1) = keys(k);
         Output(end+1, 1) = out; Status(end+1, 1) = st; Note(end+1, 1) = note;
         Idx(end+1, 1) = obj.DatasetIdx(k); Units(end+1, 1) = units;
+    end
+
+    function tf = has(paths)
+        % isfile(PATHS), from the listing of the output root when it covers them.
+        paths = string(paths);
+        tf = false(size(paths));
+        for ii = 1:numel(paths)
+            if rootKey ~= "" && startsWith(EphysDataset.pathKey(paths(ii)), rootKey)
+                tf(ii) = ismember(EphysDataset.pathKey(paths(ii)), listed);
+            else
+                tf(ii) = isfile(paths(ii));
+            end
+        end
     end
 
     function addAnalysis()
@@ -123,6 +168,10 @@ for step = steps
     for k = 1:numel(ds)
         d = ds(k);
         hasFiles = d.NumFiles > 0 && d.RecordingFormat ~= "unknown";
+        busy = "";   % another session works on the dataset (RunLock), for the steps that write
+        if ismember(step, ["sorting" "signals" "spikes" "export"]) && hasFiles
+            busy = obj.inUse(d);
+        end
         switch step
             case "probe"
                 [probe, src] = obj.probeFor(d);
@@ -171,7 +220,7 @@ for step = steps
                     add(step, k, out, "no recording files", "");
                 elseif ~c.Artifacts.Enabled
                     add(step, k, out, "ready", "manual periods only (auto-detection off)");
-                elseif isfile(out)
+                elseif has(out)
                     add(step, k, out, "ready", "cache present (reused when the settings match)");
                 else
                     add(step, k, out, "ready", "");
@@ -187,24 +236,31 @@ for step = steps
                     state = ternary(run.queued, "queued", "running");
                     who = EphysDataset.sorterLabel(EphysDataset.sorterOfRunDir(run.resultsDir));
                     add(step, k, out, "skip: " + who + " " + state, "a " + who + " run for this dataset is " + state);
+                elseif busy ~= ""
+                    add(step, k, out, "skip: in use by another session", busy);
                 elseif probe == ""
                     add(step, k, out, "no probe", "");
                 elseif ~isfile(probe)
                     add(step, k, out, "probe file missing", probe);
                 elseif d.hasKilosortResults() && c.Sorting.SkipExisting
-                    add(step, k, out, "exists: skip (SkipExisting)", string(d.sortingResultsDir()));
+                    add(step, k, out, "exists: skip (SkipExisting)", string(d.sortingResultsDir()) + sortedState(obj, d));
                 elseif d.sortingMissing() && c.Sorting.SkipExisting
                     add(step, k, out, "exists: skip (SkipExisting)", d.SortingDir + " (not there now)");
-                elseif d.hasKilosortResults()
-                    add(step, k, out, "exists: will re-sort", string(d.sortingResultsDir()));
                 else
-                    add(step, k, out, "ready", ternary(c.Sorting.DryRun, "dry run", executionText(c.Sorting)));
+                    [pst, pnote] = EphysPipeline.probeStatus(probe, d);
+                    if pst == "probe-channel mismatch"
+                        add(step, k, out, "error: probe-channel mismatch", pnote);
+                    elseif d.hasKilosortResults()
+                        add(step, k, out, "exists: will re-sort", string(d.sortingResultsDir()) + sortedState(obj, d));
+                    else
+                        add(step, k, out, "ready", ternary(c.Sorting.DryRun, "dry run", executionText(c.Sorting)));
+                    end
                 end
 
             case "signals"
                 % One row per output file (per signal type when SeparateFiles).
                 outs = obj.outputPathFor("signals", d);
-                anyExists = any(isfile(outs));
+                anyExists = any(has(outs));
                 for out = outs
                     if ~hasFiles
                         add(step, k, out, "no recording files", "");
@@ -212,10 +268,17 @@ for step = steps
                         add(step, k, out, "error: LFP_Fs above the recording rate", sprintf("%g > %g Hz", c.Signals.LFP_Fs, d.Fs));
                     elseif c.Signals.MUA && ~isnan(d.Fs) && c.Signals.MUA_Fs > d.Fs
                         add(step, k, out, "error: MUA_Fs above the recording rate", sprintf("%g > %g Hz", c.Signals.MUA_Fs, d.Fs));
-                    elseif anyExists && ~c.Signals.Overwrite
-                        add(step, k, out, "exists: skip", ternary(isfile(out), "", "another output file of this dataset exists"));
-                    elseif isfile(out)
-                        add(step, k, out, "exists: overwrite", "");
+                    elseif busy ~= ""
+                        add(step, k, out, "skip: in use by another session", busy);
+                    elseif anyExists
+                        [wr, st, msg] = obj.existingOutput("signals", d, c.Signals.Overwrite, c.Signals.OverwriteStale);
+                        if wr && ~has(out)
+                            add(step, k, out, "ready", "");
+                        else
+                            note = existingNote(st, msg, has(out) || wr);
+                            if ~has(out) && ~wr; note = "another output file of this dataset exists"; end
+                            add(step, k, out, st, note);
+                        end
                     else
                         add(step, k, out, "ready", "");
                     end
@@ -232,10 +295,12 @@ for step = steps
                 end
                 if ~hasFiles
                     add(step, k, out, "no recording files", "");
-                elseif isfile(out) && ~c.Spikes.Overwrite
-                    add(step, k, out, "exists: skip", "");
-                elseif isfile(out)
-                    add(step, k, out, "exists: overwrite", note);
+                elseif busy ~= ""
+                    add(step, k, out, "skip: in use by another session", busy);
+                elseif has(out)
+                    [~, st, msg] = obj.existingOutput("spikes", d, c.Spikes.Overwrite, c.Spikes.OverwriteStale);
+                    parts = [existingNote(st, msg, true), note];
+                    add(step, k, out, st, strjoin(parts(parts ~= ""), "; "));
                 else
                     add(step, k, out, "ready", note);
                 end
@@ -252,14 +317,16 @@ for step = steps
                     if fmt == "nwb"
                         note = strjoin([note(note ~= ""), "NWB 2 through pynwb, checked with nwbinspector"], "; ");
                     end
-                    if (isempty(extract) || ~all(isfile(extract))) && ~(c.Signals.Enabled && ismember("signals", steps))
-                        add("export:" + fmt, k, out, "no extract file", "expected " + strjoin(extract(~isfile(extract)), ", "));
+                    if busy ~= ""
+                        add("export:" + fmt, k, out, "skip: in use by another session", busy);
+                    elseif (isempty(extract) || ~all(has(extract))) && ~(c.Signals.Enabled && ismember("signals", steps))
+                        add("export:" + fmt, k, out, "no extract file", "expected " + strjoin(extract(~has(extract)), ", "));
                     elseif c.Export.IncludeUnits && d.sortingMissing()
                         add("export:" + fmt, k, out, "error: sorting folder missing", missingSortNote(d));
-                    elseif isfile(out) && ~c.Export.Overwrite
-                        add("export:" + fmt, k, out, "exists: skip", note, units);
-                    elseif isfile(out)
-                        add("export:" + fmt, k, out, "exists: overwrite", note, units);
+                    elseif has(out)
+                        [~, st, msg] = obj.existingOutput("export:" + fmt, d, c.Export.Overwrite, c.Export.OverwriteStale);
+                        parts = [existingNote(st, msg, true), note];
+                        add("export:" + fmt, k, out, st, strjoin(parts(parts ~= ""), "; "), units);
                     else
                         add("export:" + fmt, k, out, "ready", note, units);
                     end
@@ -423,6 +490,30 @@ if tf; return; end
 m = EphysDataset.readManifest(d.manifestFile());
 tf = isstruct(m) && isfield(m, 'sorting') && isstruct(m.sorting) && isfield(m.sorting, 'source') ...
     && string(m.sorting.source) == "manual";
+end
+
+
+function s = sortedState(obj, d)
+%sortedState  "; up to date" / "; stale: ..." for dataset D's existing sort, "" when unknown.
+%   Whether it was sorted with the Sorting options as they are (outputState);
+%   a stale sort is never sorted again by itself: that is SkipExisting off.
+switch obj.outputState("sorting", d)
+    case "current"
+        s = "; up to date";
+    case "stale"
+        s = "; stale: sorted with other options (SkipExisting off sorts it again)";
+    otherwise
+        s = "";
+end
+end
+
+
+function note = existingNote(status, message, wanted)
+%existingNote  The plan Note for an existing output: why a kept one is kept (stale / up to date).
+note = "";
+if wanted && (contains(status, "stale") || contains(status, "up to date"))
+    note = message;
+end
 end
 
 

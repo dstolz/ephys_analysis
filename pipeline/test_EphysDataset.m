@@ -354,6 +354,84 @@ check(strcmp(errorIdOf(@() ds.runKilosort(ArtifactIntervals=[0 ds.NumSamples / d
 check(abs(covered - 3) < 1e-12 && abs(share - 0.75) < 1e-12, 'silencedFraction clips and unions the intervals');
 ds.ManualArtifacts = zeros(0, 2);
 
+fprintf('\n== 8d. toBin: written whole, a Files subset, the overlap look-ahead, Reuse ==\n');
+wsClip = warning('off', 'EphysDataset:toBin:Clipping');
+binA = fullfile(root, 'atomic.bin');
+metaAFile = fullfile(root, 'atomic.json');
+iA = ds.toBin(BinFile=binA, ArtifactIntervals=[]);
+metaA = readJsonFile(metaAFile);
+check(~isfile(binA + ".partial") && isfile(binA) && iA.nBytes == numAmp * totalSamples * 2 && ~iA.reused ...
+    && strlength(string(metaA.fingerprint)) == 16, ...
+    'toBin writes under .partial and renames: no partial file is left, the sidecar carries a fingerprint');
+bytesA = readBin(binA);
+idA = errorIdOf(@() ds.toBin(BinFile=binA, ArtifactIntervals=[], ChannelOrder=9));
+check(strcmp(idA, 'EphysDataset:toBin:BadChannelOrder') && ~isfile(binA + ".partial") && isequal(readBin(binA), bytesA) ...
+    && ~isfile(metaAFile), ...
+    'a write that fails removes its partial file, leaves the .bin that was there and no sidecar (it described that one)');
+iA2 = ds.toBin(BinFile=binA, ArtifactIntervals=[]);
+check(isfile(metaAFile) && isequal(readBin(binA), bytesA) && iA2.nSamples == totalSamples, 'the next write replaces it and writes the sidecar again');
+
+ivSub = [266 276] / Fs;     % rows 11 to 20 of the second file
+binS = fullfile(root, 'subset.bin');
+iS = ds.toBin(BinFile=binS, Files=ds.Files(2), ArtifactIntervals=ivSub, ArtifactFill="zero", WriteMeta=false);
+BS = reshape(typecast(readBin(binS), 'int16'), numAmp, []);
+check(iS.nSamples == samplesPerFile && all(BS(:, 11:20) == 0, 'all') && ~any(all(BS(:, [1:10 21:end]) == 0, 1)), ...
+    'a Files subset erases a period where it is in the recording (the chunk''s sampleOffset), not from the start of the .bin');
+
+dataW = ds.readData();
+refW = ds.filterContinuous(dataW.amplifier, Type="highpass", Cutoff=300, Order=4, Fs=Fs);
+refC = max(min(round(refW / 0.195), 32767), -32768);
+binO = fullfile(root, 'overlap.bin');
+binI = fullfile(root, 'independent.bin');
+iO = ds.toBin(BinFile=binO, Filter=true, FilterEdgeMode="overlap", OverlapSamples=100, ArtifactIntervals=[], WriteMeta=false);
+ds.toBin(BinFile=binI, Filter=true, ArtifactIntervals=[], WriteMeta=false);
+BO = double(reshape(typecast(readBin(binO), 'int16'), numAmp, [])).';
+BI = double(reshape(typecast(readBin(binI), 'int16'), numAmp, [])).';
+near = 190:322;             % either side of the chunk boundary at row 256
+eO = max(abs(BO(near, :) - refC(near, :)), [], 'all');
+eI = max(abs(BI(near, :) - refC(near, :)), [], 'all');
+check(iO.nSamples == totalSamples && size(BO, 1) == totalSamples && eO < eI / 5, ...
+    sprintf('overlap look-ahead: around the chunk boundary the .bin is within %g counts of filtering the whole recording (independent chunks: %g)', eO, eI));
+warning(wsClip);
+
+binR = fullfile(root, 'reuse.bin');
+metaRFile = fullfile(root, 'reuse.json');
+wsClip = warning('off', 'EphysDataset:toBin:Clipping');
+r1 = ds.toBin(BinFile=binR, ArtifactIntervals=[], Reuse=true);
+dR1 = dir(binR);
+r2 = ds.toBin(BinFile=binR, ArtifactIntervals=[], Reuse=true);
+dR2 = dir(binR);
+check(~r1.reused && r2.reused && dR1.datenum == dR2.datenum && r2.nSamples == r1.nSamples && r2.nChan == r1.nChan ...
+    && r2.scale == r1.scale && r2.nBytes == r1.nBytes, 'Reuse keeps a .bin whose sidecar has the fingerprint of the call: nothing is written');
+r3 = ds.toBin(BinFile=binR, ArtifactIntervals=[], Reuse=true, Scale=2 / 0.195);
+check(~r3.reused && r3.scale == 2 / 0.195, 'another scale: the .bin is written again');
+r4 = ds.toBin(BinFile=binR, ArtifactIntervals=[0 0.001], Reuse=true);
+r5 = ds.toBin(BinFile=binR, ArtifactIntervals=[0 0.001], Reuse=true);
+r6 = ds.toBin(BinFile=binR, ArtifactIntervals=[0 0.002], Reuse=true);
+check(~r4.reused && r5.reused && ~r6.reused, 'another list of periods to erase writes it again; the same one (a seeded fill) is reused');
+r7 = ds.toBin(BinFile=binR, ArtifactIntervals=[0 0.002], Reuse=false);
+check(~r7.reused, 'Reuse=false always writes');
+acfgSave = ds.ArtifactConfig;
+ds.ArtifactConfig.NoiseSeed = NaN;
+r8 = ds.toBin(BinFile=binR, ArtifactIntervals=[0 0.002], Reuse=true);
+r9 = ds.toBin(BinFile=binR, ArtifactIntervals=[0 0.002], Reuse=true);
+ds.ArtifactConfig = acfgSave;
+check(~r8.reused && ~r9.reused, 'a fill with a new random draw each time is never reused');
+r10 = ds.toBin(BinFile=binR, ArtifactIntervals=[], Reuse=true);
+delete(metaRFile);
+r11 = ds.toBin(BinFile=binR, ArtifactIntervals=[], Reuse=true);
+check(~r10.reused && ~r11.reused, 'without its sidecar a .bin is not reused');
+warning(wsClip);
+
+pr1 = EphysDataset.processingRecord("file", "x", struct('runId', ""), struct('a', 1));
+pr2 = EphysDataset.processingRecord("file", "x", struct('runId', "", 'optionsHash', "cfg-1"), struct('a', 1));
+check(pr1.options_hash == EphysDataset.optionsHash(struct('a', 1)) && strlength(pr1.options_hash) == 16 ...
+    && pr1.options_hash ~= EphysDataset.optionsHash(struct('a', 2)) && pr2.options_hash == "cfg-1" ...
+    && EphysDataset.optionsHash(struct('a', NaN, 'b', "x")) == EphysDataset.optionsHash(struct('a', NaN, 'b', "x")), ...
+    'processingRecord records options_hash: of the writer''s own options, else the one the pipeline gives');
+ds.toBin(ArtifactIntervals=[]);
+check(strlength(ds.Processing.bin.options_hash) == 16, 'toBin''s processing record carries options_hash');
+
 fprintf('\n== 8c. toBin: the recording is never overwritten; the fill follows the signal ==\n');
 % A universal-format recording whose data file is named after its folder -
 % where toBin writes <Name>.bin when no output folder is set. A slow wave
@@ -906,6 +984,90 @@ catch ME
     errId = ME.identifier;
 end
 check(strcmp(errId, 'EphysDataset:detectSpikes:BandAboveNyquist'), 'band above Nyquist rejected');
+check(strcmp(errorIdOf(@() ds.detectSpikes(Xs, GroupChannels=1.5)), 'EphysDataset:detectSpikes:BadGroupChannels') ...
+    && strcmp(errorIdOf(@() ds.detectSpikes(Xs, GroupChannels=0)), 'EphysDataset:detectSpikes:BadGroupChannels'), ...
+    'GroupChannels must be a positive whole number');
+
+fprintf('\n== 13b. detectSpikes: channel groups and the fast paths == the plain loops ==\n');
+% The detector filters and detects a group of channels at a time and cuts its
+% alignment, dead-time and waveform steps without per-event loops. Its answer
+% must be what the definition gives written out as plain loops (refDetect, a
+% copy of the loops it replaced) - bit for bit - and must not depend on the
+% group size.
+rng(61);
+nBk = 45000; nCk = 7;
+Xk = 5 * randn(nBk, nCk);
+Xk(:, 4) = 12 * randn(nBk, 1);
+for c = 1:nCk
+    Xk = injectSpikes(Xk, sort(randperm(nBk - 200, 40).' + 100), c, tmpl, 11);
+end
+Xk = injectSpikes(Xk, [3000; 3012; 3030; 3047], 1, tmpl, 11);     % bursts inside the 1 ms dead time
+Xk = injectSpikes(Xk, [4; nBk - 3], 3, tmpl, 11);                 % windows past both ends
+Xk(20000:20060, 2) = Xk(20000:20060, 2) - 250;                    % a run longer than the alignment window
+Xn = Xk; Xn(10001:10500, 5) = NaN;                                % a NaN gap
+refCases = {
+    'band-passed, MAD, trough',      Xk, struct('Filter', true,  'Mult', 4, 'Polarity', "negative", 'Align', "trough",   'AlignWindowMs', 1,   'MinPeriodMs', 1,   'WindowMs', [-0.5 1.5])
+    'unfiltered, both, extremum',    Xn, struct('Filter', false, 'Mult', 4, 'Polarity', "both",     'Align', "extremum", 'AlignWindowMs', 0.5, 'MinPeriodMs', 0.3, 'WindowMs', [-0.5 1.5])
+    'positive, peak, no dead time',  Xk, struct('Filter', true,  'Mult', 3, 'Polarity', "positive", 'Align', "peak",     'AlignWindowMs', 0,   'MinPeriodMs', 0,   'WindowMs', [-1 2])
+    'crossing sample (Align none)',  Xk, struct('Filter', false, 'Mult', 5, 'Polarity', "negative", 'Align', "none",     'AlignWindowMs', 1,   'MinPeriodMs', 1,   'WindowMs', [-0.5 1.5])
+    };
+for r = 1:size(refCases, 1)
+    o = refCases{r, 3};
+    a = {'Filter', o.Filter, 'Threshold', o.Mult, 'Polarity', o.Polarity, 'Align', o.Align, ...
+        'AlignWindowMs', o.AlignWindowMs, 'MinPeriodMs', o.MinPeriodMs, 'WindowMs', o.WindowMs, 'Fs', Fs};
+    [tsD, wfD, iD] = ds.detectSpikes(refCases{r, 2}, a{:});
+    Ref = refDetect(ds, refCases{r, 2}, Fs, o);
+    check(isequal(iD.index, Ref.idx) && isequal(iD.amplitude, Ref.amp) && isequaln(wfD, Ref.wf) ...
+        && isequal(iD.threshold, Ref.thr) && isequal(tsD, cellfun(@(i) (i - 1) / Fs, Ref.idx, 'UniformOutput', false)) ...
+        && sum(iD.count) > 100, ...
+        sprintf('%s: indices, amplitudes, waveforms and thresholds equal the plain loops (%d events)', refCases{r, 1}, sum(iD.count)));
+    sameAll = true;
+    for gc = [2 3 4 7]
+        [tsG, wfG, iG] = ds.detectSpikes(refCases{r, 2}, a{:}, 'GroupChannels', gc);
+        sameAll = sameAll && sameDetection(tsD, wfD, iD, tsG, wfG, iG);
+    end
+    check(sameAll, sprintf('%s: any group size (2, 3, 4, 7 channels) gives the identical result', refCases{r, 1}));
+end
+% A recording of 7 channels streamed in chunks, so the groups split it: the
+% group size changes nothing, with per-chunk and with recording-wide thresholds,
+% artifacts erased and the events of a period rejected, coincident copies removed.
+gFolder = fullfile(root, 'G7_260101_130000');
+mkdir(gFolder);
+nRg = 24000;
+rng(62);
+Yg = 5 * randn(nRg, nCk);
+for c = 1:nCk
+    Yg = injectSpikes(Yg, sort(randperm(nRg - 200, 30).' + 100), c, tmpl, 11);
+end
+Yg = injectSpikes(Yg, [5999; 6000; 6001; 12000; 18000], 1, tmpl, 11);        % around the joins
+Yg = injectSpikes(Yg, [6003; 12004], 2, 0.6 * tmpl, 11);
+writeInfoRHD(fullfile(gFolder, 'info.rhd'), nCk, Fs);
+writeDat(fullfile(gFolder, 'amplifier.dat'), int16(round(Yg.' / 0.195)), 'int16');
+writeDat(fullfile(gFolder, 'time.dat'), int32(0:nRg-1), 'int32');
+writeDat(fullfile(gFolder, 'digitalin.dat'), uint16(zeros(1, nRg)), 'uint16');
+dsG = EphysDataset(gFolder);
+gArgs = {{'MaxChunkSamples', 6000, 'Waveforms', true, 'ArtifactIntervals', [0.05 0.07; 0.3 0.31]}
+         {'MaxChunkSamples', 6000, 'Waveforms', true, 'ThresholdScope', "recording"}
+         {'MaxChunkSamples', 6000, 'Waveforms', true, 'ThresholdScope', "recording", 'ThresholdMethod', "std", ...
+          'RejectIntervals', [0.2 0.21], 'Coincidence', "remove", 'SitePositions', [0 0; 0 20; 0 40; 0 60; NaN NaN; 0 100; 0 120]}
+         {'MaxChunkSamples', 9000, 'Filter', false, 'ThresholdMethod', "percentile", 'Threshold', 99.5, 'Waveforms', true}};
+for r = 1:numel(gArgs)
+    [tsD, wfD, iD] = dsG.detectSpikes(gArgs{r}{:});
+    sameAll = sum(iD.count) > 50;
+    for gc = [2 3]
+        [tsG, wfG, iG] = dsG.detectSpikes(gArgs{r}{:}, 'GroupChannels', gc);
+        sameAll = sameAll && sameDetection(tsD, wfD, iD, tsG, wfG, iG);
+    end
+    check(sameAll, sprintf('whole recording, 7 channels, case %d: groups of 2 and 3 channels give the identical result', r));
+end
+% What each chunk was detected against and found (chunkThreshold).
+[~, ~, iC] = dsG.detectSpikes(MaxChunkSamples=6000);
+cT = iC.chunkThreshold;
+check(isequal(size(cT.threshold), [4 nCk]) && isequal(cT.threshold, iC.threshold) && isequal(cT.noise, iC.noise) ...
+    && isequal(cT.startSec, ([iC.chunks.sampleOffset].' / Fs)) && isequal([iC.chunks.startSec].', cT.startSec) ...
+    && isequal(cT.durationSec, 6000 / Fs * ones(4, 1)) && isequal(sum(cT.count, 1), iC.count) ...
+    && max(abs(cT.rate .* cT.durationSec - cT.count), [], 'all') < 1e-9 && isequal(cT.degenerate, iC.degenerate), ...
+    'chunkThreshold: per chunk and channel the threshold, noise, event count and rate; chunk start times');
 
 fprintf('\n== 14. detectSpikes over a whole recording (streaming) ==\n');
 % One-file-per-signal fixture with known troughs, detected chunk by chunk. The
@@ -1099,6 +1261,15 @@ check(strcmp(jr.a, 'Inf') && strcmp(jr.b, 'NaN') && iscell(jr.c) && strcmp(jr.c{
     && jr.c{1} == 1 && strcmp(jr.d, 'x') && jr.e.f == 2, ...
     'writeJsonFile(NonFinite="string") writes Inf/-Inf/NaN as strings');
 check(isempty(dir(fullfile(root, '~*.partial'))), 'writeJsonFile leaves no partial file behind');
+writeJsonFile(jf, struct('m', [1 NaN; Inf 4; 5 6], 'n', [1 2; 3 4], 'v', [1 NaN 3]), NonFinite="string");
+tm = fileread(jf);
+jm = readJsonFile(jf);
+check(isequal(size(jm.n), [2 2]) && jm.n(1, 2) == 2 && jm.n(2, 1) == 3 && iscell(jm.m) && numel(jm.m) == 3 ...
+    && isequal(jm.m{1}, {1; 'NaN'}) && isequal(jm.m{2}, {'Inf'; 4}) && isequal(jm.m{3}, [5; 6]) && iscell(jm.v) && strcmp(jm.v{2}, 'NaN'), ...
+    'a matrix with a non-finite number is written row by row: a list of its rows, not column by column');
+check(strcmp(jsonencode(stringifyNonFinite([1 NaN; 3 4])), '[[1,"NaN"],[3,4]]') ...
+    && strcmp(jsonencode(stringifyNonFinite([1 2; 3 4])), '[[1,2],[3,4]]') && contains(tm, '"NaN"'), ...
+    'stringifyNonFinite: a [2x2] stays [[..],[..]]');
 writeJsonFile(jf, struct('a', NaN, 'b', 3));
 jr = readJsonFile(jf);
 check(isempty(jr.a) && jr.b == 3, 'default NonFinite="null" writes NaN as null');
@@ -1176,6 +1347,15 @@ dsm.BehaviorFile = behFile;
 dsm.writeManifest();
 m = readJsonFile(dsm.manifestFile());
 check(strcmp(m.schema, 'intan-dataset-manifest/2'), 'manifest schema is v2');
+% The fixture's two files both start at timestamp 0: the second begins 256 samples before the first ended.
+check(numel(m.metadata.per_file) == 2 && m.metadata.per_file(1).samples == samplesPerFile ...
+    && m.metadata.per_file(2).name == string(dsm.PerFile(2).name) && all([m.metadata.per_file.num_gaps] == 0) ...
+    && isempty(m.metadata.per_file(1).gap_before) && m.metadata.per_file(2).gap_before == -samplesPerFile ...
+    && isscalar(m.metadata.gaps) && m.metadata.gaps.file == "rec_002.rhd" && m.metadata.gaps.row == samplesPerFile + 1 ...
+    && m.metadata.gaps.samples == -samplesPerFile && contains(fileread(dsm.manifestFile()), '"gaps": ['), ...
+    'manifest metadata: a per-file list (samples, gaps inside, samples missing before) and the list of gaps, a list also of one');
+check(isscalar(dsm.Gaps) && isequal(fieldnames(dsm.Gaps), {'file'; 'row'; 'samples'}) && dsm.Gaps.samples == -samplesPerFile, ...
+    'Gaps: the reader''s jump, with its fields');
 check(isequal(size(m.manual_artifacts), [2 2]), 'manifest stores manual_artifacts');
 check(strcmp(m.sorting.source, 'manual') && m.sorting.curated && m.sorting.num_units == 2 ...
     && strcmp(m.sorting.results_dir, sortDir), 'manifest sorting block (manual, curated, 2 units)');
@@ -1317,20 +1497,106 @@ check(isequal(dtg.Tags, {}), 'applyManifest: tags [] loads {}');
 dsm.Tags = {};
 dsm.writeManifest();
 
-% v1 manifests still yield probe + exclusions.
+% No migration: a schema /1 manifest is refused like any other schema but the current one.
 m1 = struct('schema', "intan-dataset-manifest/1", 'probe', struct('file', probeFile), ...
     'exclude_channels', "4");
 writeJsonFile(dsm.manifestFile(), m1);
 ds4 = EphysDataset(mdsDir);
-tf4 = ds4.applyManifest();
-check(tf4 && isequal(ds4.ExcludeChannels, 4) && isempty(ds4.ManualArtifacts) && ds4.SortingDir == "", ...
-    'v1 manifest: probe + exclusions restored, nothing else');
+ws = warning('off', 'EphysDataset:applyManifest:Schema');
+[tf4, why4] = ds4.applyManifest();
+warning(ws);
+check(~tf4 && contains(why4, "unknown schema") && isempty(ds4.ExcludeChannels) && ds4.ProbeFile == "" ...
+    && isequal(EphysDataset.ManifestSchemasAccepted, "intan-dataset-manifest/2"), ...
+    'a schema /1 manifest is refused: nothing is restored, and only the current schema is accepted');
+ws = warning('off', 'EphysDataset:writeManifest:Kept');
+check(~dsm.writeManifest() && isequal(readJsonFile(dsm.manifestFile()).schema, 'intan-dataset-manifest/1'), ...
+    'writeManifest leaves a manifest of another schema as it is');
+warning(ws);
 writeJsonFile(dsm.manifestFile(), struct('schema', "something/9", 'exclude_channels', "5"));
 ds5 = EphysDataset(mdsDir);
 ws = warning('off', 'EphysDataset:applyManifest:Schema');
 tf5 = ds5.applyManifest();
 warning(ws);
 check(~tf5 && isempty(ds5.ExcludeChannels), 'a manifest with an unknown schema is ignored');
+
+fprintf('\n== 16a. the manifest is not reverted by a session that was open meanwhile ==\n');
+lostDir = fullfile(root, 'lost');
+mkdir(lostDir);
+lostName = "lost_260101_120000";
+dA = EphysDataset(lostDir, AutoMetadata=false, Name=lostName);
+dA.Tags = {'one'};
+dA.ManualArtifacts = [1 2];
+dA.writeManifest();
+dB = EphysDataset(lostDir, AutoMetadata=false, Name=lostName);   % a second session
+dB.applyManifest();
+dB.Tags = {'one', 'fromb'};
+dB.ManualArtifacts = [1 2; 5 6];
+dB.ExcludeChannels = 3;
+dB.Processing.spikes = struct('file', "s.mat", 'created', "2026-10-31 00:00:00", 'run_id', "", 'options', struct('a', 1), 'options_hash', "cfg-b");
+dB.writeManifest();
+dA.ReferenceExclude = 2;                 % A read the file before B saved, and now saves its own change
+dA.ReferenceExcludeSource = "manual";
+dA.Processing.bin = struct('file', "b.bin", 'created', "2026-10-31 00:00:00", 'run_id', "", 'options', struct('a', 1), 'options_hash', "cfg-a");
+dA.writeManifest();
+dC = EphysDataset(lostDir, AutoMetadata=false, Name=lostName);
+dC.applyManifest();
+check(isequal(dC.Tags, {'fromb', 'one'}) && isequal(dC.ManualArtifacts, [1 2; 5 6]) && isequal(dC.ExcludeChannels, 3) ...
+    && isequal(dC.ReferenceExclude, 2) && dC.ReferenceExcludeSource == "manual", ...
+    'what another session saved (tags, manual periods, exclusions) is not reverted by this object''s write, which saves its own change');
+check(isstruct(dC.Processing.spikes) && dC.Processing.spikes.options_hash == "cfg-b" ...
+    && isstruct(dC.Processing.bin) && dC.Processing.bin.options_hash == "cfg-a", ...
+    'the records of how outputs were made merge record by record');
+check(isequal(dA.Tags, {'fromb', 'one'}) && isequal(dA.ExcludeChannels, 3), 'the object that wrote has taken the other session''s edits');
+dA.Tags = {'froma'};                     % both change the tags: the one that writes last wins, and the rest still merges
+dB.Tags = {'fromb2'};
+dB.ExcludeChannels = [3 4];
+dB.writeManifest();
+dA.writeManifest();
+dC.applyManifest();
+check(isequal(dC.Tags, {'froma'}) && isequal(dC.ExcludeChannels, [3 4]), ...
+    'a property both sessions changed takes the value of the one that writes last; the others merge');
+dB.Tags = {'fromb3'};                    % B changes the tags again and saves: its own change is the one kept
+dB.writeManifest();
+dC.applyManifest();
+check(isequal(dC.Tags, {'fromb3'}), 'what the object changed since it last read or wrote the file is saved over the file''s');
+dN = EphysDataset(lostDir, AutoMetadata=false, Name=lostName);   % never read the file
+dN.Tags = {'fresh'};
+addToManifest(lostDir, surgeon="DS");
+dN.writeManifest();
+dC.applyManifest();
+check(isequal(dC.Tags, {'fresh'}) && isempty(dC.ManualArtifacts) && isequal(dC.Custom, struct('surgeon', 'DS')), ...
+    'an object that never read the file overwrites it, but for the custom block');
+check(isequal(readJsonFile(dN.manifestFile()).custom, struct('surgeon', 'DS')) && isequal(dN.Custom, struct('surgeon', 'DS')), ...
+    'the custom block is the object''s Custom and stays in the file');
+addToManifest(lostDir, depth=1200);      % a script adds while dN is open
+dN.Tags = {'fresh2'};
+dN.writeManifest();
+check(isequal(readJsonFile(dN.manifestFile()).custom, struct('surgeon', 'DS', 'depth', 1200)) && dN.Custom.depth == 1200, ...
+    'a block added behind the object''s back survives its write');
+
+fprintf('\n== 16b. a sort record is taken into Processing.sorting once the run is done ==\n');
+delete(dsm.manifestFile());               % the unknown-schema one above
+runD = dsm.kilosortDir();
+statusS = fullfile(runD, 'ks4_status.json');
+recordS = fullfile(runD, EphysDataset.SortRecordFile);
+recS = struct('status_file', string(statusS), 'sorter', "kilosort4", 'record', struct('results_dir', string(runD), ...
+    'created', "2026-10-31 00:00:00", 'run_id', "", 'options', struct('x', 1), 'options_hash', "cfg-test", 'sorter', "kilosort4"));
+dsm.Processing.sorting = [];
+writeJsonFile(recordS, recS);
+dsm.writeManifest();
+check(isempty(dsm.Processing.sorting) && isfile(recordS), 'a run still going: the record waits');
+writeJsonFile(statusS, struct('state', "done", 'num_units', 3));
+dsm.writeManifest();
+check(isstruct(dsm.Processing.sorting) && dsm.Processing.sorting.options_hash == "cfg-test" && ~isfile(recordS) ...
+    && readJsonFile(dsm.manifestFile()).processing.sorting.options_hash == "cfg-test", ...
+    'a run that is done: its record goes into Processing.sorting and the manifest, and the file goes');
+dsm.Processing.sorting = [];
+writeJsonFile(recordS, recS);
+writeJsonFile(statusS, struct('state', "error", 'message', "boom"));
+dsm.writeManifest();
+check(isempty(dsm.Processing.sorting) && ~isfile(recordS), 'a run that failed records nothing, and its record goes');
+delete(statusS);
+dsm.writeManifest();
 
 % EphysProject.refresh + relative keys (tree from section 7).
 Pm = EphysProject(fullfile(root, 'proj'));
@@ -1594,10 +1860,11 @@ check(isequal(o1.nDetected, [10 4]) && isequal(o1.nRejectedArtifact, [0 0]), 'ou
 [~, wfN, ~] = dsSpk.detectSpikes(absArgs{:}, 'Waveforms', false);
 check(isempty(wfN) || all(cellfun(@isempty, wfN)), 'Waveforms=false suppresses extraction even with three outputs');
 
-% Events inside a manual artifact period are rejected (indices 4010, 6000).
+% Events inside a manual artifact period are rejected (indices 4010, 6000):
+% ArtifactMode "reject" (the default is "erase", checked below).
 dsSpk.ManualArtifacts = [4000 6100] / Fs;
 dsSpk.Tags = {'Pilot', 'draft'};
-o2 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1);
+o2 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactMode="reject");
 M2 = load(o2.file);
 check(isequal(M2.conversion.tags, {'draft', 'pilot'}), 'spikesToMat: the dataset''s tags are in conversion.tags');
 check(isequal(o2.nRejectedArtifact, 2) && numel(M2.detected.ts{1}) == 8 ...
@@ -1607,16 +1874,16 @@ check(numel(M2.detected.info.index{1}) == 8 && M2.detected.info.count(1) == 8, .
     'info arrays are filtered consistently');
 check(isequal(size(M2.detected.detection.artifactIntervals), [1 2]), 'artifact intervals are recorded');
 dsSpk.ManualArtifacts = [4009 5999] / Fs;   % the two events' samples: start inside, end outside
-o2b = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1);
+o2b = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactMode="reject");
 check(isequal(o2b.nRejectedArtifact, 1), 'a period rejects the event on its first sample but not the one on its end (half-open)');
 dsSpk.ManualArtifacts = [4000 6100] / Fs;
 o3 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactMode="none");
 check(isequal(o3.nDetected, 10), 'ArtifactMode "none" keeps every event');
-o5 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactMode="erase");
+o5 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1);   % the default mode: "erase"
 M5 = load(o5.file);
 check(isequal(o5.nDetected, 8) && isequal(o5.nRejectedArtifact, 0) && isequal(M5.detected.ts{1}, M2.detected.ts{1}) ...
     && M5.detected.detection.artifactMode == "erase" && M5.detected.info.artifacts.nSamples == 2100, ...
-    'ArtifactMode "erase": the period is erased before detection, so its events are never found and none is left to reject');
+    'ArtifactMode "erase" (the default): the period is erased before detection, so its events are never found and none is left to reject');
 errId = '';
 try
     dsSpk.spikesToMat(DetectOptions=setfield(dopt, 'ArtifactIntervals', [0 1]), Overwrite=true); %#ok<SFLD>
@@ -1638,7 +1905,7 @@ doptR = struct('Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 12, 
 oAll = dsSpk.spikesToMat(DetectOptions=doptR, Overwrite=true, ArtifactMode="none");
 MAll = load(oAll.file);
 tsAll = MAll.detected.ts;
-oRej = dsSpk.spikesToMat(DetectOptions=doptR, Overwrite=true, ArtifactIntervals=ivR);
+oRej = dsSpk.spikesToMat(DetectOptions=doptR, Overwrite=true, ArtifactIntervals=ivR, ArtifactMode="reject");
 expRej = zeros(1, 2);
 for c = 1:2
     g = round(tsAll{c} * Fs);
@@ -1654,6 +1921,19 @@ dopt2 = dopt; dopt2.Waveforms = true;
 o4 = dsSpk.spikesToMat(DetectOptions=dopt2, Overwrite=true, Channels=1);
 M4 = load(o4.file);
 check(iscell(M4.detected.wf) && size(M4.detected.wf{1}, 1) == 8, 'waveforms saved on request, rows filtered too');
+% The file keeps its big arrays small: waveforms single, sample indices int32, times
+% and amplitudes double - the values detectSpikes returns, in those types.
+[tsMem, wfMem, iMem] = dsSpk.detectSpikes('Filter', false, 'ThresholdMethod', "absolute", 'Threshold', 100, ...
+    'Waveforms', true, 'ChannelOrder', 1, 'ArtifactIntervals', dsSpk.artifactIntervals());
+check(isa(M4.detected.wf{1}, 'single') && isa(M4.detected.info.index{1}, 'int32') ...
+    && isa(M4.detected.ts{1}, 'double') && isa(M4.detected.info.amplitude{1}, 'double'), ...
+    'spikes file: wf single, info.index int32, ts and info.amplitude double');
+check(isequaln(M4.detected.wf{1}, single(wfMem{1})) && isequal(M4.detected.info.index{1}, int32(iMem.index{1})) ...
+    && isequal(M4.detected.ts{1}, tsMem{1}) && isequal(M4.detected.info.amplitude{1}, iMem.amplitude{1}) ...
+    && isequal(double(M4.detected.info.index{1}), round(M4.detected.ts{1} * Fs) + 1), ...
+    'spikes file: the same values detectSpikes returns, to single precision for the waveforms, indices exact');
+check(isfield(M4.detected.info, 'chunkThreshold') && size(M4.detected.info.chunkThreshold.threshold, 2) == 1, ...
+    'spikes file: info.chunkThreshold is kept');
 errId = '';
 try
     dsSpk.spikesToMat(DetectOptions=dopt);
@@ -1822,8 +2102,8 @@ oB = dsx.behaviorToMat();
 B = load(oB.file);
 check(isequal(B.conversion.tags, {'draft', 'pilot'}), 'behaviorToMat: the dataset''s tags are in conversion.tags');
 check(oB.file == string(fullfile(expOut, dsx.Name + "_behavior.mat")) && B.behavior.nTrials == 2 ...
-    && B.conversion.behaviorFile == string(behFile) && isequal(sort(string(fieldnames(B))), ["behavior"; "conversion"]), ...
-    'behaviorToMat writes <Name>_behavior.mat with behavior + conversion');
+    && B.conversion.behaviorFile == string(behFile) && isequal(sort(string(fieldnames(B))), ["behavior"; "conversion"; "pairing"]), ...
+    'behaviorToMat writes <Name>_behavior.mat with behavior + conversion (+ the small pairing copy)');
 errId = '';
 try
     dsx.behaviorToMat();
@@ -1928,6 +2208,88 @@ for r = 1:size(iv, 1)
         out(end+1, :) = iv(r, :); %#ok<AGROW>
     end
 end
+end
+
+
+function R = refDetect(ds, X, Fs, o)
+% detectSpikes' definition for a block, written out as the plain per-channel, per-event
+% loops the fast paths replaced: threshold = o.Mult robust SDs of the (filtered) trace
+% about its baseline, a run of samples past it aligned to its extremum in the search
+% window (the whole run, at least o.AlignWindowMs), a greedy dead time, and
+% waveforms cut with a mask. The whole block is filtered at once, as it was.
+[n, nC] = size(X);
+Xf = X;
+if o.Filter
+    Xf = ds.filterContinuous(X, Type="bandpass", Cutoff=[500 5000], Order=4, Fs=Fs);
+end
+w0 = round(o.WindowMs(1) * 1e-3 * Fs);
+w1 = round(o.WindowMs(2) * 1e-3 * Fs);
+offs = w0:w1;
+alignSamp = max(0, round(o.AlignWindowMs * 1e-3 * Fs));
+minPer = max(1, round(o.MinPeriodMs * 1e-3 * Fs));
+[R.idx, R.amp, R.wf] = deal(cell(1, nC));
+R.thr = zeros(1, nC);
+for c = 1:nC
+    xf = Xf(:, c);
+    ctr = 0;
+    if ~o.Filter
+        xv = xf(isfinite(xf));
+        ctr = median(xv);
+    end
+    x = xf - ctr;
+    xv = x(isfinite(x));
+    thr = o.Mult * (median(abs(xv - median(xv))) / 0.6745);
+    R.thr(c) = thr;
+    switch o.Polarity
+        case "negative", over = x < -thr;
+        case "positive", over = x >  thr;
+        case "both",     over = abs(x) > thr;
+    end
+    d = diff([0; double(over); 0]);
+    on = find(d == 1);
+    off = find(d == -1) - 1;
+    idx = zeros(numel(on), 1);
+    for k = 1:numel(on)
+        s = on(k);
+        e = min(n, max(off(k), s + alignSamp));
+        switch o.Align
+            case "trough",   [~, jx] = min(xf(s:e));
+            case "peak",     [~, jx] = max(xf(s:e));
+            case "extremum", [~, jx] = max(abs(xf(s:e)));
+            otherwise,       jx = 1;
+        end
+        idx(k) = s + jx - 1;
+    end
+    if ~isempty(idx)
+        idx = sort(idx);
+        keep = true(numel(idx), 1);
+        last = -Inf;
+        for k = 1:numel(idx)
+            if idx(k) - last >= minPer
+                last = idx(k);
+            else
+                keep(k) = false;
+            end
+        end
+        idx = idx(keep);
+    end
+    I = idx + offs;
+    inRng = I >= 1 & I <= n;
+    W = nan(size(I));
+    W(inRng) = xf(I(inRng));
+    R.idx{c} = idx;
+    R.amp{c} = xf(idx);
+    R.wf{c} = W;
+end
+end
+
+
+function tf = sameDetection(ts1, wf1, i1, ts2, wf2, i2)
+% Two detectSpikes results equal in everything but the options they were run with.
+% (whole-recording mode records the call in info.options, where GroupChannels differs by design)
+if isfield(i1, 'options'); i1 = rmfield(i1, 'options'); end
+if isfield(i2, 'options'); i2 = rmfield(i2, 'options'); end
+tf = isequaln(ts1, ts2) && isequaln(wf1, wf2) && isequaln(i1, i2);
 end
 
 

@@ -29,7 +29,14 @@ function info = toBin(obj, opts)
 %     FilterCutoff   scalar or [lo hi] Hz  (default 300)
 %     FilterOrder    (1,1) double          (default 4)
 %     FilterEdgeMode "independent"|"overlap" (default "independent")
-%     OverlapSamples (1,1) double  samples carried across file edges (overlap mode)
+%     OverlapSamples (1,1) double  samples carried across chunk edges (overlap
+%                    mode, K): each chunk is filtered with the last 2K raw
+%                    rows of the one before in front of it and its own last K
+%                    rows are held back, to be filtered again with the next
+%                    chunk after them (a look-ahead), so neither the start nor
+%                    the end of a chunk carries the filter's edge transient;
+%                    only the recording's own first and last rows do. The held
+%                    rows are written with the next chunk (or at the end).
 %     Blank          (1,1) logical  force automatic artifact detect + blank.
 %                    When false, blanking still runs if ds.ArtifactConfig.Enabled.
 %                    It erases the detections as found, so bounds moved by
@@ -71,13 +78,33 @@ function info = toBin(obj, opts)
 %     WriteMeta      (1,1) logical  write JSON sidecar (default true)
 %     BinFile        (1,1) string   override output path (default ds.BinFile);
 %                    a bare file name goes in ds.binFolder()
+%     Reuse          (1,1) logical  keep the .bin that is there when its
+%                    sidecar's fingerprint is this call's (default false):
+%                    nothing is written, info.reused is true and INFO is
+%                    rebuilt from the sidecar. The fingerprint (sidecar field
+%                    "fingerprint") is a hash of the recording's files and
+%                    sizes, the chunks, channel order, dtype, scale, offset,
+%                    write filter, the periods erased (listed and automatic
+%                    settings, fill, noise band and seed) and the common
+%                    reference; runKilosort sets it, so a second sort of the
+%                    same data does not write the .bin again. A fill with a
+%                    new random draw each time (NoiseSeed NaN) is never reused.
+%
+%   The .bin is written under BinFile + ".partial", after the previous
+%   sidecar was deleted, checked for its size and renamed to BinFile, and
+%   the sidecar is written last: a crash or a full disk leaves no .bin that
+%   looks complete (the partial is removed on an error), and a sidecar
+%   always belongs to the .bin beside it. A reader that has BinFile open
+%   (a sort running) keeps the rename from replacing it
+%   (EphysDataset:toBin:MoveFailed).
 %
 %   toBin never writes over the recording itself: a BinFile (or its JSON
 %   sidecar) that is one of the recording's files - a universal-format
 %   recording's data file named <Name>.bin in the output folder, say - is
 %   refused before anything is opened (EphysDataset:toBin:WouldOverwriteRecording).
 %
-%   Output INFO struct: filename, dtype, nChan, nSamples, fs, scale,
+%   Output INFO struct: reused (true when Reuse kept the .bin, see above),
+%   filename, dtype, nChan, nSamples, fs, scale,
 %   scaleSource (where the scale came from, see Scale), offset,
 %   nClipped, nBytes, metaFile (if written), nManualBlanked, nAutoBlanked,
 %   artifactFill, noiseFill (struct: bandHz, seed, sigma, center - empty when
@@ -126,6 +153,7 @@ arguments
     opts.NoiseLevels struct = struct([])
     opts.WriteMeta (1,1) logical = true
     opts.BinFile (1,1) string = ""
+    opts.Reuse (1,1) logical = false
     opts.ArtifactIntervals double = NaN
     opts.Provenance = []   % ephysProvenance() of the run writing it ([] = made here)
 end
@@ -223,6 +251,22 @@ end
 % Overlap mode needs filtering on
 useOverlap = opts.Filter && opts.FilterEdgeMode == "overlap" && opts.OverlapSamples > 0;
 
+% What decides the .bin's content, as a hash: the sidecar records it, and a
+% Reuse call keeps a .bin whose sidecar has the same one.
+fingerprint = binFingerprint(obj, plan, opts, struct('dtype', dtype, 'scale', scale, 'offset', opts.Offset, ...
+    'blank', doBlank, 'method', artMethod, 'threshold', artThr, 'rmsWindowMs', artWinMs, ...
+    'mergeGapMs', artGapMs, 'minChannels', artMinCh, 'padMs', artPadMs, 'listed', listIv, ...
+    'fill', artFill, 'noiseBandHz', noiseBand, 'noiseSeed', noiseSeed, ...
+    'reference', EphysDataset.referenceRecord(obj.referenceInfo())));
+if opts.Reuse && ~(artFill == "noise" && (doBlank || ~isempty(listIv)) && isnan(noiseSeed))
+    info = reusedBin(binFile, metaFile, fingerprint, dtype);
+    if ~isempty(info)
+        fprintf('Reused %s: its sidecar matches this recording and these settings (%.2f MB, not written again).\n', ...
+            binFile, info.nBytes / 1e6);
+        return
+    end
+end
+
 % How the artifact samples are erased. "noise" replaces them with a line
 % between the levels on either side plus per-channel Gaussian noise at the
 % recording's own level instead of zeros, so nothing in the .bin reads to
@@ -275,16 +319,23 @@ if isempty(recCh); recCh = 1:obj.NumChannels; end
 detCols  = find(~ismember(recCh, obj.excludedChannels()));   % columns of the written data
 cmDetect = doBlank && artMethod == "commonmode";
 
-fid = fopen(binFile, 'w', 'ieee-le');
-if fid < 0
-    error('EphysDataset:toBin:OpenFailed', 'Could not open %s for writing.', binFile);
+% The sidecar of the .bin that is there goes first (it describes that one),
+% and the new one is written under another name, renamed once it is whole.
+partialFile = binFile + ".partial";
+if opts.WriteMeta && isfile(metaFile)
+    delete(metaFile);
 end
-cleaner = onCleanup(@() closeIfOpen(fid));
+fid = fopen(partialFile, 'w', 'ieee-le');
+if fid < 0
+    error('EphysDataset:toBin:OpenFailed', 'Could not open %s for writing.', partialFile);
+end
+cleaner = onCleanup(@() abandonPartial(fid, partialFile));   % an error leaves no partial file
 
 firstNumChan = NaN;
 nChanOut  = NaN;
 nSamples  = 0;
 nClipped  = 0;
+nNonFinite = 0;       % NaN / Inf samples, written as 0 by the cast
 nManualBlanked = 0;   % samples zeroed by manual artifact periods
 nAutoBlanked   = 0;   % samples zeroed by automatic artifact detection
 nErased        = 0;   % samples erased by either (each counted once)
@@ -292,70 +343,103 @@ nAutoIntervals = 0;   % contiguous auto-artifact intervals (summed per file)
 autoChanCounts = [];  % [1 x nChanOut] per-channel exceedance counts
 artWinMsUsed   = NaN; % resolved running-RMS window (ms), for reporting
 Fs        = obj.Fs;
-tailRaw   = [];  % carried raw samples for overlap edge mode
-tailCm    = [];  % the same for the common mode
+fstate    = struct('raw', zeros(0, 0), 'pending', 0);   % overlap mode: the raw rows carried, how many of them are held back
+fstateCm  = fstate;   % the same for the common mode
+posNext   = 0;   % recording-global index (0-based) of the next row written
 fillCtx   = [];  % clean samples a run at the top of the next chunk fills from
 edgeRows  = max(1, round(1e-3 * Fs));   % the 1 ms blankArtifacts averages at a run's edge
 
 fprintf('Streaming %d chunk(s) -> %s\n', numel(plan), binFile);
-for i = 1:numel(plan)
-    % [nSamples x nChan], microvolts (all channels), referenced below when it
-    % is read as recorded for the common-mode detector
-    X = obj.readChunkUV(plan(i), Reference=~cmDetect);
-
-    if isempty(X)
-        warning('EphysDataset:toBin:NoData', 'No amplifier data in %s; skipping.', plan(i).name);
-        continue
+% In the overlap mode one pass more writes the rows held back after the last chunk.
+for i = 1:numel(plan) + double(useOverlap)
+    flush = i > numel(plan);
+    if flush && fstate.pending == 0
+        break
     end
+    if flush
+        X = zeros(0, size(fstate.raw, 2));   % the filter returns the rows held back
+        cm = zeros(0, 1);
+    else
+        % [nSamples x nChan], microvolts (all channels), referenced below when it
+        % is read as recorded for the common-mode detector
+        X = obj.readChunkUV(plan(i), Reference=~cmDetect);
 
-    thisNumChan = size(X, 2);
-
-    % Channel-count guard (flat bin cannot tolerate a change)
-    if isnan(firstNumChan)
-        firstNumChan = thisNumChan;
-    elseif thisNumChan ~= firstNumChan
-        error('EphysDataset:toBin:ChannelMismatch', ...
-            ['Amplifier channel count changed mid-dataset (%d -> %d) at %s. ', ...
-             'A flat int16 .bin cannot represent this.'], ...
-            firstNumChan, thisNumChan, plan(i).name);
-    end
-    if ~isempty(opts.ChannelOrder) && max(opts.ChannelOrder) > thisNumChan
-        error('EphysDataset:toBin:BadChannelOrder', ...
-            'ChannelOrder references channel %d but file has %d.', ...
-            max(opts.ChannelOrder), thisNumChan);
-    end
-
-    if cmDetect
-        cm = mean(X(:, recCh(detCols)), 2);   % before the reference removes it
-        if obj.referenceMode() == "wcar"
-            X = obj.readChunkUV(plan(i));   % taken from its state, not sample by sample
-        else
-            X = obj.applyReference(X);
+        if isempty(X)
+            warning('EphysDataset:toBin:NoData', 'No amplifier data in %s; skipping.', plan(i).name);
+            continue
         end
-    end
 
-    % Channel reorder/subset
-    if ~isempty(opts.ChannelOrder)
-        X = X(:, opts.ChannelOrder);
-    end
-    if isnan(nChanOut)
-        nChanOut = size(X, 2);
-    end
+        thisNumChan = size(X, 2);
 
-    % Filtering (optionally with overlap across file boundaries)
-    if opts.Filter
-        [X, tailRaw] = filterChunk(obj, X, tailRaw, opts, useOverlap, Fs);
+        % Channel-count guard (flat bin cannot tolerate a change)
+        if isnan(firstNumChan)
+            firstNumChan = thisNumChan;
+        elseif thisNumChan ~= firstNumChan
+            error('EphysDataset:toBin:ChannelMismatch', ...
+                ['Amplifier channel count changed mid-dataset (%d -> %d) at %s. ', ...
+                 'A flat int16 .bin cannot represent this.'], ...
+                firstNumChan, thisNumChan, plan(i).name);
+        end
+        if ~isempty(opts.ChannelOrder) && max(opts.ChannelOrder) > thisNumChan
+            error('EphysDataset:toBin:BadChannelOrder', ...
+                'ChannelOrder references channel %d but file has %d.', ...
+                max(opts.ChannelOrder), thisNumChan);
+        end
+
         if cmDetect
-            [cm, tailCm] = filterChunk(obj, cm, tailCm, opts, useOverlap, Fs);
+            cm = mean(X(:, recCh(detCols)), 2);   % before the reference removes it
+            if obj.referenceMode() == "wcar"
+                X = obj.readChunkUV(plan(i));   % taken from its state, not sample by sample
+            else
+                X = obj.applyReference(X);
+            end
         end
+
+        % Channel reorder/subset
+        if ~isempty(opts.ChannelOrder)
+            X = X(:, opts.ChannelOrder);
+        end
+        if isnan(nChanOut)
+            nChanOut = size(X, 2);
+        end
+    end
+
+    % Filtering. With the overlap edge mode the block that comes back is the
+    % rows held back from the chunk before and this chunk less its last
+    % OverlapSamples, each with its context on both sides.
+    pendingBefore = fstate.pending;   % rows held back from the chunk before
+    if opts.Filter
+        if useOverlap
+            [X, fstate] = filterOverlap(obj, X, fstate, opts, Fs, flush);
+            if cmDetect
+                [cm, fstateCm] = filterOverlap(obj, cm, fstateCm, opts, Fs, flush);
+            end
+        else
+            X = filterChunk(obj, X, opts, Fs);
+            if cmDetect
+                cm = filterChunk(obj, cm, opts, Fs);
+            end
+        end
+        if isempty(X)
+            continue   % a chunk shorter than the rows held back
+        end
+    end
+
+    % Where the block starts in the recording (0-based): the chunk's own
+    % place there (a Files subset need not start at the first sample), less
+    % the rows held back that come before it; the running count when the
+    % reader does not give one.
+    if ~flush && isfinite(plan(i).sampleOffset)
+        posNext = plan(i).sampleOffset - pendingBefore;
     end
 
     % The samples to erase: the automatic detector's (per-channel amplitude
     % deviation, or the common mode) and the listed periods - the
     % ArtifactIntervals option, else the manual periods (Visualize tab).
-    % Those are recording-relative, so they are mapped into this chunk with
-    % the running sample offset (nSamples = samples written from earlier
-    % chunks). Both are erased in one pass, so a fill spans each whole run.
+    % Those are recording-relative, so they are mapped into this block with
+    % its place in the recording (posNext, from the chunk's sampleOffset,
+    % else the samples written so far). Both are erased in one pass, so a
+    % fill spans each whole run.
     erase = false(size(X, 1), 1);
     if doBlank
         if cmDetect
@@ -380,7 +464,7 @@ for i = 1:numel(plan)
         if isnan(artWinMsUsed); artWinMsUsed = astats.rmsWindowMs; end
     end
     if ~isempty(listIv)
-        mmask = obj.manualArtifactMask(size(X, 1), nSamples, Fs, listIv);
+        mmask = obj.manualArtifactMask(size(X, 1), posNext, Fs, listIv);
         nManualBlanked = nManualBlanked + nnz(mmask);
         erase = erase | mmask;
     end
@@ -398,19 +482,41 @@ for i = 1:numel(plan)
     if ~isFloat
         nClipped = nClipped + nnz(blk < lo | blk > hi);
     end
+    nNonFinite = nNonFinite + nnz(~isfinite(blk));
     blk = cast(blk, targetClass);
-    fwrite(fid, blk, targetClass);
+    nW = fwrite(fid, blk, targetClass);
+    if nW ~= numel(blk)
+        error('EphysDataset:toBin:ShortWrite', ...
+            'Only %d of %d values could be written to %s (disk full?); the file is incomplete.', nW, numel(blk), binFile);
+    end
 
     nSamples = nSamples + size(X, 1);
+    posNext = posNext + size(X, 1);
 end
 
-clear cleaner;  % closes fid
+closeIfOpen(fid);
 
 if isnan(nChanOut)
     error('EphysDataset:toBin:NoDataWritten', 'No data was written (all files empty?).');
 end
 
-d = dir(binFile);
+d = dir(partialFile);
+bytesPer = numel(typecast(cast(0, targetClass), 'uint8'));
+if d.bytes ~= nChanOut * nSamples * bytesPer
+    error('EphysDataset:toBin:SizeMismatch', ...
+        '%s holds %d bytes, not the %d of %d channels x %d samples written; the file is not usable.', ...
+        partialFile, d.bytes, nChanOut * nSamples * bytesPer, nChanOut, nSamples);
+end
+% Whole: it takes the .bin's name (the partial goes with an error, see cleaner).
+[moved, moveMsg] = movefile(partialFile, binFile, 'f');
+if ~moved
+    error('EphysDataset:toBin:MoveFailed', ...
+        'Could not rename the finished %s to %s (%s). Is a sort using the .bin?', partialFile, binFile, moveMsg);
+end
+if nNonFinite > 0
+    warning('EphysDataset:toBin:NonFinite', ...
+        '%d sample(s) were not finite (NaN or Inf) and were written as 0 in %s.', nNonFinite, binFile);
+end
 info = struct();
 info.filename  = char(binFile);
 info.dtype     = char(dtype);
@@ -421,6 +527,7 @@ info.scale     = scale;
 info.scaleSource = scaleSource;
 info.offset    = opts.Offset;
 info.byteOrder = 'little-endian';
+info.reused    = false;
 info.nClipped  = nClipped;
 info.nManualArtifacts = size(listIv, 1);
 info.nManualBlanked   = nManualBlanked;
@@ -474,6 +581,7 @@ if opts.WriteMeta
         'artifact_fill', char(artFill), ...
         'auto_artifacts', info.autoArtifact, ...
         'reference', info.reference, ...
+        'fingerprint', char(fingerprint), ...
         'created', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));
     % Assigned, not passed to struct(): an empty struct value there would
     % collapse the whole meta struct to 0x0.
@@ -533,28 +641,100 @@ s = "none";
 if opts.Filter
     s = sprintf("%s %s Hz, order %d", opts.FilterType, ...
         strjoin(compose("%g", opts.FilterCutoff), "-"), opts.FilterOrder);
+    if opts.FilterEdgeMode == "overlap" && opts.OverlapSamples > 0
+        s = s + sprintf(", overlap %d samples (look-ahead at the chunk ends)", opts.OverlapSamples);
+    end
 end
 end
 
 
-function [X, tail] = filterChunk(obj, X, tail, opts, useOverlap, Fs)
-%filterChunk  The write filter on one chunk; in the overlap edge mode the raw
-%   TAIL of the previous chunk is filtered with it, and this chunk's is
-%   returned for the next.
-if useOverlap && ~isempty(tail)
-    nPad = size(tail, 1);
-    Xf = obj.filterContinuous([tail; X], Type=opts.FilterType, ...
-        Cutoff=opts.FilterCutoff, Order=opts.FilterOrder, Fs=Fs);
-    Xf = Xf(nPad+1:end, :);
-else
-    Xf = obj.filterContinuous(X, Type=opts.FilterType, ...
-        Cutoff=opts.FilterCutoff, Order=opts.FilterOrder, Fs=Fs);
+function X = filterChunk(obj, X, opts, Fs)
+%filterChunk  The write filter on one chunk, edge to edge (FilterEdgeMode "independent").
+X = obj.filterContinuous(X, Type=opts.FilterType, ...
+    Cutoff=opts.FilterCutoff, Order=opts.FilterOrder, Fs=Fs);
 end
-if useOverlap
-    k = min(opts.OverlapSamples, size(X, 1));
-    tail = X(end-k+1:end, :);  % carry RAW (pre-filter) tail
+
+
+function [Y, st] = filterOverlap(obj, X, st, opts, Fs, last)
+%filterOverlap  The write filter on one chunk with its neighbors in view
+%   (FilterEdgeMode "overlap", K = OverlapSamples).
+%   ST.raw holds the last (up to) 2K raw rows seen so far and ST.pending the
+%   last of them that were held back unwritten (K, fewer at the start). The
+%   chunk X is filtered behind ST.raw, and Y is every filtered row not
+%   written yet but the last K, which the window's end transient has
+%   touched: the rows held back before, now with context after them, and X
+%   less its last K. The window's start is never kept (ST.raw gives it 2K
+%   rows, K of them already written), so only the recording's first and last
+%   rows carry an edge transient. LAST (after the last chunk, X empty)
+%   returns all that is left.
+k = opts.OverlapSamples;
+win = [st.raw; X];
+Yf = obj.filterContinuous(win, Type=opts.FilterType, ...
+    Cutoff=opts.FilterCutoff, Order=opts.FilterOrder, Fs=Fs);
+first = size(st.raw, 1) - st.pending + 1;       % the first row not written
+stop = size(win, 1);
+if ~last; stop = stop - k; end
+stop = max(stop, first - 1);
+Y = Yf(first:stop, :);
+st.pending = size(win, 1) - stop;
+st.raw = win(max(1, size(win, 1) - 2 * k + 1):end, :);
+if last; st.pending = 0; end
 end
-X = Xf;
+
+
+function ok = abandonPartial(fid, partialFile)
+%abandonPartial  Close the .bin being written and remove it unless it was renamed.
+%   Runs when toBin ends: after the rename the partial file is gone, so only
+%   an error (or an interrupt) removes anything.
+closeIfOpen(fid);
+if isfile(partialFile)
+    delete(partialFile);
+end
+ok = true;
+end
+
+
+function fp = binFingerprint(obj, plan, opts, settings)
+%binFingerprint  A hash of everything that decides the content of the .bin.
+%   The recording (its files and their sizes, rate, channels and length),
+%   the chunks of the plan, the channel order and the SETTINGS the call
+%   resolved (dtype, scale, offset, the periods erased and how, the common
+%   reference) with the write filter. Equal fingerprints mean the same .bin.
+files = cellstr(obj.Files(:).');
+bytes = zeros(1, numel(files));
+for j = 1:numel(files)
+    L = dir(fullfile(char(obj.Folder), files{j}));
+    if ~isempty(L); bytes(j) = L(1).bytes; end
+end
+recording = struct('files', {files}, 'bytes', bytes, 'fs', obj.Fs, 'numChannels', obj.NumChannels, ...
+    'numSamples', obj.NumSamples);
+chunks = struct('name', {cellstr(string({plan.name}))}, 'offset', [plan.sampleOffset], 'n', [plan.nSamples]);
+filt = struct('on', opts.Filter, 'type', opts.FilterType, 'cutoff', opts.FilterCutoff, ...
+    'order', opts.FilterOrder, 'edge', opts.FilterEdgeMode, 'overlap', opts.OverlapSamples);
+fp = EphysDataset.optionsHash(struct('schema', "toBin/2", 'recording', recording, 'chunks', chunks, ...
+    'channelOrder', opts.ChannelOrder, 'filter', filt, 'excluded', obj.excludedChannels(), 'settings', settings));
+end
+
+
+function info = reusedBin(binFile, metaFile, fingerprint, dtype)
+%reusedBin  INFO rebuilt from the sidecar of a .bin that is whole and has FINGERPRINT, else [].
+info = [];
+if ~(isfile(binFile) && isfile(metaFile)); return; end
+meta = readJsonFile(metaFile, ErrorOnFail=false);
+need = {'fingerprint', 'n_chan_bin', 'n_samples', 'fs', 'dtype', 'scale', 'offset'};
+if ~(isstruct(meta) && all(isfield(meta, need)) && string(meta.fingerprint) == fingerprint ...
+        && string(meta.dtype) == dtype)
+    return
+end
+cls = resolveDtype(dtype);
+bytesPer = numel(typecast(cast(0, cls), 'uint8'));
+d = dir(binFile);
+if d.bytes ~= double(meta.n_chan_bin) * double(meta.n_samples) * bytesPer; return; end
+info = struct('filename', char(binFile), 'dtype', char(dtype), 'nChan', double(meta.n_chan_bin), ...
+    'nSamples', double(meta.n_samples), 'fs', double(meta.fs), 'scale', double(meta.scale), ...
+    'scaleSource', '', 'offset', double(meta.offset), 'byteOrder', 'little-endian', 'reused', true, ...
+    'nBytes', d.bytes, 'metaFile', char(metaFile));
+if isfield(meta, 'scale_source'); info.scaleSource = char(string(meta.scale_source)); end
 end
 
 

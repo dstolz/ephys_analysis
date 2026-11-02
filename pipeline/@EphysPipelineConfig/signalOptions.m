@@ -9,6 +9,10 @@ function s = signalOptions(cfg, opts)
 %   section, which the datasets' ArtifactConfig carries: CAR, CMR or, for
 %   Mode "wcar", the adaptive weighted CAR with the WCAR_* options).
 %
+%   LineNoise.Enabled sets deriveSignals' lineNoise option to the
+%   Signals.LineNoise struct (mains interference removed from the amplifier
+%   data before the reference; the artifact periods are left out of its fits).
+%
 %   KeepChannels, BadList and the manifest exclusions are recording channels
 %   (1-based, in header order); ChannelRemap indexes the kept channels.
 %   deriveSignals takes bad channels as columns of the kept data, so the bad
@@ -61,6 +65,9 @@ if ~isempty(cfg.LineNames)
 end
 if ~isempty(cfg.InvertedLines)
     s.invertedLines = cfg.InvertedLines;
+end
+if cfg.LineNoise.Enabled
+    s.lineNoise = cfg.LineNoise;   % deriveSignals' lineNoise option, field for field (removeLineNoise)
 end
 
 keep = EphysPipelineConfig.parseOrderedList(cfg.KeepChannels, "Keep amp channels");

@@ -110,6 +110,17 @@ def main():
         if device and device != 'auto':
             run_args['device'] = torch.device(device)
             print('Kilosort4 on torch device %s' % device, flush=True)
+        # A re-sort must not leave the previous sort's files beside the new
+        # ones: Kilosort4 overwrites what it writes and leaves the rest, so a
+        # run that fails midway would still read as a complete sort (and the
+        # curation files would belong to the old spikes).
+        for name in ('spike_clusters.npy', 'spike_times.npy', 'spike_templates.npy', 'spike_positions.npy',
+                     'amplitudes.npy', 'templates.npy', 'templates_ind.npy', 'similar_templates.npy',
+                     'cluster_KSLabel.tsv', 'cluster_group.tsv', 'cluster_Amplitude.tsv', 'cluster_ContamPct.tsv',
+                     'params.py', 'kept_spikes.npy'):
+            p = os.path.join(cfg['results_dir'], name)
+            if os.path.isfile(p):
+                os.remove(p)
         out = run_kilosort(
             settings=settings,
             probe=load_probe(cfg['probe']),

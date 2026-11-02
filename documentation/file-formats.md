@@ -400,7 +400,9 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   "updated":          <"yyyy-MM-dd HH:mm:ss">,
   "metadata": {
     "fs": <Hz>, "num_channels": <n>, "duration_s": <s>, "num_files": <n>,
-    "acq_date": <"yyyy-MM-dd HH:mm:ss" or "">, "files": [<file names>]
+    "acq_date": <"yyyy-MM-dd HH:mm:ss" or "">, "files": [<file names>],
+    "per_file": [{"name": <file>, "samples": <n>, "num_gaps": <n or null>, "gap_before": <samples or null>}, ...],
+    "gaps":     [{"file": <file>, "row": <first row after the jump>, "samples": <missing (+) or back (-)>}, ...]
   },
   "probe": {
     "file": <probe .json path or "">, "exists": <bool>, "num_channels": <n>, "num_shanks": <n>,
@@ -429,7 +431,8 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   },
   "bin":      { "file": <BinFile path>, "exists": <true|false> },
   "processing": {          how each output was made: every record is [] until written, else
-                           { <file>, "created", "run_id", "options": { every option as run }, ..., "exists" }
+                           { <file>, "created", "run_id", "options": { every option as run },
+                             "options_hash", ..., "exists" }
     "artifacts": { "file" (the interval cache, when kept), "options": <the detector settings>,
                    "reference": <ref>, "channels": <compact list detected on>, "detected": <n>, "detected_s": <s> },
     "bin":       { "file", "options": <toBin's>, "reference": <ref>, "filter": "none" | "<type> <cutoff> Hz, order <n>",
@@ -459,6 +462,7 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
                 "start_time": <"yyyy-MM-dd HH:mm:ss" or "">, "n_trials": <n or null>,
                 "pairing": [] | { "status": "unreviewed" | "approved", "auto_approved": <bool>,
                   "cut_trials": [<from start>, <from end>], "cut_intervals": [<from start>, <from end>],
+                  "drop_intervals": [<index of a trial-line interval left out>, ...],
                   "fingerprint": <string>, "trial_line": <string>, "summary": <string>,
                   "updated": <"yyyy-MM-dd HH:mm:ss"> } },
   "custom": { <your own fields> }     only once addToManifest has added some
@@ -466,9 +470,22 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
 ```
 
 - `custom` holds the fields a script added with
-  [`addToManifest`](EphysDataset.md#dataset-manifest). `writeManifest` carries
-  it over from the file unchanged, `applyManifest()` does not read it, and no
+  [`addToManifest`](EphysDataset.md#dataset-manifest), which changes this
+  block and `updated` in the file's text and nothing else. A dataset holds it
+  as `Custom`: `applyManifest()` reads it and `writeManifest` writes it, and no
   step uses it.
+- `writeManifest` rewrites the whole file from the dataset, so it first reads
+  back what another session saved since the dataset last read or wrote it (a
+  different `updated` value or size): tags, manual periods, probe, exclusions,
+  pairing, sorting folder, `custom` and the `processing` records stay as the
+  other session saved them, unless this dataset changed the same thing since.
+- `options_hash` of a `processing` record is a hash of the options the output
+  was made with: of the writer's own `options` when a script called it, or,
+  for a pipeline run, `cfg-` and 16 hexadecimal digits of the config options
+  the step ran with and what else decides its result for the dataset
+  (`EphysPipeline.stepHash`). `plan()` compares it with the config as it
+  stands: `exists: up to date` when equal, `exists: stale (options changed)`
+  when not; a record without a `cfg-` hash cannot be compared.
 - The associations (`probe.file`, `sorting.results_dir` when `"manual"`,
   `behavior.file`) are written as recorded, even while their file or folder is
   not there; `exists` says whether it is there now (for `sorting`: whether
@@ -486,8 +503,8 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
 - `kilosort` describes the run in `sortRunDir()`
   (`DatasetTracker.kilosortRunAt`), kept for the tracker tables; `sorter` is
   the dataset's `Sorter` (the config's `Sorting.Sorter`), recorded and not read
-  back; `state` comes from the run's `ks4_status.json` (`si_status.json`), or
-  is `"done"` when results exist without a status file.
+  back; `state` comes from the run's `ks4_status.json` (`si_status.json`), and
+  is empty when there is no status file.
 - `exclude_channels` and `reference_exclude.channels` are compact lists
   (`formatChannelList`); they are read back with `parseChannelList`, which
   parses (never evaluates) numbers and ranges such as `"1 2 5-8"`,
@@ -599,7 +616,12 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   (`associateFolderBehavior`; several such files: none, with a warning).
 - `behavior.pairing` is `[]` until the trials have been paired;
   `auto_approved` is true when `Behavior.AutoApprove` approved the pairing
-  (`autoApproveTrialPairing`) rather than a review.
+  (`autoApproveTrialPairing`) rather than a review. `drop_intervals` lists
+  single trial-line intervals dropped from the middle of the list (a glitch
+  pulse), numbered from 1 as in the line's intervals; `[]` for none.
+  `fingerprint` names the session file, its trial count, start time and first
+  computer timestamp, and the line's intervals: a pairing recorded for
+  another session is not reused.
 - Schema `/1` manifests (probe + exclusions only) are still read; `/2` is a
   superset. A manifest that is not valid JSON or has any other schema (a newer
   version's, say) is ignored with a warning and never overwritten:
@@ -765,10 +787,10 @@ recording. One variable, `digitalEvents`:
 
 | Field | Contents |
 | --- | --- |
-| `events` | one field per line, keyed by the line's **native** name: `[k x 2]` `[t_on t_off]` seconds (`t = row/Fs`) of its **high** runs, as recorded (the polarity is applied later) |
+| `events` | one field per line, keyed by the line's **native** name: `[k x 2]` `[t_on t_off]` seconds (`t = row/Fs`) of its **high** runs, as recorded (the polarity is applied later). Both ends are high rows: `t_on` the first, `t_off` the last, so a pulse of *n* rows lasts *n*/`Fs` |
 | `Fs`, `nSamples` | the recording's rate and length |
 | `digInNames`, `digInNativeNames` | the lines' names and native names |
-| `fingerprint` | the reader, the recording files with their modified times, and the sample count it was read from |
+| `fingerprint` | the reader, the recording files with their modified times, the sample count it was read from, and the reader's `eventFingerprint`: the event-decoding version, the options that choose the events (Open Ephys), and a split Intan recording's `digitalin.dat` / `board-*.dat` files with their sizes and times |
 
 The cache is used while its fingerprint matches, so a recording written again
 is read again. The lines are named (`LabelField`, `LineNames`) after loading,
@@ -1047,10 +1069,14 @@ Path: `<outputFolder>/<Name>.json` (`<Name>_ks4.json` beside a
 | `noise_fill` | `bandHz`, `seed`, `sigma` (per channel, the SD of the fill's noise) and `center` (per channel, the level of a period with no clean sample on either side); `[]` for a zero fill |
 | `auto_artifacts` | `enabled`, `method`, `threshold`, `rmsWindowMs`, `mergeGapMs`, `minChannels`, `padMs`, `nBlanked`, `fraction`, `pctDuration`, `nIntervals`, `channelCounts` |
 | `reference` | `mode` (`"none"`, `"car"`, `"cmr"` or `"wcar"`) and `channels`, the 1-based channels the common reference was taken over (`[]` for none); for `"wcar"` also `wcar`: `Order`, `Alpha1k`, `DriftPerSec`, `HighpassHz`, `Estimate`, `Q` and `QAuto`. `runKilosort` reads `mode` and, for `"car"` / `"cmr"` / `"wcar"`, sets Kilosort4's `do_CAR = false` (`runSpikeInterface` passes it on as `reference`, and `run_si.py` keeps the sorter's own common reference out) |
+| `fingerprint` | a hash of the recording's files and sizes, the chunks, channel order, dtype, scale, offset, write filter, the periods erased (listed, automatic settings, fill, noise band and seed) and the common reference: `toBin(Reuse=true)`, which `runKilosort` sets, keeps a `.bin` whose sidecar has the fingerprint of the call. Never reused when the fill's noise seed is `NaN` |
 | `created` | timestamp |
 | `provenance` | the code and config that wrote it ([Provenance](#provenance), as JSON) |
 
-`matrixToBin` delegates to [`matrix2kilosort`](../pipeline/matrix2kilosort.m), which
+`toBin` deletes the sidecar of the `.bin` that is there before it writes the new one,
+writes the `.bin` as `<Name>.bin.partial`, checks its size, renames it to
+`<Name>.bin` and writes the sidecar last, so a sidecar always belongs to the
+`.bin` beside it. `matrixToBin` delegates to [`matrix2kilosort`](../pipeline/matrix2kilosort.m), which
 writes its own sidecar. See that function's help for its fields.
 
 ---
@@ -1181,17 +1207,22 @@ is rewritten as a whole. Sorted units are not in it; they stay in the sorting fo
 
 | Variable | Contents |
 | --- | --- |
-| `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative); `wf {1 x nChan}` `[nSpikes x nWin]` µV or `[]`; `info` (`detectSpikes` info filtered to the kept events; `info.coincidence`: one spike's copies on neighboring sites, `mode` (`"remove"`, `"tag"` or `"none"`), `radiusUm`, `jitterMs`, `positions` (the sites, µm), `neighbors`, `nCopies` per channel; with `"tag"` also `info.eventId {1 x nChan}` (each event's spike number, shared by its copies) and `info.primary {1 x nChan}` (true for the deepest copy)); `channels` (1-based recording channels); `channelNames`; `reference` (the common reference detection ran on: `mode`, `channels`, and `wcar` for the weighted CAR, as in the [`.bin` sidecar](#bin-json-sidecar)); `detection` (options used, `artifactMode` (`"reject"`, `"erase"` or `"none"`), artifact intervals applied, `nRejectedArtifact` per channel, `coincidence` (`requested`, `probeFile` the sites came from, `note` when it could not run, e.g. `"no probe"`); after an erase `info.artifacts` gives the periods and the samples erased) |
+| `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative, `double`); `wf {1 x nChan}` `[nSpikes x nWin]` µV (`single`) or `[]`; `info` (`detectSpikes` info filtered to the kept events: `index {1 x nChan}` the 1-based sample of each event as `int32` - `double` for a recording of 2^31 samples or more - and `amplitude` `double`, so a reader that does arithmetic on `index` or `wf` casts with `double()`; `chunkThreshold`: per chunk the start time, threshold, noise, event count and rate, for a QC plot of the threshold over time; `info.coincidence`: one spike's copies on neighboring sites, `mode` (`"remove"`, `"tag"` or `"none"`), `radiusUm`, `jitterMs`, `positions` (the sites, µm), `neighbors`, `nCopies` per channel; with `"tag"` also `info.eventId {1 x nChan}` (each event's spike number, shared by its copies) and `info.primary {1 x nChan}` (true for the deepest copy)); `channels` (1-based recording channels); `channelNames`; `reference` (the common reference detection ran on: `mode`, `channels`, and `wcar` for the weighted CAR, as in the [`.bin` sidecar](#bin-json-sidecar)); `detection` (options used, `artifactMode` (`"reject"`, `"erase"` or `"none"`), artifact intervals applied, `nRejectedArtifact` per channel, `coincidence` (`requested`, `probeFile` the sites came from, `note` when it could not run, e.g. `"no probe"`); after an erase `info.artifacts` gives the periods and the samples erased) |
 | `conversion` | `tool`, `created`, `dataset`, `tags`, `sourceFolder`, `recordingFormat`, `fs`, `matFileVersion`, `matlabVersion`, `provenance` ([Provenance](#provenance)) |
 
 ## Behavior `.mat` (`EphysDataset.behaviorToMat`; the behavior step)
 
 Default `<outputFolder>/<Name>_behavior.mat`: the one file that holds a
 dataset's Epsych2 session data. No other output carries a `behavior` variable.
+It is written as `-v7` (compressed; it loads in milliseconds even with the
+struct-array columns `TrialEvents` and `TrialEventSamples`, which take
+seconds to load as `-v7.3`) and as `-v7.3` only when a variable would exceed
+2 GB, the limit of `-v7`.
 
 | Variable | Contents |
 | --- | --- |
 | `behavior` | `EphysDataset.behaviorStruct`: `trials` (table, one row per trial), `info` (the Epsych2 `Info` snapshot), `meta`, `file`, `subject`, `startTime`, `nTrials`, `pairing` (`[]` when trials were not paired) |
+| `pairing` | a copy of `behavior.pairing` (small, so a writer can tell what the file carries without loading the trials) |
 | `conversion` | `tool`, `created`, `dataset`, `tags`, `sourceFolder`, `behaviorFile` (the Epsych2 session), `provenance` ([Provenance](#provenance)) |
 
 When trials were paired (`Behavior.PairTrials`), `behavior.trials` also has:
@@ -1203,13 +1234,15 @@ When trials were paired (`Behavior.PairTrials`), `behavior.trials` also has:
 | `TrialOnsetSample`, `TrialOffsetSample` | 1-based rows at the recording rate (first / last on sample) |
 | `TrialOnsetSample_<SIG>`, `TrialOffsetSample_<SIG>` | `round((t - 1/Fs) * Fs_SIG) + 1` (`Fs` = `pairing.Fs`, the recording rate) for each enabled derived signal (LFP, MUA, resampled SPIKE): the row of that signal nearest the recording row; the rates are in `pairing.signalFs` |
 | `PairingFlag` | `"ok"`, `"partial"` (the interval begins at the first or ends at the last sample of the recording), `"cut"` (dropped by the cuts), `"unpaired"` (no interval left for it) |
-| `TrialEvents` | struct per trial: one field per other digital line and per derived event, `[n x 2]` seconds of its intervals that overlap the trial (polarity applied) |
+| `TrialEvents` | struct per trial: one field per other digital line and per derived event, `[n x 2]` seconds of its intervals that overlap the trial (polarity applied): one that begins at or before `TrialOffset + 1/Fs` (`TrialOffset` is the last high row, so the first low row after it still belongs to the trial) and ends at or after `TrialOnset` |
 | `TrialEventSamples` | the same in rows at the recording rate |
 
 `behavior.pairing` holds `status` (`"approved"` only after review, or
 automatically with `Behavior.AutoApprove`), `autoApproved`, `trialLine`, `invertedLines`, `Fs`, `nSamples`, `signalFs`, `nTrials`,
 `nIntervals`, `nPaired`, `cutTrials` and `cutIntervals` (`[start end]`
-counts dropped before pairing), `countMismatch`, `warnings`,
+counts dropped before pairing), `dropIntervals` (single intervals dropped from
+the middle), `countMismatch`, `timingMismatch` (the first trial whose end
+disagrees with the Epsych2 timestamps, 0 for none), `warnings`,
 `partialIntervals`, `unpairedTrials`, `unpairedIntervals`, `fingerprint`,
 `summary` and `conventions`.
 
@@ -1547,6 +1580,36 @@ field; one with any text is a string column with `missing`. A file without
 a `cell` column is `readUnitMapping:NoCell`. `writeUnitMapping` writes to a
 temporary name and moves it into place.
 
+## Run and sort locks (`<Name>_run.lock.json`, `<Name>_sort.lock.json`)
+
+Path: the dataset's output folder. Written by [`RunLock`](../pipeline/RunLock.m)
+so a second session (another MATLAB, another machine on the share) does not
+write the same files: `<Name>_run.lock.json` for the whole of a pipeline run
+(`EphysPipeline.run`, a dry run takes none), `<Name>_sort.lock.json` while a
+sort is prepared and going (`runKilosort`, `runSpikeInterface`). Deleted when
+the run or the sort ends.
+
+| Field | Meaning |
+| --- | --- |
+| `kind`, `what` | `"run"` or `"sort"`, and a sentence ("pipeline run 'name'") |
+| `host`, `pid`, `user` | the machine, process and user that hold it |
+| `run_id` | the pipeline run's id (`""` for a sort started on its own) |
+| `started`, `heartbeat`, `heartbeat_epoch` | local text, and seconds since 1970 UTC; a run refreshes the heartbeat as it reports progress |
+| `status_file` | a sort lock: the run's `ks4_status.json` / `si_status.json`, set when the run launches |
+
+A lock is live while its process is alive (this host), or while its heartbeat
+(a sort: or its log) is less than 10 minutes (a sort: 30) old (another host); a
+sort lock whose status file says the run ended is stale. A stale lock is
+ignored and replaced.
+
+## `sorting_record.json`
+
+Path: the sort's run folder (`kilosort4/`, `si_<sorter>/`). Written by
+`EphysDataset.launchSorting`: `status_file`, `sorter` and `record`, the
+`processing.sorting` record `runKilosort` / `runSpikeInterface` made.
+`EphysDataset.writeManifest` moves it into the manifest once the run is
+`"done"` and deletes it; a failed or stopped run records nothing.
+
 ## Which writes are atomic
 
 A file written atomically goes to a temporary name next to it and is renamed
@@ -1555,5 +1618,5 @@ previous file as it was.
 
 | Written atomically (temporary file + rename) | Written directly |
 | --- | --- |
-| the three `.mat` outputs (`toMat`, `spikesToMat`, `behaviorToMat`) and the session figures' data `.mat` (`writeAnalysisData`) via `EphysDataset.saveAtomically`; the unit-mapping CSV (`writeUnitMapping`); the stitched Epsych2 file; the `.nwb`; the Visualize envelopes | the `.bin` and its JSON sidecar, `settings.json`, `<Name>_events.mat`, generated scripts, analysis figures and reports |
+| the three `.mat` outputs (`toMat`, `spikesToMat`, `behaviorToMat`) and the session figures' data `.mat` (`writeAnalysisData`) via `EphysDataset.saveAtomically`; the unit-mapping CSV (`writeUnitMapping`); the stitched Epsych2 file; the `.nwb`; the Visualize envelopes; the `.bin` (written as `.bin.partial`, renamed once whole, `toBin`) | its JSON sidecar, `settings.json`, `<Name>_events.mat`, generated scripts, analysis figures and reports |
 | through `writeJsonFile`: the dataset manifest, the artifact cache, the favorites (`<Name>_favorites.json`), `recording.json` (`writeDescriptor`), `openephys-part.json`, probe maps and the derived `_excluded` / `_spaced` probes (`writeProbeMap`), `<probe>.ks4.json`, `<probe>.chanmap.json`, hardware bank entries, pipeline and analysis configs, run records, `quality_metrics.json`, `<Name>_nwbinspector.json`, `<Name>_cleanup.json`, `session_manifest.json`, the scheduled copy's `schedule.json` and `last_run.json`, and the `ks4_status.json` of a run stopped from MATLAB | everything Python writes (`ks4_status.json`, `ks4_run.log`, the sorter output), and the logs appended a line at a time (`copy_schedule.log`) |

@@ -227,7 +227,12 @@ classdef EphysProject < handle
             all = obj.datasetKeys();
             idx = zeros(1, numel(keys));
             for k = 1:numel(keys)
-                ix = find(all == EphysProject.normalizeKey(keys(k)), 1);
+                key = EphysProject.normalizeKey(keys(k));
+                if ispc   % Windows paths: "Subj/Rec" and "subj/rec" are one folder
+                    ix = find(strcmpi(all, key), 1);
+                else
+                    ix = find(all == key, 1);
+                end
                 if ~isempty(ix); idx(k) = ix; end
             end
         end

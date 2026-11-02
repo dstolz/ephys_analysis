@@ -14,7 +14,9 @@ classdef EphysPipelineConfig
     %                Root, see EphysPipeline.writeScript)
     %     Acquisition  reader options: OpenEphys.Recordings ("concatenate" |
     %                "separate" | "single"), OpenEphys.RecordNode,
-    %                OpenEphys.Stream (see OpenEphysReader); TDT.Stream,
+    %                OpenEphys.Stream, OpenEphys.EventStream (the stream whose
+    %                TTL events to use when they are on another stream than
+    %                the continuous data; see OpenEphysReader); TDT.Stream,
     %                TDT.GainToMicrovolts (see TDTReader)
     %     Parallel   Enabled, MaxWorkers (NaN = automatic): run the chunks of
     %                the artifacts and spike-detection steps on a process pool
@@ -263,8 +265,7 @@ classdef EphysPipelineConfig
                 s (1,1) struct
             end
             obj = EphysPipelineConfig();
-            [s, warn] = movedWCARFields(s);
-            [s, warn] = retiredExports(s, warn);
+            warn = string.empty(1, 0);
             if isfield(s, 'name');        obj.Name = string(s.name);               end
             if isfield(s, 'description'); obj.Description = string(s.description); end
             for sec = EphysPipelineConfig.Sections
@@ -462,10 +463,15 @@ classdef EphysPipelineConfig
         end
 
         function ch = spikeChannels(sp, ds)
-            %spikeChannels  1-based channels to detect on for dataset DS ([] = all).
+            %spikeChannels  1-based channels to detect on for dataset DS.
             %   The dataset's bad channels in force (EphysDataset.excludedChannels)
             %   are left out whatever Spikes.Channels says. DS may also be a
             %   struct with NumChannels and ExcludeChannels (no bad channels).
+            %   [] means every channel ("all" with no bad channel, or a
+            %   channel count still unknown); a selection that leaves no
+            %   channel (every listed channel bad, or everything excluded) is
+            %   an error, EphysPipelineConfig:NoSpikeChannels, not a
+            %   detection on every channel.
             sp = EphysPipelineConfig.normalizeSection("Spikes", sp);
             if isa(ds, 'EphysDataset')
                 [excl, bad] = ds.excludedChannels();
@@ -477,11 +483,19 @@ classdef EphysPipelineConfig
             switch sp.Channels
                 case "all"
                     if isnan(n) || isempty(bad); ch = []; else; ch = setdiff(1:n, bad); end
+                    none = ~isnan(n) && ~isempty(bad) && isempty(ch);
                 case "excludeManifest"
                     if isnan(n); ch = []; else; ch = setdiff(1:n, excl); end
+                    none = ~isnan(n) && isempty(ch);
                 case "list"
                     ch = EphysPipelineConfig.parseOrderedList(sp.ChannelList, "Spikes channel list");
                     ch = ch(~ismember(ch, bad));
+                    none = isempty(ch);
+            end
+            if none
+                error('EphysPipelineConfig:NoSpikeChannels', ...
+                    ['Spikes.Channels "%s" leaves no channel to detect on (every channel is excluded ' ...
+                     'or bad). Change the selection, or the bad channels on the Artifacts tab.'], sp.Channels);
             end
         end
 
@@ -633,78 +647,4 @@ classdef EphysPipelineConfig
             end
         end
     end
-end
-
-
-function [s, warn] = movedWCARFields(s)
-%movedWCARFields  A config saved when the weighted CAR was a Signals option.
-%   The Signals section's WCAR_* fields move to the Reference section
-%   (unless it has its own); Signals.ReferenceMethod is retired: the
-%   weighted CAR is Reference.Mode "wcar", which every step takes, so
-%   "weighted" there is reported in WARN (LoadWarnings) and not applied.
-warn = string.empty(1, 0);
-if ~isfield(s, 'Signals') || ~isstruct(s.Signals) || ~isscalar(s.Signals)
-    return
-end
-G = s.Signals;
-f = string(fieldnames(G)).';
-moved = f(startsWith(f, "WCAR_"));
-if ~isempty(moved)
-    if ~isfield(s, 'Reference') || ~isstruct(s.Reference) || ~isscalar(s.Reference)
-        s.Reference = struct();
-    end
-    for k = moved
-        if ~isfield(s.Reference, k)
-            s.Reference.(k) = G.(k);
-        end
-    end
-    G = rmfield(G, cellstr(moved));
-end
-if isfield(G, 'ReferenceMethod')
-    if string(G.ReferenceMethod) == "weighted"
-        mode = "none";
-        if isfield(s, 'Reference') && isstruct(s.Reference) && isfield(s.Reference, 'Mode')
-            mode = string(s.Reference.Mode);
-        end
-        warn(end+1) = "Signals.ReferenceMethod ""weighted"" is retired and not applied: the weighted CAR " + ...
-            "is now Reference.Mode ""wcar"", which every step takes; the signals take Reference.Mode (""" + ...
-            mode + """)";
-    end
-    G = rmfield(G, 'ReferenceMethod');
-end
-s.Signals = G;
-end
-
-
-function [s, warn] = retiredExports(s, warn)
-%retiredExports  A config saved when the Export step wrote toolbox files.
-%   The formats chronux, fieldtrip, kcsd and epochs, and the settings only
-%   they used, are retired: the DatasetBrowser's scripts make those inputs.
-%   The settings are dropped without a word; a retired format that was
-%   ticked is dropped and reported in WARN (LoadWarnings), and Export is
-%   switched off when no format is left, so the config runs as before
-%   less those files.
-if ~isfield(s, 'Export') || ~isstruct(s.Export) || ~isscalar(s.Export)
-    return
-end
-E = s.Export;
-gone = ["IncludeDetected" "Validate" "MatVersion" "EpochSource" "EpochLine" "EpochWindow" ...
-    "EpochOnsetRule" "EpochIncomplete" "EpochNonFinite" "EpochArtifacts" "EpochSpikeTimeBase" "EpochClass"];
-E = rmfield(E, cellstr(intersect(gone, string(fieldnames(E)).')));
-if isfield(E, 'Formats')
-    f = string(E.Formats);
-    f = f(:).';
-    retired = f(ismember(f, ["chronux" "fieldtrip" "kcsd" "epochs"]));
-    if ~isempty(retired)
-        E.Formats = setdiff(f, retired, 'stable');
-        msg = "Export: the " + strjoin(retired, ", ") + " format(s) are no longer written by the " + ...
-            "pipeline (the DatasetBrowser's scripts make them) and were dropped";
-        if isempty(E.Formats) && isfield(E, 'Enabled') && isequal(logical(E.Enabled), true)
-            E.Enabled = false;
-            msg = msg + "; the Export step is off (no format left)";
-        end
-        warn(end+1) = msg;
-    end
-end
-s.Export = E;
 end

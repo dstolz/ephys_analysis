@@ -590,8 +590,6 @@ if isfile(statusFile)
     st = DatasetTracker.readJson(statusFile);
     state   = string(getfielddef(st, 'state', ""));
     message = string(getfielddef(st, 'message', ""));
-elseif hasResults
-    state = "done";   % results present, no status file (older run)
 end
 
 settingsFile = fullfile(d, 'settings.json');

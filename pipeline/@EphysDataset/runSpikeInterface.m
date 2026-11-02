@@ -40,6 +40,17 @@ function result = runSpikeInterface(obj, opts)
 %   own_reference) for the manifest's processing block; a dry run, or a
 %   run in a ResultsDir given, records nothing.
 %
+%   The record (result.processing) goes into ds.Processing.sorting only
+%   once the run is done (launchSorting, EphysDataset.settleSortRun): a run
+%   that fails records nothing.
+%
+%   A sort lock (RunLock, <Name>_sort.lock.json in the output folder) is
+%   taken before the .bin is written, so a second session cannot write the
+%   same files (RunLock:Held); launchSorting gives it up when a blocking run
+%   ends, a background run's ends with the run. A .bin the dataset already
+%   has is kept when its sidecar says it is of this recording and these
+%   settings (toBin Reuse), so a second sort does not write it again.
+%
 %   RESULT = ds.runSpikeInterface(opts) with name-value options:
 %     Sorter         SpikeInterface sorter name (default ds.Sorter);
 %                    "kilosort4" is refused: runKilosort runs Kilosort4
@@ -147,6 +158,15 @@ if opts.DryRun
     runDir = fullfile(resultsDir, 'dryrun');   % keeps a finished run's own record as it is
 end
 
+% The sort lock keeps another session from writing the .bin or this run
+% folder while the run is prepared and going (RunLock; launchSorting gives
+% it up when a blocking run ends). RunLock:Held when another has it.
+finished = containers.Map(); finished('done') = false;   % a handle: the cleanup below reads it later
+if ~opts.DryRun
+    RunLock.acquire(obj, "sort", "sort of " + obj.Name + " (" + what + ")", RunId=string(prov.runId));
+    lockGuard = onCleanup(@() releaseIfFailed(obj, finished)); %#ok<NASGU>
+end
+
 % Write the .bin from the recording, blanking the artifact intervals.
 if ~binGiven && ~opts.DryRun
     [iv, given] = explicitIntervals(opts.ArtifactIntervals);
@@ -162,7 +182,7 @@ if ~binGiven && ~opts.DryRun
              'or turn off artifact silencing for this dataset.'], 100 * share, size(iv, 1), ...
             covered, obj.NumSamples / obj.Fs, what, 100 * EphysDataset.MaxSilencedFraction);
     end
-    obj.toBin(ArtifactIntervals=iv, Provenance=prov);
+    obj.toBin(ArtifactIntervals=iv, Provenance=prov, Reuse=true);   % a .bin of these data and settings is kept
 end
 
 binFile   = absPath(binFile);
@@ -267,6 +287,7 @@ result.driverCommand = command;   % launchSorting adds --device
 result.device       = "";
 result.launched     = false;
 result.previousDir  = "";
+result.processing   = [];      % how the sort is set up, for Processing.sorting once it is done
 
 if opts.DryRun
     fprintf('[DryRun] Wrote %s, %s and %s\n', settingsPath, paramsFile, scriptPath);
@@ -292,10 +313,19 @@ if opts.ResultsDir == ""
     r.bin_reference = binRef;
     r.own_reference = binRef == "none";
     r.exclude_channels = EphysDataset.formatChannelList(excludeCh);
-    obj.Processing.sorting = r;
+    result.processing = r;   % Processing.sorting once the run is done (launchSorting, settleSortRun)
 end
 if opts.Launch
     result = obj.launchSorting(result, Wait=opts.Wait, Device=opts.Device);
+end
+finished('done') = true;
+end
+
+
+function releaseIfFailed(obj, finished)
+%releaseIfFailed  Give up the sort lock when the run did not get as far as the end.
+if ~finished('done')
+    RunLock.release(obj, "sort");
 end
 end
 

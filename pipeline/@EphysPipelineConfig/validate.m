@@ -71,6 +71,10 @@ if OE.RecordNode ~= "" && isempty(regexp(OE.RecordNode, '^\d+$', 'once'))
     add("acquisition", "OpenEphys.RecordNode", "error", ...
         "OpenEphys.RecordNode must be empty or a Record Node id (digits, e.g. 101).");
 end
+if ~(isstring(OE.EventStream) && isscalar(OE.EventStream))
+    add("acquisition", "OpenEphys.EventStream", "error", ...
+        "OpenEphys.EventStream must be a stream or folder name (text), or empty for the stream's own events.");
+end
 TD = obj.Acquisition.TDT;
 if ~(isnan(TD.GainToMicrovolts) || (isfinite(TD.GainToMicrovolts) && TD.GainToMicrovolts > 0))
     add("acquisition", "TDT.GainToMicrovolts", "error", ...
@@ -219,6 +223,9 @@ if A.Enabled
             A.Method, A.Threshold));
     end
     if ~(A.MinChannels >= 1); add("artifacts", "MinChannels", "error", "MinChannels must be >= 1."); end
+    if ~(isscalar(A.CommonModeThreshold) && isfinite(A.CommonModeThreshold) && A.CommonModeThreshold > 0)
+        add("artifacts", "CommonModeThreshold", "error", "CommonModeThreshold must be a positive number of microvolts.");
+    end
     if A.Filter
         if any(~(A.FilterCutoff > 0)); add("artifacts", "FilterCutoff", "error", "Filter cut-off must be positive."); end
         if A.FilterType == "bandpass" && numel(A.FilterCutoff) ~= 2
@@ -331,6 +338,33 @@ if G.Enabled
     end
     if G.MUA && ~(G.MUA_Fs > 0); add("signals", "MUA_Fs", "error", "MUA_Fs must be positive."); end
     if G.LFP && ~(G.LFP_Fs > 0); add("signals", "LFP_Fs", "error", "LFP_Fs must be positive."); end
+    LN = G.LineNoise;
+    if LN.Enabled
+        if ~(isscalar(LN.Hz) && isfinite(LN.Hz) && LN.Hz > 0)
+            add("signals", "LineNoise.Hz", "error", "LineNoise.Hz must be a positive line frequency in Hz (60, or 50).");
+        end
+        if isempty(LN.Harmonics) || any(~(LN.Harmonics >= 1 & LN.Harmonics == round(LN.Harmonics)))
+            add("signals", "LineNoise.Harmonics", "error", "LineNoise.Harmonics must be positive whole numbers (1 = the line itself).");
+        end
+        if ~(LN.WindowSec > 0 && isfinite(LN.WindowSec))
+            add("signals", "LineNoise.WindowSec", "error", "LineNoise.WindowSec must be a positive number of seconds.");
+        end
+        if ~(LN.MaxDeviationHz >= 0 && isfinite(LN.MaxDeviationHz))
+            add("signals", "LineNoise.MaxDeviationHz", "error", "LineNoise.MaxDeviationHz must be 0 or more Hz.");
+        end
+        if ~ismember(LN.Tracking, ["window" "global" "fixed"])
+            add("signals", "LineNoise.Tracking", "error", "LineNoise.Tracking must be ""window"", ""global"" or ""fixed"".");
+        end
+        if ~(LN.SmoothWindows >= 1 && mod(LN.SmoothWindows, 2) == 1)
+            add("signals", "LineNoise.SmoothWindows", "error", "LineNoise.SmoothWindows must be an odd number of windows.");
+        end
+        if ~ismember(LN.Gate, ["soft" "hard" "none"])
+            add("signals", "LineNoise.Gate", "error", "LineNoise.Gate must be ""soft"", ""hard"" or ""none"".");
+        end
+        if isnan(LN.MinSNR)
+            add("signals", "LineNoise.MinSNR", "error", "LineNoise.MinSNR must be a number of dB.");
+        end
+    end
 end
 
 % --- Spikes ----------------------------------------------------------------------

@@ -560,6 +560,10 @@ classdef OutputTransfer < handle
             for i = find(obj.states() == "waiting")
                 b = obj.Batches(i);
                 [state, msg] = EphysDataset.sortRunState(b.WaitFor);
+                if state == "running"
+                    state = sortRunLive(b.WaitFor);   % a run whose process is gone has ended
+                    if state ~= "running"; [state, msg] = EphysDataset.sortRunState(b.WaitFor); end
+                end
                 if state ~= "running" && OutputTransfer.olderThan(b.WaitFor, b.Since)
                     state = "running";   % an earlier run's status: this run has not ended
                 end
@@ -1180,19 +1184,13 @@ classdef OutputTransfer < handle
             for p = reshape(string(b.Paths), 1, [])
                 if isfolder(p)
                     folders(end+1) = p; %#ok<AGROW>
-                    L = dir(fullfile(p, '**'));
-                    L = L(~[L.isdir]);
+                    L = listTree(p);   % a hidden subfolder (phy's caches) is not entered
                     if isempty(L); continue; end
                     sub = string({L.folder}).';
                     below = OutputTransfer.below(sub, p);
-                    shown = ~(startsWith(below, ".") | contains(below, filesep + "."));
-                    L = L(shown);
-                    if isempty(L); continue; end
                     top = OutputTransfer.below(p, b.Base);
                     src = strings(numel(L), 1);
                     rel = strings(numel(L), 1);
-                    sub = sub(shown);
-                    below = below(shown);
                     for j = 1:numel(L)
                         src(j) = string(fullfile(sub(j), L(j).name));
                         rel(j) = string(fullfile(top, below(j), L(j).name));
@@ -1318,9 +1316,7 @@ classdef OutputTransfer < handle
         function removeEmptyFolders(folder)
             %removeEmptyFolders  FOLDER's empty subfolders, deepest first, then FOLDER if it is empty.
             if ~isfolder(folder); return; end
-            L = dir(fullfile(folder, '**'));
-            L = L([L.isdir] & ~ismember({L.name}, {'.', '..'}));
-            sub = string(fullfile({L.folder}, {L.name}));
+            sub = OutputTransfer.subfolders(folder);
             [~, order] = sort(strlength(sub), 'descend');
             for s = sub(order)
                 if numel(dir(s)) <= 2
@@ -1329,6 +1325,22 @@ classdef OutputTransfer < handle
             end
             if numel(dir(folder)) <= 2
                 try rmdir(folder); catch; end
+            end
+        end
+
+        function sub = subfolders(folder)
+            %subfolders  Every subfolder of FOLDER, one listing each; a hidden one (phy's caches) is listed
+            %   but not entered.
+            sub = strings(1, 0);
+            todo = string(folder);
+            while ~isempty(todo)
+                L = dir(todo(end));
+                todo(end) = [];
+                L = L([L.isdir] & ~ismember({L.name}, {'.', '..'}));
+                found = string(fullfile({L.folder}, {L.name}));
+                sub = [sub, found]; %#ok<AGROW>
+                enter = ~startsWith({L.name}, '.');
+                todo = [todo, found(enter)]; %#ok<AGROW>
             end
         end
 

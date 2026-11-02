@@ -119,7 +119,7 @@ driver, status and log are `run_si.py`, `si_status.json` and `si_run.log`).
 | --- | --- |
 | `Name`, `Dir` | folder |
 | `HasResults` | `spike_clusters.npy` present |
-| `State`, `Message` | from `ks4_status.json` (`si_status.json`). If there is no status file but results exist, `State` is `"done"` |
+| `State`, `Message` | from `ks4_status.json` (`si_status.json`); empty when there is no status file |
 | `NumUnits` | data rows of `cluster_KSLabel.tsv` (falling back to `cluster_group.tsv`), blank lines excluded; `NaN` if neither file exists |
 | `SettingsPath`, `ScriptPath`, `LogPath`, `StatusPath` | paths or `""` |
 | `BinFile`, `ProbeFile`, `Fs`, `NChanBin` | from `settings.json` |

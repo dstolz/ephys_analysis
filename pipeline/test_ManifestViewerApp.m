@@ -240,7 +240,7 @@ check(~any([step1.edges.on] & [step1.edges.from] == "artifacts" & [step1.edges.t
 ids = [modelH.levels(1).nodes.id];
 check(~any(ismember(ids, ["spikes" "export" "epsych"])) && all(ismember(["rec" "artifacts" "signals" "bin"], ids)) && all([modelH.levels(1).edges.on]), ...
     'HideNotRun leaves out the steps not run, the arrows not read and the inputs nothing reads');
-mNone = struct('schema', "intan-dataset-manifest/1", 'name', "old", 'folder', string(root));
+mNone = struct('schema', "intan-dataset-manifest/2", 'name', "bare", 'folder', string(root));
 [~, sNone, modelN] = PipelineDiagram.manifest(mNone, HideNotRun=true);
 check(contains(sNone, "0 of 7") && numel(modelN.levels(1).nodes) == 10, 'nothing run: the chart still draws, nothing hidden');
 mSort = mNone;
@@ -314,9 +314,9 @@ v.load(rec);
 check(v.File == string(f2), 'newest manifest chosen');
 check(contains(v.StatusLabel.Text, "2 manifests"), 'status notes the other manifest');
 
-fprintf('\n== schema /1 ==\n');
-f3 = fullfile(root, 'old_manifest.json');
-writeJsonFile(f3, struct('schema', "intan-dataset-manifest/1", 'name', "old", 'folder', string(root), ...
+fprintf('\n== a bare manifest (no probe, no behavior) ==\n');
+f3 = fullfile(root, 'bare_manifest.json');
+writeJsonFile(f3, struct('schema', "intan-dataset-manifest/2", 'name', "bare", 'folder', string(root), ...
     'probe', struct('file', "", 'num_channels', NaN, 'num_shanks', NaN, 'depth_um', NaN, 'notes', ""), ...
     'exclude_channels', ""));
 v.load(f3);

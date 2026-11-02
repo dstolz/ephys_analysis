@@ -106,7 +106,14 @@ cols = ["units" "su" "mua" "noise" "meeting" "suMeeting" "muaMeeting" ...
 M = nan(numel(names), numel(cols));
 tables = cell(numel(names), 1);
 for k = 1:numel(names)
-    [U, info] = ds.readSortedUnits(ResultsDir=folders(k), IncludeNoise=true);
+    try
+        [U, info] = ds.readSortedUnits(ResultsDir=folders(k), IncludeNoise=true);
+    catch ME
+        % one variant that failed (out of memory, a bad setting) must not cost the comparison of the others
+        warning('sortSweep:NoOutput', 'Variant "%s" has no readable sorted output (%s); it is left out of the comparison.', ...
+            names(k), ME.message);
+        continue
+    end
     U = ds.unitQuality(U, info);
     [pass, why] = unitQualityPass(U, opts.Criteria);
     writeUnitQualityReport(U, "", Criteria=opts.Criteria, Title="Unit quality: " + names(k));

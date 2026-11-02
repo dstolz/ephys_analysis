@@ -43,6 +43,17 @@ function R = run(obj, opts)
 %   waited for before the run record is written; otherwise run() returns
 %   while it goes on, and whoever follows it polls it (TransferFcn).
 %
+%   Locks: a run (not a dry run, and not one of the probe and behavior
+%   steps alone) takes a run lock (RunLock, a file
+%   <Name>_run.lock.json in each selected dataset's output folder, its
+%   heartbeat refreshed as the run reports progress) for the whole run, so
+%   a second session - another MATLAB, another machine on the share - does
+%   not write the same files. A dataset another session holds is logged
+%   and its writing steps (sorting, signals, spikes, export) record it as
+%   "skipped" ("in use by another session (HOST, since T)"); plan() shows
+%   such a row as "skip: in use by another session". A background sort
+%   keeps its own sort lock until it ends.
+%
 %   See also EphysPipeline.checkRun, EphysPipeline.plan, EphysPipelineConfig.validate.
 
 arguments
@@ -83,6 +94,10 @@ if c.Project.SaveScript && ~opts.DryRun   % a dry run writes nothing
     obj.ScriptFile = obj.writeScript(steps);
     if obj.ScriptFile ~= ""; obj.log("Pipeline script: %s", obj.ScriptFile); end
 end
+if ~opts.DryRun && any(ismember(steps, ["artifacts" "sorting" "signals" "spikes" "export"]))   % a dry run, or a run that only checks, writes no outputs
+    obj.lockDatasets(obj.Provenance.runId);
+end
+unlock = onCleanup(@() obj.unlockDatasets()); %#ok<NASGU>
 
 t0 = tic;
 outcome = "finished";

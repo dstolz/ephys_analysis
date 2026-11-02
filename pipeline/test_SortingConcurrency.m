@@ -381,6 +381,70 @@ check(pipe.RunRecordFile ~= "" && ~strcmp(warnId, 'EphysPipeline:RunRecord') && 
 waitForSortingSlot(pipe.LaunchedRuns, 1, Period=0.25);
 waitForExits(pipe.LaunchedRuns);
 
+fprintf('\n== 17. the sort lock, the record of a finished run ==\n');
+d17 = EphysDataset(fullfile(proj, 'M1_260101_120000'));
+d17.OutputDir = fullfile(root, 'out17');
+d17.ProbeFile = probeFile;
+d17.PythonExe = makeFake(root, 'fake17.cmd', fullfile(root, 'timeline17.txt'), true, 1);
+res = d17.runKilosort(Launch=false);
+lkFile = RunLock.file(d17, "sort");
+check(isfile(lkFile) && ~RunLock.heldElsewhere(d17) && isstruct(res.processing) && startsWith(res.processing.options_hash, "cfg-") == false ...
+    && strlength(res.processing.options_hash) == 16 && isempty(d17.Processing.sorting), ...
+    'runKilosort takes the sort lock, and its record waits in the result: Processing.sorting is not set at launch');
+binFile17 = d17.BinFile;
+binTime = dir(binFile17).datenum;
+lk = RunLock.read(d17, "sort");
+lk.host = "OTHERHOST";
+lk.pid = 4242;
+lk.heartbeat_epoch = posixtime(datetime('now', 'TimeZone', 'UTC'));
+writeJsonFile(lkFile, rmfield(lk, 'file'));
+check(strcmp(errorIdOf(@() d17.runKilosort(Launch=false)), 'RunLock:Held') && dir(binFile17).datenum == binTime, ...
+    'another session''s sort lock keeps runKilosort from writing the .bin');
+delete(lkFile);
+res = d17.runKilosort(Launch=false);   % the .bin is of these data and settings: kept (toBin Reuse)
+check(dir(binFile17).datenum == binTime, 'a second sort of the same data does not write the .bin again');
+res = d17.launchSorting(res, Wait=true);
+recordFile = fullfile(res.resultsDir, EphysDataset.SortRecordFile);
+check(res.status == 0 && isstruct(d17.Processing.sorting) && d17.Processing.sorting.options_hash == res.processing.options_hash ...
+    && ~isfile(recordFile) && ~isfile(lkFile), ...
+    'a blocking run that is done: its record is in Processing.sorting, the record file and the sort lock are gone');
+d17.Processing.sorting = [];
+d17.PythonExe = makeFake(root, 'fake17f.cmd', fullfile(root, 'timeline17f.txt'), false, 1);   % exits with 3, no status
+ws = warning('off', 'EphysDataset:launchSorting:NonZeroExit');
+res = d17.runKilosort(Wait=true);
+warning(ws);
+check(res.status ~= 0 && isempty(d17.Processing.sorting) && ~isfile(recordFile) && ~isfile(lkFile), ...
+    'a run that fails records nothing and gives up the lock');
+d17.PythonExe = makeFake(root, 'fake17b.cmd', fullfile(root, 'timeline17b.txt'), true, 1);
+res = d17.runKilosort(Wait=false);
+check(isfile(recordFile) && isfile(lkFile) && isempty(d17.Processing.sorting) && RunLock.read(d17, "sort").status_file == string(res.statusFile), ...
+    'a background run: its record waits in the run folder, the sort lock names its status file');
+waitForSortingSlot(res, 1, Period=0.25);
+waitForExits(res);
+d17.writeManifest();
+check(isstruct(d17.Processing.sorting) && ~isfile(recordFile) && ~isfile(lkFile) ...
+    && string(readJsonFile(d17.manifestFile()).processing.sorting.options_hash) == string(d17.Processing.sorting.options_hash), ...
+    'the next writeManifest after the run is done takes the record into Processing.sorting and the manifest, and ends the lock');
+lk2 = struct('kind', "sort", 'host', string(getenv('COMPUTERNAME')), 'pid', feature('getpid') + 1, 'user', "x", ...
+    'what', "sort", 'run_id', "", 'started', "2026-10-31 08:00:00", 'heartbeat', "2026-10-31 08:00:00", ...
+    'heartbeat_epoch', 0, 'status_file', string(res.statusFile));
+writeJsonFile(lkFile, lk2);
+check(~RunLock.heldElsewhere(d17), 'a sort lock whose run has ended is stale, whoever took it');
+delete(lkFile);
+
+fprintf('\n== 18. a run whose launcher was killed frees its slot ==\n');
+deadDir = fullfile(root, 'dead_run');
+mkdir(deadDir);
+deadStatus = string(fullfile(deadDir, 'ks4_status.json'));
+check(sortRunLive(deadStatus) == "running" && EphysDataset.sortRunState(deadStatus) == "running", ...
+    'a run with no status and no exit marker reads "running" at first');
+pause(31);   % sortRunLive counts the processes of such a run once it has been seen for 30 s
+check(sortRunLive(deadStatus) == "error" && isfile(fullfile(deadDir, EphysDataset.SortExitMarker)) ...
+    && EphysDataset.sortRunState(deadStatus) == "error", ...
+    'with no process left it is an error, and its exit marker is written for every other reader');
+[free, ~, nRun] = sortingSlot(struct('statusFile', char(deadStatus), 'device', ""), 1);
+check(free && nRun == 0, 'sortingSlot no longer counts it as running');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_SortingConcurrency:Failures', '%d checks failed.', nFail);
@@ -461,6 +525,17 @@ S.allExited = waitForExits(S.launched);
             pipe.cancel();
         end
     end
+end
+
+
+function id = errorIdOf(fcn)
+%errorIdOf  The identifier of the error FCN() throws ('' for none).
+id = '';
+try
+    fcn();
+catch ME
+    id = ME.identifier;
+end
 end
 
 

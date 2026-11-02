@@ -136,6 +136,50 @@ classdef test_addToManifest < matlab.unittest.TestCase
             tc.verifyEqual(tc.custom(), struct('a', 1));
         end
 
+        function leavesTheRestOfTheFileAsItIs(tc)
+            tc.Ds.writeManifest();
+            f = tc.Ds.manifestFile();
+            txt = fileread(f);
+            members = [',', newline, '    "extra": [7],', newline, '    "nothing": null,', newline, '    "one": ["x"]', newline, '}'];
+            txt = regexprep(txt, '\}\s*$', members);
+            fid = fopen(f, 'w');
+            fwrite(fid, txt, 'char');
+            fclose(fid);
+            addToManifest(tc.Dir, a=1, b=[1 2]);
+            after = fileread(f);
+            tc.verifyTrue(contains(after, '"extra": [7]') && contains(after, '"nothing": null') && contains(after, '"one": ["x"]'), ...
+                'A list of one stays a list and a null stays null: the rest of the file is not decoded and encoded again.');
+            strip = @(t) regexprep(t, '"updated":\s*"[^"]*"', '"updated": ""');
+            before = regexprep(txt, '\s*\}\s*$', '');
+            tc.verifyTrue(startsWith(strip(after), strip(before)), 'Every byte before the new block is as it was, but updated.');
+            tc.verifyEqual(tc.custom(), struct('a', 1, 'b', [1; 2]));
+            addToManifest(tc.Dir, a=2);   % the block is there now: replaced in place
+            again = fileread(f);
+            tc.verifyTrue(contains(again, '"extra": [7]') && numel(strfind(again, '"custom"')) == 1);
+            tc.verifyEqual(tc.custom().a, 2);
+        end
+
+        function datasetHoldsTheBlock(tc)
+            tc.Ds.writeManifest();
+            addToManifest(tc.Dir, a=1);
+            d2 = EphysDataset(tc.Dir, AutoMetadata=false, Name=tc.Ds.Name);
+            d2.applyManifest();
+            tc.verifyEqual(d2.Custom, struct('a', 1));
+            tc.Ds.Tags = {'x'};
+            tc.Ds.writeManifest();   % the script added a block since this object wrote
+            tc.verifyEqual(tc.Ds.Custom, struct('a', 1), 'writeManifest reads back a block added behind the object''s back.');
+            tc.verifyEqual(tc.custom(), struct('a', 1));
+        end
+
+        function writeJsonFileWritesTextAsItIs(tc)
+            f = fullfile(tc.Dir, 'text.json');
+            writeJsonFile(f, '{"a":[1],"b":null}', Text=true);
+            tc.verifyEqual(fileread(f), '{"a":[1],"b":null}');
+            writeJsonFile(f, "{""c"": 2}", Text=true);
+            tc.verifyEqual(fileread(f), '{"c": 2}');
+            tc.verifyError(@() writeJsonFile(f, ["a"; "b"], Text=true), 'writeJsonFile:CannotWrite');
+        end
+
         function datasetWithoutCustomWritesNoBlock(tc)
             tc.Ds.writeManifest();
             tc.Ds.writeManifest();

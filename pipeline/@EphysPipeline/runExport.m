@@ -42,17 +42,32 @@ for k = 1:n
             obj.addResult(step, d.Name, "skipped", "no extract file (" + strjoin(extract(~isfile(extract)), ", ") + ")", out, toc(t0));
             continue
         end
-        if isfile(out) && ~E.Overwrite
-            obj.addResult(step, d.Name, "skipped", "output exists (Overwrite is off)", out, toc(t0));
+        busy = obj.inUse(d);
+        if busy ~= ""
+            obj.addResult(step, d.Name, "skipped", busy, out, toc(t0));
             continue
+        end
+        overwrite = E.Overwrite;
+        if isfile(out)
+            [overwrite, ~, kept] = obj.existingOutput(step, d, E.Overwrite, E.OverwriteStale);
+            if ~overwrite
+                obj.addResult(step, d.Name, "skipped", kept, out, toc(t0));
+                continue
+            end
         end
         if E.IncludeUnits && d.sortingMissing()
             % never export without the hand-picked sort, or with another one
             obj.addResult(step, d.Name, "skipped", "the sorted-output folder is not there: " + d.SortingDir, out, toc(t0));
             continue
         end
+        if E.IncludeUnits && ~isempty(obj.activeRun(d))
+            % a background sort launched earlier in this run (or queued) has not written its units yet
+            obj.addResult(step, d.Name, "skipped", "a sort of this dataset is still running; export it when the sort is done", out, toc(t0));
+            continue
+        end
         try
             o = EphysPipelineConfig.exportOptions(E, fmt);
+            o.Overwrite = overwrite;
             if opts.DryRun
                 obj.log("[%s] %s: dry run -> %s", step, d.Name, out);
                 obj.addResult(step, d.Name, "dry run", "would write from " + strjoin(extract, ", "), out, toc(t0));
@@ -60,7 +75,7 @@ for k = 1:n
             end
             obj.progress("export", d.Name, k, n, j - 1, nFmt, fmt + ": exporting");
             o.Extract = extract;
-            o.Provenance = obj.provenance();
+            o.Provenance = obj.provenanceFor(step, d);
             o.ProbeFile = obj.probeFor(d);   % its own, a rule's or the default probe
             if o.PythonExe == ""; o.PythonExe = c.Sorting.PythonExe; o.CondaEnv = c.Sorting.CondaEnv; end
             % the trials of the behavior step's pairing

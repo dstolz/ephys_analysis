@@ -189,12 +189,12 @@ classdef OutputFileIndex < handle
             for f = reshape(fields, 1, [])
                 obj.Facts.(f)(r, 1) = string(facts.(f));
             end
-            obj.Added = unique([obj.Added, k], 'stable');
+            obj.Added(end+1) = k;   % a key put twice is listed twice; writeMerged takes each once
         end
 
         function writeMerged(obj)
             %writeMerged  The file's entries now, this index's added ones over them, the latest MaxEntries; written and held.
-            mine = cellfun(@(k) obj.Rows(k), cellstr(obj.Added));
+            mine = cellfun(@(k) obj.Rows(k), cellstr(unique(obj.Added, 'stable')));
             added = struct('key', obj.Keys(mine), 'bytes', obj.Bytes(mine), 'modified', obj.Modified(mine), 'stored', obj.Stored(mine));
             for f = reshape(string(fieldnames(obj.Facts)), 1, []); added.facts.(f) = obj.Facts.(f)(mine); end
             obj.take(OutputFileIndex.readFile(obj.File));   % what another MATLAB wrote meanwhile

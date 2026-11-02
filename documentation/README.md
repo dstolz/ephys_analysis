@@ -353,13 +353,20 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   and for a continuous covariate brought to the neuroGLM bin rate,
   `NeuroGLMExport.experiment`; `resample`, `envelope` and `hilbert` in the
   mTRF-Toolbox packaging, `mTRFExport.resample` and `mTRFExport.envelope`).
-- Statistics and Machine Learning Toolbox (`zscore` in automatic
-  derived-signal bad-channel detection; `mad` for the adaptive weighted CAR's
+- Statistics and Machine Learning Toolbox (`mad` in automatic
+  derived-signal bad-channel detection, a robust z of each channel's RMS,
+  made before the common reference so the channels it flags are left out of
+  it (`deriveSignals`); `median` and `mad` of the artifact detector's
+  baselines, `artifactScore`, `artifactBaseline`;
+  `mad` for the adaptive weighted CAR's
   automatic `Q` and `prctile` for its weight summary, `weightedCAR`,
   `deriveSignals` and the streamed weighted CAR of `Reference.Mode` `"wcar"`,
   `prepareWCAR`; `signrank` and `kruskalwallis` in
   the analysis module's response statistics, `responseStats` and the
-  *Responsive only* unit selection; `tiedrank`, `tinv` and `ranksum` in its
+  *Responsive only* unit selection, and for the gate of `responseOnset` (a
+  response onset is kept for a unit whose epochs' rates change, `signrank`);
+  `tiedrank`, `tinv`, `quantile` (the shuffle cutoff's quantile of the
+  shuffled phasic modulations) and `ranksum` in its
   auROC, `aurocCurves` and `aurocCall`, and `tiedrank` in `epochMatrix`' auROC measure
   (`spikePSTH`): the auROC baseline of PSTH and
   heat map panels, the auROC response test and `populationAnalysis`' calls
@@ -372,21 +379,28 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   for the *t* interval across sessions of a session figure's `error "ci95"`,
   `combineSessions`, which falls back to 1.96 × SEM without the toolbox;
   `glmfit` for the neuroGLM connector's Poisson fit, `NeuroGLMExport.fit`).
-- Image Processing Toolbox (optional; only `tools/makePanelThumbnails`,
-  which scales the analysis app's New panel pictures down with `imresize`;
-  the app reads the PNGs it wrote, committed under `analysis/icons/panels`).
+- Image Processing Toolbox (`padarray` in the mTRF-Toolbox packaging,
+  `mTRFExport.resample`, which mirrors a signal past its ends so that
+  `resample` does not filter them against zeros; otherwise optional: the
+  `tools/makePanelThumbnails` script scales the analysis app's New panel
+  pictures down with `imresize`; the app reads the PNGs it wrote, committed
+  under `analysis/icons/panels`).
 - Optimization Toolbox (`fminunc`, trust-region with the analytic Hessian,
   in `NeuroGLMExport.fit` with `Method="matRegress"`: neuroGLM's own Poisson
   fit under a ridge prior; the default `Method="glmfit"` needs only the
   Statistics and Machine Learning Toolbox).
 - Parallel Computing Toolbox (optional; `Parallel.Enabled` in a pipeline
   config, or `UseParallel=true` on `detectSpikes`, `artifactIntervals` and
-  `analyzeArtifacts`; in the analysis module, `EphysAnalysisRunner.Workers`
+  `analyzeArtifacts`; `parfor` on the `backgroundPool` (a thread pool) over
+  the columns of a large `weightedCAR`, which gives the numbers of one column
+  at a time; in the analysis module, `EphysAnalysisRunner.Workers`
   -- the analysis app's **Workers**, 4 by default -- draws and writes a
   run's figure pages and report pages on a process pool, `parfeval`; and
   `Workers` of `DatasetRuns.run`, `epochMatrix` and `DatasetBrowser` -- the
   browser's **Workers**, 0 by default -- computes several datasets at once
-  on a process pool, `parfeval`; `S_DatasetBrowserToNeuroGLM.m`'s `opts.workers`
+  on a process pool, `parfeval`, and `Workers` of `populationAnalysis` does so
+  with a `parfor` over the datasets (`gcp`, `parpool`, a `DataQueue` for the
+  log lines); `S_DatasetBrowserToNeuroGLM.m`'s `opts.workers`
   fits a dataset's units at once, `parfeval`, `NeuroGLMExport.fitUnits`).
   Without it a run draws every page in MATLAB itself, and the datasets are
   computed one after the other. The Visualize tab's envelope builds
@@ -588,7 +602,7 @@ suite's temporary preferences, so close it before the run ends.
 | Suite | Covers |
 | --- | --- |
 | `test_EphysDataset` | readers, layouts (aux inputs included), streaming, filters, artifacts (moved bounds, the fill), spike detection, `.bin`, Kilosort4 dry runs (exclusions, `shank_spacing`), JSON and probe maps, manifest v2, sorted units, `spikesToMat` (detections only), behavior, `channelLayout` ([sections](EphysDataset.md#tests)) |
-| `test_IntanReader` | the Intan reader: every data-block and on-disk layout, truncated last blocks, window reads across files, `readDigitalEvents` without the amplifier data, the run helpers, one-file-per-channel digital files, the recording start (`AcqDate`), `streamPlan` chunks, `KeepChannels` / `Precision`; the software notch of files before version 3.0 against Intan's own loop (its speed-up, one stream across files, the lead-in, every read and `toBin`) |
+| `test_IntanReader` | the Intan reader: every data-block and on-disk layout, truncated last blocks, window reads across files, `readDigitalEvents` without the amplifier data, the run helpers, one-file-per-channel digital files, the recording start (`AcqDate`), `streamPlan` chunks (bounded windows of big files), `KeepChannels` / `Precision`, the acquisition clock (pauses and dropped samples: `IntanReader:TimestampGap`, `Gaps`), the strided digital-input read and the events cache fingerprint; the software notch of files before version 3.0 against Intan's own loop (its speed-up, one stream across files, the lead-in, every read and `toBin`) |
 | `test_BinaryReader` | the universal binary reader: `readDigitalEvents` from `dig_in_file` alone, `readData`, `Files` listing `dig_in_file`, `streamPlan` |
 | `test_AppPrefs` | the apps' preference store: a file store's set / get / remove, nothing reaching MATLAB's own preferences, nested temporary stores, `AppPrefsFixture` |
 | `test_RepositoryMetadata` | `VERSION` holds major.minor.patch; `CITATION.cff`, `CHANGELOG.md` (and its Unreleased section) and `ephysVersion` agree on it |
@@ -599,16 +613,16 @@ suite's temporary preferences, so close it before the run ends.
 | `test_SortedUnits` | `readPhyUnits`' label tables, template units and per-unit grouping; `channelLayout` (`chanMap` values are `.bin` rows); `runKilosort(DryRun=true)` leaving an existing run alone; `readPhyWaveforms` (the spikes' windows in the sorted `.bin`) |
 | `test_UnitLabels` | unit labels: `parseNameTokens` formats, `nameIdentity`, class and id padding, identity and location columns, notes, `readSortedUnits` identity errors, `EphysProject` pattern push and collisions, `unitTable` |
 | `test_RemoveLineNoise` | mains interference removed by sliding sinusoid fits (`removeLineNoise`): a steady line to 50 dB at 1 kHz, 30 kHz and TDT's rate; a drifting line tracked; line-free channels kept by each gate; transients and `Exclude`; `NaN`; pieces against one run; `PerChannel`; class, `info`, input checks; a timing |
-| `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig`; artifact periods erased before deriving (the line fill, `info.artifacts`, no filter ringing outside the period, AUX untouched) |
-| `test_CommonReference` | the common reference: none by default, the suggested channels (floating ones; none left out when too few would remain), `prepareReference` and the manifest, CAR and CMR over the good channels, exclusions, `toBin`, the `Artifacts` settings and the microvolt-threshold warning, the common-mode detector under a reference, the derived signals that take it (`referenceSignals`) |
-| `test_OpenEphysReader` | Open Ephys sessions (Binary, Open Ephys format, NWB): metadata, samples across recordings and gaps, TTL lines, AUX / ADC, discovery, record node / stream, the recording modes, line names, the pipeline on a synthetic Open Ephys project |
+| `test_DeriveSignals` | derived signals: bad channels as columns (the config's recording channels mapped to them), interpolated from the probe geometry or, without one, across columns; automatic detection; the MUA / SPIKE filters in double; non-integer rates; `info.<type>.nSamples`; line naming and polarity from `TrialConfig`; artifact periods erased before deriving (the line fill, whose edge levels keep off the artifact's skirt, `info.artifacts`, no filter ringing outside the period, AUX untouched); the memory pre-flight (`memoryLimit`), a NaN sample, 16-channel blocks; bad channels left out of the reference and of the donors, found before the reference; `lineNoise` |
+| `test_CommonReference` | the common reference: none by default, the suggested channels (floating ones; none left out when too few would remain), `prepareReference` and the manifest, CAR and CMR over the good channels, exclusions, `toBin`, the `Artifacts` settings and the microvolt-threshold warning, the common-mode detector under a reference, the derived signals that take it (`referenceSignals`), a reference over one channel or beyond the data's columns refused; artifact detection that does not depend on the chunking (recording-wide baselines, context, one stitch and pad), the unreferenced common-mode test, stitching and padding by runs |
+| `test_OpenEphysReader` | Open Ephys sessions (Binary, Open Ephys format, NWB): metadata, samples across recordings and gaps, TTL lines, AUX / ADC, discovery, record node / stream, the recording modes, line names, the pipeline on a synthetic Open Ephys project, TTL lines on another stream (`EventStream`), recordings whose layouts differ |
 | `test_TDTReader` | TDT Synapse blocks (TSQ / TEV / Tbk / SEV): discovery, metadata, exact samples from TEV chunks and SEV files, stream choice and gain, epocs as TDT's readers return them and their rows on the stream grid (late stream start, gaps), disabled stores, line names, `Acquisition.TDT`; trials from the epocs of a block without an Epsych2 session (paired, written, the behavior step); synthetic TDT recordings and projects through the pipeline |
 | `test_EphysProject` (in `test_EphysDataset` §7 / §15) | discovery (recursive or not), keys, `refresh`, the one Epsych2 file in a recording folder associated |
 | `test_DatasetTracker` | the filesystem inventory |
 | `test_DatasetOutputs` | `DatasetOutputs`: files classified by their variables (an `.nwb` by its notes), decoys rejected, newest wins, merged and per-signal extracts, units, behavior, pinning and `SearchDirs`, caching, dataset mode, two recordings with one name sharing an output folder, a hand-picked sort that is not there, a changed extract |
-| `test_ChronuxDataset` | the Chronux connector: `makeParams` / `tapersFor`, continuous and trial data from a matrix, a `toMat` file or struct (onset rules, `EventFs`, trial policies), point-process spikes, `spikeTrials`, `binnedSpikes`, the Kilosort4 / phy source, `extract_trials` |
-| `test_FieldTripExport` | the FieldTrip structures `FieldTripExport` builds: `continuous`, `event` (on the recording's clock) and `artifact` (the matrix on a raw structure), the general builders `epochs`, `trl`, `spikeTimes` and `spikeTrials`; `ft_datatype_*` validation when FieldTrip is on the path |
-| `test_MTRFExport` | the mTRF-Toolbox packaging: `resample` (the rate reached), `envelope` (an AM tone's modulator), `pulses` / `lines`, `trials` (the samples `FieldTripExport.epochs` gives), `segments` (artifact-free stretches, merged periods, split), `package`, `lagSamples`; with the toolbox on the path, `mTRFtrain` recovering a known kernel, `mTRFcrossval` and `mTRFpredict` on a package |
+| `test_ChronuxDataset` | the Chronux connector: `makeParams` / `tapersFor`, continuous and trial data from a matrix, a `toMat` file or struct (onset rules, `EventFs`, trial policies), point-process spikes, `spikeTrials` (and its `EventFs`), `eventOnsets` (pulse durations as inclusive rows), `binnedSpikes`, the Kilosort4 / phy source, `extract_trials` |
+| `test_FieldTripExport` | the FieldTrip structures `FieldTripExport` builds: `continuous`, `event` (on the recording's clock) and `artifact` (the matrix on a raw structure), the general builders `epochs`, `trl`, `spikeTimes` and `spikeTrials`; `event` built at once (a tie in the order of the lines; thousands of pulses), `ft_datatype_*` validation when FieldTrip is on the path |
+| `test_MTRFExport` | the mTRF-Toolbox packaging: `resample` (the rate reached), `envelope` (an AM tone's modulator), `pulses` / `lines`, `trials` (the samples `FieldTripExport.epochs` gives), `segments` (artifact-free stretches, merged periods, split), `package`, `lagSamples`, `resample` keeping a constant constant to its ends, `splitTrials` (blocked folds contiguous, overlapping trials never straddling two folds, train/test fraction, the errors), `overlaps` and `folds`; with the toolbox on the path, `mTRFtrain` recovering a known kernel, `mTRFcrossval` and `mTRFpredict` on a package, `mTRFcrossval` over folds |
 | `test_NumPyArchives` | the NumPy layer `exportNWB` and `kcsdEstimate` use: `writeNPY` text and shapes, `writeNPZ` / `readNPZ` (selected members, zip64 records, a deflated member as `numpy.savez_compressed` writes it); with a Python that has NumPy, `numpy.load` on the archive |
 | `test_EpsychSession` | Epsych2 readers (`epsychSessionMeta`, `readEpsychSession`, `findEpsychSessions`), matching (`matchEpsychSession`), stitching (`stitchEpsychSessions` and its refusals), two session files in one recording folder |
 | `test_DerivedEvents` | derived events: `deriveEvents` (all / any, chained lines, errors, skip), the config list (normalized, JSON, validated, script), the behavior file, the extract's events kept up to date, the exports, the analysis source, the Derived events window |
@@ -625,7 +639,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_LocalCleanup` | `planLocalCleanup` / `cleanupMoveTargets` / `runLocalCleanup`: raw files go only with a verified source copy, the kinds (Visualize's envelopes, a partial file under an hour old kept) and pipeline steps, outputs found by their contents, a hand-picked sort kept, delete, move (layout kept; a file already there skipped, overwritten, or the dataset's files put in a `_v2` version folder; a folder never replaced) and the Recycle Bin, cancel, the clean-up record |
 | `test_EphysTraceViewer` | the Visualize viewer without the app: every source kind reads exactly the rows asked for (the `.bin` scale and its integer min / max, HDF5 windows, `-v7` extracts, recording channels); timing of samples and bins; drawing from memory; spike layers as ticks, recolored traces and stored waveforms; the wheel, keys and drags; the envelope (every level equal to the full-rate min / max per block, a stale cache rebuilt, a removed cache file noticed, builds on a thread, on a timer and canceled, a whole-recording view without a full-rate read, the overview's signal) |
 | `test_ManifestViewerApp` | the manifest viewer, headless: the Summary checks, opening from a file, a folder or a dataset, the plots, the default probe, Rewrite, the flow chart at each level of detail |
-| `test_addToManifest` | `addToManifest`: a dataset, folder or file as the target, fields added and replaced, the `custom` block kept by `writeManifest`, the viewer's row, each refusal leaving the file as it was |
+| `test_addToManifest` | `addToManifest`: a dataset, folder or file as the target, fields added and replaced, only the `custom` block and `updated` changed in the file's text (a list of one and a `null` stay as they were), the dataset's `Custom` property and the block kept by `writeManifest`, `writeJsonFile(Text=true)`, the viewer's row, each refusal leaving the file as it was |
 | `test_ChannelMapper` | the channel mapper: parsing vendor rows, the shipped hardware bank and saving entries, mating (both orientations, GND / REF safety, one-way connectors), the golden chains (H32 + RHD2132 = probeinterface's `H32>RHD2132`; H64LP + RHD2164 = `H64LP_4x16lin_probemap.json`; H16 + the 16-channel RHD2132), two headstages, a dataset's channel numbers, the Kilosort4 export and its sidecar, text output, saved mappings, the site-order templates, and `ChannelMapperApp` headless (selection, orientation, export, mappings, the entry editor, preferences) |
 | `test_SyntheticDataset` | `makeSyntheticProject` / `makeSyntheticRecording`: the written lines, sessions, spikes, aux and artifacts read back; pairing per scenario; the one-file-per-signal and binary layouts; the config through the pipeline; the app's File-menu action and the active dataset across its tabs |
 | `test_SyntheticGenerator` | `SyntheticDesign` (validation, JSON), the built-in design read back from the files (silenced window, evoked potential, aux steps), responses exactly in their window after the edge, evoked potentials peaking halfway through theirs, parameter scaling, `PreviewOnly` = what is written, the app's Synthetic tab |
@@ -656,7 +670,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_ThresholdScope` | recording-wide detection thresholds: the whole recording's MAD / std / rms / percentile, independent of the chunk size, applied by detection; flat and out-of-range channels; progress over both passes; the spikes file and the config; absolute thresholds the same either way; refused for a data block |
 | `test_SpikeCoincidence` | one spike seen on neighboring sites (`detectSpikes` `Coincidence`): `"remove"` keeps the deepest copy, `"tag"` numbers them; the jitter and radius edges, ties, a site off the probe, waveforms, whole-recording mode across chunk joins, `spikesToMat` with and without a probe, tags after artifact rejection, the config and its validation, `siteNeighbors`, `SpikeNeighborsDialog` |
 | `test_DetectionBenchmark` | (tag `Benchmark`) spike and artifact detection scored against synthetic truth with `benchmarkDetection`: recall, precision, duplicates and noise crossings, artifact recall, coverage and edges, against regression floors ([below](#detection-benchmark)) |
-| `test_NWBExport` | the NWB export: every staged number against the inputs (signals as stored, electrodes on the probe, units, trial and pulse times on the continuous clock, the erased periods, the session start in its time zone) without Python; with a Python that has pynwb and nwbinspector (`NWB_PYTHON`, else `pyenv`), the file read back with `h5read`, nwbinspector's findings and `DatasetOutputs`' `nwb` kind; the errors |
+| `test_NWBExport` | the NWB export: every staged number against the inputs (signals as stored, electrodes on the probe, units, trial and pulse times on the continuous clock, the erased periods, the session start in its time zone) without Python; with a Python that has pynwb and nwbinspector (`NWB_PYTHON`, else `pyenv`), the file read back with `h5read`, `OUT.verified` (units, spike times and their checksum compared after the write), nwbinspector's findings and `DatasetOutputs`' `nwb` kind; `nwb_export.py`'s comparison of the staged units with a file read back, with any Python that has numpy; the errors |
 | `test_UnitQuality` | unit quality metrics: every metric equal to SpikeInterface's own on spike trains rebuilt from the integer generator of [`tools/golden/unit_quality_golden.py`](../tools/golden/unit_quality_golden.py) (golden values in `pipeline/testdata/`); SNR; the criteria; `ds.unitQuality` on a synthetic sort (fields, cache written, read, made stale by phy, SNR with uV templates); `unitTable`; the QC page; the NWB export carrying the metrics; `sortSweep` comparing two sorts and dry-running two variants |
 
 ### Detection benchmark

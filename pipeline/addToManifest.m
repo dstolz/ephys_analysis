@@ -26,10 +26,14 @@ function c = addToManifest(target, varargin)
 %   string array as a cell column, and NaN is written as null, which reads
 %   as [].
 %
-%   The block is the file's alone: writeManifest carries it over from the
-%   file each time it rewrites it, so a Scan, a pipeline step or the app
-%   keeps what a script added, also while the app has the dataset open. No
-%   step reads it. To read it back:
+%   Only the custom block and the "updated" time change: the block is
+%   spliced into the file's text, so nothing else in the file is decoded and
+%   encoded again (a null stays null, a list of one stays a list). A dataset
+%   holds the block as its Custom property: applyManifest reads it and
+%   writeManifest writes it, and writeManifest also reads back a block
+%   added since the object last read or wrote the file, so a Scan, a
+%   pipeline step or the app keeps what a script added, also while the app
+%   has the dataset open. No step reads it. To read it back:
 %     m = EphysDataset.readManifest(file);  m.custom
 %
 %   The manifest counts in outputsStamp, so a dataset's results in a
@@ -58,20 +62,23 @@ else
 end
 
 files = strings(size(targets));
-manifests = cell(size(targets));
+texts = cell(size(targets));
+blocks = cell(size(targets));
 for k = 1:numel(targets)
     files(k) = manifestOf(targets{k});
-    manifests{k} = withFields(files(k), names, values);
+    [texts{k}, blocks{k}] = withFields(files(k), names, values);
 end
 for k = 1:numel(targets)
-    writeJsonFile(files(k), manifests{k});
+    writeJsonFile(files(k), texts{k}, Text=true);
 end
-c = cellfun(@(m) m.custom, manifests, 'UniformOutput', false);
+c = blocks;
 if isscalar(c); c = c{1}; end
 end
 
-function m = withFields(file, names, values)
-%withFields  The manifest in FILE with the fields in its custom block, not yet written.
+function [txt, c] = withFields(file, names, values)
+%withFields  The text of the manifest in FILE with the fields in its custom
+%   block, not yet written, and the block as jsondecode reads it. Only the
+%   custom and updated members of the text change.
 [m, why] = EphysDataset.readManifest(file);
 if why ~= ""
     error('addToManifest:Unreadable', 'Cannot add to %s: %s.', file, why);
@@ -86,8 +93,51 @@ end
 for k = 1:numel(names)
     c.(names{k}) = values{k};
 end
-m.custom = c;
-m.updated = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+stamp = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+txt = fileread(file);
+txt = setMember(txt, 'custom', indented(jsonencode(c, 'PrettyPrint', true)));
+txt = setMember(txt, 'updated', jsonencode(stamp));
+try
+    decoded = jsondecode(txt);
+catch ME
+    error('addToManifest:BadValue', 'Cannot add these fields to %s: %s', file, ME.message);
+end
+c = decoded.custom;
+end
+
+function txt = setMember(txt, key, valueText)
+%setMember  TXT with the value of its top-level member KEY replaced by VALUETEXT.
+%   TXT is the text of a JSON object and VALUETEXT a JSON value. A member
+%   that is not there is added after the last one. Nothing else in TXT is
+%   touched: it is not decoded. The text is read as its strings and
+%   brackets (a string may hold any of the others), counting the depth.
+[tok, st, en] = regexp(txt, '"(?:[^"\\]|\\.)*"|[{}\[\],:]', 'match', 'start', 'end');
+if isempty(tok)
+    error('addToManifest:Unreadable', 'The manifest is not a JSON object.');
+end
+c = cellfun(@(t) t(1), tok);
+after = cumsum((c == '{' | c == '[') - (c == '}' | c == ']'));
+before = [0, after(1:end-1)];
+isKey = c == '"' & before == 1 & [c(2:end) == ':', false] & strcmp(tok, ['"' key '"']);
+ki = find(isKey, 1);
+if ~isempty(ki)
+    a = en(ki + 1) + find(~isspace(txt(en(ki + 1) + 1:end)), 1);   % where the value starts
+    j = ki + 1 + find(before(ki + 2:end) == 1 & (c(ki + 2:end) == ',' | c(ki + 2:end) == '}'), 1);
+    b = find(~isspace(txt(1:st(j) - 1)), 1, 'last');                % where it ends
+    txt = [txt(1:a - 1), valueText, txt(b + 1:end)];
+else
+    close = find(c == '}' & before == 1 & after == 0, 1);
+    p = find(~isspace(txt(1:st(close) - 1)), 1, 'last');            % the last member's end
+    sep = ',';
+    if txt(p) == '{'; sep = ''; end
+    txt = [txt(1:p), sep, newline, '    "', key, '": ', valueText, txt(p + 1:end)];
+end
+end
+
+function t = indented(t)
+%indented  The pretty-printed JSON T for a member of the top-level object: its lines
+%   after the first indented one level.
+t = strrep(t, newline, [newline '    ']);
 end
 
 function [names, values] = fieldsToAdd(args)

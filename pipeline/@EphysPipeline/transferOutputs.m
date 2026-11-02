@@ -34,7 +34,9 @@ function X = transferOutputs(obj, opts)
 %     Close   true (default): add the manifests and close the transfer
 %             (no more batches; a move removes what it copied)
 %     Wait    true (default): wait until the transfer is done, logging
-%             where it is every 30 s
+%             where it is every 30 s; after TransferTimeout seconds it
+%             logs the timeout and returns instead (the transfer goes on
+%             whenever something polls it)
 %
 %   See also OutputTransfer, EphysPipeline.run, EphysPipelineConfig.defaults.
 
@@ -74,7 +76,14 @@ if opts.Close
 end
 X.poll();
 if opts.Wait
-    X.wait(LogEvery=30);
+    try
+        X.wait(LogEvery=30, Timeout=obj.TransferTimeout);
+    catch ME
+        if ~strcmp(ME.identifier, 'OutputTransfer:Timeout'); rethrow(ME); end
+        % A batch waiting for a sort that never ends, or a copy that stopped:
+        % say so and return; the transfer goes on whenever something polls it.
+        obj.log("[transfer] TIMEOUT after %g s (TransferTimeout): %s", obj.TransferTimeout, ME.message);
+    end
 end
 end
 

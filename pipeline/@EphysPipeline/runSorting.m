@@ -37,9 +37,12 @@ function runSorting(obj, opts)
 %   Skipped ("skipped" rows): a dataset without recording files, one with a
 %   sort run (of any sorter) queued or still going (activeRun: PriorRuns or
 %   LaunchedRuns), so its .bin is never rewritten under a running sort,
-%   one without a probe or whose probe file is not there, and with
-%   Sorting.SkipExisting one already sorted (also when its hand-picked
-%   sorted-output folder is not there now). A cancel stops the datasets not
+%   one another session works on (inUse: its run or sort lock, RunLock),
+%   one without a probe or whose probe file is not there, one whose probe
+%   has more sites than the recording has channels (the .bin would be
+%   written and Kilosort4 fail on it), and with
+%   Sorting.SkipExisting (on by default) one already sorted (also when its
+%   hand-picked sorted-output folder is not there now). A cancel stops the datasets not
 %   started yet; a run already launched, queued or finished carries on and
 %   keeps its row.
 %
@@ -112,12 +115,14 @@ for k = 1:n
         end
         obj.progress("sorting", d.Name, k, n, lo, 2, ternary(dry, "writing run files", "writing the .bin and run files"));
         if si
+            if ~dry; d.prepareBadChannels(); end   % settled first: the options hash holds the channels left out
             res = d.runSpikeInterface(Sorter=S.Sorter, Params=EphysPipelineConfig.siParams(S), ...
                 Quality=S.Quality, NJobs=nJobs, ProbeFile=obj.probeFor(d), ArtifactIntervals=iv, ...
-                DryRun=dry, Launch=false, Provenance=obj.provenance());
+                DryRun=dry, Launch=false, Provenance=obj.provenanceFor("sorting", d));
         else
+            if ~dry; d.prepareBadChannels(); end
             res = d.runKilosort(ProbeFile=obj.probeFor(d), ExtraSettings=ks4, ArtifactIntervals=iv, ...
-                DryRun=dry, Launch=false, Provenance=obj.provenance());
+                DryRun=dry, Launch=false, Provenance=obj.provenanceFor("sorting", d));
         end
         if dry
             obj.log("[sorting] %s: dry run, wrote %s", d.Name, res.settingsPath);
@@ -155,7 +160,7 @@ for k = 1:n
             end
         end
         obj.SortingWaiting = nnz(why(k+1:end) == "");
-        d.writeManifest();
+        if ~dry; d.writeManifest(); end   % a dry run writes nothing
         try
             obj.progress("sorting", d.Name, k, n, 2, 2, "done");
         catch
@@ -192,17 +197,30 @@ elseif ~isempty(run)
     why = EphysDataset.sorterLabel(EphysDataset.sorterOfRunDir(run.resultsDir)) + " is already " + ...
         ternary(run.queued, "queued", "running") + " for this dataset";
     out = run.resultsDir;
-elseif probe == ""
-    why = "no probe";
-elseif ~isfile(probe)
-    why = "probe file missing";
-    out = probe;
-elseif S.SkipExisting && d.hasKilosortResults()
-    why = "sorted output exists (SkipExisting)";
-    out = string(d.sortingResultsDir());
-elseif S.SkipExisting && d.sortingMissing()
-    why = "sorted output recorded (SkipExisting), its folder is not there now";
-    out = d.SortingDir;
+else
+    busy = obj.inUse(d);
+    if busy ~= ""
+        why = busy;
+        return
+    end
+    if probe == ""
+        why = "no probe";
+    elseif ~isfile(probe)
+        why = "probe file missing";
+        out = probe;
+    elseif S.SkipExisting && d.hasKilosortResults()
+        why = "sorted output exists (SkipExisting)";
+        out = string(d.sortingResultsDir());
+    elseif S.SkipExisting && d.sortingMissing()
+        why = "sorted output recorded (SkipExisting), its folder is not there now";
+        out = d.SortingDir;
+    else
+        [st, note] = EphysPipeline.probeStatus(probe, d);
+        if st == "probe-channel mismatch"
+            why = "probe-channel mismatch: " + note;
+            out = probe;
+        end
+    end
 end
 end
 

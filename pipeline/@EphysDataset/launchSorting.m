@@ -47,6 +47,22 @@ function result = launchSorting(obj, result, opts)
 %   ones already moved go back and EphysDataset:launchSorting:SetAsideFailed
 %   is thrown before anything starts.
 %
+%   The old sort's curation goes aside when the run starts, not when it
+%   ends: run_ks4.py removes the old sort's files at its start, Kilosort4
+%   rewrites cluster_group.tsv (which would be phy's) and its cluster ids
+%   start again, so the old labels belong to nothing from then on. A launch
+%   that does not start puts the files back.
+%
+%   How the run was set up (RESULT.processing, which runKilosort and
+%   runSpikeInterface made) is not in Processing.sorting yet: it goes into
+%   the run folder's EphysDataset.SortRecordFile and is taken into
+%   Processing.sorting (settleSortRun) once the run is "done" - at once for a
+%   blocking run that exits cleanly, for a background run by whoever next
+%   writes the dataset's manifest after it. A run that fails records nothing.
+%   The sort lock (RunLock) taken by runKilosort gets the run's status file,
+%   so another session sees the run is going, and is released when a
+%   blocking run ends.
+%
 %   RESULT comes back with command (as run, --device included), status,
 %   wait, background, device, launched (true) and previousDir (the
 %   previous_* folder, "" when there was nothing to move) set.
@@ -84,36 +100,61 @@ if sorter ~= "kilosort4"; launcherName = 'si_launch.cmd'; end
 
 % The earlier sort's curation goes aside, then any stale status / exit
 % marker, so they reflect this run only.
-previousDir = setAsideCuration(result.resultsDir, sorter);
-if isfile(statusFile)
-    delete(statusFile);
-end
-if isfile(exitFile)
-    delete(exitFile);
-end
+previousDir = "";
+recordFile = fullfile(result.resultsDir, char(EphysDataset.SortRecordFile));
+try
+    previousDir = setAsideCuration(result.resultsDir, sorter);
+    if isfile(statusFile)
+        delete(statusFile);
+    end
+    if isfile(exitFile)
+        delete(exitFile);
+    end
+    RunLock.setStatusFile(obj, statusFile);   % another session sees the run is going
+    if isfile(recordFile); delete(recordFile); end
+    if isfield(result, 'processing') && ~isempty(result.processing)
+        writeJsonFile(recordFile, struct('status_file', string(statusFile), 'sorter', sorter, ...
+            'record', result.processing), NonFinite="string");   % Processing.sorting once the run is done
+    end
 
+    if opts.Wait
+        fprintf('Launching %s (blocking):\n  %s\n', what, command);
+        [status, out] = system(command);
+        fid = fopen(result.stdoutLog, 'w');   % tee the output to the log
+        if fid >= 0
+            fwrite(fid, out, 'char');
+            fclose(fid);
+        end
+        if status ~= 0
+            warning('EphysDataset:launchSorting:NonZeroExit', ...
+                '%s exited with status %d. See log: %s', what, status, result.stdoutLog);
+        end
+    else
+        launcher = fullfile(result.runDir, launcherName);
+        bgCommand = backgroundCommand(command, result.stdoutLog, exitFile, launcher, title);
+        fprintf('Launching %s (background):\n  %s\n', what, bgCommand);
+        status = system(bgCommand);   % returns immediately
+        if status ~= 0
+            fclose(fopen(exitFile, 'w'));   % nothing runs: sortRunState reports an error, the slot is free
+            error('EphysDataset:launchSorting:LaunchFailed', ...
+                'The background launch of %s returned status %d: %s', what, status, bgCommand);
+        end
+    end
+catch ME
+    if previousDir ~= ""; putBackCuration(previousDir, result.resultsDir); end   % nothing started
+    if isfile(recordFile); delete(recordFile); end
+    RunLock.release(obj, "sort");
+    rethrow(ME);
+end
 if opts.Wait
-    fprintf('Launching %s (blocking):\n  %s\n', what, command);
-    [status, out] = system(command);
-    fid = fopen(result.stdoutLog, 'w');   % tee the output to the log
-    if fid >= 0
-        fwrite(fid, out, 'char');
-        fclose(fid);
+    % Over: the record goes into Processing.sorting when the run finished,
+    % and the sort lock is given up.
+    if status == 0
+        obj.settleSortRun(result);
+    elseif isfile(recordFile)
+        delete(recordFile);
     end
-    if status ~= 0
-        warning('EphysDataset:launchSorting:NonZeroExit', ...
-            '%s exited with status %d. See log: %s', what, status, result.stdoutLog);
-    end
-else
-    launcher = fullfile(result.runDir, launcherName);
-    bgCommand = backgroundCommand(command, result.stdoutLog, exitFile, launcher, title);
-    fprintf('Launching %s (background):\n  %s\n', what, bgCommand);
-    status = system(bgCommand);   % returns immediately
-    if status ~= 0
-        fclose(fopen(exitFile, 'w'));   % nothing runs: sortRunState reports an error, the slot is free
-        error('EphysDataset:launchSorting:LaunchFailed', ...
-            'The background launch of %s returned status %d: %s', what, status, bgCommand);
-    end
+    RunLock.release(obj, "sort");
 end
 
 result.command    = command;
@@ -129,6 +170,19 @@ if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
         struct('command', command, 'status', status, 'wait', opts.Wait, ...
         'device', opts.Device, 'resultsDir', result.resultsDir, 'previousDir', previousDir));
 end
+end
+
+
+function putBackCuration(previousDir, resultsDir)
+%putBackCuration  Move the curation setAsideCuration moved to PREVIOUSDIR back into RESULTSDIR.
+%   For a launch that did not start: the earlier sort is as it was.
+L = dir(previousDir);
+for k = reshape(L(~ismember({L.name}, {'.', '..'})), 1, [])
+    if ~isfile(fullfile(resultsDir, k.name)) && ~isfolder(fullfile(resultsDir, k.name))
+        movefile(fullfile(previousDir, k.name), fullfile(resultsDir, k.name));
+    end
+end
+[~, ~] = rmdir(previousDir);   % only when it is empty now
 end
 
 

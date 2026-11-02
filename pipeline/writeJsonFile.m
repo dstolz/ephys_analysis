@@ -12,6 +12,11 @@ function writeJsonFile(file, s, opts)
 %                they survive a round trip; the reader (e.g. a config class
 %                that knows each field's type) turns them back into numbers.
 %     Pretty     logical (default true)
+%     Text       logical (default false). true: S is JSON text already
+%                (a string or char row), written as it is, with the same
+%                atomic rename. addToManifest changes one block of a
+%                manifest this way, so the rest of the file is never
+%                decoded and encoded again.
 %
 %   Errors with identifier writeJsonFile:CannotWrite when the file cannot be
 %   written. See also readJsonFile, jsonencode.
@@ -21,20 +26,27 @@ arguments
     s
     opts.NonFinite (1,1) string {mustBeMember(opts.NonFinite, ["null","string"])} = "null"
     opts.Pretty (1,1) logical = true
+    opts.Text (1,1) logical = false
 end
 
-if opts.NonFinite == "string"
-    s = stringifyNonFinite(s);
-end
-
-if opts.Pretty
-    try
-        txt = jsonencode(s, 'PrettyPrint', true);
-    catch
-        txt = jsonencode(s);   % releases before PrettyPrint support
+if opts.Text
+    txt = char(s);
+    if ~isrow(txt)
+        error('writeJsonFile:CannotWrite', 'Text must be one string or char row of JSON.');
     end
 else
-    txt = jsonencode(s);
+    if opts.NonFinite == "string"
+        s = stringifyNonFinite(s);
+    end
+    if opts.Pretty
+        try
+            txt = jsonencode(s, 'PrettyPrint', true);
+        catch
+            txt = jsonencode(s);   % releases before PrettyPrint support
+        end
+    else
+        txt = jsonencode(s);
+    end
 end
 
 file = char(file);
@@ -48,7 +60,8 @@ if ~isfolder(outDir)
         error('writeJsonFile:CannotWrite', 'Cannot create %s: %s', outDir, msg);
     end
 end
-tmp = fullfile(outDir, ['~' base ext '.partial']);
+[~, uid] = fileparts(tempname);   % a name of this write's own: two sessions writing one file never share it
+tmp = fullfile(outDir, ['~' base ext '.' uid '.partial']);
 
 fid = fopen(tmp, 'w');
 if fid < 0

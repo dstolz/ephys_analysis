@@ -17,6 +17,9 @@ function files = wikiScreenshots(outFolder, opts)
 %                           dataset loaded
 %                           (The Trials shots show the TrialType and
 %                           RespCode columns and TrialType labels.)
+%     app-project-empty.png Project tab before a project is scanned: the
+%                           "No project is loaded yet." card (taken first,
+%                           on the app as it opens)
 %     app-project-tab.png   Project tab, first dataset active
 %     app-probe-tab.png     Probe tab: the project's probe with channel 13
 %                           of the first dataset excluded (cleared again
@@ -86,7 +89,7 @@ function files = wikiScreenshots(outFolder, opts)
 arguments
     outFolder (1,1) string
     opts.Source (1,1) string = string(fileparts(fileparts(fileparts(mfilename('fullpath')))))
-    opts.Shots (1,:) string = ["app-copy-tab.png" "app-project-tab.png" "app-trials-clean.png" ...
+    opts.Shots (1,:) string = ["app-copy-tab.png" "app-project-empty.png" "app-project-tab.png" "app-trials-clean.png" ...
         "app-trials-mismatch.png" "app-trials-resolved.png" "app-probe-tab.png" "app-artifacts-tab.png" ...
         "app-sorting-tab.png" "app-signals-tab.png" "app-spikes-tab.png" "app-export-tab.png" ...
         "app-analysis-tab.png" "app-diagram-tab.png" "app-diagram-overview.png" "app-synthetic-tab.png" "app-run-plan.png" ...
@@ -119,6 +122,10 @@ app = EphysPipelineApp;
 closeApp = onCleanup(@() closeIt(app));
 app.Fig.Position = [40 40 1240 800];
 drawnow;
+if want("app-project-empty.png")   % before any project: the empty-state card
+    app.selectTab(app.TabProject);
+    shot("app-project-empty.png", 1);
+end
 mismatch = 2;   % the late-start dataset: makeSyntheticProject's second scenario
 wantTrials = want("app-trials-mismatch.png") || want("app-trials-resolved.png");
 if reuse

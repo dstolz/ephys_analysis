@@ -757,6 +757,8 @@ startup window has a **Skip scan** button for a slow network share: pressed,
 the scan stops at the next dataset and the project stays unscanned (press
 **Scan** later).
 
+<!-- wiki: ![The Project tab before a project is scanned](images/app-project-empty.png) -->
+
 1. It builds `EphysProject(root, Recursive=, ReaderOptions=)`: one dataset
    for every folder under the root that a registered reader
    ([readers](EphysDataset.md#acquisition-readers)) claims. That is a folder holding Intan

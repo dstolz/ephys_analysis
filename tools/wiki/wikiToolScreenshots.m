@@ -25,6 +25,7 @@ function files = wikiToolScreenshots(outFolder, opts)
 %     dataset-browser.png   DatasetBrowser on P, every dataset ticked:
 %                           sorted units around Stim onset, grouped by
 %                           Depth, after Compute
+%     dataset-browser-details.png  its Details window after that Compute
 %   The analysis config is "Synthetic quick look": the default event (the
 %   first Stim onset of each trial, -0.2 to 0.8 s), grouped by Depth, the
 %   figures unit_card (raster over PSTH), tuning, heatmap, probemap,
@@ -56,7 +57,7 @@ arguments
     opts.Shots (1,:) string = ["probe-designer.png" "channel-mapper.png" "manifest-viewer.png" ...
         "analysis-data-tab.png" "analysis-alignment-tab.png" "analysis-figures-tab.png" "analysis-export-tab.png" ...
         "analysis-example-unit-card.png" "analysis-example-heatmap.png" "analysis-example-corrmap.png" ...
-        "dataset-browser.png"]
+        "dataset-browser.png" "dataset-browser-details.png"]
     opts.Wait (1,1) double {mustBeNonnegative} = 2
 end
 
@@ -161,7 +162,7 @@ if any(ismember(analysisShots, opts.Shots))
     end
 end
 
-if want("dataset-browser.png")
+if want("dataset-browser.png") || want("dataset-browser-details.png")
     B = DatasetBrowser(proj, Splash=false, Workers=0);   % no saved state: the scan ticks every dataset
     closeBrowser = onCleanup(@() delete(B));
     S = B.Settings;
@@ -170,6 +171,10 @@ if want("dataset-browser.png")
     B.Settings = S;
     B.compute();
     shot(B.Fig, "dataset-browser.png");
+    if want("dataset-browser-details.png")
+        w = B.showDetails();
+        if ~isempty(w); shot(w, "dataset-browser-details.png"); end
+    end
     clear closeBrowser
 end
 

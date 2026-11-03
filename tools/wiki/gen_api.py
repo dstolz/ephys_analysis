@@ -1090,6 +1090,7 @@ def main(do_splice=True):
         "HardwareBank": pdir("pipeline", "HardwareBank.m"),
         "CopySchedule": pdir("pipeline", "CopySchedule.m"),
         "OutputTransfer": pdir("pipeline", "OutputTransfer.m"),
+        "RunLock": pdir("pipeline", "RunLock.m"),
         "EphysTraceViewer": pdir("pipeline", "EphysTraceViewer.m"),
         "EphysTraceSource": pdir("pipeline", "EphysTraceSource.m"),
         "EphysTraceEnvelope": pdir("pipeline", "EphysTraceEnvelope.m"),

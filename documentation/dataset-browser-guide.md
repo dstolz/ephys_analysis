@@ -141,6 +141,8 @@ shown only** and **Compute** to take in the recordings tagged since.
   result is kept, so fix the script and press **Run now** again.
 - More: [Errors and warnings](DatasetBrowser.md#errors-and-warnings).
 
+<!-- wiki: ![The Details window after a Compute: a row per recording and kind of data, with its status](images/dataset-browser-details.png) -->
+
 ## Next
 
 <!-- wiki

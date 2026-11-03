@@ -566,19 +566,18 @@ if S.sec("1d", "messages: what stops an action is an alert that says what to do;
         && height(app.IssuesTable.Data) >= 1 && ~app.Running, ...
         'Run with no figure enabled: an alert naming the first error, the Export tab with its issues table');
     app.selectTab(app.TabFigures);
-    cardButtons = findall(app.Fig, 'Type', 'uibutton', 'Tag', 'starterCard');
+    cardButtons = findall(app.Fig, 'Type', 'uibutton', 'Tag', 'addFigureCard');
     hintLabels = findall(app.TabFigures, 'Type', 'uilabel', 'Text', 'Right-click the plot to change colors, fonts and labels.');
-    check(isscalar(cardButtons) && cardButtons.Text == "Add Raster + PSTH" && isscalar(app.AddStarterButton) ...
-        && app.AddStarterButton.Text == "Add Raster + PSTH" && ~isempty(hintLabels), ...
-        'the Figures tab has a starter figure button in its empty preview and beside Add, and the right-click hint under the preview');
-    cardButtons.ButtonPushedFcn(cardButtons, []);   % the empty preview's button, as a click
+    starters = findall(app.Fig, 'Type', 'uibutton', 'Text', 'Add Raster + PSTH');
+    check(isscalar(cardButtons) && cardButtons.Text == "Add figure" && isempty(starters) && ~isprop(app, 'AddStarterButton') ...
+        && app.SavePanelTypeButton.Text == "Save as panel type..." && ~isempty(hintLabels), ...
+        'the Figures tab has an Add figure button in its empty preview, no Add Raster + PSTH button, Save as panel type... under the list, and the right-click hint under the preview');
+    answerDialog('New panel', @(D) newPanelSetPick(D, "builtin:rasterPsth"));
+    cardButtons.ButtonPushedFcn(cardButtons, []);   % the empty preview's button, as a click: a blank figure, then the New panel window
     check(numel(app.Config.Figures) == 1 && app.SelectedFigure == 1 && isequal([app.Config.Figures(1).panels.type], ["raster" "psth"]) ...
-        && contains(app.StatusBar.Text, "Added Raster+PSTH units"), ...
-        'the starter button adds a raster over a PSTH, built from the config''s panel defaults');
-    app.AddStarterButton.ButtonPushedFcn(app.AddStarterButton, []);
-    check(numel(app.Config.Figures) == 2, 'Add Raster + PSTH beside Add adds another');
-    app.onFigureSelected(1);
-    app.onRemoveFigure();   % one figure is enough for the rest
+        && app.Config.Figures(1).id == "Raster+PSTH units" && app.Config.Figures(1).grid.spacing == "none" ...
+        && contains(app.StatusBar.Text, "Added Raster over PSTH (raster_1, psth_1)"), ...
+        'the card''s button adds a figure and opens New panel: the saved figure Raster over PSTH gives a raster flush over a PSTH');
     kIssue = 1;
     figS = app.Config.Figures(1);
     app.onTickDatasets("none");
@@ -1875,6 +1874,28 @@ if S.sec("5d.newpanel", "Add: a blank figure, then the New panel window (answere
         height(PTn), strjoin(", not: " + bad, "")));
     check(all(isfile(fullfile(repo, 'analysis', 'icons', 'panels', PTn.Type + ".png"))), ...
         'every panel type has its picture (analysis/icons/panels, tools/makePanelThumbnails)');
+    % a saved figure as a panel type: Raster over PSTH placed as one block, from the window and with Set=
+    app.onPanelSelected(1);
+    answerDialog('New panel', @newPanelSetAnswer);
+    app.onNewPanel();
+    seenSet = getappdata(groot, 'newPanelSetSeen');
+    if isappdata(groot, 'newPanelSetSeen'); rmappdata(groot, 'newPanelSetSeen'); end
+    f2 = app.Config.Figures(2);
+    check(isstruct(seenSet) && seenSet.keys(1) == "builtin:rasterPsth" && seenSet.icon && seenSet.pressed ...
+        && seenSet.name == "raster_1, psth_1" && seenSet.nameEnable == "off" && isempty(seenSet.params) ...
+        && isequal([f2.panels.type], ["continuous" "raster" "psth"]) && isequal([f2.panels.row], [1 2 3]) && f2.grid.rows == 3 ...
+        && f2.grid.spacing == "custom" && isequal(f2.grid.rowGaps, [6 0]) && app.SelectedPanel == 2 ...
+        && contains(app.StatusBar.Text, "Added Raster over PSTH (raster_1, psth_1) below lfp_a"), ...
+        'New panel...: the saved figures under the types (Raster over PSTH first, a picture of its panels); picked, the ids its panels get; OK places them as one block below the selected panel, flush as saved, the first selected');
+    app.onUndoRedo("undo");
+    check(isscalar(app.Config.Figures(2).panels) && app.Config.Figures(2).grid.rows == 1, 'one Undo takes the whole block off');
+    app.onPanelSelected(1);
+    app.onNewPanel(Set="builtin:rasterPsth", Where="right");
+    f2 = app.Config.Figures(2);
+    check(isequal([f2.panels.type], ["continuous" "raster" "psth"]) && isequal([f2.grid.rows f2.grid.cols], [2 2]) ...
+        && f2.panels(1).rowSpan == 2 && isequal([f2.panels(2:3).col], [2 2]) && isequal([f2.panels(2:3).row], [1 2]), ...
+        'Set= without the window, right of the panel: its row split in two for the block''s rows');
+    app.onUndoRedo("undo");
     FE.id.Value = 'lfp_card';
     FE.id.ValueChangedFcn(FE.id, struct('PreviousValue', 'Continuous LFP', 'Value', 'lfp_card'));
     app.onNewPanel(Type="psth", Where="above");
@@ -4079,6 +4100,7 @@ if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into
     app.FigureAutoCheckBox.Value = false;   % nothing here needs drawing
     restoreAuto5q = onCleanup(@() autoBoxOn(app));
     app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5k), let go: edits stay with their figure
+    app.FigureHistory = FigureEditHistory();   % the steps counted below start here (the sections before may have filled its Depth)
     tplFolder5q = FigureTemplate.folder();
     if isfolder(tplFolder5q); rmdir(tplFolder5q, 's'); end
     restoreTpl5q = onCleanup(@() removeTemplates(tplFolder5q));
@@ -4123,6 +4145,35 @@ if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into
         && isequal(getappdata(groot, 'templateOffered'), app.Config.Figures(1).id), ...
         'Save as... asks the name in its window (the figure''s id offered) and picks the new template');
     FigureTemplate.remove("Dialog card");
+    app.refreshTemplates("Card");
+
+    % Save as panel type... under the figure list: a template that is a panel type too, placed by New panel as one block
+    answerDialog("Save the figure as a panel type", @(D) savePanelAnswer(D, "Card panel"));
+    app.SavePanelTypeButton.ButtonPushedFcn(app.SavePanelTypeButton, []);
+    T5p = FigureTemplate.list();
+    P5p = FigureTemplate.panelTypes();
+    status5p = string(app.StatusBar.Text);
+    check(isequal(sort(T5p.Name).', ["Card" "Card panel"]) && isequal(T5p.Panel(T5p.Name == "Card panel"), true) && nnz(T5p.Panel) == 1 ...
+        && isequal(P5p.Key.', ["builtin:rasterPsth" "Card panel"]) && P5p.Summary(2) == "2 x 1: raster, psth; observes units" ...
+        && string(app.FigureTemplateDropDown.Value) == "Card panel" && any(string(app.FigureTemplateDropDown.Items) == "Card panel  (panel type)") ...
+        && isequal(getappdata(groot, 'panelBoxTicked'), true) && contains(status5p, "as the panel type Card panel") ...
+        && app.SavePanelTypeButton.Parent == app.AddFigureButton.Parent, ...
+        sprintf('Save as panel type... (under the figure list): its window, the box ticked; a template marked as a panel type, in the Template list and in New panel''s saved figures (%s)', status5p));
+    if isappdata(groot, 'panelBoxTicked'); rmappdata(groot, 'panelBoxTicked'); end
+    app.onFigureSelected(3);   % the continuous figure
+    app.onPanelSelected(1);
+    nUndo5p = numel(app.FigureHistory.Undo);
+    app.onNewPanel(Set="Card panel", Where="below");
+    f5p = app.Config.Figures(3);
+    status5p = string(app.StatusBar.Text);
+    added5p = numel(app.FigureHistory.Undo) == nUndo5p + 1;
+    check(isequal([f5p.panels.type], ["continuous" "raster" "psth"]) && isequal([f5p.panels(2:3).id], ["raster_1" "psth_1"]) ...
+        && f5p.style.FontSize ~= 15 && added5p && app.FigureHistory.undoLabel() == "Add Card panel" ...
+        && contains(status5p, "Added Card panel (raster_1, psth_1) below"), ...
+        sprintf('New panel with the panel type of yours: its panels below the selected one as one block, one undo step; the figure keeps its own look (%s: %s; undo "%s")', ...
+        f5p.id, strjoin([f5p.panels.id], ", "), app.FigureHistory.undoLabel()) + " " + status5p);
+    if app.FigureHistory.undoLabel() == "Add Card panel"; app.onUndoRedo("undo"); end
+    FigureTemplate.remove("Card panel");
     app.refreshTemplates("Card");
 
     % Apply... in its window: the figures picked, one undo step
@@ -4553,6 +4604,33 @@ function saveTemplateAnswer(D, name)
 setappdata(groot, 'templateOffered', string(D.Name.Value));
 D.Name.Value = char(name);
 D.Save.ButtonPushedFcn(D.Save, []);
+end
+
+
+function savePanelAnswer(D, name)
+%savePanelAnswer  In the Save the figure as a panel type window: note whether its box is ticked (appdata panelBoxTicked), type NAME, Save.
+setappdata(groot, 'panelBoxTicked', logical(D.Panel.Value));
+D.Name.Value = char(name);
+D.Save.ButtonPushedFcn(D.Save, []);
+end
+
+
+function newPanelSetPick(D, key)
+%newPanelSetPick  In the New panel window: pick the saved figure KEY, OK.
+D.PickSet(key);
+press(D, "Ok");
+end
+
+
+function newPanelSetAnswer(D)
+%newPanelSetAnswer  In the New panel window: note the saved figures' tiles, pick the first, note its Name row and parameters, OK (appdata newPanelSetSeen).
+keys = [D.Sets.Key];
+D.PickSet(keys(1));
+tile = D.Sets(1).Tile;
+seen = struct('keys', keys, 'icon', isnumeric(tile.Icon) && size(tile.Icon, 3) == 3, 'pressed', tile.Value && ~D.Types.psth.Value, ...
+    'name', string(D.Name.Value), 'nameEnable', string(D.Name.Enable), 'params', string(fieldnames(D.Params())).');
+setappdata(groot, 'newPanelSetSeen', seen);
+press(D, "Ok");
 end
 
 

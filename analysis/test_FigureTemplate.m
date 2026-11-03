@@ -22,6 +22,10 @@ function test_FigureTemplate()
 %      template's figure onto others): each figure takes every setting and
 %      keeps its id, title and enabled; one part only; as a new figure
 %      (addFigure).
+%   7. panel types: the built-in Raster over PSTH; a template saved with
+%      Panel=true (the file's "panel", list's Panel) listed by panelTypes
+%      after it; a file without "panel"; panelFigure (built in, yours,
+%      Unknown); its panels placed in a figure (placePanels); removed.
 %   The preferences and the templates folder are temporary
 %   (AppPrefs.useTemporary).
 %
@@ -192,6 +196,37 @@ check(G(2).style.FontSize == 13 && isequal([G(2).panels.type], "psth") && G(2).s
 [c2, id] = cfg.addFigure(tf);
 check(numel(c2.Figures) == 3 && c2.Figures(3).autoId && id ~= "" && c2.Figures(3).id == id && same(c2.Figures(3), A), ...
     sprintf('as a new figure: the whole template, an automatic id (%s)', id));
+
+fprintf('\n== 7. panel types ==\n');
+P0 = FigureTemplate.panelTypes();
+check(P0.Key(1) == "builtin:rasterPsth" && P0.Label(1) == "Raster over PSTH" && P0.Builtin(1) && isscalar(P0.Key) ...
+    && isequal([P0.Figure{1}.panels.type], ["raster" "psth"]) && P0.Figure{1}.grid.spacing == "none", ...
+    'panelTypes: the built-in Raster over PSTH (flush), none of yours while no template is a panel type');
+tp = FigureTemplate.fromFigure(A, Description="a card to place", Panel=true);
+fp = FigureTemplate.save(tp, "Panel card");
+s = jsondecode(fileread(fp));
+L = FigureTemplate.list();
+P1 = FigureTemplate.panelTypes();
+check(~t.panel && tp.panel && isequal(s.panel, true) && FigureTemplate.load("Panel card").panel && L.Panel(L.Name == "Panel card") ...
+    && nnz(L.Panel) == 1 && isequal(P1.Key.', ["builtin:rasterPsth" "Panel card"]) && ~P1.Builtin(2) ...
+    && P1.Description(2) == "a card to place" && isequaln(P1.Figure{2}, tp.figure), ...
+    'Panel=true: the file says "panel": true, list''s Panel, panelTypes lists it after the built-in one with its figure');
+old = rmfield(FigureTemplate.toStruct(tp), 'panel');
+r = FigureTemplate.normalize(old);
+check(~r.panel && isempty(r.notes), 'a file without "panel" reads as a template only, with no note');
+[pf, pl] = FigureTemplate.panelFigure("Panel card");
+[bf, bl] = FigureTemplate.panelFigure("builtin:rasterPsth");
+check(isequaln(pf, tp.figure) && pl == "Panel card" && bl == "Raster over PSTH" && isequal([bf.panels.type], ["raster" "psth"]) ...
+    && strcmp(errorId(@() FigureTemplate.panelFigure("builtin:nothing")), 'FigureTemplate:Unknown') ...
+    && strcmp(errorId(@() FigureTemplate.panelFigure("No such")), 'FigureTemplate:Unknown'), ...
+    'panelFigure: a panel type''s figure and name, the built-in and yours; Unknown for one that is not there');
+host = cfg.Figures(2);   % "other": one PSTH
+[placed, pids] = EphysAnalysisConfig.placePanels(host, pf, "below", host.panels(1).id);
+check(isequal([placed.panels.type], ["psth" "raster" "psth"]) && isequal(pids, ["raster_1" "psth_2"]) ...
+    && isequal(placed.panels(3).options.yLim, [0 40]) && placed.style.FontSize == host.style.FontSize, ...
+    'placed in a figure: its panels with their options, ids made free; the figure keeps its own look');
+FigureTemplate.remove("Panel card");
+check(isscalar(FigureTemplate.panelTypes().Key), 'removed: no longer a panel type');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

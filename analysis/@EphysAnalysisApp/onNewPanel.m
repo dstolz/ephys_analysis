@@ -11,6 +11,16 @@ function onNewPanel(obj, opts)
 %   (rememberedPanelOptions: a preference, rememberPanelOptions), over the
 %   type's defaults; the status bar says so. Edit > Reset panel options
 %   to defaults gives a panel the defaults (onResetPanelOptions).
+%   Under the types the window offers the saved figures that are panel
+%   types (FigureTemplate.panelTypes: the built-in Raster over PSTH, then
+%   yours, Save as panel type...): one picked places all its panels as
+%   one block, arranged as saved, at the place chosen
+%   (EphysAnalysisConfig.placePanels), its panels' ids made free in the
+%   figure; the first of them is selected. They take the figure's event
+%   reference, window and trial selection, or the saved figure's own
+%   (Alignment). Set=KEY (a panelTypes Key: "builtin:rasterPsth", or
+%   your template's name) does that without the window, with Where and
+%   Alignment ("figure" | "own").
 %
 %   Type=TYPE skips the window, for scripts and tests, with the same
 %   choices as name-value pairs: Where ("below"), Id ("" = "<type>_<n>"),
@@ -33,10 +43,12 @@ function onNewPanel(obj, opts)
 %   automatic figure id follows the new panel.
 %
 %   See also EphysAnalysisConfig.placePanel, EphysAnalysisConfig.defaultLayer,
-%   EphysAnalysisConfig.panelTypes.
+%   EphysAnalysisConfig.panelTypes, EphysAnalysisConfig.placePanels.
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Type (1,1) string = ""
+    opts.Set (1,1) string = ""
+    opts.Alignment (1,1) string {mustBeMember(opts.Alignment, ["figure" "own"])} = "figure"
     opts.Where (1,1) string {mustBeMember(opts.Where, ["above" "below" "left" "right"])} = "below"
     opts.Id (1,1) string = ""
     opts.Title (1,1) string = ""
@@ -60,13 +72,14 @@ if ~isempty(fig.panels) && j >= 1 && j <= numel(fig.panels); anchor = fig.panels
 PT = EphysAnalysisConfig.panelTypes();
 remembered = opts.Remembered;
 params = string.empty(1, 0);
-if opts.Type == ""
+if opts.Type == "" && opts.Set == ""
     [lines, params] = datasetItems(obj);
     start = struct();   % each type's options as the window starts from them: the remembered over the defaults
     for i = 1:height(PT)
         start.(PT.Type(i)) = mergeOptions(PT.DefaultOptions{i}, rememberedPanelOptions(obj, PT.Type(i), params));
     end
-    c = newPanelDialog(obj.Fig, fig, anchor, lines, params, start);
+    sets = savedPanelTypes(obj);
+    c = newPanelDialog(obj.Fig, fig, anchor, lines, params, start, sets);
     if isvalid(obj.Fig); figure(obj.Fig); end
     if isempty(c)
         obj.setStatus("New panel canceled: " + fig.id + " is unchanged.");
@@ -76,6 +89,10 @@ if opts.Type == ""
     remembered = true;
 elseif remembered
     [~, params] = datasetItems(obj);
+end
+if opts.Set ~= ""   % a saved figure's panels, as one block
+    placeSet(obj, cfg, k, opts.Set, opts.Where, anchor, opts.Alignment);
+    return
 end
 row = PT.Type == opts.Type;
 if ~any(row)
@@ -126,6 +143,41 @@ if ~isempty(fieldnames(mem))
         "; Edit > Reset panel options to defaults).";
 end
 commitFigureEdit(obj, cfg, "Added " + p.id + " (" + PT.Label(row) + ") " + at + " with " + layerLabel(p.layers(1)) + "." + how, Action="Add panel");
+end
+
+
+function placeSet(obj, cfg, k, key, where, anchor, alignment)
+%placeSet  The saved figure KEY's panels into figure K of CFG at WHERE of ANCHOR, as one block; the first of them selected.
+fig = cfg.Figures(k);
+try
+    [block, label] = FigureTemplate.panelFigure(key);
+    [fig, ids] = EphysAnalysisConfig.placePanels(fig, block, where, anchor, Alignment=alignment);
+catch ME
+    obj.setStatus("New panel: " + string(ME.message));
+    return
+end
+cfg.Figures(k) = fig;
+obj.SelectedPanel = numel(fig.panels) - numel(ids) + 1;
+obj.SelectedLayer = 1;
+if anchor == ""
+    at = "filling the figure";
+else
+    at = where + " " + anchor;
+end
+how = "";
+if alignment == "own"; how = " with its own event reference, window and trial selection"; end
+commitFigureEdit(obj, cfg, "Added " + label + " (" + strjoin(ids, ", ") + ") " + at + how + ".", Action="Add " + label);
+end
+
+
+function T = savedPanelTypes(obj)
+%savedPanelTypes  The saved figures New panel offers as panel types (FigureTemplate.panelTypes); the built-in one alone when yours cannot be read.
+try
+    T = FigureTemplate.panelTypes();
+catch ME
+    obj.setStatus("New panel: your panel types could not be read: " + string(ME.message));
+    T = FigureTemplate.panelTypes(Yours=false);
+end
 end
 
 

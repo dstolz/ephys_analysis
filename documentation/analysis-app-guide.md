@@ -68,9 +68,9 @@ pipeline's project). `EphysAnalysisApp` alone opens your last config.
    the **Edge** (onset). Set the window, for example 0.2 s before to 0.8 s
    after. Pick a trial parameter in **Group by** (`Depth`, say) to draw one
    color per value. The numbers on the right are the trials in each group.
-3. **Figures.** Press **Add Raster + PSTH** under the figure list for a
-   ready-made figure, a unit's raster above its PSTH; or press **Add** and a
-   window asks for the first panel: pick *Raster*, then **New panel...** puts
+3. **Figures.** Press **Add** under the figure list. A window asks for the
+   first panel: pick *Raster over PSTH* under **Saved figures** for a unit's
+   raster above its PSTH. Or pick *Raster*, then **New panel...** puts
    another panel next to it: a *PSTH* **Below** the raster. The preview on
    the right draws the figure for the unit picked above it; step through the
    units to look at them one by one. Right-click the plot to change colors,
@@ -93,6 +93,7 @@ pipeline's project). `EphysAnalysisApp` alone opens your last config.
 | copy a change to the other figures | **Edit → Apply last change to figures...** |
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysAnalysisApp.md#notes)) |
+| reuse a figure's panels in other figures | select it and press **Save as panel type...** under the figure list. In any figure, **New panel...** then lists it under **Saved figures**: pick it, and all its panels go next to the selected panel, arranged as they were (see [Saved figures as panel types](EphysAnalysisApp.md#figures-as-panel-types)) |
 | draw the same figures every time the pipeline runs | save the config, then choose it on the pipeline app's Analysis tab |
 | draw the same figures from a script | **File → Generate script** |
 

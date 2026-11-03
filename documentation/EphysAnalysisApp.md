@@ -49,9 +49,9 @@ EphysAnalysisApp("D:\EPHYS_synthetic")     % a project root processed by the pip
 2. **Alignment**: align to `Stim` onset (first per trial) and set **Group
    by** to `Depth`. The summary on the right counts the epochs in each
    group, and the epoch diagram beside it draws how they are cut.
-3. **Figures**: press **Add Raster + PSTH** under the figure tree for a
-   ready-made figure (a unit's raster flush above its PSTH), or **Add** for a blank figure, and the
-   **New panel** window to pick its first panel (a *Raster*, say, following
+3. **Figures**: press **Add** under the figure tree for a blank figure, and
+   in the **New panel** window pick its first panel: the saved figure
+   *Raster over PSTH* (a unit's raster flush above its PSTH), or a type (a *Raster*, say, following
    the observed unit). **New panel...** in the Panels section puts another
    panel next to the selected one (a *PSTH* **Below** the raster, an LFP
    trace of the unit's channel below that), the figure's id following what
@@ -413,8 +413,8 @@ is drawn.
 | --- | --- |
 | **Group by** | how the tree sorts the figures: *What it observes* (the default: per unit, per channel, per dataset), *Enabled / off* or *None* (one flat list). The choice is remembered (`FigureGroupBy`), and the selected figure stays selected |
 | **All**, **None**, **Invert** | above the tree: tick every figure (enable them all), untick every figure (they stay in the config) or flip each. They act on every figure, whatever the groups; the status bar says how many are enabled |
-| **Add** | adds a blank figure (one empty cell, observing the dataset) with an automatic id (*Blank dataset*), selects it and opens the [New panel window](#the-new-panel-window) on it: **OK** adds its first panel, which its id and its **Observe** choice then follow (*PSTH units*); **Cancel** leaves it blank, to fill with **New panel...** later. The starting figures of `addFigure` ([EphysAnalysisConfig](EphysAnalysisConfig.md#figure-ids)) are for scripts, but for the one **Add Raster + PSTH** gives |
-| **Add Raster + PSTH** | beside **Add** (and in the empty preview, while there is no figure): adds a ready-made figure, a unit's raster flush above its PSTH, both following the observed unit (`onAddFigure("rasterPsth")`, built from the config's own panel defaults); an ordinary figure, to edit afterwards |
+| **Add** | adds a blank figure (one empty cell, observing the dataset) with an automatic id (*Blank dataset*), selects it and opens the [New panel window](#the-new-panel-window) on it: **OK** adds its first panel, which its id and its **Observe** choice then follow (*PSTH units*); **Cancel** leaves it blank, to fill with **New panel...** later. The empty preview, while there is no figure, has an **Add figure** button that does the same. The starting figures of `addFigure` ([EphysAnalysisConfig](EphysAnalysisConfig.md#figure-ids)) are for scripts; the raster flush over a PSTH is the New panel window's saved figure *Raster over PSTH* |
+| **Save as panel type...** | under **Copy settings...**: keeps the figure shown as a [panel type of yours](#figures-as-panel-types), named and described in a small window (*Save the figure as a panel type*; its box **A panel type too** ticked): the New panel window then lists it under *Saved figures*, to place all its panels, arranged as they are, next to the selected panel of any figure. It is a [figure template](#figure-templates) too (`onFigureTemplate("panel")`) |
 | **Remove**, **Duplicate** | removes the selected figure; copies it, with its remembered looks and its observation, right after it as *&lt;id&gt; (2)* (the next free number: *PSTH units (3)* when *(2)* is taken), and selects the copy. An automatic id copies as automatic (the copy's id follows its own panels from then on), an id of your own as your own; a *(n)* the id ends in is not doubled (*unit_card (2)* copies as *unit_card (3)*) |
 | **Up**, **Down** | swaps it with its neighbor in its group of the tree (the whole list when ungrouped), which shows as one step and moves it in the config's run order; a figure of another group between the two keeps its place. Off for a figure with no neighbor in its group |
 | **Copy settings...** | under the list, on with a figure selected: copies a figure's settings, one by one, onto other figures (one or many) or into a plot design ([Copy settings to other figures or a design](#copy-settings-to-other-figures-or-a-design)). Each figure copied onto keeps its id (an automatic one follows), title and enabled, and every setting left unticked |
@@ -650,6 +650,47 @@ The key parameters, and the panel's other options, start from the
 [options you last set on a panel of the type](#remembered-panel-options)
 rather than the type's defaults, when you have set some; the status bar
 then names them.
+
+<a name="figures-as-panel-types"></a>
+
+**Saved figures as panel types.** Under the types, *Saved figures* has a tile
+per figure you can place as one block (`FigureTemplate.panelTypes()`): first
+the built-in **Raster over PSTH** (a unit's raster flush above its PSTH, both
+following the observed unit), then each figure you kept with **Save as panel
+type...** (under the figure list), by name. Its picture is the type pictures
+of its panels, where they sit in its grid. Picked, the right side shows its
+name, description and shape (*2 x 1: raster, psth; observes units*), the ids
+its panels will have (**Name**, not editable: an id the figure has already
+becomes the next free one, *psth_2*), **Place**, and one key parameter,
+**Alignment**, when the saved figure has an event reference, window or trial
+selection of its own: *This figure's* (its panels follow this figure's) or
+*Its own, as saved* (each panel that followed the saved figure's takes the
+saved figure's own; a panel's own stays). **OK** places all its panels next to
+the selected panel, keeping their arrangement
+(`EphysAnalysisConfig.placePanels`): *Below* or *Above*, its rows become new
+rows of the grid under (over) the selected panel's, spanning its columns, each
+new row as tall as the selected panel's on average; *Right of* or *Left of*,
+its columns become new columns spanning its rows. Where the saved figure has
+a column (row) boundary inside one of the selected panel's columns (rows) --
+the raster and PSTH right of a one-row panel, say -- that column is split at
+the same share, and every panel across it spans the pieces, so the plot
+areas still line up. Its gaps come with it (Raster over PSTH stays flush): the
+figure's grid then gets custom gaps, its own kept. Each panel keeps its type,
+options, layers, own alignment, note, overlays and size in its cell; the
+figure keeps its own observations, latency settings, Appearance and looks. The
+first of the new panels is selected, the status bar says what came (*"Added
+Raster over PSTH (raster_1, psth_1) below lfp_a."*), and one **Undo** takes the
+block off. The panels are copied, as a [template](#figure-templates) is: from
+then on they are the figure's own, edited and moved one by one, and changing
+the saved figure later changes no figure.
+
+**Save as panel type...** asks for a name (the figure's id is offered) and a
+description, and saves the figure shown as a figure template marked as a
+panel type: it is in the **Template:** list with *(panel type)* after its name,
+and can be applied, updated, exported, imported and removed as any template
+(**Update** keeps it a panel type). The template window's **Save as...** has the
+same box, **A panel type too**, unticked. A figure with no panel cannot be
+saved as a panel type.
 
 **The Spacing window** (**Spacing...**; *Panel spacing: figure_1*) sets the gaps
 between the selected figure's panels. A gap is the clear space between
@@ -1026,7 +1067,7 @@ sorted units, no LFP extract, no paired trials, ...) in plain words with what
 to do about it (*"No LFP signal: switch on LFP in the pipeline's Signals tab and
 run it."*), or that no unit or channel passes the Observations filter. Under it
 a gray line reminds you to *"Right-click the plot to change colors, fonts and
-labels."* With no figure at all the preview is a card with **Add Raster + PSTH**. A layer that cannot be drawn for the
+labels."* With no figure at all the preview is a card with **Add figure** (as **Add**). A layer that cannot be drawn for the
 observation is kept: its panel draws the other layers and prints the reason
 in small gray text. A colored badge at its left says where the preview is:
 
@@ -1379,8 +1420,8 @@ The controls are the **Template:** row above the preview.
 
 | Control | What it does |
 | --- | --- |
-| the list | your templates, by name; pick the one the buttons act on |
-| **Save as...** | asks for a name (the figure's id is offered) and a description, and keeps the figure shown as a template. A template of yours with that name is replaced only if you agree |
+| the list | your templates, by name (a panel type with *(panel type)* after it); pick the one the buttons act on |
+| **Save as...** | asks for a name (the figure's id is offered) and a description, and keeps the figure shown as a template; **A panel type too** makes it one of the New panel window's [saved figures](#figures-as-panel-types) as well. A template of yours with that name is replaced only if you agree |
 | **Apply...** | opens **Apply figure template**: every figure of the config with a box (the figure shown ticked; **All**, **None**), the parts of a figure's settings with a box each (*Observations*, *Alignment*, *Arrangement and panels*, *Panel settings*, *Appearance*, *Remembered looks*, *Across sessions*; all ticked: untick a part to keep the figures' own), and **Also add it as a new figure** (ticked when the config has none). **Apply** copies the template into the figures ticked as one step of the undo history (**Undo Apply template Unit card to 3 figures**) |
 | **Update** | makes the template picked again from the figure shown (its description kept), after asking. The figures it was applied to keep their settings until you apply it to them again |
 | **Remove** | deletes the template picked, after asking; the figures it was applied to keep their settings |
@@ -1427,13 +1468,15 @@ preference `FigureTemplate`, `Folder`). The file is `<name>.json`:
   "description": "raster over PSTH for the lab meeting",
   "saved": "2026-10-26 14:05",
   "from": "Raster+PSTH units",
+  "panel": false,
   "figure": { "size": {...}, "observe": {...}, "grid": {...}, "panels": [...], "ref": "default", ... }
 }
 ```
 
 `figure` is a `Figures` entry of the config as **Save config** writes it
 ([Figures](EphysAnalysisConfig.md#figures)), without `id`, `autoId`, `title` and
-`enabled`. A template is read through the code of the day: its figure is
+`enabled`; `panel` is true for a [panel type](#figures-as-panel-types) (left
+out, it reads as false). A template is read through the code of the day: its figure is
 normalized as a config's figures are, so a setting added to the figure editor
 after the template was saved takes its default, and what the code no longer
 knows -- a field dropped or renamed, a file from a newer version -- is dropped
@@ -1444,9 +1487,10 @@ says its errors. Only a file that is not a template, or a value the config
 itself refuses, cannot be read. Templates are a preference of yours, not part
 of the config, like designs.
 
-Templates here are yours, saved from figures; the starting figures **Add** and
-`cfg.addFigure("rasterPsth")` offer (`EphysAnalysisConfig.figureTemplates`) are
-built in and separate. In a script, `FigureTemplate` does the same
+Templates here are yours, saved from figures; the starting figures
+`cfg.addFigure("rasterPsth")` offers (`EphysAnalysisConfig.figureTemplates`)
+are built in and separate (the New panel window's *Raster over PSTH* is the
+first of them). In a script, `FigureTemplate` does the same
 ([Figure templates](EphysAnalysis.md#figure-templates)).
 
 <a name="remembered-panel-options"></a>
@@ -2117,7 +2161,7 @@ results, on the Log tab and in the report.
 | notes | `refreshNotes`, `onNoteButton`, `onSearchNotes`, `onDatasetNoteClicked` (the ✎ column); `private/loadNotes` (on Scan), `private/noteButton`, `private/noteTip`, `private/syncNoteButtons` (from `syncStarButtons`; the notepad follows here), `private/openNotePad`, `private/noteMarks`, `private/noteEntries`, `private/goToNote` (over `goToFavorite`); the notepad `analysis/NotePad.m`, the search window `analysis/NoteSearch.m`, the files `analysis/DatasetNotes.m` (the sort a unit's note and star record: `analysis/private/sortIdentity.m`) |
 | previews | `refreshAlignPreview` (the Alignment tab; its count line, bars and excluded epochs are `analysis/EpochGroupCounts.m`'s static `summary`, `drawBars` and `withExcluded`, shared with the dataset browser's *Epochs per group* window); the Figures tab's under its row below; `private/showPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
 | epoch diagram | the window `onShowEpochs`, `refreshEpochDiagram`; the Alignment tab's `refreshAlignPreview`; the diagram itself is `analysis/EpochDiagram.m` (in a window, or `Parent=` a container) |
-| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewScale` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Probe layout section's rows (`gatherFigureEditor` / `applyFigureEditor`, `syncFigureEditor`) and its tile count `private/probeTileCount` (over `figureProbeTiles`; its picker is `refreshFigureObservations`' probe branch, its preview `refreshFigurePreview`'s over `EphysAnalysisRunner.computeProbeFigure` and `renderFigure`, which hands it to `renderProbeFigure`; the tree's *On the probe* group `private/figureGroups`; the edit's name `private/figureEditLabel`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
+| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); dragging a panel in the schematic `onSchematicPress` (with the pointer callbacks it installs), `cancelSchematicDrag` (also `onKeyPress`'s Escape) and `schematicPixel` (the tests');  the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the arrangement `drawFigureSchematic`, `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`; its saved figures `FigureTemplate.panelTypes`, placed by `EphysAnalysisConfig.placePanels`; Save as panel type... is `onFigureTemplate("panel")` with `private/askTemplateName`), `onRemovePanel`, `onMovePanel`, `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `removePanel` and `movePanel`; a structural edit ends in `private/commitFigureEdit`), the Spacing window `private/figureSpacingDialog`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewScale` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Probe layout section's rows (`gatherFigureEditor` / `applyFigureEditor`, `syncFigureEditor`) and its tile count `private/probeTileCount` (over `figureProbeTiles`; its picker is `refreshFigureObservations`' probe branch, its preview `refreshFigurePreview`'s over `EphysAnalysisRunner.computeProbeFigure` and `renderFigure`, which hands it to `renderProbeFigure`; the tree's *On the probe* group `private/figureGroups`; the edit's name `private/figureEditLabel`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy settings...**: `private/copySettingsDialog`, then `analysis/copyFigureSettings` over `analysis/figureSettingItems` and `analysis/figureSettingParts`, or `analysis/figureLookToDesign` into a design) |
 | remembered panel options, color swatches | `private/rememberPanelOptions` (called by `private/recordFigureEdit`), `private/rememberedPanelOptions` (read by `onNewPanel` and the New panel window), `onResetPanelOptions`, `onForgetPanelOptions`; `private/colorSwatch`, `private/syncColorSwatches` (`buildFiguresTab`, `syncFigureEditor`, `private/latencyDialog`) |
 | one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change and the Apply last change button: the undo history, the button's state and tooltip set by `private/refreshEditMenu`), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
@@ -2144,7 +2188,8 @@ does); the active dataset's lines and parameters, and its sorted units counted
 in the Dataset drop-downs (the same items on the three tabs); the Help menu's GitHub issue
 and feature request (1c); what stops an action (1d: the alerts of Scan, Plan and Run
 read through `AppDialog.captured`, the issues and plan tables' double click, the
-starter figure, the skip remedies, the run's bar in the status bar); grouping by Depth from the Alignment controls, with the tab's epoch diagram (2);
+empty preview's **Add figure** answered with the saved figure *Raster over PSTH*, no **Add Raster + PSTH**
+button, the skip remedies, the run's bar in the status bar); grouping by Depth from the Alignment controls, with the tab's epoch diagram (2);
 and section 3, the Figures tab: the toolbar's Preview, pressed from another
 tab, showing the Figures tab and drawing the selected figure; the header (the
 buttons in a column at the left, a row each -- Preview, Redraw All, Export preview,
@@ -2347,7 +2392,10 @@ timer: **Cancel** leaves the figure blank; then **New panel...** shows a tile wi
 picture for every panel type, picks *Continuous signal*, names it, titles it, sets its
 display, and **OK** adds it (the id becomes *Continuous LFP* and **Observe** *LFP*). Every
 panel type is then added at every place (below, right, above, left) and removed again; every
-type has its picture under `analysis/icons/panels`. An id typed sticks (**auto** unticked)
+type has its picture under `analysis/icons/panels`. The window's saved figures start with
+*Raster over PSTH* (its picture made of its panels'); picked, it shows the ids its panels
+get, and **OK** places them below the selected panel as one block, flush, the first selected;
+one Undo takes the block off, and `Set=` places it right of the panel, its row split in two. An id typed sticks (**auto** unticked)
 through a panel added; ticking **auto** gives the automatic id back, and the observation
 picked and a look remembered under the old id follow the figure. After a save and a reopen the
 config keeps the figure, and a new app restores the Auto box, the collapsed
@@ -2528,7 +2576,8 @@ edge drop (below `raster_1`) leaves the panels in their order in the figure.
 
 Its section 5q drives the figure templates and the **Apply last change...**
 button, from no figure, with Auto off and the templates folder (beside the
-tests' temporary preferences) emptied. The template row sits above the preview,
+tests' temporary preferences) emptied, and a fresh undo history (the sections
+before can fill its 100 steps). The template row sits above the preview,
 every control in it, Apply in green and Remove in red, each button at least
 30 px high, Apply, Update, Remove and Export off with no template. After a font
 size edit of the first of three figures the button is on with the Edit menu's
@@ -2536,7 +2585,12 @@ item, its tooltip *Apply last change to figures: Font size (Ctrl+...)*, and
 pressing it opens Apply to figures with the other two figures (canceled).
 **Save as...** from a script keeps the figure as *Card* (listed, picked, its
 shape in the tooltip, the buttons on), and from its window, answered from a
-timer, under another name (the figure's id offered). **Apply...** in its window
+timer, under another name (the figure's id offered). **Save as panel type...**
+under the figure list opens its window with **A panel type too** ticked and keeps
+the figure as *Card panel*, marked *(panel type)* in the list and listed by
+`FigureTemplate.panelTypes` after *Raster over PSTH*; `onNewPanel(Set="Card panel")`
+places its panels below the third figure's panel in one undo step, the figure
+keeping its font size; Undo, and the template is removed. **Apply...** in its window
 lists the three figures with the one shown ticked; applied to the second and
 third it gives both the raster over PSTH and the font size, the third keeping
 its own title and being off, the first untouched, as one undo step

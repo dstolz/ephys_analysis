@@ -53,7 +53,7 @@ keep the result (`cfg = cfg.addFigure(...)`, `cfg = cfg.save(...)`).
 | `figureFor(idOrIndex)` | a figure with every `"default"` resolved and each panel's type facts and each layer's category added: what the compute draws ([Resolving a figure](#resolving-a-figure)). `EphysAnalysisConfig:NoFigure` for an unknown one |
 | `isequalConfig(other)` | same values (NaN equal) |
 | `defaults(section)`, `normalizeSection(section, s)` | static: the single source of truth for fields, types and shapes |
-| `panelTypes()`, `sourceCategories()`, `figureTemplates()`, `categoryOf(source, type)`, `observeKind(fig)`, `followedData(fig)`, `autoFigureId(fig)`, `defaultLayer(type)`, `normalizeFigure(f)`, `normalizePanel(p)`, `normalizeLayer(L)` | static: the figures' tables and helpers ([Figures](#figures)). `placePanel`, `removePanel`, `movePanel` and `figureCells` are the [grid editing](#editing-the-grid) |
+| `panelTypes()`, `sourceCategories()`, `figureTemplates()`, `categoryOf(source, type)`, `observeKind(fig)`, `followedData(fig)`, `autoFigureId(fig)`, `defaultLayer(type)`, `normalizeFigure(f)`, `normalizePanel(p)`, `normalizeLayer(L)` | static: the figures' tables and helpers ([Figures](#figures)). `placePanel`, `placePanels`, `removePanel`, `movePanel` and `figureCells` are the [grid editing](#editing-the-grid) |
 
 Values are coerced to the class and shape of their default on every
 assignment: a one-element list read back from JSON is a list again, `"Inf"`
@@ -1831,7 +1831,7 @@ A panel shares the figure's time axis when its type does (`SharesTime`) and its
 
 ### Editing the grid
 
-Four static functions edit a figure entry (`fig = cfg.Figures(k)`) as a value,
+Five static functions edit a figure entry (`fig = cfg.Figures(k)`) as a value,
 with no graphics; the app's arrangement editor calls the same ones.
 
 | Call | Does |
@@ -1840,6 +1840,38 @@ with no graphics; the app's arrangement editor calls the same ones.
 | `fig = EphysAnalysisConfig.placePanel(fig, panel, where, anchorId)` | adds `panel` (a partial panel struct, normalized; a blank id becomes `<type>_<n>`) next to the panel `anchorId`. `where` `"below"`: a new row right after the anchor's last row, its `rowHeights` entry (when given) copied from that row; `"above"`: a new row before the anchor's first row, copying its height; `"right"` and `"left"`: a new column the same way, copying `colWidths`. A gap list (`rowGaps` / `colGaps`, when given) gets the gap where the new row (column) goes on both sides of it (at the grid's edge, the outermost gap again). The panels past the new row (column) move down (right) by one, those whose span crosses it grow by one, and the new panel takes the anchor's columns (rows) and one row (column). The first panel of a figure without panels goes to (1, 1), the grid unchanged, and needs no anchor. Errors: `EphysAnalysisConfig:NoPanel` (no anchor, or none by that id), `EphysAnalysisConfig:DuplicatePanelId` |
 | `fig = EphysAnalysisConfig.removePanel(fig, id)` | removes the panel, then drops every row in which no remaining panel starts and every column likewise: the panels past a dropped row (column) move up (left), the spans that crossed it shrink by one, its `rowHeights` / `colWidths` entry goes, and so does a gap list's gap under it (under the last row, the one over it). Removing the last panel leaves a 1 x 1 grid without gap lists. `EphysAnalysisConfig:NoPanel` for an unknown id |
 | `[fig, moved] = EphysAnalysisConfig.movePanel(fig, id, direction)` | swaps the cells (`row`, `col`) of the panel and its neighbor in `direction` (`"up"`, `"down"`, `"left"`, `"right"`) when that neighbor has the same spans and lines up with it (the same column for up and down, the same row for left and right); else `fig` is returned unchanged and `moved` is false |
+
+`[fig, ids] = EphysAnalysisConfig.placePanels(fig, block, where, anchorId)`
+adds every panel of `block`, another figure entry (a figure saved as a
+[panel type](EphysAnalysis.md#figure-templates), `FigureTemplate.panelFigure`),
+as one block next to the panel `anchorId`, keeping its arrangement: its
+panels' places and spans, its rows' heights and columns' widths relative to
+one another, its gaps. `"below"` / `"above"`: the block's rows become new rows
+after the anchor's last row (before its first), spanning the anchor's
+columns, each new row as tall as the anchor's row on average; `"right"` /
+`"left"`: its columns become new columns the same way. Where the block has a
+column (row) boundary inside one of the anchor's columns (rows), that column
+is split at the same share of its width and every panel across it spans the
+pieces, so the plot areas still line up. The block's gaps come with it
+(between it and the figure's rows, the gap that was there, on both sides);
+when they differ from the figure's `spacing`, the grid becomes `"custom"` with
+gap lists in its own `gapUnits`, its gaps kept (a block gap in other units is
+the figure's gap there; 0 stays 0). A panel id the figure has becomes
+`<type>_<n>`; `ids` are the block's ids in the figure, in its order (the last
+`numel(ids)` panels). `Alignment="own"` gives each block panel that takes the
+figure's `ref`, `window` or `selection` (`"default"`) the block's own, where
+the block has one; `"figure"` (the default) leaves them following the figure.
+The block's other fields (observe, size, latency, style, aesthetics, sessions,
+probe) are not used. A figure without panels takes the block's grid and
+panels whole. Errors: `EphysAnalysisConfig:NoPanel` (a block without panels;
+no anchor, or none by that id).
+
+```matlab
+T = EphysAnalysisConfig.figureTemplates();
+block = EphysAnalysisConfig.normalizeFigure(T.Figure{T.Template == "rasterPsth"});
+[cfg.Figures(1), ids] = EphysAnalysisConfig.placePanels(cfg.Figures(1), block, "right", "lfp_1");
+% ids = ["raster_1" "psth_1"]: lfp_1's row split in two, the raster flush over the PSTH right of it
+```
 
 **Remove undoes Add**: `removePanel(placePanel(fig, p, where, a), p.id)` gives
 back `fig`, relative sizes and gap lists included. That is why a row in which no panel starts
@@ -3165,7 +3197,9 @@ selection, a continuous panel's `trials` and `maxTrials` and a heat map's `rows`
 same type, a baseline mode the type does not take kept, what changed, and nothing on a second
 call; the axis sides to every panel, the label texts not), `adoptPanelAlignment` (a panel's own selection becomes the figure's)
 and `relinkPanels` (their results and `NoPanel`); `placePanel` in four directions, `removePanel`
-(undoing each exactly), `movePanel` and `figureCells`; `DuplicateFigureId` and
+(undoing each exactly), `movePanel` and `figureCells`; `placePanels` (a raster over a PSTH in four
+directions, a row split for it, a column split at a 1 x 2 block's widths, gaps in px and %, `Alignment`, a
+figure without panels, `NoPanel`); `DuplicateFigureId` and
 `DuplicatePanelId`; every validate rule of figures (only the known layer sources and
 panel types; a PSTH's baseline
 mode (no `ratio`), `auroc` windows, its `stack` and a positive `stackSpacing`; a raster's `firstSpike` and a PSTH's

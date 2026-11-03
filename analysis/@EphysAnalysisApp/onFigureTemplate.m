@@ -7,11 +7,18 @@ function onFigureTemplate(obj, action, opts)
 %     "save"     Save as...: the figure shown as a new template, named and
 %                described in a small window (the figure's id offered as
 %                the name; one of yours of that name is replaced only when
-%                you agree): every setting but its id, title and enabled
+%                you agree): every setting but its id, title and enabled;
+%                its box "A panel type too" makes it a panel type as well
+%     "panel"    Save as panel type... (under the figure list): the same,
+%                as a panel type (FigureTemplate Panel=true): the New panel
+%                window lists it, to place all its panels, arranged as
+%                they are, in any figure (onNewPanel Set=)
 %     "update"   Update: the template picked made again from the figure
-%                shown, its description kept (asks first). The figures it
-%                was applied to keep their settings until it is applied
-%                to them again (onApplyTemplate)
+%                shown, its description and whether it is a panel type
+%                kept (asks first). The figures it was applied to keep
+%                their settings until it is applied to them again
+%                (onApplyTemplate); the panels placed from it are the
+%                figures' own
 %     "remove"   Remove: deletes the template picked (asks first)
 %     "import"   Import...: copies template files (.json, one or several)
 %                into your folder (asks before replacing one of yours);
@@ -31,46 +38,60 @@ function onFigureTemplate(obj, action, opts)
 %   The Template list is listed again after each (refreshTemplates).
 %
 %   For scripts and tests: Name= names the template (default the one
-%   picked; for "save" it skips the window, replacing one of yours of that
-%   name), Description= its description ("save", "update"), File= the
-%   file(s) ("import", "export"; the folder for "choose") and
-%   Confirm=false skips the questions (an import replaces).
+%   picked; for "save" and "panel" it skips the window, replacing one of
+%   yours of that name), Description= its description ("save", "panel",
+%   "update"), Panel= whether "save" makes a panel type too (default
+%   false), File= the file(s) ("import", "export"; the folder for
+%   "choose") and Confirm=false skips the questions (an import replaces).
 arguments
     obj (1,1) EphysAnalysisApp
-    action (1,1) string {mustBeMember(action, ["save" "update" "remove" "import" "export" "issue" "feature" "folder" "choose"])}
+    action (1,1) string {mustBeMember(action, ["save" "panel" "update" "remove" "import" "export" "issue" "feature" "folder" "choose"])}
     opts.Name (1,1) string = string(missing)
     opts.Description (1,1) string = string(missing)
+    opts.Panel (1,1) logical = false
     opts.File string = string(missing)
     opts.Confirm (1,1) logical = true
 end
 picked = string(obj.FigureTemplateDropDown.Value);
 name = opts.Name;
-if ismissing(name) && action ~= "save"; name = picked; end
+if ismissing(name) && ~ismember(action, ["save" "panel"]); name = picked; end
 if ismember(action, ["update" "remove" "export"]) && name == ""
     obj.setStatus("Figure templates: you have no template yet: Save as... keeps the figure shown as one, Import... adds a file.");
     return
 end
 switch action
-    case "save"
-        fig = shownFigure(obj, "Save as template");
+    case {"save" "panel"}
+        panel = action == "panel" || opts.Panel;
+        what = "Save as template";
+        if action == "panel"; what = "Save as panel type"; end
+        fig = shownFigure(obj, what);
         if isempty(fig); return; end
+        if action == "panel" && isempty(fig.panels)
+            obj.setStatus(what + ": " + fig.id + " has no panel yet: add one (New panel...) first.");
+            return
+        end
         desc = opts.Description;
         if ismissing(desc); desc = ""; end
         if ismissing(name)
-            [name, desc, ok] = askTemplateName(obj.Fig, fig.id, desc);
+            [name, desc, ok, panel] = askTemplateName(obj.Fig, fig.id, desc, panel);
             if ~ok; return; end
         end
         try
-            t = FigureTemplate.fromFigure(fig, Description=desc);
+            t = FigureTemplate.fromFigure(fig, Description=desc, Panel=panel);
             FigureTemplate.save(t, name, Overwrite=true);
             name = FigureTemplate.checkName(name);
         catch ME
-            say(obj, opts, "Save as template", ME.message);
+            say(obj, opts, what, ME.message);
             return
         end
         obj.refreshTemplates(name);
-        obj.setStatus("Saved " + fig.id + " as the template " + name + " (" + FigureTemplate.summary(t.figure) + ") in " + ...
-            FigureTemplate.folder() + ".");
+        if panel
+            obj.setStatus("Saved " + fig.id + " as the panel type " + name + " (" + FigureTemplate.summary(t.figure) + ...
+                "): New panel... lists it, to place its panels in any figure. It is in " + FigureTemplate.folder() + ".");
+        else
+            obj.setStatus("Saved " + fig.id + " as the template " + name + " (" + FigureTemplate.summary(t.figure) + ") in " + ...
+                FigureTemplate.folder() + ".");
+        end
 
     case "update"
         fig = shownFigure(obj, "Update template");
@@ -85,7 +106,7 @@ switch action
             old = FigureTemplate.load(name);
             desc = opts.Description;
             if ismissing(desc); desc = old.description; end
-            t = FigureTemplate.fromFigure(fig, Description=desc);
+            t = FigureTemplate.fromFigure(fig, Description=desc, Panel=old.panel);
             FigureTemplate.save(t, old.name, Overwrite=true);
         catch ME
             say(obj, opts, "Update template", ME.message);

@@ -1,4 +1,4 @@
-function c = newPanelDialog(fig, F, anchor, lines, params, start)
+function c = newPanelDialog(fig, F, anchor, lines, params, start, sets)
 %newPanelDialog  Pick a new panel's type, name, place and key parameters in a modal window over FIG.
 %   C = newPanelDialog(FIG, F, ANCHOR, LINES, PARAMS) shows the New panel
 %   window for the figure entry F, whose selected panel is ANCHOR (its
@@ -36,25 +36,41 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start)
 %     eventTrace      Lines (LINES: one events layer each), Display
 %   OK returns C, a struct onNewPanel takes as its options: Type, Where,
 %   Id, Title, Source, Partner, Binding, Lines and Options (the partial
-%   options the parameters set); a name another panel of F has is refused
-%   with a red line instead. Cancel, or closing the window, returns [].
+%   options the parameters set), Set ("") and Alignment; a name another
+%   panel of F has is refused with a red line instead. Cancel, or closing
+%   the window, returns [].
 %   C = newPanelDialog(..., START): the parameters of each type start from
 %   START.(<type>), its options (onNewPanel: the options remembered for
 %   the type over its defaults); without it, from the type's defaults. A
 %   sort, parameter or series START names that PARAMS has not starts
 %   blank.
+%   C = newPanelDialog(..., START, SETS): under the types, "Saved figures"
+%   and a tile per row of SETS (FigureTemplate.panelTypes: the built-in
+%   Raster over PSTH, then the figures you saved as panel types), its
+%   picture the type pictures of its panels where they sit in its grid.
+%   One picked shows its name, description and shape, the ids its panels
+%   will have in F (Name, not editable), Place, and as its key parameter
+%   Alignment: "This figure's" (its panels follow F's event reference,
+%   window and trial selection) or "Its own, as saved" (offered when the
+%   saved figure has its own). OK then returns C with Set (its Key), Where
+%   and Alignment ("figure" | "own"), Type "".
 %   The window's UserData holds its controls for the tests: Types (the
 %   tiles, a struct by type), Pick (a function: Pick(TYPE) picks a
-%   type), Name, Title, Where, Params (a function returning the current
-%   parameters' controls, a struct by name: Source, Partner, Binding,
-%   Sort, BinMs, SmoothMs, Measure, Display, ErrorType, Rows, Layout,
-%   Value, Metric, Correlation, Param, Series, FreqFrom, FreqTo, Scale,
-%   WinSec, StepSec, Lines), Message, Ok and Cancel.
+%   type), Sets (a struct array: Key, Tile), PickSet (PickSet(KEY) picks
+%   a saved figure), Name, Title, Where, Params (a function returning the
+%   current parameters' controls, a struct by name: Source, Partner,
+%   Binding, Sort, BinMs, SmoothMs, Measure, Display, ErrorType, Rows,
+%   Layout, Value, Metric, Correlation, Param, Series, FreqFrom, FreqTo,
+%   Scale, WinSec, StepSec, Lines; a saved figure's: Alignment), Message,
+%   Ok and Cancel.
 %
-%   See also onNewPanel, EphysAnalysisConfig.panelTypes, figureEditorChoices.
+%   See also onNewPanel, EphysAnalysisConfig.panelTypes, figureEditorChoices,
+%   FigureTemplate.panelTypes, EphysAnalysisConfig.placePanels.
 T = EphysAnalysisConfig.panelTypes();
 n = height(T);
 if nargin < 6; start = struct(); end
+if nargin < 7; sets = FigureTemplate.panelTypes(Yours=false); end
+ns = height(sets);
 c = [];
 taken = string.empty(1, 0);
 if ~isempty(F.panels); taken = [F.panels.id]; end
@@ -62,6 +78,10 @@ iconDir = fullfile(fileparts(fileparts(fileparts(mfilename("fullpath")))), "icon
 gray = [0.35 0.35 0.35];
 
 pos = [200 120 960 620];
+if ns > 0   % taller by the saved figures' rows, as far as the screen allows (the tiles scroll past that)
+    screen = get(groot, 'ScreenSize');
+    pos(4) = max(620, min(620 + 30 + ceil(ns / 4) * 132, screen(4) - 120));
+end
 try
     q = getpixelposition(fig);
     pos(1:2) = max(1, q(1:2) + (q(3:4) - pos(3:4)) / 2);
@@ -71,10 +91,13 @@ d = uifigure("Name", "New panel", "Position", pos, "WindowStyle", "modal");
 g = uigridlayout(d, [2 2], "ColumnWidth", {'1x', 360}, "RowHeight", {'1x', 36}, "Padding", [12 12 12 12], ...
     "ColumnSpacing", 14);
 
-% the types: a tile each, a small representative plot over the label
+% the types: a tile each, a small representative plot over the label; then the saved figures, a tile each
 nc = 4;
 nr = ceil(n / nc);
-tg = uigridlayout(g, [nr nc], "RowHeight", repmat({124}, 1, nr), "ColumnWidth", repmat({'1x'}, 1, nc), ...
+nrs = ceil(ns / nc);
+heights = repmat({124}, 1, nr);
+if ns > 0; heights = [heights {22} repmat({124}, 1, nrs)]; end
+tg = uigridlayout(g, [numel(heights) nc], "RowHeight", heights, "ColumnWidth", repmat({'1x'}, 1, nc), ...
     "Padding", [0 0 0 0], "RowSpacing", 8, "ColumnSpacing", 8, "Scrollable", "on");
 tg.Layout.Row = 1; tg.Layout.Column = 1;
 tiles = struct();
@@ -85,6 +108,24 @@ for i = 1:n
     b.Layout.Row = floor((i - 1) / nc) + 1;
     b.Layout.Column = mod(i - 1, nc) + 1;
     tiles.(t) = b;
+end
+setTiles = struct('Key', {}, 'Tile', {});
+if ns > 0
+    l = uilabel(tg, "Text", "Saved figures  (all their panels, as arranged)", "FontWeight", "bold", "VerticalAlignment", "bottom", ...
+        "Tooltip", "A saved figure places all its panels, arranged as saved, next to the selected panel. Save as panel " + ...
+        "type... under the figure list adds the figure shown here.");
+    l.Layout.Row = nr + 1; l.Layout.Column = [1 nc];
+end
+for i = 1:ns
+    key = sets.Key(i);
+    tip = sets.Label(i);
+    if sets.Description(i) ~= ""; tip = tip + ": " + sets.Description(i); end
+    tip = tip + newline + sets.Summary(i);
+    b = uibutton(tg, "state", "Text", sets.Label(i), "Icon", setThumbnail(iconDir, sets.Figure{i}), "IconAlignment", "top", ...
+        "Tooltip", tip, "ValueChangedFcn", @(~, ~) pickSet(key));
+    b.Layout.Row = nr + 1 + floor((i - 1) / nc) + 1;
+    b.Layout.Column = mod(i - 1, nc) + 1;
+    setTiles(i) = struct('Key', key, 'Tile', b);
 end
 
 % the panel picked: its name, title and place, then the type's key parameters
@@ -131,33 +172,80 @@ styleButton(okB, "confirm");
 
 typed = false;
 current = "";
+currentSet = "";
 P = struct();
 first = "psth";
 if ~any(T.Type == first); first = T.Type(1); end
 pick(first);
 d.CloseRequestFcn = @(~, ~) finish(false);
-d.UserData = struct('Types', tiles, 'Pick', @pick, 'Name', nameField, 'Title', titleField, 'Where', whereDD, ...
-    'Params', @currentParams, 'Message', msg, 'Ok', okB, 'Cancel', cancelB);
+d.UserData = struct('Types', tiles, 'Pick', @pick, 'Sets', setTiles, 'PickSet', @pickSet, 'Name', nameField, ...
+    'Title', titleField, 'Where', whereDD, 'Params', @currentParams, 'Message', msg, 'Ok', okB, 'Cancel', cancelB);
 uiwait(d);
 if isvalid(d); delete(d); end
 
 
     function pick(t)
         %pick  Type T picked: its tile pressed (the others not), its label, description, default name and parameters.
-        for x = reshape(T.Type, 1, [])
-            tiles.(x).Value = x == t;
-            styleButton(tiles.(x), ternary(x == t, "active", "secondary"));   % the type picked in amber
-        end
+        press(t, "");
         current = t;
+        currentSet = "";
         row = T.Type == t;
         typeLabel.Text = T.Label(row);
         descLabel.Text = T.Description(row);
+        set([nameField titleField], "Enable", "on");
+        titleField.Placeholder = "none";
         if ~typed; nameField.Value = EphysAnalysisConfig.freeId(t, taken); end
         def = T.DefaultOptions{row};
         if isfield(start, t); def = start.(t); end
         P = buildParams(pp, t, def, T.DefaultBinding(row), lines, params, F.observe.data);
         msg.Text = "Pick a type; every other setting can be changed in the editor later.";
         msg.FontColor = gray;
+    end
+
+    function pickSet(key)
+        %pickSet  Saved figure KEY picked: its tile pressed, its name, description and shape, the ids its panels get, Alignment.
+        si = find(sets.Key == key, 1);
+        if isempty(si); return; end
+        press("", key);
+        current = "";
+        currentSet = key;
+        typed = false;   % a type picked next gets its own free name
+        typeLabel.Text = sets.Label(si);
+        txt = sets.Summary(si);
+        if sets.Description(si) ~= ""; txt = sets.Description(si) + ". " + txt; end
+        descLabel.Text = txt + ". Its panels are copied into the figure as one block; each is an ordinary panel afterwards.";
+        B = sets.Figure{si};
+        ids = strings(1, 0);
+        try
+            [~, ids] = EphysAnalysisConfig.placePanels(F, B, string(whereDD.Value), anchor);
+        catch
+        end
+        nameField.Value = strjoin(ids, ", ");
+        titleField.Value = "";
+        titleField.Placeholder = "each panel keeps its own";
+        set([nameField titleField], "Enable", "off");
+        P = buildSetParams(pp, B);
+        msg.Text = "Pick a type or a saved figure; every setting can be changed in the editor later.";
+        msg.FontColor = gray;
+    end
+
+    function press(t, key)
+        %press  The tile of type T or saved figure KEY pressed and amber, every other one not.
+        for x = reshape(T.Type, 1, [])
+            tiles.(x).Value = x == t;
+            styleButton(tiles.(x), ternary(x == t, "active", "secondary"));   % the type picked in amber
+        end
+        for j = 1:numel(setTiles)
+            on = setTiles(j).Key == key;
+            setTiles(j).Tile.Value = on;
+            styleButton(setTiles(j).Tile, ternary(on, "active", "secondary"));
+            if on
+                try
+                    scroll(tg, setTiles(j).Tile);   % in view, when the tiles scroll
+                catch
+                end
+            end
+        end
     end
 
     function out = currentParams()
@@ -171,21 +259,57 @@ if isvalid(d); delete(d); end
 
     function finish(accept)
         if accept
-            id = strtrim(string(nameField.Value));
-            if any(taken == id)
-                msg.Text = "Another panel of " + F.id + " is named " + id + ": pick another name.";
-                msg.FontColor = [0.75 0.1 0.1];
-                return
+            if currentSet ~= ""
+                c = gatherParams(struct(), "");
+                c.Type = "";
+                c.Id = "";
+                c.Title = "";
+                c.Set = currentSet;
+                if isfield(P, 'Alignment'); c.Alignment = string(P.Alignment.Value); end
+            else
+                id = strtrim(string(nameField.Value));
+                if any(taken == id)
+                    msg.Text = "Another panel of " + F.id + " is named " + id + ": pick another name.";
+                    msg.FontColor = [0.75 0.1 0.1];
+                    return
+                end
+                c = gatherParams(P, current);
+                c.Type = current;
+                c.Id = id;
+                c.Title = string(titleField.Value);
             end
-            c = gatherParams(P, current);
-            c.Type = current;
             c.Where = string(whereDD.Value);
-            c.Id = id;
-            c.Title = string(titleField.Value);
-            c = orderfields(c, {'Type', 'Where', 'Id', 'Title', 'Source', 'Partner', 'Binding', 'Lines', 'Options'});
+            c = orderfields(c, {'Type', 'Where', 'Id', 'Title', 'Source', 'Partner', 'Binding', 'Lines', 'Options', 'Set', 'Alignment'});
         end
         uiresume(d);
     end
+end
+
+
+function P = buildSetParams(pp, B)
+%buildSetParams  A saved figure B's key parameter in the panel PP (its children replaced): Alignment, when it has its own.
+delete(pp.Children);
+P = struct();
+gr = uigridlayout(pp, [2 2], "RowHeight", {26, 'fit'}, "ColumnWidth", {120, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 6);
+own = arrayfun(@(f) isstruct(B.(f)), ["ref" "window" "selection"]);
+if ~any(own)
+    l = uilabel(gr, "Text", "None: its panels follow this figure's event reference, window and trial selection (or " + ...
+        "their own, where they have them). The editor has every option.", "WordWrap", "on", "FontColor", [0.35 0.35 0.35]);
+    l.Layout.Row = [1 2]; l.Layout.Column = [1 2];
+    return
+end
+names = ["event reference" "epoch window" "trial selection"];
+what = names(own);
+if isstruct(B.ref); what(1) = what(1) + " (" + eventRefLabel(B.ref) + ")"; end
+l = uilabel(gr, "Text", "Alignment:");
+l.Layout.Row = 1; l.Layout.Column = 1;
+P.Alignment = uidropdown(gr, "Items", ["This figure's" "Its own, as saved"], "ItemsData", ["figure" "own"], "Value", "figure", ...
+    "Tooltip", "This figure's: the panels follow this figure's event reference, window and trial selection. Its own: " + ...
+    "each panel that followed the saved figure's takes the saved figure's own (" + strjoin(what, ", ") + ").");
+P.Alignment.Layout.Row = 1; P.Alignment.Layout.Column = 2;
+l = uilabel(gr, "Text", "The saved figure has its own " + strjoin(what, ", ") + ".", "WordWrap", "on", ...
+    "FontColor", [0.35 0.35 0.35]);
+l.Layout.Row = 2; l.Layout.Column = [1 2];
 end
 
 
@@ -381,8 +505,9 @@ end
 
 
 function c = gatherParams(P, t)
-%gatherParams  What the parameters say, as onNewPanel's options: Source, Partner, Binding, Lines and Options.
-c = struct('Source', "", 'Partner', "", 'Binding', "", 'Lines', string.empty(1, 0), 'Options', struct());
+%gatherParams  What the parameters say, as onNewPanel's options: Source, Partner, Binding, Lines and Options (Set "", Alignment "figure").
+c = struct('Source', "", 'Partner', "", 'Binding', "", 'Lines', string.empty(1, 0), 'Options', struct(), ...
+    'Set', "", 'Alignment', "figure");
 o = struct();
 if isfield(P, 'Source'); c.Source = string(P.Source.Value); end
 if isfield(P, 'Partner'); c.Partner = string(P.Partner.Value); end
@@ -412,6 +537,63 @@ if isfield(P, 'Scale'); o.scale = string(P.Scale.Value); end
 if isfield(P, 'WinSec'); o.movingwin = [P.WinSec.Value P.StepSec.Value]; end
 c.Options = o;
 if t == "eventTrace"; c.Source = ""; end
+end
+
+
+function img = setThumbnail(iconDir, B)
+%setThumbnail  The tile's picture of saved figure B: each panel's type picture where the panel sits in B's grid (rows and columns in proportion).
+H = 84; W = 112;
+img = ones(H, W, 3);
+G = B.grid;
+nr = max(1, round(double(G.rows)));
+nc = max(1, round(double(G.cols)));
+rh = sizes(G.rowHeights, nr);
+cw = sizes(G.colWidths, nc);
+yb = round([0 cumsum(rh)] / sum(rh) * H);   % the rows' and columns' edges, px
+xb = round([0 cumsum(cw)] / sum(cw) * W);
+for p = reshape(B.panels, 1, [])
+    r1 = min(max(p.row, 1), nr); r2 = min(max(p.row + p.rowSpan - 1, r1), nr);
+    c1 = min(max(p.col, 1), nc); c2 = min(max(p.col + p.colSpan - 1, c1), nc);
+    ys = yb(r1) + 1 + (r1 > 1); ye = yb(r2 + 1) - (r2 < nr);   % a px apart from a neighbor
+    xs = xb(c1) + 1 + (c1 > 1); xe = xb(c2 + 1) - (c2 < nc);
+    if ye < ys || xe < xs; continue; end
+    img(ys:ye, xs:xe, :) = imresize(iconImage(iconDir, p.type), [ye - ys + 1, xe - xs + 1]);
+end
+img = min(max(img, 0), 1);
+end
+
+
+function s = sizes(v, n)
+%sizes  N relative sizes: V when it holds N positive numbers, else equal ones.
+s = ones(1, n);
+v = reshape(double(v), 1, []);
+if numel(v) == n && all(isfinite(v) & v > 0); s = v; end
+end
+
+
+function img = iconImage(iconDir, t)
+%iconImage  Panel type T's picture as an RGB array in [0, 1]: its PNG (white under its transparent parts), else the placeholder.
+f = fullfile(iconDir, t + ".png");
+img = thumbnail(iconDir, t);
+if ~isfile(f); return; end
+[x, ~, alpha] = imread(f);
+x = unitScale(x);
+if size(x, 3) == 1; x = repmat(x, 1, 1, 3); end
+if ~isempty(alpha)
+    a = unitScale(alpha);
+    x = x .* a + (1 - a);
+end
+img = x;
+end
+
+
+function x = unitScale(x)
+%unitScale  Image data X as doubles in [0, 1] (an integer class by its range).
+if isinteger(x)
+    x = double(x) / double(intmax(class(x)));
+else
+    x = double(x);
+end
 end
 
 

@@ -80,7 +80,9 @@ for a warning:
   warning ("referenced twice"), as is a `.bin` whose reference is unknown.
   The kinds without a record are named in one *Not recorded* row;
 - the trial pairing status. `unreviewed` is a warning, and `approved` also
-  says whether it was automatic. A pairing record that
+  says whether it was automatic. The trials and intervals cut from the ends
+  and the intervals dropped from the middle (`drop_intervals`, also on the
+  flow chart's behavior card when there are any) are rows of their own. A pairing record that
   `EphysDataset.normalizeTrialPairing` rejects, and the dataset therefore
   ignores, is a warning;
 - tags that are not valid, or past the limit of 12, which

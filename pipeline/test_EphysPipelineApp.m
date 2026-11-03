@@ -2033,6 +2033,15 @@ if S.sec("3b", "Trials tab: load, cut, approve, polarity")
     check(isequal(app.TrialsCutSpinners(1, 1).Limits, [0 1]) && strcmp(app.TrialsCutSpinners(2, 2).Enable, 'on') ...
         && app.TrialsCutIntervalsLabel.Text == "din0 intervals", 'the cut spinners are limited to the trial / interval counts');
     check(app.TrialsAxes.InteractionOptions.LimitsDimensions == "x", 'the lines plot zooms and pans horizontally only');
+    keptPairing = app.TrialsPairing;
+    app.TrialsPairing = dT.pairTrials(Events=app.namedTrialsEvents(), Warn=false, ...
+        Cuts=struct('trials', [0 0], 'intervals', [0 0], 'drop', 1));
+    app.refreshTrialsPlot();
+    droppedBar = findobj(app.TrialsAxes, "Type", "line", "DisplayName", "dropped");
+    check(isscalar(droppedBar) && isempty(findobj(app.TrialsAxes, "Type", "line", "DisplayName", "unpaired")), ...
+        'an interval dropped from the middle is drawn as dropped, not as unpaired');
+    app.TrialsPairing = keptPairing;
+    app.refreshTrialsPlot();
     check(all(app.TrialsTable.ColumnSortable) && app.TrialsTable.ColumnRearrangeable == "on", 'the trials table sorts and rearranges');
     cm = app.TrialsTable.ContextMenu;
     app.onTrialsTableMenu(cm, struct('InteractionInformation', struct('Column', [])));

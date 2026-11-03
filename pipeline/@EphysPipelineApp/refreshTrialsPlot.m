@@ -2,7 +2,8 @@ function refreshTrialsPlot(obj)
 %refreshTrialsPlot  The Trials tab's plot of the digital lines from TrialsPairing.
 %   One bar per event, from its onset to its offset with the polarity applied
 %   (an inverted line's bars run from each falling edge to the next rising
-%   edge). The trial line's bars are colored by pairing state, and dotted
+%   edge). The trial line's bars are colored by pairing state (paired, partial,
+%   cut from an end, dropped from the middle, unpaired), and dotted
 %   lines across every row mark its onsets and offsets. Each paired trial can
 %   carry a text label above the trial line, starting at its onset, with its
 %   values of the trial parameters in TrialsLabelParams that the session
@@ -28,12 +29,13 @@ nI = size(iv, 1);
 state = repmat("unpaired", nI, 1);
 state(P.interval(~isnan(P.interval))) = "ok";
 state(P.partialIntervals) = "partial";
+state(P.dropIntervals) = "dropped";
 isCut = false(nI, 1);
 isCut(1:P.cutIntervals(1)) = true;
 isCut(nI - P.cutIntervals(2) + 1:nI) = true;
 state(isCut) = "cut";
-colors = struct('ok', [0 0.45 0.74], 'partial', [0.85 0.5 0], 'cut', [0.55 0.55 0.55], 'unpaired', [0.8 0.1 0.1]);
-labels = struct('ok', "paired", 'partial', "partial (recording edge)", 'cut', "cut", 'unpaired', "unpaired");
+colors = struct('ok', [0 0.45 0.74], 'partial', [0.85 0.5 0], 'cut', [0.55 0.55 0.55], 'dropped', [0.7 0.2 0.6], 'unpaired', [0.8 0.1 0.1]);
+labels = struct('ok', "paired", 'partial', "partial (recording edge)", 'cut', "cut", 'dropped', "dropped", 'unpaired', "unpaired");
 [trialText, labelParams] = trialLabels(obj, P);
 labeled = find(~isnan(P.onset) & trialText ~= "");
 yTop = nL + 0.6 + 0.5 * ~isempty(labeled);   % head room for the labels
@@ -45,7 +47,7 @@ if nI > 0
     plot(ax, x(:), y(:), ":", "Color", [0.6 0.6 0.6], "LineWidth", 0.5, "HandleVisibility", "off", ...
         "Visible", obj.TrialsEdgesMenu.Checked, "Tag", "trialEdges", "ContextMenu", ax.ContextMenu);
 end
-for st = ["ok" "partial" "cut" "unpaired"]
+for st = ["ok" "partial" "cut" "dropped" "unpaired"]
     k = find(state == st);
     if ~isempty(k)
         segments(ax, iv(k, :), nL, colors.(st), 8, labels.(st), P.trialLine);

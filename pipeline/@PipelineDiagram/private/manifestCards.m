@@ -123,6 +123,8 @@ if isstruct(pa) && isscalar(pa)
     c.key = [kv("Trial line", fieldText(pa, 'trial_line')); ...
         kv("Cut trials [start end]", ManifestText.value(reshape(ManifestText.field(pa, 'cut_trials', []), 1, []))); ...
         kv("Cut intervals [start end]", ManifestText.value(reshape(ManifestText.field(pa, 'cut_intervals', []), 1, [])))];
+    drops = reshape(ManifestText.field(pa, 'drop_intervals', []), 1, []);
+    if ~isempty(drops); c.key = [c.key; kv("Dropped intervals", ManifestText.value(drops))]; end
     c.all = groupRows("pairing", pa);
 end
 if isRecord(r)

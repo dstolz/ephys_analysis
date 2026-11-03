@@ -169,7 +169,12 @@ mOk.behavior.pairing.status = "approved";
 mOk.behavior.pairing.auto_approved = true;
 To = ManifestViewerApp.summaryRows(mOk);
 check(rowIs(To, "Pairing", "ok") && contains(To.Check(To.Field == "Pairing"), "automatically") ...
-    && To.Value(To.Field == "Cut trials") == "[start end] [0 1]", 'approved pairing: ok, cut counts shown as a row');
+    && To.Value(To.Field == "Cut trials") == "[start end] [0 1]" && To.Value(To.Field == "Dropped intervals") == "none", ...
+    'approved pairing: ok, cut counts shown as a row, no dropped intervals');
+mDr = mOk;
+mDr.behavior.pairing.drop_intervals = [3; 7];   % a list, as jsondecode gives it
+TDr = ManifestViewerApp.summaryRows(mDr);
+check(TDr.Value(TDr.Field == "Dropped intervals") == "[3 7]", 'dropped intervals: a row of their own');
 
 fprintf('\n== flow chart ==\n');
 [html, summary, model] = PipelineDiagram.manifest(readJsonFile(f1));
@@ -184,6 +189,9 @@ check(count(html, "<svg class=""flow""") == 8 && count(html, "<button type=""but
 check(contains(summary, "5 of 7 steps run") && contains(summary, "with files gone"), ...
     'summary: the steps run (the artifacts by their manual periods, the behavior by its pairing), and the files gone');
 pane = @(h, lv) extractBetween(h, "data-level=""" + lv + """ data-dir=""vertical"" data-initial", "</svg>");
+settingsDr = pane(string(PipelineDiagram.manifest(mDr)), "settings");
+check(contains(settingsDr, ">Dropped intervals</text>") && contains(settingsDr, ">[3 7]</text>"), ...
+    'dropped intervals: a key setting on the flow chart''s behavior card');
 check(~contains(pane(html, "steps"), "Th_universal") && ~contains(pane(html, "steps"), "written 2026") ...
     && ~contains(pane(html, "outputs"), "Th_universal") && contains(pane(html, "outputs"), "missing.bin") ...
     && contains(pane(html, "settings"), "Th_universal") && contains(pane(html, "settings"), "weighted CAR") ...

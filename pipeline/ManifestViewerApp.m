@@ -882,6 +882,12 @@ if isfield(m, 'behavior') && isstruct(m.behavior)
         R = addRow(R, S, "Pairing", st, lv, ck);
         R = addRow(R, S, "Cut trials", "[start end] " + fmtValue(reshape(getf(pa, 'cut_trials', []), 1, [])));
         R = addRow(R, S, "Cut intervals", "[start end] " + fmtValue(reshape(getf(pa, 'cut_intervals', []), 1, [])));
+        drops = reshape(getf(pa, 'drop_intervals', []), 1, []);
+        if isempty(drops)
+            R = addRow(R, S, "Dropped intervals", "none");
+        else
+            R = addRow(R, S, "Dropped intervals", fmtValue(drops), "", "trial-line intervals left out of the pairing, by number");
+        end
         R = addRow(R, S, "Trial line", txtOf(getf(pa, 'trial_line', "")));
         R = addRow(R, S, "Pairing summary", txtOf(getf(pa, 'summary', "")));
         R = addRow(R, S, "Pairing updated", txtOf(getf(pa, 'updated', "")));

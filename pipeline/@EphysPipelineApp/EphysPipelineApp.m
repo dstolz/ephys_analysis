@@ -875,6 +875,7 @@ classdef EphysPipelineApp < handle
         % the root of the project it was queued in (keepKSRuns keeps it there).
         KSQueue struct = struct('Name', {}, 'dataset', {}, 'prepared', {}, 'root', {})
         KSMonitorTimer = []
+        KSPolling (1,1) logical = false   % pollKSRuns is under way: a timer tick that comes in meanwhile does nothing
 
         % Output transfers (OutputTransfer) the Run tab follows: each Run's
         % copies of its outputs, until they are done (followTransfer), the

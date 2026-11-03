@@ -24,7 +24,15 @@ function pollKSRuns(obj)
 %   Only a tick in which a run started or finished refreshes the Project
 %   table, and then only those datasets' rows. An error in one run's
 %   handling, or in starting the queue, is logged and the others go on.
+%   A call while another is under way (a timer tick during stopKSRuns'
+%   own poll, whose callbacks let it in) returns at once: the run list it
+%   would change is the other call's.
 
+if obj.KSPolling
+    return
+end
+obj.KSPolling = true;
+pollingCleanup = onCleanup(@() setPolling(obj)); %#ok<NASGU> cleared when this call ends
 if isempty(obj.Fig) || ~isvalid(obj.Fig)   % the app went without onClose
     obj.stopKSMonitor();
     return
@@ -120,6 +128,12 @@ end
 
 
 %% ---- local helpers ----------------------------------------------------
+
+function setPolling(obj)
+%setPolling  The poll is over (onCleanup: also after an error); nothing to do once the app is gone.
+if isvalid(obj); obj.KSPolling = false; end
+end
+
 
 function reportFinished(obj, run, state, msg)
 %reportFinished  Record a run that ended: its manifest, the log, its result row.

@@ -254,6 +254,9 @@ says how to cut a release.
 
 ### Fixed
 
+- The pipeline app's background-sort monitor (`pollKSRuns`) could be entered again by its timer while `stopKSRuns`
+  polled, and the inner call cleared the run list under the outer one (`Index exceeds array bounds`); a call while
+  another is under way now returns at once.
 - A heat map of trials with `maskAfterStop` masks the bin the stop falls inside, as `spikePSTH` does since its own
   change; a group's rows averaged to something other than its PSTH there.
 - Artifact detection lost its `PadMs` padding, and every flagged sample but one, for the rest of a chunk whenever two

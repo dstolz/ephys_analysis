@@ -270,6 +270,8 @@ says how to cut a release.
 
 ### Fixed
 
+- The analysis app's window fits the screen when it opens: a default or saved size from a larger display is shrunk
+  and moved onto the primary screen (`fitToScreen`, in `pipeline/`).
 - The pipeline app's background-sort monitor (`pollKSRuns`) could be entered again by its timer while `stopKSRuns`
   polled, and the inner call cleared the run list under the outer one (`Index exceeds array bounds`); a call while
   another is under way now returns at once.

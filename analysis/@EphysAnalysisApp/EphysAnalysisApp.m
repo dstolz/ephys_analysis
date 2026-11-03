@@ -445,6 +445,7 @@ classdef EphysAnalysisApp < handle
             end
             obj.updateTitle();
             obj.Splash.step("show", "Drawing the window ...");
+            obj.Fig.Position = fitToScreen(obj.Fig.Position);   % the default or saved size may not fit this display
             obj.Fig.Visible = "on";
             drawnow;
             obj.Splash.close();

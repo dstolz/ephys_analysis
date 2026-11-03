@@ -21,10 +21,21 @@ classdef FigureTemplate
     %   (PlotDesign), in the same way. Export writes one anywhere, Import
     %   copies one into your folder (a colleague's, say).
     %
+    %   Panel types
+    %   A template saved as a panel type (its panel flag true: fromFigure
+    %   Panel=true, the app's Save as panel type...) is also a building
+    %   block of new figures: the New panel window lists it beside the
+    %   built-in panel types, and picking it places all its panels, as one
+    %   block in its own arrangement (a raster flush over its PSTH stays
+    %   so), next to the selected panel (EphysAnalysisConfig.placePanels).
+    %   As with applying a template, the panels are copied: they are
+    %   ordinary panels of the new figure from then on. panelTypes lists
+    %   them, the built-in "Raster over PSTH" first.
+    %
     %   Making and keeping
-    %     t = FigureTemplate.fromFigure(FIG)   a figure (a Figures entry) as a template
+    %     t = FigureTemplate.fromFigure(FIG)   a figure (a Figures entry) as a template (Panel=true: a panel type too)
     %     f = FigureTemplate.save(t, NAME)     into your folder (Overwrite=true to replace)
-    %     T = FigureTemplate.list()            Name, Description, Summary, Saved, File, Problem
+    %     T = FigureTemplate.list()            Name, Description, Summary, Saved, File, Problem, Panel
     %     t = FigureTemplate.load(NAME)        one of yours by name (any case), or a file
     %     FigureTemplate.remove(NAME)          delete one of yours
     %     n = FigureTemplate.import(FILE)      copy a template file into your folder
@@ -34,16 +45,21 @@ classdef FigureTemplate
     %     fig = FigureTemplate.figureOf(t)     the figure to apply (no id: automatic)
     %     I = FigureTemplate.check(t, D)       the config's checks of its figure (validate)
     %     s = FigureTemplate.summary(FIG)      "2 x 1: raster, psth; observes units"
+    %     T = FigureTemplate.panelTypes()      the figures New panel offers as panel types (Key, Label, Figure, ...)
+    %     [fig, label] = FigureTemplate.panelFigure(KEY)   one of them, to place (EphysAnalysisConfig.placePanels)
     %
     %   A template struct has: name, description, saved (when it was made
     %   from a figure, "yyyy-MM-dd HH:mm"), from (the id of that figure),
-    %   version (of its file), figure (the figure, normalized: its id "",
-    %   autoId true, title "", enabled true), notes (what reading it
-    %   reported, a string row) and file ("" until saved).
+    %   version (of its file), panel (true: a panel type too), figure (the
+    %   figure, normalized: its id "", autoId true, title "", enabled
+    %   true), notes (what reading it reported, a string row) and file (""
+    %   until saved).
     %
     %   The file:
     %     {"schema": "ephys-figure-template", "version": 1, "name": ...,
-    %      "description": ..., "saved": ..., "from": ..., "figure": {...}}
+    %      "description": ..., "saved": ..., "from": ..., "panel": false,
+    %      "figure": {...}}
+    %   ("panel" left out reads as false.)
     %   "figure" is a Figures entry of an analysis config as Save config
     %   writes it (Inf and NaN as strings), without id, autoId, title and
     %   enabled (left out when read, if a file holds them).
@@ -79,13 +95,15 @@ classdef FigureTemplate
         function t = fromFigure(fig, opts)
             %fromFigure  Figure FIG (a Figures entry) as a template: every setting but its id, title and enabled.
             %   Name= and Description= fill those fields; From= the figure's
-            %   id by default. The figure is normalized (normalizeFigure),
-            %   so a partial figure struct is fine.
+            %   id by default; Panel=true makes it a panel type too (the
+            %   New panel window lists it). The figure is normalized
+            %   (normalizeFigure), so a partial figure struct is fine.
             arguments
                 fig (1,1) struct
                 opts.Name (1,1) string = ""
                 opts.Description (1,1) string = ""
                 opts.From (1,1) string = string(missing)
+                opts.Panel (1,1) logical = false
             end
             from = opts.From;
             if ismissing(from)
@@ -97,6 +115,7 @@ classdef FigureTemplate
             t.description = opts.Description;
             t.saved = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm'));
             t.from = from;
+            t.panel = opts.Panel;
             t.figure = EphysAnalysisConfig.normalizeFigure(withoutIdentity(fig), "figure");
         end
 
@@ -177,13 +196,16 @@ classdef FigureTemplate
         end
 
         %% --- finding -------------------------------------------------------------
-        function T = list()
-            %list  Your templates, by name: Name, Description, Summary, Saved, File, Problem.
+        function [T, F] = list()
+            %list  Your templates, by name: Name, Description, Summary, Saved, File, Problem, Panel.
             %   Summary is summary(figure); Problem is "" for a template that
             %   reads cleanly, else the reason it cannot be read or the notes
-            %   reading it gave (it can still be applied then).
+            %   reading it gave (it can still be applied then). Panel: it is
+            %   a panel type too. F (a cell, one per row) holds each
+            %   template's figure ([] for one that cannot be read).
             Name = strings(0, 1); Description = strings(0, 1); Summary = strings(0, 1);
-            Saved = strings(0, 1); File = strings(0, 1); Problem = strings(0, 1);
+            Saved = strings(0, 1); File = strings(0, 1); Problem = strings(0, 1); Panel = false(0, 1);
+            F = cell(0, 1);
             d = dir(fullfile(FigureTemplate.folder(), '*.json'));
             [~, o] = sort(lower(string({d.name})));
             for f = reshape(d(o), 1, [])
@@ -195,11 +217,15 @@ classdef FigureTemplate
                     shape = FigureTemplate.summary(t.figure);
                     saved = t.saved;
                     problem = strjoin(t.notes, "; ");
+                    panel = t.panel;
+                    fig = t.figure;
                 catch ME
                     desc = "";
                     shape = "";
                     saved = "";
                     problem = "Not readable: " + string(ME.message);
+                    panel = false;
+                    fig = [];
                 end
                 Name(end+1, 1) = stem; %#ok<AGROW>
                 Description(end+1, 1) = desc; %#ok<AGROW>
@@ -207,8 +233,77 @@ classdef FigureTemplate
                 Saved(end+1, 1) = saved; %#ok<AGROW>
                 File(end+1, 1) = file; %#ok<AGROW>
                 Problem(end+1, 1) = problem; %#ok<AGROW>
+                Panel(end+1, 1) = panel; %#ok<AGROW>
+                F{end+1, 1} = fig; %#ok<AGROW>
             end
-            T = table(Name, Description, Summary, Saved, File, Problem);
+            T = table(Name, Description, Summary, Saved, File, Problem, Panel);
+        end
+
+        function T = panelTypes(opts)
+            %panelTypes  The figures the New panel window offers as panel types: the built-in ones, then yours.
+            %   T has a row per figure, in the window's order:
+            %     Key          what panelFigure (and EphysAnalysisApp.onNewPanel
+            %                  Set=) takes: "builtin:<template>" for a built-in
+            %                  one, else the template's name
+            %     Label        the name shown on its tile
+            %     Description  one line ("" when it has none)
+            %     Summary      summary(its figure): "2 x 1: raster, psth; ..."
+            %     Builtin      true for a built-in one
+            %     Problem      what reading it reported ("" when it read cleanly)
+            %     Figure       its figure (a cell; normalized)
+            %   The built-in one is "Raster over PSTH" (builtin:rasterPsth,
+            %   EphysAnalysisConfig.figureTemplates): a unit's raster flush
+            %   above its PSTH. Yours are the templates saved as panel types
+            %   (list's Panel), by name; one that cannot be read is left out.
+            %   Yours=false lists the built-in ones alone.
+            arguments
+                opts.Yours (1,1) logical = true
+            end
+            R = EphysAnalysisConfig.figureTemplates();
+            r = R.Template == "rasterPsth";
+            Key = "builtin:rasterPsth";
+            Label = "Raster over PSTH";
+            Description = R.Description(r);
+            Figure = {EphysAnalysisConfig.normalizeFigure(R.Figure{r}, "figure")};
+            Summary = FigureTemplate.summary(Figure{1});
+            Builtin = true;
+            Problem = "";
+            T = table(Key, Label, Description, Summary, Builtin, Problem, Figure);
+            if ~opts.Yours; return; end
+            [L, F] = FigureTemplate.list();
+            keep = L.Panel & ~cellfun(@isempty, F);
+            Key = [Key; L.Name(keep)];
+            Label = [Label; L.Name(keep)];
+            Description = [Description; L.Description(keep)];
+            Summary = [Summary; L.Summary(keep)];
+            Builtin = [Builtin; false(nnz(keep), 1)];
+            Problem = [Problem; L.Problem(keep)];
+            Figure = [Figure; F(keep)];
+            T = table(Key, Label, Description, Summary, Builtin, Problem, Figure);
+        end
+
+        function [fig, label] = panelFigure(key)
+            %panelFigure  The figure panel type KEY gives (a panelTypes Key): to place with EphysAnalysisConfig.placePanels.
+            %   LABEL is its name ("Raster over PSTH", or the template's).
+            %   A template's name that is not a panel type gives its figure
+            %   too. Errors: FigureTemplate:Unknown, FigureTemplate:Bad.
+            arguments
+                key (1,1) string
+            end
+            if startsWith(key, "builtin:")
+                R = EphysAnalysisConfig.figureTemplates();
+                r = R.Template == extractAfter(key, "builtin:");
+                if ~any(r)
+                    error('FigureTemplate:Unknown', 'There is no built-in panel type "%s".', extractAfter(key, "builtin:"));
+                end
+                fig = EphysAnalysisConfig.normalizeFigure(R.Figure{r}, "figure");
+                label = "Raster over PSTH";
+                if R.Template(r) ~= "rasterPsth"; label = R.Label(r); end
+                return
+            end
+            t = FigureTemplate.load(key);
+            fig = t.figure;
+            label = t.name;
         end
 
         function t = load(name)
@@ -332,7 +427,7 @@ classdef FigureTemplate
             %toStruct  Template T as its file holds it (the current Version; the figure without its identity).
             s = struct('schema', FigureTemplate.Schema, 'version', FigureTemplate.Version, 'name', string(t.name), ...
                 'description', string(t.description), 'saved', string(t.saved), 'from', string(t.from), ...
-                'figure', withoutIdentity(t.figure));
+                'panel', logical(t.panel), 'figure', withoutIdentity(t.figure));
         end
 
         function t = normalize(s, where)
@@ -361,6 +456,9 @@ classdef FigureTemplate
             for f = ["name" "description" "saved" "from"]
                 if isfield(s, f) && (ischar(s.(f)) || isstring(s.(f))) && ~isempty(s.(f)); t.(f) = strtrim(string(s.(f))); end
             end
+            if isfield(s, 'panel') && (islogical(s.panel) || isnumeric(s.panel)) && isscalar(s.panel)
+                t.panel = logical(s.panel);
+            end
             try
                 [t.figure, unknown] = EphysAnalysisConfig.normalizeFigure(withoutIdentity(s.figure), "figure");
             catch ME
@@ -369,7 +467,7 @@ classdef FigureTemplate
             if ~isempty(unknown)
                 t.notes(end+1) = "dropped unknown field(s) " + strjoin(unknown, ", ");
             end
-            extra = setdiff(string(fieldnames(s)).', ["schema" "version" "name" "description" "saved" "from" "figure"]);
+            extra = setdiff(string(fieldnames(s)).', ["schema" "version" "name" "description" "saved" "from" "panel" "figure"]);
             if ~isempty(extra)
                 t.notes(end+1) = "dropped unknown field(s) " + strjoin(extra, ", ");
             end
@@ -380,7 +478,7 @@ classdef FigureTemplate
         function t = blank()
             %blank  An empty template: a blank figure, nothing named.
             t = struct('name', "", 'description', "", 'saved', "", 'from', "", 'version', FigureTemplate.Version, ...
-                'figure', EphysAnalysisConfig.normalizeFigure(struct(), "figure"), 'notes', strings(1, 0), 'file', "");
+                'panel', false, 'figure', EphysAnalysisConfig.normalizeFigure(struct(), "figure"), 'notes', strings(1, 0), 'file', "");
         end
 
         function name = checkName(name)

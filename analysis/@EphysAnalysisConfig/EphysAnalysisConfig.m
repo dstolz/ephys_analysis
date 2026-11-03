@@ -425,6 +425,7 @@ classdef EphysAnalysisConfig
         id = autoFigureId(fig)
         [cells, overlap] = figureCells(fig)
         fig = placePanel(fig, panel, where, anchorId, at)
+        [fig, ids] = placePanels(fig, block, where, anchorId, opts)
         fig = removePanel(fig, id)
         [fig, moved] = movePanel(fig, id, direction)
         [fig, changed] = adoptPanelOptions(fig, panelId)

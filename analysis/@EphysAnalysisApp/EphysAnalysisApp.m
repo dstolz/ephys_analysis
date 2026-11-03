@@ -41,7 +41,9 @@ classdef EphysAnalysisApp < handle
     %                unit filter), the panels (a schematic of the grid:
     %                drag a panel to an empty cell or beside another one;
     %                New panel... (a window: the type, each shown as a small
-    %                plot, its name, place and key parameters: onNewPanel),
+    %                plot, or a saved figure placed as one block -- Raster
+    %                over PSTH, or a figure of yours kept with Save as panel
+    %                type... -- its name, place and key parameters: onNewPanel),
     %                spans, relative row heights and column widths,
     %                spacing, Remove, Move), the selected panel (type, title,
     %                box, group shown), the figure's event reference, epoch window and
@@ -260,7 +262,7 @@ classdef EphysAnalysisApp < handle
         FiguresTree            matlab.ui.container.Tree         % the figures under groups (figureGroups); a figure's node holds its index in NodeData
         FigureGroupDropDown    matlab.ui.control.DropDown       % how the tree groups: what it observes, status, none
         AddFigureButton        matlab.ui.control.Button
-        AddStarterButton       matlab.ui.control.Button         % Add Raster + PSTH: the ready-made starter figure (onAddFigure("rasterPsth"))
+        SavePanelTypeButton    matlab.ui.control.Button         % Save as panel type...: the figure shown as a panel type of yours (onFigureTemplate "panel")
         RemoveFigureButton     matlab.ui.control.Button
         DuplicateFigureButton  matlab.ui.control.Button
         CopyFigureButton       matlab.ui.control.Button         % Copy settings...: a figure's settings onto other figures or into a design (onCopyFigureSettings)

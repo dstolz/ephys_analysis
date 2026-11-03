@@ -381,10 +381,11 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   `glmfit` for the neuroGLM connector's Poisson fit, `NeuroGLMExport.fit`).
 - Image Processing Toolbox (`padarray` in the mTRF-Toolbox packaging,
   `mTRFExport.resample`, which mirrors a signal past its ends so that
-  `resample` does not filter them against zeros; otherwise optional: the
-  `tools/makePanelThumbnails` script scales the analysis app's New panel
-  pictures down with `imresize`; the app reads the PNGs it wrote, committed
-  under `analysis/icons/panels`).
+  `resample` does not filter them against zeros; `imresize` in the analysis
+  app's New panel window, which draws a saved figure's tile from its panels'
+  pictures scaled into its grid; and the `tools/makePanelThumbnails` script,
+  which scales those pictures down with `imresize`: the app reads the PNGs it
+  wrote, committed under `analysis/icons/panels`).
 - Optimization Toolbox (`fminunc`, trust-region with the analytic Hessian,
   in `NeuroGLMExport.fit` with `Method="matRegress"`: neuroGLM's own Poisson
   fit under a ridge prior; the default `Method="glmfit"` needs only the

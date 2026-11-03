@@ -4,8 +4,10 @@ function refreshTemplates(obj, pick)
 %   one picked while it is there (else the first), and gives the list the
 %   picked one's description, shape (FigureTemplate.summary), when it was
 %   saved and what reading it reported (a "(!)" after its name), as its
-%   tooltip. Apply..., Update, Remove and Export... are off with no
-%   template (Save as... and Update say so when no figure is selected).
+%   tooltip; a panel type (Save as panel type...: the New panel window
+%   lists it too) has "  (panel type)" after its name. Apply..., Update,
+%   Remove and Export... are off with no template (Save as... and Update
+%   say so when no figure is selected).
 %   refreshTemplates(OBJ, PICK) picks the template PICK (a name).
 %   The list is read again each time it opens (its DropDownOpeningFcn), so
 %   a template saved, imported or deleted elsewhere (another app, a script,
@@ -19,8 +21,8 @@ if isempty(dd) || ~isvalid(dd); return; end
 try
     T = FigureTemplate.list();
 catch ME   % the folder cannot be read: say so, list none
-    T = table(strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), ...
-        'VariableNames', ["Name" "Description" "Summary" "Saved" "File" "Problem"]);
+    T = table(strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), false(0, 1), ...
+        'VariableNames', ["Name" "Description" "Summary" "Saved" "File" "Problem" "Panel"]);
     obj.setStatus("Figure templates: " + string(ME.message));
 end
 if ismissing(pick); pick = string(dd.Value); end
@@ -33,6 +35,7 @@ if isempty(T)
         "Your templates folder: " + FigureTemplate.folder() + ".";
 else
     labels = T.Name;
+    labels(T.Panel) = labels(T.Panel) + "  (panel type)";
     bad = T.Problem ~= "";
     labels(bad) = labels(bad) + "  (!)";
     if ~isequal(string(dd.ItemsData), reshape(T.Name, 1, [])) || ~isequal(string(dd.Items), reshape(labels, 1, []))
@@ -44,6 +47,7 @@ else
     tip = T.Name(k);
     if T.Description(k) ~= ""; tip = tip + ": " + T.Description(k); end
     if T.Summary(k) ~= ""; tip = tip + newline + T.Summary(k); end
+    if T.Panel(k); tip = tip + newline + "A panel type too: New panel... places its panels in any figure."; end
     if T.Saved(k) ~= ""; tip = tip + newline + "Saved " + T.Saved(k) + "."; end
     if T.Problem(k) ~= ""; tip = tip + newline + "Reading it: " + T.Problem(k) + "."; end
     dd.Tooltip = tip + newline + "Your templates folder: " + FigureTemplate.folder() + ".";

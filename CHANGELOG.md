@@ -14,7 +14,17 @@ says how to cut a release.
   (across all the anchor's columns or rows) and leaves the grid as it is; a new row or column is added only when
   one of those cells is taken (`EphysAnalysisConfig.placePanel`). The empty cells of the Panels sketch show a gray
   **+**: a click on one opens the New panel window with that cell as the place (`placePanel(fig, panel, "cell", "",
-  [R C])`, `onNewPanel(Where="cell", Cell=[R C])`; error `EphysAnalysisConfig:CellTaken`).
+  [R C])`, `onNewPanel(Where="cell", Cell=[R C])`; error `EphysAnalysisConfig:CellTaken`). A saved figure picked in
+  the New panel window (below) still goes above, below, left or right of the selected panel, in new rows or columns.
+- Analysis app: figures saved as panel types. **Save as panel type...** under the Figures tab's figure list keeps
+  the figure shown as a figure template marked `"panel": true` (`FigureTemplate.fromFigure(..., Panel=true)`; the
+  template window's **Save as...** has the same box). The New panel window lists these under *Saved figures*, after
+  the built-in *Raster over PSTH* (`FigureTemplate.panelTypes`, `panelFigure`): one picked places all its panels as
+  one block next to the selected panel, keeping their arrangement and gaps, with the figure's or its own alignment
+  (`EphysAnalysisConfig.placePanels`; `onNewPanel(Set=, Alignment=)`). The panels are copied, as a template is.
+- Analysis app: the **Add Raster + PSTH** button is gone from the Figures tab; **Add** (now full width) and the
+  empty preview's **Add figure** open the New panel window, where *Raster over PSTH* is a saved figure.
+  `onAddFigure("rasterPsth")` and `cfg.addFigure("rasterPsth")` are unchanged.
 
 - `toBin`'s own artifact detection (`Blank=true`, or `ArtifactConfig.Enabled` without `ArtifactIntervals`) is
   `artifactIntervals`' recording-wide detection, found before the first chunk is written and with the bounds moved by

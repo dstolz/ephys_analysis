@@ -13,6 +13,9 @@ function buildFiguresTab(obj)
 %           ticks or unticks the figure, or every figure of a group
 %           (onFigureTreeClicked), All / None / Invert (onFigureCheck);
 %           Add (a blank figure, then the New panel window: onAddFigure),
+%           Save as panel type... (the figure shown kept as a panel type
+%           of yours: the New panel window lists it, to place its panels,
+%           arranged as they are, in any figure; onFigureTemplate "panel"),
 %           Remove, Duplicate ("<id> (2)": onDuplicateFigure), Up, Down
 %           (within its group) and
 %           Copy settings... (onCopyFigureSettings: a figure's settings, one
@@ -171,8 +174,8 @@ obj.FigureIdRenames = containers.Map('KeyType', 'char', 'ValueType', 'any');
 PT = EphysAnalysisConfig.panelTypes();
 
 % --- left: the figures, a tree under groups ------------------------------------------------------
-lg = uigridlayout(g, [9 2]);
-lg.RowHeight = {22, 28, 30, '1x', 34, 30, 30, 30, 64};
+lg = uigridlayout(g, [10 2]);
+lg.RowHeight = {22, 28, 30, '1x', 34, 30, 30, 30, 30, 64};
 lg.ColumnWidth = {'1x', '1x'};
 lg.Padding = [0 0 0 0];
 l = uilabel(lg, "Text", "Figures  (ticked = enabled)", "FontWeight", "bold");
@@ -203,12 +206,9 @@ obj.FiguresTree = uitree(lg, "Multiselect", "off", "SelectionChangedFcn", @(~, e
     "figure keeps its preview, so coming back to one shows it at once.");
 place(obj.FiguresTree, 4, [1 2]);
 obj.AddFigureButton = uibutton(lg, "Text", "Add", "ButtonPushedFcn", @(~,~) obj.onAddFigure(), ...
-    "Tooltip", "Add a blank figure and pick its first panel in the New panel window (Cancel leaves it blank).");
-place(obj.AddFigureButton, 5, 1);
-obj.AddStarterButton = uibutton(lg, "Text", "Add Raster + PSTH", "ButtonPushedFcn", @(~,~) obj.onAddFigure("rasterPsth"), ...
-    "Tooltip", "Add a ready-made figure: a unit's raster flush above its PSTH, both following the observed unit. " + ...
-    "Change anything afterwards: it is an ordinary figure.");
-place(obj.AddStarterButton, 5, 2);
+    "Tooltip", "Add a blank figure and pick its first panel in the New panel window (Cancel leaves it blank): a panel " + ...
+    "type, or a saved figure such as Raster over PSTH.");
+place(obj.AddFigureButton, 5, [1 2]);
 obj.RemoveFigureButton = uibutton(lg, "Text", "Remove", "ButtonPushedFcn", @(~,~) obj.onRemoveFigure(), ...
     "Tooltip", "Remove the selected figure from the config.");
 place(obj.RemoveFigureButton, 6, 1);
@@ -226,10 +226,15 @@ obj.CopyFigureButton = uibutton(lg, "Text", "Copy settings...", "ButtonPushedFcn
     "(observations, alignment, panels, each panel's options, appearance, looks, across sessions, on the probe). Each figure keeps its " + ...
     "id, title and enabled; one step of Undo; the other figures' previews are marked out of date, not drawn again.");
 place(obj.CopyFigureButton, 8, [1 2]);
+obj.SavePanelTypeButton = uibutton(lg, "Text", "Save as panel type...", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("panel"), ...
+    "Tooltip", "Keep the figure shown as a panel type of yours: the New panel window then lists it under Saved figures, " + ...
+    "to place all its panels, arranged as they are here, next to the selected panel of any figure. The panels are " + ...
+    "copied: in that figure they are ordinary panels. It is a figure template too (the Template list above the preview).");
+place(obj.SavePanelTypeButton, 9, [1 2]);
 l = uilabel(lg, "Text", "A figure is one observation's panels: a unit's, a channel's or the dataset's. " + ...
     "File > Generate selected figure draws it for each observation; Run (Export tab) draws the enabled ones.", ...
     "WordWrap", "on", "FontColor", gray, "VerticalAlignment", "top");
-place(l, 9, [1 2]);
+place(l, 10, [1 2]);
 
 % --- middle: the search field, its matches and the editor ------------------------------------------
 mc = uigridlayout(g, [3 1], "RowHeight", {30, 0, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 4);

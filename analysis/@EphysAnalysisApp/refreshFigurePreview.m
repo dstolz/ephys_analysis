@@ -80,8 +80,8 @@ k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures)
     obj.FigurePreviewResult = [];
     delete(obj.FigurePreviewPanel.Children);
-    emptyStateCard(obj, obj.FigurePreviewPanel);   % what to do first, with the starter figure one click away
-    obj.FigurePreviewLabel.Text = "No figure: press Add Raster + PSTH or Add under the list, then pick its first panel.";
+    emptyStateCard(obj, obj.FigurePreviewPanel);   % what to do first, with Add one click away
+    obj.FigurePreviewLabel.Text = "No figure: press Add under the list, then pick its first panel (or a saved figure, such as Raster over PSTH).";
     obj.setFigurePreviewState("idle");
     showSessionPicker(obj, []);
     return

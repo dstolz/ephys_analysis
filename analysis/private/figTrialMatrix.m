@@ -11,7 +11,8 @@ function [M, order, grp, name] = figTrialMatrix(R, o)
 %            without R.trains its raster, binned by binCounts' rule: a spike
 %            on an edge goes to the bin that starts there), in R.measure: "rate" count /
 %            BinSec, "count", "probability" 1 where any spike; with
-%            MaskAfterStop NaN in the bins from its stop event on; each
+%            MaskAfterStop NaN in the bins reaching past its stop event
+%            (the bin the stop falls inside too, as spikePSTH masks); each
 %            epoch smoothed by SmoothSec (gaussianSmooth, as spikePSTH
 %            smooths each epoch before it averages); and BaselineMode
 %            "subtract" / "zscore" / "percent" taken against its group's
@@ -35,7 +36,7 @@ nB = numel(edges) - 1;
 binSec = R.params.BinSec;
 C = zeros(nB, nE);
 if isfield(R, 'trains') && ~isempty(R.trains) && isfield(R, 'epochs') && istable(R.epochs) && height(R.epochs) == nE
-    % the unmasked train, counted as spikePSTH counts it: a bin that starts before the stop keeps its spikes after it
+    % the unmasked train, counted as spikePSTH counts it (the bins past the stop are masked below)
     tr = R.trains;
     if iscell(tr); tr = tr{1}; end
     C = binCounts(tr, R.epochs.t0Continuous, edges);
@@ -53,7 +54,7 @@ switch string(R.measure)
 end
 if R.params.MaskAfterStop
     stop = reshape(R.epochStop, 1, []);
-    X(edges(1:end-1).' >= stop & isfinite(stop)) = NaN;
+    X(edges(2:end).' > stop + 1e-9 & isfinite(stop)) = NaN;   % spikePSTH's mask
 end
 if R.params.SmoothSec > 0
     X = gaussianSmooth(X, R.params.SmoothSec / binSec);

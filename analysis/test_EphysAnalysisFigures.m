@@ -2273,7 +2273,7 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     Fth3 = rn.computeFigure(src, cfg.figureFor("trialmap3"), Observation=Tu(1, :));
     R3 = Fth3.panels.layers(1).R;
     stopIn = R3.epochStop(isfinite(R3.epochStop));
-    inBin = any(abs(stopIn / 0.037 - round(stopIn / 0.037)) > 1e-6);   % a stop inside a bin: its bin keeps the spikes after it
+    inBin = any(abs(stopIn / 0.037 - round(stopIn / 0.037)) > 1e-6);   % a stop inside a bin: that bin is masked too
     okMask = Fth3.panels.layers(1).skip == "" && any(isnan(R3.trialMatrix(:)));
     for g = 1:height(Fth3.groups)
         gm = mean(R3.trialMatrix(R3.trialGroup == g, :), 1, 'omitnan').';
@@ -2355,27 +2355,21 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
         && contains(figureCaption(spg, Tpg), "one figure per trial group") && ~contains(figureCaption(spec, Tu), "per trial group"), ...
         sprintf('figureOutputName: {Group} = the group ("%s"; "_<Group>" appended without {Group} or {Index}); figureCaption says per trial group', nm1));
 
-    % one observation costs a fraction of every unit
-    haveBootT = license('test', 'Statistics_Toolbox') && exist('bootci', 'file');
-    if nU >= 4 && haveBootT
-        % bootstrap bands make the per-unit work, not the fixed steps, the bulk of the time
-        cfgT = cfg;
-        cfgT.Figures(cfgT.figureIndex("rp")).style.ErrorType = "ci95";
-        specT = cfgT.figureFor("rp");
-        allUnits = @() spikePSTH(sto, epochsOf([]), Window=[wD.pre wD.post], BinSec=0.01, SmoothSec=0.01, Measure="rate", ...
-            Raster=true, Groups=Go, Meta=mo, ErrorType="ci95", ErrorResamples=1000);
-        rn.computeFigure(src, specT, Observation=Tu(1, :));   % warm both
-        allUnits();
-        tF = Inf; tP = Inf;
-        for rep = 1:3
-            tc0 = tic; rn.computeFigure(src, specT, Observation=Tu(1, :)); tF = min(tF, toc(tc0));
-            tc0 = tic; allUnits(); tP = min(tP, toc(tc0));
+    % one observation computes its own unit, not every unit with one picked after (spikePSTH's bootstrap bands
+    % are batched over the units, so a timing comparison no longer tells the two apart)
+    Fone = rn.computeFigure(src, cfg.figureFor("rp"), Observation=Tu(1, :));
+    nPsth = 0; okOne = true;
+    for k = 1:numel(Fone.panels)
+        for j = 1:numel(Fone.panels(k).layers)
+            Rk = Fone.panels(k).layers(j).R;
+            if isstruct(Rk) && isfield(Rk, 'rate') && isfield(Rk, 'raster')
+                nPsth = nPsth + 1;
+                okOne = okOne && size(Rk.rate, 2) == 1 && numel(Rk.raster) == 1;
+            end
         end
-        check(tF <= 0.5 * tP, sprintf(['one observation of the raster + PSTH figure (%.3f s) takes at most half the time of ' ...
-            'the PSTH of all %d units (%.3f s)'], tF, nU, tP));
-    else
-        fprintf('  (timing check skipped: %d unit(s), bootci %d)\n', nU, haveBootT);
     end
+    check(nU >= 2 && nPsth >= 1 && okOne, sprintf(['one observation of the raster + PSTH figure computes its own unit only ' ...
+        '(%d PSTH layer(s); the dataset has %d units)'], nPsth, nU));
 end
 
 %% ============================================================================ render

@@ -43,7 +43,7 @@ switch kind
     case ""
         obj.SourcePanel.Title = "Source settings";
         if isempty(obj.Project) || obj.Project.NumDatasets == 0
-            obj.SourceNoteLabel.Text = "Scan a project first.";
+            obj.SourceNoteLabel.Text = AppDialog.noProject();
         elseif isempty(d)
             obj.SourceNoteLabel.Text = "No active dataset: click a row to see its recording system's settings.";
         else

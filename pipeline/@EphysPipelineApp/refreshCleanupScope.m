@@ -4,7 +4,7 @@ function refreshCleanupScope(obj)
 %   Project tab and may have changed since the last Preview.
 if isempty(obj.CleanupScopeLabel) || ~isvalid(obj.CleanupScopeLabel); return; end
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
-    obj.CleanupScopeLabel.Text = "Scan a project on the Project tab first.";
+    obj.CleanupScopeLabel.Text = AppDialog.noProject();
     obj.onCleanupSettingsChanged("No project");
     return
 end

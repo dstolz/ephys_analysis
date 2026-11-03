@@ -158,7 +158,9 @@ obj.RunIssuesTable.Layout.Row = 5; obj.RunIssuesTable.Layout.Column = [1 3];
 makeSortable(obj, obj.RunIssuesTable);
 
 obj.RunResultsTable = uitable(right, "ColumnName", {'Step', 'Dataset', 'Subject', 'Date', 'Key', 'Output', 'Status', 'Note'}, ...
-    "ColumnWidth", {'fit', 'fit', 90, 84, 'fit', '2x', 130, '1x'}, "RowName", {});
+    "ColumnWidth", {'fit', 'fit', 90, 84, 'fit', '2x', 130, '1x'}, "RowName", {}, ...
+    "Tooltip", "A row per step and dataset of the last plan or run: Status says what happened, Note why and what to do. " + ...
+        "Click a header to sort; right-click the table to clear the sort.");
 obj.RunResultsTable.Layout.Row = 6; obj.RunResultsTable.Layout.Column = [1 3];
 makeSortable(obj, obj.RunResultsTable, "RunResults");
 

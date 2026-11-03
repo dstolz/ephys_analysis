@@ -4,7 +4,7 @@ function refreshSortingLabel(obj)
 if isempty(obj.SortResultsLabel) || ~isvalid(obj.SortResultsLabel); return; end
 d = obj.currentDataset();
 if isempty(d)
-    obj.SortResultsLabel.Text = "Scan a project first.";
+    obj.SortResultsLabel.Text = AppDialog.noProject();
     refreshPhyStatus(obj, "");
     stylePhyButton(obj.SortPhyButton, "");
     return

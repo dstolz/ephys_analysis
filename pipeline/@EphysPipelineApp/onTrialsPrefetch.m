@@ -13,7 +13,7 @@ function onTrialsPrefetch(obj)
 dlgTitle = "Prefetch digital lines";
 if obj.refuseWhileRunning(dlgTitle); return; end
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
-    uialert(obj.Fig, "Scan a project first (Project tab).", dlgTitle);
+    obj.alertNoProject(dlgTitle);
     return
 end
 idx = obj.tickedDatasetIndices();

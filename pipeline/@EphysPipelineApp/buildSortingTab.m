@@ -194,7 +194,7 @@ l = uilabel(rg, "Text", "Dataset:");
 l.Layout.Row = 1; l.Layout.Column = 1;
 obj.SortDatasetDropDown = obj.datasetPicker(rg);
 obj.SortDatasetDropDown.Layout.Row = 1; obj.SortDatasetDropDown.Layout.Column = [2 4];
-obj.SortResultsLabel = uilabel(rg, "Text", "Scan a project first.", ...
+obj.SortResultsLabel = uilabel(rg, "Text", AppDialog.noProject(), ...
     "WordWrap", "on", "FontColor", [0.3 0.3 0.3]);
 obj.SortResultsLabel.Layout.Row = 2; obj.SortResultsLabel.Layout.Column = [1 4];
 % What phy did in the sorted output (EphysDataset.phyStatus; refreshSortingLabel).

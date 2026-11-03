@@ -16,7 +16,7 @@ for i = idx
 end
 
 if isempty(obj.Project) || obj.Project.NumDatasets == 0
-    txt = "Scan a project first.";
+    txt = AppDialog.noProject();
 elseif n == 0
     txt = "No active dataset.";
 elseif obj.ToolsScopeDropDown.Value == "active"

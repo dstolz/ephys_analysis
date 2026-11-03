@@ -546,6 +546,25 @@ if S.sec("1b2", "messages, run confirmation, tab signs, banner, empty state")
     app.alertNoProject("Scan");
     A = AppDialog.captured(Clear=true);
     check(isempty(A.Options), 'on the Project tab the no-project alert has no Go to button');
+    if isempty(app.Project) || app.Project.NumDatasets == 0
+        app.refreshSortingLabel();
+        app.syncToolsPanel();
+        app.syncSourcePanel();
+        app.refreshCleanupScope();
+        labelTexts = string({app.SortResultsLabel.Text, app.ToolsTargetLabel.Text, app.SourceNoteLabel.Text, ...
+            app.CleanupScopeLabel.Text});
+        check(all(labelTexts == AppDialog.noProject()), ...
+            'no project: the Sorting, Project (Tools, Source settings) and Clean up labels read the one message');
+        app.selectTab(app.TabSorting);
+        app.onUseSortingFolder();
+        A = AppDialog.captured(Clear=true);
+        check(isscalar(A) && A.Message == AppDialog.noProject() && A.Title == "Sorting" ...
+            && any(string(A.Options) == "Go to Project tab"), 'an action that needs a project says so in the one alert');
+        app.selectTab(app.TabProject);
+    end
+    check(contains(string(app.RunResultsTable.Tooltip), "right-click") && contains(string(app.CleanupTable.Tooltip), "right-click") ...
+        && contains(string(app.ReviewDatasetTable.Tooltip), "right-click"), ...
+        'the Run results, Clean up and Review tables say in their tooltips how to sort and clear the sort');
     app.reportFailure("Detect artifacts", "detect artifacts", "recA", MException("test:boom", "it broke"), "run Signals first");
     A = AppDialog.captured(Clear=true);
     check(A.Message == AppDialog.failure("detect artifacts", "recA", "it broke", Try="run Signals first", Details="Run tab > Log") ...

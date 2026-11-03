@@ -11,7 +11,7 @@ function onSuggestReferenceExclude(obj)
 if obj.refuseWhileRunning("Suggest"); return; end
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Scan a project first.", "Common reference");
+    obj.alertNoProject("Common reference");
     return
 end
 obj.applyArtifactConfigToProject();   % the bounds as they stand on the tab

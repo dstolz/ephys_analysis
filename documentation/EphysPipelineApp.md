@@ -3693,7 +3693,9 @@ first and largest first, the chosen method's statistic, the pipeline's own
 order of the plan, sessions in time order). A column the rows do not have (a
 trial parameter another session lacks) leaves them in that order, and the sort
 applies again where the column is. The other tables sort the display only, and
-show the app's order again when they are filled again.
+show the app's order again when they are filled again. The Project table's hint
+line says this; the Review, Clean up and Run results tables, whose grids have no
+room for a line, say it in their tooltips.
 
 The Copy table is sorted by sorting the sessions themselves (`CopySessions` and
 its ticks, results and messages move together), so the selection, the ticks and

@@ -3,7 +3,7 @@ function onUseSortingFolder(obj)
 if obj.refuseWhileRunning("Use folder"); return; end
 d = obj.currentDataset();
 if isempty(d)
-    uialert(obj.Fig, "Scan a project first.", "Sorting");
+    obj.alertNoProject("Sorting");
     return
 end
 start = char(d.sortingResultsDir());

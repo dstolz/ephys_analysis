@@ -3833,10 +3833,12 @@ if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like 
     app.refreshFigurePreview(Force=true);
     P = app.FigurePreviewPanel;
     shape = @() P.Position(3) / P.Position(4);
+    geom = @() sprintf(' [preview %s, its cell %s, figure %s]', mat2str(P.Position), ...
+        mat2str(app.FigurePreviewHost.InnerPosition), mat2str(app.Fig.Position));   % what the shape was read from
     cm0 = figureExportSize(app.Config.Export, [], app.Config.figureFor(1));
     check(app.FigurePreviewState == "drawn" && app.Config.Figures(1).size.source == "export" && string(FE.sizePreset.Value) == "Export tab size" ...
         && abs(shape() - cm0(1) / cm0(2)) < 0.03 && all(abs([FE.sizeWidth.Value FE.sizeHeight.Value] - cm0) < 0.01) && string(FE.sizeUnits.Value) == "cm", ...
-        'a new figure follows the Export tab''s size: the editor shows it in cm, the preview is the shape of that page');
+        'a new figure follows the Export tab''s size: the editor shows it in cm, the preview is the shape of that page' + string(geom()));
 
     % an own size typed: one undo step, the preview shaped like it and drawn again without computing
     app.FigurePreviewResult.marker = 1;   % computeFigure's result has none: it is still there when nothing was computed again
@@ -3848,7 +3850,7 @@ if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like 
         'a size typed in the drop-down ("1200 x 800 px") is the figure''s own: the rows show it');
     check(abs(shape() - 1.5) < 0.03 && app.FigurePreviewState == "drawn" && isfield(app.FigurePreviewResult, 'marker') ...
         && contains(app.FigureHistory.undoLabel(), "Size"), ...
-        'the preview is 3:2 now and drawn again from the figure it held (nothing computed again); the edit is one step named Size');
+        'the preview is 3:2 now and drawn again from the figure it held (nothing computed again); the edit is one step named Size' + string(geom()));
     spec = app.Config.figureFor(1);
     fx = newExportFigure(app.Config.Export, app.FigurePreviewResult, spec);
     cmx = fx.Position(3:4);
@@ -3870,10 +3872,10 @@ if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like 
     z = app.Config.Figures(1).size;
     check(z.units == "in" && abs(z.width - 4) < 1e-9 && abs(z.height - 8 / 3) < 1e-3 && abs(shape() - 1.5) < 0.03, ...
         sprintf('the units changed to in: 600 x 400 px at 150 dpi is 4 x 2.667 in, the same page (got %g x %g %s, preview %s)', ...
-        z.width, z.height, z.units, mat2str(P.Position)));
+        z.width, z.height, z.units, mat2str(P.Position)) + string(geom()));
     FE.sizeHeight.Value = 3;
     FE.sizeHeight.ValueChangedFcn(FE.sizeHeight, []);
-    check(abs(app.Config.Figures(1).size.width - 4.5) < 0.01 && abs(shape() - 1.5) < 0.03, 'locked, a height of 3 in gives a width of 4.5 in (to the thousandth the editor keeps)');
+    check(abs(app.Config.Figures(1).size.width - 4.5) < 0.01 && abs(shape() - 1.5) < 0.03, 'locked, a height of 3 in gives a width of 4.5 in (to the thousandth the editor keeps)' + string(geom()));
     FE.sizeLock.Value = false;
     FE.sizeLock.ValueChangedFcn(FE.sizeLock, []);
 
@@ -3881,7 +3883,7 @@ if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like 
     FE.sizePreset.Value = 'Journal 2 column (7 x 4.5 in)';
     FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
     z = app.Config.Figures(1).size;
-    check(z.source == "own" && z.width == 7 && z.height == 4.5 && z.units == "in" && abs(shape() - 7 / 4.5) < 0.03, 'a suggestion: Journal 2 column is 7 x 4.5 in');
+    check(z.source == "own" && z.width == 7 && z.height == 4.5 && z.units == "in" && abs(shape() - 7 / 4.5) < 0.03, 'a suggestion: Journal 2 column is 7 x 4.5 in' + string(geom()));
     FE.sizePreset.Value = '15 x 10';
     FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
     z = app.Config.Figures(1).size;
@@ -3899,20 +3901,24 @@ if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like 
         'Fit preview: the preview area''s shape and size as it is');
     FE.sizePreset.Value = 'Export tab size';
     FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
-    check(app.Config.Figures(1).size.source == "export" && abs(shape() - cm0(1) / cm0(2)) < 0.03, 'Export tab size again: the Export tab''s page');
+    check(app.Config.Figures(1).size.source == "export" && abs(shape() - cm0(1) / cm0(2)) < 0.03, 'Export tab size again: the Export tab''s page' + string(geom()));
 
     % the Export tab's size reaches the figures that follow it; Undo takes a size edit back
     app.ExportControls.Width.Value = 24;
     app.ExportControls.Height.Value = 12;
     app.onConfigChanged("export");
-    check(abs(shape() - 2) < 0.03 && abs(FE.sizeWidth.Value - 24 / 2.54) < 2e-3, 'a wider Export tab size: the preview and the editor (in inches here) follow');
+    check(abs(shape() - 2) < 0.03 && abs(FE.sizeWidth.Value - 24 / 2.54) < 2e-3, 'a wider Export tab size: the preview and the editor (in inches here) follow' + string(geom()));
     app.ExportControls.Width.Value = 18;
     app.onConfigChanged("export");
+    coalesce = app.FigureHistory.CoalesceSeconds;
+    app.FigureHistory.CoalesceSeconds = 0;   % the drop-down's last edit (Export tab size, above) may be under a second ago: two steps here
     FE.sizePreset.Value = '700 x 800 px';
     FE.sizePreset.ValueChangedFcn(FE.sizePreset, []);
+    app.FigureHistory.CoalesceSeconds = coalesce;
     app.onUndoRedo("undo");
     check(app.Config.Figures(1).size.source == "export" && abs(shape() - cm0(1) / cm0(2)) < 0.03 && string(FE.sizePreset.Value) == "Export tab size", ...
-        'Undo takes the size back: the rows and the preview''s shape');
+        sprintf('Undo takes the size back: the rows and the preview''s shape (source %s, preset "%s")', ...
+        app.Config.Figures(1).size.source, string(FE.sizePreset.Value)) + string(geom()));
 
     % Ctrl+Click on a panel of the preview selects it and goes to its section; it is no edit
     app.onPanelSelected(1);

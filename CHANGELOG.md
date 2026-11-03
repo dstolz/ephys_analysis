@@ -10,6 +10,28 @@ says how to cut a release.
 
 ### Changed
 
+- `toBin`'s own artifact detection (`Blank=true`, or `ArtifactConfig.Enabled` without `ArtifactIntervals`) is
+  `artifactIntervals`' recording-wide detection, found before the first chunk is written and with the bounds moved by
+  hand applied, so a `.bin` erases the periods the Signals and Spikes steps erase whatever `Files`, `ChannelOrder` and
+  the write filter are (the detection reads through `ArtifactConfig`'s own filter). The chunk-local detection and the
+  `EphysDataset:toBin:AdjustmentsIgnored` warning are gone; `info.autoArtifact.nIntervals` counts the recording's
+  periods. `[iv, detected] = ds.artifactIntervals(...)` also returns the detection's channel counts and RMS window.
+- `artifactIntervals` and `analyzeArtifacts` take `CommonModeUnreferenced` / `CommonModeThreshold` from the dataset's
+  `ArtifactConfig` when they are not passed, so a direct call (and the Artifacts tab's preview) detects as the pipeline.
+- A standalone pipeline script (`EphysPipelineScript.standalone`) keeps or writes again the Signals, Spikes and Export
+  outputs by the runner's rule (`Overwrite`, `OverwriteStale`) and records the same options hash, so a script run and
+  a pipeline run judge each other's files. The new statics `EphysPipeline.configHash(c, step, d)` and
+  `EphysPipeline.outputDecision(c, step, d, overwrite, overwriteStale)` are `stepHash` and `existingOutput` from a
+  config or a struct of its sections. `pipeline_configs/H64LP_4x16.json` no longer overrides `Sorting.SkipExisting`.
+- The manifest viewer has a **Dropped intervals** row, the flow chart's behavior card names them, and the Trials tab
+  draws an interval dropped from the middle (`DropIntervals`) as *dropped* instead of *unpaired*.
+- Analysis: the `"shuffle"` auROC cutoff is worded by the figure caption and the population figures, and offered in the
+  figures editor's **Modulated if** drop-downs as *shuffle-calibrated* (its shuffles and alpha set beside it).
+  `selectUnits`' error for an auROC response test without a cutoff lists every cutoff that calls units.
+- Pipeline app: the Clean up, Project and Sorting tabs' empty labels and three alerts use the shared "No project is
+  loaded" wording; the Review, Clean up and Run results tables say in their tooltips how to sort and clear the sort; the
+  New panel window's probe-map **Value** names its units.
+
 - Spike detection: `Spikes.Align` defaults to `"auto"`, the extremum the polarity looks for (the trough for
   `"negative"`, the peak for `"positive"`, the extremum for `"both"`). A positive spike aligned to the trough, the old
   default for every polarity, was timestamped at its undershoot. `info.align` names the alignment used.
@@ -232,6 +254,8 @@ says how to cut a release.
 
 ### Fixed
 
+- A heat map of trials with `maskAfterStop` masks the bin the stop falls inside, as `spikePSTH` does since its own
+  change; a group's rows averaged to something other than its PSTH there.
 - Artifact detection lost its `PadMs` padding, and every flagged sample but one, for the rest of a chunk whenever two
   or more flagged samples fell in its first `PadMs` (`padMask` indexed a difference array with repeated rows).
 - Automatic bad-channel detection (`Signals.BadMode`, a negative value) uses a robust z (median and MAD): with the
@@ -299,6 +323,8 @@ says how to cut a release.
 
 ### Added
 
+- The unit correlation panel's `detrend` option (default `true`, as `unitCorrelation`'s `Detrend`) and its
+  **Detrend over the session** box in the figures editor.
 - `S_DatasetBrowserToNeuroGLM.m` models the trial's response: a kernel per response word on `opts.responseEvents`
   (`response_time__Hit`, `response_time__Miss`, ...), with `response_time` the moment of the response (the response
   window's onset + `RespLatency` on Hit and FA trials, the trial's offset on Miss and CR trials) and its kernels reaching

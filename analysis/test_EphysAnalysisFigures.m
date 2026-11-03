@@ -1304,16 +1304,18 @@ if S.sec("6", "config: validate")
     haveBoot = license('test', 'Statistics_Toolbox') && exist('bootci', 'file');
     b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.options.errorType = "ci95";
     check(has(b, o + "errorType", "error") == ~haveBoot, 'continuous: the bootstrap CI needs the Statistics and Machine Learning Toolbox');
-    b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-1 -0.5]);
+    dw = EphysAnalysisConfig.defaults("EpochWindow");   % the window a panel takes by default: the baselines below sit outside it
+    b = base.addFigure("continuous", Id="ct"); b.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', dw.pre - [1 0.5]);
     b2 = base.addFigure("continuous", Id="ct"); b2.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.5 -0.1]);
     b3 = base.addFigure("continuous", Id="ct"); b3.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [-0.2 -0.15]);
     b3.Figures(2).panels.window = struct('mode', "fixed", 'pre', -0.1, 'post', 0.3);
     b4 = base.addFigure("heatmap", Id="hm"); b4.Figures(2).panels.layers.source = "LFP";
-    b4.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [1 2]);
-    b5 = base.addFigure("heatmap", Id="hm"); b5.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', [1 2]);
-    check(has(b, o + "baseline", "error") && ~has(b2, o + "baseline", "error") && has(b3, o + "baseline", "error") ...
-        && has(b4, "hm.heatmap_1.options.baseline", "error") && ~has(b5, "hm.heatmap_1.options.baseline", "error"), ...
-        'a signal''s baseline window must overlap the panel''s resolved window (continuous, a heat map of a signal; not of spikes)');
+    b4.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', dw.post + [0.5 1.5]);
+    b5 = base.addFigure("heatmap", Id="hm"); b5.Figures(2).panels.options.baseline = struct('Mode', "subtract", 'Window', dw.post + [0.5 1.5]);
+    hasBase = [has(b, o + "baseline", "error"), ~has(b2, o + "baseline", "error"), has(b3, o + "baseline", "error"), ...
+        has(b4, "hm.heatmap_1.options.baseline", "error"), ~has(b5, "hm.heatmap_1.options.baseline", "error")];
+    check(all(hasBase), sprintf(['a signal''s baseline window must overlap the panel''s resolved window (continuous, a heat ' ...
+        'map of a signal; not of spikes) (cases met: %s)'], mat2str(hasBase)));
     b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.options.order = "modulation"; b.Figures(2).panels.options.group = 0;
     b.Figures(2).panels.options.cLim = [2 1];
     o = "hm.heatmap_1.options.";

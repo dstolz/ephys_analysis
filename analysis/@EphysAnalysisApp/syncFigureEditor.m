@@ -181,7 +181,7 @@ respAuroc = unit && string(E.obsRespTest.Value) == "auroc";
 v.obsClasses = sorted; v.obsQuality = sorted;
 v.obsResponse = unit; v.obsRespBaseFrom = unit; v.obsRespParam = unit;
 v.obsRaMethod = respAuroc; v.obsRaWinMs = respAuroc; v.obsRaCutoff = respAuroc;
-v.obsRaTest = respAuroc && string(E.obsRaCutoff.Value) == "test";
+v.obsRaTest = respAuroc && ismember(string(E.obsRaCutoff.Value), ["test" "shuffle"]);   % shuffle: its n
 v.obsIds = unit; v.obsMaxUnits = unit; v.obsShanks = unit; v.obsUnitChannels = unit;
 v.obsChannels = kind == "channel";
 % across sessions: every row once Across sessions is ticked; the keys with "These datasets", the mapping file with
@@ -239,7 +239,7 @@ layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layer
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "tickWidth" "backColor" ...
     "firstSpike" "latencyBox" "onsetLine" "trialCount" ...
     "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "statistic" "errorType" "order" ...
-    "value" "unitLabels" "waveColor" "metric" "correlation" "fisherZ" "yLim" "cLim" "panelColormap" ...
+    "value" "unitLabels" "waveColor" "metric" "correlation" "fisherZ" "detrend" "yLim" "cLim" "panelColormap" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
     "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
@@ -365,7 +365,7 @@ if hasPanel
     v.value = t == "probemap";
     v.unitLabels = v.value;
     v.waveColor = v.value;
-    v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric;
+    v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric; v.detrend = v.metric;
     v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning" "spectrum"]) && ~psthHeat;
     v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram"]) || psthHeat;
     v.panelColormap = psthHeat;
@@ -396,10 +396,12 @@ if hasPanel
     en([E.baseFrom E.baseTo], string(E.baselineMode.Value) ~= "none");
     auOn = (t == "psth" || pointHeat) && string(E.baselineMode.Value) == "auroc";   % the panel's auROC settings
     v.auMethod = auOn; v.auWinMs = auOn; v.auModFrom = auOn; v.auCutoff = auOn; v.auMarks = auOn;
-    v.auTest = auOn && string(E.auCutoff.Value) == "test";
+    auCut = string(E.auCutoff.Value);
+    v.auTest = auOn && ismember(auCut, ["test" "shuffle"]);   % shuffle: its n and alpha
     en(E.auStepMs, string(E.auWindows.Value) == "sliding");
-    en(E.auThreshold, string(E.auCutoff.Value) == "fixed");
-    en(E.auResamples, string(E.auTest.Value) ~= "ranksum");
+    en(E.auThreshold, auCut == "fixed");
+    en([E.auTest E.auCorrection], auCut == "test");
+    en(E.auResamples, auCut == "shuffle" || string(E.auTest.Value) ~= "ranksum");
     en([E.auMarks E.auModOnly], string(E.auCutoff.Value) ~= "none");
     en(E.stackSpacing, stackNow ~= "off");
     en(E.yLim, string(E.yLimMode.Value) == "fixed");   % the limits are typed only for Fixed
@@ -512,7 +514,8 @@ en([E.obsRespTest E.obsRespDirection E.obsRespBaseFrom E.obsRespBaseTo E.obsResp
     E.obsRespCorrection E.obsRespAlpha E.obsRaMethod E.obsRaWindows E.obsRaWinMs E.obsRaBinMs E.obsRaCutoff E.obsRaTest], respOn);
 en(E.obsRaStepMs, respOn && string(E.obsRaWindows.Value) == "sliding");
 en(E.obsRaThreshold, respOn && string(E.obsRaCutoff.Value) == "fixed");
-en(E.obsRaResamples, respOn && string(E.obsRaTest.Value) ~= "ranksum");
+en(E.obsRaTest, respOn && string(E.obsRaCutoff.Value) == "test");
+en(E.obsRaResamples, respOn && (string(E.obsRaCutoff.Value) == "shuffle" || string(E.obsRaTest.Value) ~= "ranksum"));
 n = numel(fig.aesthetics);
 E.looksText.Text = sprintf("%d remembered look(s); right-click the preview to edit.", n);
 en(E.looksForget, n > 0);

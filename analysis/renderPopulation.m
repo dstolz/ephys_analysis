@@ -158,7 +158,8 @@ end
 
 
 function s = aurocNote(A)
-%aurocNote  How the auROC calls were made, e.g. "auROC: 95% CI cutoff +/-0.083 over 48 curves of 24 units".
+%aurocNote  How the auROC calls were made, e.g. "auROC: 95% CI cutoff +/-0.083 over 48 curves of 24 units"
+%   (the shuffle cutoff's in the same words).
 F = A.families;
 switch A.cutoff
     case "ci"
@@ -170,6 +171,13 @@ switch A.cutoff
         end
     case "fixed"
         s = sprintf("auROC: fixed cutoff \\pm%.3g", F.cutoffValue(1));
+    case "shuffle"
+        if height(F) == 1
+            s = sprintf("auROC: shuffle cutoff \\pm%.3g over %d curves of %d units", F.cutoffValue, F.nCurves, F.nUnits);
+        else
+            s = sprintf("auROC: shuffle cutoff \\pm%.3g to \\pm%.3g over each dataset's units", ...
+                min(F.cutoffValue), max(F.cutoffValue));
+        end
     otherwise
         s = "auROC: a test per unit, corrected over " + ternary(height(F) == 1, "every unit", "each dataset");
 end

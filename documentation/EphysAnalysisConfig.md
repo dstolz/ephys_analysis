@@ -1698,6 +1698,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `corrmap` | `metric` | `"mean"` | each epoch's `"mean"` rate over its window, or its `"peak"` binned rate |
 | `corrmap` | `correlation` | `"pearson"` | or `"spearman"` |
 | `corrmap` | `fisherZ` | `false` | draw Fisher's z and average the pairwise r in z |
+| `corrmap` | `detrend` | `true` | `unitCorrelation`'s `Detrend`: each unit's responses less their moving mean over about a fifth of the group's epochs (in time order) before correlating |
 | `corrmap` | `bins` | `BinSec` 0.01, `SmoothSec` 0.01 | `metric "peak"` |
 | `corrmap` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"` or `"subtract"` |
 | `corrmap` | `group` | 1 | the trial group drawn |

@@ -577,10 +577,13 @@ until its mode is not *Off*, a unit correlation's bins until its *peak*
 rate, the mask until the window has a stop event, the stack spacing while
 **Stack** is *Off*, the auROC
 step until *sliding* windows, its threshold until the *fixed threshold* cutoff,
-its resamples until the test is not *ranksum*, its **Calls** boxes until a
+its resamples until the test is not *ranksum* (or the cutoff is
+*shuffle-calibrated*), its test and correction until the *per-unit test*
+cutoff, its **Calls** boxes until a
 cutoff, and the error and legend rows until their boxes. The auROC rows show only
 with the *auroc* baseline (the **Unit test** row only with the *per-unit test*
-cutoff), in a PSTH's or heat map's Options.
+or the *shuffle-calibrated* cutoff, for its number of shuffles and alpha), in a
+PSTH's or heat map's Options.
 
 **The arrangement.** The schematic in the Panels section draws the grid
 in proportion (each row's relative height, each column's relative width, and
@@ -762,7 +765,7 @@ list edit the layer picked:
 | Heat map | **Bin**, **Smooth**, **Measure** and **Mask after the stop event** (a spike layer), **Baseline** (*auroc* for a spike layer, with the auROC rows; the map is then of auROCs in the diverging colormap), **Rows** (*the layer's units or channels*, or *one unit's epochs (trials)*), **Row order** (*probe*, *peak* or *modulation*, the last only with the auROC baseline), **Stack** (*One image row per group*: a block of rows per group, **Group shown** hidden), **Color limits**; the group drawn is in the Selected panel section. With *one unit's epochs (trials)* a row is an epoch of one unit, every group at once, sorted as a raster's rows: the raster's **Sort rows by** and its direction, **Sort event** and **Sort sequence** (with *event*) and **Rows by group first** show, **Row order** and **Group shown** hide, and the layer may follow the observation (its Binding row opens for a spike layer; otherwise fix it to one unit). The map is one unit's epochs: a layer that follows the observation through a channel (a channel observation, or the other spike source) keeps every unit on it, which Validate refuses, and a layer that still keeps several is skipped with *A heat map of trials draws one unit: this layer keeps n*. The groups are a color strip along the left edge, the y label names the sort, and the auROC baseline is refused |
 | Unit waveforms | **Layout** (*grid*: the unit, or several overlaid; *probe*: every unit of the first layer at its place on the probe, with the units of a further layer framed in red), **Y limits** (what is drawn, its scales and label: the [Waveform section](#the-waveform-section)) |
 | Probe map | **Value** (*rate*, *nSpikes* or *nUnits*), **Unit labels, with arrows** (each unit's name beside its shank, clear of the units, an arrow to each; the channel numbers are left off then), **Color waveforms by value** (`waveColor`: with the units drawn as waveforms, each glyph takes the color of its unit's rate or spike count in the color scale, with a color bar; off by default), **Color limits**; its units drawn as waveforms instead of circles: the [Waveform section](#the-waveform-section) |
-| Unit correlation | **Epoch rate**, **Correlation**, **Fisher z transform**, **Baseline**, **Bin** and **Smooth** (for the *peak* rate), **Color limits** |
+| Unit correlation | **Epoch rate**, **Correlation**, **Fisher z transform**, **Detrend over the session** (`detrend`, on by default: each unit's responses less their moving mean over the epochs, so a drift both units share is not a correlation), **Baseline**, **Bin** and **Smooth** (for the *peak* rate), **Color limits** |
 | Firing rate | **Measure**, **Baseline** (*none*, *subtract*, *ratio* or *zscore*) and its window, **Display** (*bars (mean, error bar)*, *boxes* or *points (each epoch)*), **Y limits** (its waveform inset: the [Waveform section](#the-waveform-section)) |
 | Tuning curve | **Measure**, **Baseline** (as the firing rate panel's) and its window, **Parameter** (the trial parameter on the x axis; blank: the figure's first group-by parameter, else the first numeric one) with **series** (one curve per value of another trial parameter; blank: one curve), **Stack** (*One row per series*), **Y limits** (its waveform inset: the [Waveform section](#the-waveform-section)) |
 | Power spectrum | the Chronux rows: **Time base** (*the panel's epochs* or *segments of the recording*, with **Range (s)** and **Segment (s)**), **Tapers** (*TW and K* or *W (Hz) and p*, with **TW, K** or **W (Hz), p**), **Pad**, **Frequency range**, **Error** (*none*, *theoretical* or *jackknife*) with its p-value, **Detrend**, **Scale** (*dB*, *log axis* or *linear*), **Spike rate (Hz)** (with a spike layer), **Stack** (*One row per group*) and **Y limits** |
@@ -870,8 +873,11 @@ and *auroc*; a firing rate and a tuning panel *none*, *subtract*, *ratio* and
 only *none* and *subtract*. With the *auroc* baseline the auROC rows show:
 **auROC from** (the PSTH's bins or each epoch) with the windows (*tiled* or
 *sliding*), the window, step, **Call window (s)** and **Modulated if** (the 95%
-CI, a fixed threshold, a per-unit test or none; **Unit test** with its
-resamples, correction and alpha for the test), and **Calls** (*Mark them*,
+CI, a fixed threshold, *shuffle-calibrated* - beyond the (1 - alpha) quantile
+of the units' modulation with each epoch's spikes shifted circularly, which
+calls far fewer unresponsive units than the 95% CI -, a per-unit test or none;
+**Unit test** with its resamples, correction and alpha for the test, and the
+resamples and alpha for the shuffle), and **Calls** (*Mark them*,
 *Modulated units only*); the windows must be whole numbers of the panel's bins,
 which Validate checks.
 

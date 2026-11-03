@@ -252,6 +252,14 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
             tc.verifyEqual(P.units.aurocP, cat(1, A{1}.p(:, 1), A{2}.p(:, 1)), 'AbsTol', 1e-12, 'each unit''s p: the shuffles reaching its phasic modulation');
             tc.verifyEqual(P.units.aurocDirection == "increase", C.direction == "increase");
             tc.verifyEqual(P.units.aurocDirection == "decrease", C.direction == "decrease");
+            S = populationSummary(P);
+            if any(S.groups.nAurocCalled > 0)
+                f = figure('Visible', 'off');
+                closeIt = onCleanup(@() close(f));
+                h = renderPopulation(P, S, "fractions", f);
+                tc.verifySubstring(char(string(h.axes.Subtitle.String)), sprintf('auROC: shuffle cutoff \\pm%.3g over', F.cutoffValue), ...
+                    'the fractions figure names the shuffle cutoff');
+            end
             Pd = populationAnalysis(tc.Config, Auroc=au, Alpha=0.1, Family="dataset", LogFcn=[]);
             tc.verifyEqual(height(Pd.auroc.families), numel(r.Outputs), 'Family "dataset": a cutoff each');
             for k = 1:numel(r.Outputs)

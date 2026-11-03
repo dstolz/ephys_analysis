@@ -288,6 +288,7 @@ if isfield(op, 'metric')
     offerItems(E.metric, ["mean" "peak"], op.metric);
     E.correlation.Value = char(pickFrom(op.correlation, string(E.correlation.ItemsData), "pearson"));
     E.fisherZ.Value = logical(op.fisherZ);
+    E.detrend.Value = logical(op.detrend);
 end
 if isfield(op, 'yLim'); E.yLim.Value = listText(op.yLim); end
 if isfield(op, 'yLimMode'); E.yLimMode.Value = char(pickFrom(op.yLimMode, EphysAnalysisConfig.YLimModes, "auto")); end

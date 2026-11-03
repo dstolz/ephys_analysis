@@ -1941,6 +1941,15 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     Lcm = Fcm.panels(1).layers(1);
     check(Lcm.skip == "" && Lcm.R.kind == "corrmap" && isequaln(Lcm.R.r, Rcm.r) && size(Lcm.R.r, 1) == height(Rcm.meta) && size(Lcm.R.r, 1) >= 2, ...
         'corrmap: the units'' pairwise correlations, as unitCorrelation gives them');
+    cmRaw = cfg.Figures(cfg.figureIndex("cm"));
+    cmRaw.id = "cmRaw";
+    cmRaw.panels(1).options.detrend = false;
+    Fraw = rn.computeFigure(src, cfg.addFigure(cmRaw).figureFor("cmRaw"));
+    Rraw = unitCorrelation(sto, Eo, Metric="mean", Type="pearson", FisherZ=false, Detrend=false, BinSec=0.01, SmoothSec=0.01, ...
+        Baseline=[], BaselineMode="none", Groups=Go, Meta=mo);
+    check(cfg.figureFor("cm").panels(1).options.detrend && Lcm.R.detrend && ~Fraw.panels(1).layers(1).R.detrend ...
+        && isequaln(Fraw.panels(1).layers(1).R.r, Rraw.r), ...
+        'corrmap: its detrend option (on by default, as unitCorrelation''s Detrend) reaches unitCorrelation');
     cfg = cfg.addFigure("waveforms", Id="wf");
     sw = cfg.figureFor("wf");
     wsw = warning('off', 'unitWaveforms:Templates');
@@ -3466,6 +3475,18 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         && (acA.cutoff == "none" || (contains(capA, capCalls) && contains(capA, sprintf("(of %d units)", acA.nUnits)))) ...
         && ~contains(figureCaption(cfg.figureFor("rp"), Tu(1, :)), "auROC"), ...
         'an auROC figure''s caption: how the auROC is made, and with the calls (figureAurocCalls) what the cutoff called');
+    if acA.cutoff ~= "none"
+        fShuf = cfg.figureFor("auroc");
+        for k = 1:numel(fShuf.panels)
+            if isfield(fShuf.panels(k).options, 'auroc'); fShuf.panels(k).options.auroc.cutoff = "shuffle"; end
+        end
+        acS = acA;
+        [acS.cutoff] = deal("shuffle");
+        [acS.cutoffValue] = deal(0.123);
+        capS = figureCaption(fShuf, Tu(1, :), Dataset="d1", Auroc={acS});
+        check(contains(capS, "units called over [0 0.5] s by the shuffle cutoff (+/-0.123, the 95% quantile of the shuffled modulation)"), ...
+            'the caption words the shuffle cutoff: its value and the quantile of the shuffled modulation');
+    end
     fau2 =cfg.Figures(cfg.figureIndex("auroc"));
     fau2.id = "aurocStack";
     fau2.panels(2).options.stack = "groups";

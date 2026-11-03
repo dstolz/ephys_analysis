@@ -1165,6 +1165,11 @@ place(E.correlation, r, 2);
 E.fisherZ = uicheckbox(S.Body, "Text", "Fisher z transform", "ValueChangedFcn", changed, ...
     "Tooltip", "Draw z = atanh(r) instead of r.");
 place(E.fisherZ, r, [1 2]);
+[S, r] = formRow(S, "detrend", "");
+E.detrend = uicheckbox(S.Body, "Text", "Detrend over the session", "ValueChangedFcn", changed, ...
+    "Tooltip", "Subtract each unit's moving mean over about a fifth of the group's epochs before correlating, so a " + ...
+    "slow drift both units share (anesthesia, adaptation) does not read as a correlation.");
+place(E.detrend, r, [1 2]);
 % the event-trace panel: a row per line, its intervals as bars or a logic level
 [S, r] = formRow(S, "etDisplay", "Draw as:");
 E.etDisplay = uidropdown(S.Body, "Items", ["solid bars (onset to offset)" "a logic level (a line)"], "ItemsData", ["bars" "line"], ...
@@ -2077,14 +2082,16 @@ if isPlot
     uilabel(g, "Text", "to");
     E.(p + "ModTo") = uieditfield(g, "numeric", "Value", 0.5, "ValueChangedFcn", changed, "Tooltip", "The call window's end, s.");
 end
-items = ["95% CI (paper)" "fixed threshold" "per-unit test" "none"];
-data = ["ci" "fixed" "test" "none"];
-if ~isPlot; items = items(1:3); data = data(1:3); end
+items = ["95% CI (paper)" "fixed threshold" "shuffle-calibrated" "per-unit test" "none"];
+data = ["ci" "fixed" "shuffle" "test" "none"];
+if ~isPlot; items = items(1:4); data = data(1:4); end
 [S, r] = formRow(S, p + "Cutoff", "Modulated if:");
 g = subgrid(S.Body, r, {'1x', 'fit', '1x'});
 E.(p + "Cutoff") = uidropdown(g, "Items", items, "ItemsData", data, ...
     "ValueChangedFcn", changed, "Tooltip", "95% CI: beyond 0.5 +/- the 95% CI of the units' mean modulation (it needs " + ...
-    "many units). fixed: beyond 0.5 +/- the threshold. per-unit test: the test below, its p adjusted over the units. none: no call.");
+    "many units). fixed: beyond 0.5 +/- the threshold. shuffle-calibrated: beyond 0.5 +/- the (1 - alpha) quantile " + ...
+    "of the units' modulation with each epoch's spikes shifted circularly (n shuffles; far fewer false calls than the " + ...
+    "95% CI). per-unit test: the test below, its p adjusted over the units. none: no call.");
 uilabel(g, "Text", "+/-");
 E.(p + "Threshold") = uieditfield(g, "numeric", "Value", 0.1, "Limits", [0 0.5], "UpperLimitInclusive", "off", ...
     "ValueChangedFcn", changed, "Tooltip", "fixed threshold: modulated when |mean auROC - 0.5| is above this.");

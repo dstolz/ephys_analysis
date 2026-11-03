@@ -6,7 +6,7 @@ function P = computeCorrMapPanel(src, panel, E, G, ctx)
 %   as unitCorrelation's correlation map,
 %     [st, meta] = selectUnits(src, units, Ref=, Selection=)
 %     R = unitCorrelation(st, E, Metric=options.metric, Type=
-%         options.correlation, FisherZ=, BinSec=, SmoothSec=, Baseline=,
+%         options.correlation, FisherZ=, Detrend=, BinSec=, SmoothSec=, Baseline=,
 %         BaselineMode=, Groups=G, Meta=meta)
 %   (r / p [nUnits x nUnits x nGroups]) plus R.epochs and dataset. Every
 %   group is computed; options.group picks the one drawn.
@@ -34,8 +34,8 @@ catch ME
     P.layers(j).skip = figureLayerError(ME);
     return
 end
-R = unitCorrelation(st, E, Metric=o.metric, Type=o.correlation, FisherZ=logical(o.fisherZ), BinSec=o.bins.BinSec, ...
-    SmoothSec=o.bins.SmoothSec, Baseline=b, BaselineMode=o.baseline.Mode, Groups=G, Meta=meta);
+R = unitCorrelation(st, E, Metric=o.metric, Type=o.correlation, FisherZ=logical(o.fisherZ), Detrend=logical(o.detrend), ...
+    BinSec=o.bins.BinSec, SmoothSec=o.bins.SmoothSec, Baseline=b, BaselineMode=o.baseline.Mode, Groups=G, Meta=meta);
 R.epochs = E;
 R.dataset = src.name;
 lay.R = R;

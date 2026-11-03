@@ -318,6 +318,7 @@ if isfield(op, 'metric')
     op.metric = string(E.metric.Value);
     op.correlation = string(E.correlation.Value);
     op.fisherZ = logical(E.fisherZ.Value);
+    op.detrend = logical(E.detrend.Value);
 end
 if isfield(op, 'yLim'); op.yLim = limits(E.yLim.Value); end
 if isfield(op, 'yLimMode'); op.yLimMode = string(E.yLimMode.Value); end

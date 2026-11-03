@@ -292,7 +292,7 @@ function [pass, R] = aurocCalls(src, st, meta, r, opts) %#ok<INUSD>
 %aurocCalls  The "auroc" test: aurocCurves over responseEpochs, every epoch in one group; the units it calls modulated.
 a = r.auroc;
 if a.cutoff == "none"
-    error('selectUnits:BadResponse', 'response.test "auroc" needs response.auroc.cutoff ci, fixed or test, not "none".');
+    error('selectUnits:BadResponse', 'response.test "auroc" needs a response.auroc.cutoff that calls units (ci, fixed, shuffle or test), not "none".');
 end
 if ~(numel(r.baseline) == 2 && numel(r.window) == 2 && r.baseline(2) > r.baseline(1) && r.window(2) > r.window(1))
     error('selectUnits:BadResponse', 'response.baseline and response.window must each be [from to] with from < to.');

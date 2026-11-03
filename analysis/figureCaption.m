@@ -223,6 +223,15 @@ switch a.cutoff
         end
     case "fixed"
         by = sprintf("a fixed cutoff (+/-%g)", a.threshold);
+    case "shuffle"
+        v = unique(round([calls.cutoffValue], 3, 'significant'));
+        v = v(isfinite(v));
+        q = sprintf("the %g%% quantile of the shuffled modulation", 100 * (1 - a.alpha));
+        if isscalar(v)
+            by = sprintf("the shuffle cutoff (+/-%.3g, %s)", v, q);
+        else
+            by = sprintf("the shuffle cutoff (%s, each unit's)", q);
+        end
     otherwise   % "test"
         corr = upper(a.correction);
         if a.correction == "none"; corr = "unadjusted"; end

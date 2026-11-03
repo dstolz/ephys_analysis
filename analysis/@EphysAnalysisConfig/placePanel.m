@@ -1,9 +1,12 @@
-function fig = placePanel(fig, panel, where, anchorId)
-%placePanel  Add a panel to a figure above, below, left or right of another.
+function fig = placePanel(fig, panel, where, anchorId, at)
+%placePanel  Add a panel to a figure above, below, left or right of another, or in an empty cell.
 %   FIG = EphysAnalysisConfig.placePanel(FIG, PANEL, WHERE, ANCHORID) adds
 %   PANEL (a partial panel struct, normalizePanel'd; an empty id becomes
 %   "<type>_<n>") next to the panel ANCHORID of figure FIG (a Figures
-%   entry), WHERE being:
+%   entry), WHERE being "below", "above", "right" or "left". When the cells
+%   next to the anchor on that side, across its columns (rows), are in the
+%   grid and empty, the new panel fills them and the grid is unchanged.
+%   Otherwise the grid gets a new row (column) there:
 %     "below"  a new row right after the anchor's last row; its rowHeights
 %              entry (when the heights are given) copies that row's
 %     "above"  a new row right before the anchor's first row (copying its
@@ -17,11 +20,16 @@ function fig = placePanel(fig, panel, where, anchorId)
 %   The panels after the new row (column) move down (right) by one; those
 %   whose span crosses it grow by one; the new panel takes the anchor's
 %   columns (rows) and one row (column). removePanel undoes it exactly.
+%   FIG = EphysAnalysisConfig.placePanel(FIG, PANEL, "cell", "", [R C])
+%   puts the panel in the empty cell R, C (one row and one column); the
+%   grid is unchanged and no anchor is needed. (A positional input: a
+%   name-value Cell would take the place "cell" for its name.)
 %   The first panel of a figure without panels goes to (1, 1), the grid
-%   unchanged; ANCHORID is then not needed.
+%   unchanged, whatever WHERE; ANCHORID is then not needed.
 %
 %   Errors: EphysAnalysisConfig:NoPanel (no anchor, or no such panel),
-%   EphysAnalysisConfig:DuplicatePanelId.
+%   EphysAnalysisConfig:DuplicatePanelId, EphysAnalysisConfig:CellTaken
+%   ("cell": a cell outside the grid or covered by a panel).
 %
 %   See also EphysAnalysisConfig.removePanel, EphysAnalysisConfig.movePanel,
 %   EphysAnalysisConfig.figureCells.
@@ -29,8 +37,9 @@ function fig = placePanel(fig, panel, where, anchorId)
 arguments
     fig (1,1) struct
     panel = struct()
-    where (1,1) string {mustBeMember(where, ["above" "below" "left" "right"])} = "below"
+    where (1,1) string {mustBeMember(where, ["above" "below" "left" "right" "cell"])} = "below"
     anchorId (1,1) string = ""
+    at double = []
 end
 
 p = EphysAnalysisConfig.normalizePanel(panel);
@@ -49,6 +58,22 @@ if isempty(fig.panels)
     fig.panels = p;
     return
 end
+cells = EphysAnalysisConfig.figureCells(fig);
+if where == "cell"
+    rc = round(at);
+    if ~(numel(rc) == 2 && all(rc >= 1) && rc(1) <= size(cells, 1) && rc(2) <= size(cells, 2))
+        error('EphysAnalysisConfig:CellTaken', 'Give the empty cell as [row column], inside the %d x %d grid.', ...
+            size(cells, 1), size(cells, 2));
+    end
+    if cells(rc(1), rc(2)) ~= 0
+        error('EphysAnalysisConfig:CellTaken', 'Row %d, column %d holds %s: pick an empty cell.', rc(1), rc(2), ...
+            fig.panels(cells(rc(1), rc(2))).id);
+    end
+    p.row = rc(1);
+    p.col = rc(2);
+    fig.panels(1, end+1) = p;
+    return
+end
 a = find(ids == anchorId, 1);
 if isempty(a)
     if anchorId == ""
@@ -57,6 +82,15 @@ if isempty(a)
     error('EphysAnalysisConfig:NoPanel', 'The figure has no panel "%s".', anchorId);
 end
 A = fig.panels(a);
+[r, c, fits] = besideAnchor(A, where, cells);
+if fits   % the empty cells next to the anchor: the grid stays as it is
+    p.row = r(1);
+    p.col = c(1);
+    p.rowSpan = numel(r);
+    p.colSpan = numel(c);
+    fig.panels(1, end+1) = p;
+    return
+end
 G = fig.grid;
 if ismember(where, ["above" "below"])
     if where == "below"
@@ -105,6 +139,22 @@ else
 end
 fig.grid = G;
 fig.panels(1, end+1) = p;
+end
+
+
+function [r, c, fits] = besideAnchor(A, where, cells)
+%besideAnchor  The cells next to panel A on side WHERE, across its columns (rows), and whether they are all in the grid and empty.
+%   R, C: the rows and columns of that one-row (one-column) band.
+r = A.row : A.row + A.rowSpan - 1;
+c = A.col : A.col + A.colSpan - 1;
+switch where
+    case "below", r = A.row + A.rowSpan;
+    case "above", r = A.row - 1;
+    case "right", c = A.col + A.colSpan;
+    case "left",  c = A.col - 1;
+end
+fits = ~isempty(r) && ~isempty(c) && all(r >= 1) && all(c >= 1) && all(r <= size(cells, 1)) && all(c <= size(cells, 2)) ...
+    && all(cells(r, c) == 0, 'all');
 end
 
 

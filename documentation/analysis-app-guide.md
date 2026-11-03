@@ -71,7 +71,10 @@ pipeline's project). `EphysAnalysisApp` alone opens your last config.
 3. **Figures.** Press **Add Raster + PSTH** under the figure list for a
    ready-made figure, a unit's raster above its PSTH; or press **Add** and a
    window asks for the first panel: pick *Raster*, then **New panel...** puts
-   another panel next to it: a *PSTH* **Below** the raster. The preview on
+   another panel next to it: a *PSTH* **Below** the raster. A new panel fills
+   an empty cell on that side when there is one; to put it in any other empty
+   cell, click that cell (dotted, with a **+**) in the sketch of the grid
+   in the **Panels** section. The preview on
    the right draws the figure for the unit picked above it; step through the
    units to look at them one by one. Right-click the plot to change colors,
    fonts and labels.

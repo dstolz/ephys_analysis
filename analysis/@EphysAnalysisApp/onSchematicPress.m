@@ -22,8 +22,9 @@ function onSchematicPress(obj, q, evt)
 %                                  the middle third of one of its edges:
 %                                  the panel is taken from its place
 %                                  (removePanel) and put above, below, left
-%                                  or right of that panel (placePanel), a
-%                                  new row or column; it keeps its place
+%                                  or right of that panel (placePanel: the
+%                                  empty cells there, else a new row or
+%                                  column); it keeps its place
 %                                  in the figure's panel order. As Remove
 %                                  panel, taking it away drops the rows and
 %                                  columns no other panel starts in, so a
@@ -193,7 +194,7 @@ end
 
 
 function moveBeside(obj, D, T)
-%moveBeside  The dragged panel taken from its place and put T.where of the panel T.anchor (a new row or column).
+%moveBeside  The dragged panel taken from its place and put T.where of the panel T.anchor (the empty cells there, else a new row or column).
 cfg = obj.gatherConfig();
 k = D.figure;
 fig = cfg.Figures(k);

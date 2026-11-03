@@ -10,6 +10,12 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis app: a new panel put above, below, left or right of the selected one fills the empty cells on that side
+  (across all the anchor's columns or rows) and leaves the grid as it is; a new row or column is added only when
+  one of those cells is taken (`EphysAnalysisConfig.placePanel`). The empty cells of the Panels sketch show a gray
+  **+**: a click on one opens the New panel window with that cell as the place (`placePanel(fig, panel, "cell", "",
+  [R C])`, `onNewPanel(Where="cell", Cell=[R C])`; error `EphysAnalysisConfig:CellTaken`).
+
 - `toBin`'s own artifact detection (`Blank=true`, or `ArtifactConfig.Enabled` without `ArtifactIntervals`) is
   `artifactIntervals`' recording-wide detection, found before the first chunk is written and with the bounds moved by
   hand applied, so a `.bin` erases the periods the Signals and Spikes steps erase whatever `Files`, `ChannelOrder` and

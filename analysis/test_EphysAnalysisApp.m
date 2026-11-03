@@ -200,7 +200,7 @@ FA = app.FigureAlignControls;
 FP = app.PanelAlignControls;
 figAxes = @() findall(app.FigurePreviewPanel, 'Type', 'axes', '-regexp', 'Tag', '^(axes|rasterAxes)$');
 figTitle = @() strjoin(string(findall(app.FigurePreviewPanel, 'Type', 'axes', 'Tag', 'titleHost').Title.String), " ");
-nPatches = @() numel(findall(app.FigureSchematic, 'Type', 'patch'));
+nPatches = @() numel(findall(app.FigureSchematic, 'Type', 'patch', 'Tag', 'schematicPanel'));   % the panels' (an empty cell's is schematicEmpty)
 secOf = @(n) app.FigureSections([app.FigureSections.Name] == n);
 outRoot = fullfile(root, 'out');
 cfgFile = fullfile(root, 'app_analysis.json');
@@ -1751,6 +1751,28 @@ if S.sec("5d.arrange", "the arrangement on a blank figure: New panel above, righ
     app.onNewPanel(Type="raster", Where="left");
     check(isequal(gridOf(), [2 3]) && isequal(cellOf("raster_3"), {[1 2 1 1]}) && isequal(cellOf("raster_2"), {[1 3 1 1]}) ...
         && nPatches() == 4, 'Left: a column before it; the panels right of it move over');
+    empties = findall(app.FigureSchematic, 'Tag', 'schematicEmpty');
+    app.onPanelSelected(find([app.Config.Figures(2).panels.id] == "raster_3"));
+    app.onNewPanel(Type="psth", Where="below");
+    check(numel(empties) == 2 && isequal(gridOf(), [2 3]) && isequal(cellOf("psth_2"), {[2 2 1 1]}) ...
+        && contains(app.StatusBar.Text, "below raster_3 (the empty cell at row 2, column 2)"), ...
+        'Below a panel over an empty cell: the new panel fills that cell, the grid unchanged (the schematic showed both empty cells)');
+    E = findall(app.FigureSchematic, 'Tag', 'schematicEmpty');
+    eCell = {E.UserData};   % read before the click: the schematic is drawn again after it
+    answerDialog('New panel', @emptyCellAnswer);
+    E(1).ButtonDownFcn(E(1), []);
+    seenE = getappdata(groot, 'emptyCellSeen');
+    if isappdata(groot, 'emptyCellSeen'); rmappdata(groot, 'emptyCellSeen'); end
+    check(isequal(eCell, {[2 3]}) && isstruct(seenE) && seenE.value == "cell 2 3" ...
+        && isequal(seenE.items, ["Below psth_2 (new row)" "Above psth_2 (new row)" "Right of psth_2 (fills row 2, col 3)" ...
+        "Left of psth_2 (new column)" "Empty cell: row 2, col 3"]) ...
+        && isequal(cellOf("psth_3"), {[2 3 1 1]}) && isequal(gridOf(), [2 3]) && contains(app.StatusBar.Text, "in the empty cell at row 2, column 3"), ...
+        'a click on an empty cell opens New panel there (Place: what each side of the selected panel does, then the empty cells); OK fills it');
+    app.onRemovePanel();
+    app.onPanelSelected(find([app.Config.Figures(2).panels.id] == "psth_2"));
+    app.onRemovePanel();
+    check(isequal(gridOf(), [2 3]) && nPatches() == 4 && numel(findall(app.FigureSchematic, 'Tag', 'schematicEmpty')) == 2, ...
+        'the two removed again: the grid as it was');
     app.onPanelSelected(find([app.Config.Figures(2).panels.id] == "psth_1"));
     FE.colSpan.Value = 3;
     FE.colSpan.ValueChangedFcn(FE.colSpan, struct('PreviousValue', 1, 'Value', 3));
@@ -4592,6 +4614,13 @@ D.Name.ValueChangedFcn(D.Name, []);
 D.Title.Value = 'Its LFP';
 P.Stack.Value = "items";
 setappdata(groot, 'newPanelSeen', seen);
+press(D, "Ok");
+end
+
+
+function emptyCellAnswer(D)
+%emptyCellAnswer  In the New panel window opened from an empty cell: note the Place items and the one picked (appdata emptyCellSeen), OK.
+setappdata(groot, 'emptyCellSeen', struct('items', string(D.Where.Items), 'value', string(D.Where.Value)));
 press(D, "Ok");
 end
 

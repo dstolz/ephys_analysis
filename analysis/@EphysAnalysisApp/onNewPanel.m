@@ -4,8 +4,9 @@ function onNewPanel(obj, opts)
 %   blank figure) calls it with no options: the New panel window
 %   (private/newPanelDialog) offers every panel type with a small
 %   representative plot, the panel's name and title, where it goes
-%   (above, below, left or right of the selected panel; the first panel
-%   of a figure goes to row 1, column 1) and the type's key parameters.
+%   (above, below, left or right of the selected panel, or any empty
+%   cell of the grid; the first panel of a figure goes to row 1, column 1)
+%   and the type's key parameters.
 %   OK adds the panel and selects it; Cancel adds nothing. The window
 %   and the panel start from the options last set on a panel of the type
 %   (rememberedPanelOptions: a preference, rememberPanelOptions), over the
@@ -13,7 +14,8 @@ function onNewPanel(obj, opts)
 %   to defaults gives a panel the defaults (onResetPanelOptions).
 %
 %   Type=TYPE skips the window, for scripts and tests, with the same
-%   choices as name-value pairs: Where ("below"), Id ("" = "<type>_<n>"),
+%   choices as name-value pairs: Where ("below"; "cell": the empty cell
+%   Cell=[ROW COLUMN]), Id ("" = "<type>_<n>"),
 %   Title, Source (the first layer's source, "" = the type's default
 %   layer's), Partner (a coherence panel's second layer, "" = LFP),
 %   Binding ("" = the type's DefaultBinding; "fixed" wherever the layer
@@ -24,8 +26,13 @@ function onNewPanel(obj, opts)
 %   remembered for the type over them, as the window starts from, under
 %   Options).
 %
-%   The panel is placed by EphysAnalysisConfig.placePanel (a new row or
-%   column next to the selected panel) and holds the type's default
+%   onNewPanel(Where="cell", Cell=[R C]) without a Type opens the window
+%   with that empty cell as the place (a click on an empty cell of the
+%   schematic, drawFigureSchematic).
+%
+%   The panel is placed by EphysAnalysisConfig.placePanel (next to the
+%   selected panel: the empty cells there, else a new row or column; or
+%   the empty cell picked) and holds the type's default
 %   layer, so it draws at once (a coherence panel two: its seed, the
 %   observed unit, and its partner, that unit's channel's LFP). The edit
 %   ends as every structural one does (commitFigureEdit): a figure that
@@ -37,7 +44,8 @@ function onNewPanel(obj, opts)
 arguments
     obj (1,1) EphysAnalysisApp
     opts.Type (1,1) string = ""
-    opts.Where (1,1) string {mustBeMember(opts.Where, ["above" "below" "left" "right"])} = "below"
+    opts.Where (1,1) string {mustBeMember(opts.Where, ["above" "below" "left" "right" "cell"])} = "below"
+    opts.Cell double = []
     opts.Id (1,1) string = ""
     opts.Title (1,1) string = ""
     opts.Source (1,1) string = ""
@@ -66,7 +74,9 @@ if opts.Type == ""
     for i = 1:height(PT)
         start.(PT.Type(i)) = mergeOptions(PT.DefaultOptions{i}, rememberedPanelOptions(obj, PT.Type(i), params));
     end
-    c = newPanelDialog(obj.Fig, fig, anchor, lines, params, start);
+    at = [];
+    if opts.Where == "cell"; at = opts.Cell; end
+    c = newPanelDialog(obj.Fig, fig, anchor, lines, params, start, at);
     if isvalid(obj.Fig); figure(obj.Fig); end
     if isempty(c)
         obj.setStatus("New panel canceled: " + fig.id + " is unchanged.");
@@ -105,8 +115,9 @@ mem = struct();
 if remembered; mem = rememberedPanelOptions(obj, t, params); end
 panel = struct('id', opts.Id, 'type', t, 'title', opts.Title, 'layers', L, ...
     'options', mergeOptions(mergeOptions(PT.DefaultOptions{row}, mem), opts.Options));
+grid0 = [fig.grid.rows fig.grid.cols];
 try
-    fig = EphysAnalysisConfig.placePanel(fig, panel, opts.Where, anchor);
+    fig = EphysAnalysisConfig.placePanel(fig, panel, opts.Where, anchor, opts.Cell);
 catch ME
     obj.setStatus("Config: " + string(ME.message));
     return
@@ -115,8 +126,12 @@ cfg.Figures(k) = fig;
 obj.SelectedPanel = numel(fig.panels);
 obj.SelectedLayer = 1;
 p = fig.panels(end);
-if anchor == ""
+if isscalar(fig.panels)
     at = "at row 1, column 1";
+elseif opts.Where == "cell"
+    at = sprintf("in the empty cell at row %d, column %d", p.row, p.col);
+elseif isequal([fig.grid.rows fig.grid.cols], grid0)   % placePanel filled the empty cells there
+    at = opts.Where + " " + anchor + " (" + emptyCellsText(p) + ")";
 else
     at = opts.Where + " " + anchor;
 end
@@ -126,6 +141,18 @@ if ~isempty(fieldnames(mem))
         "; Edit > Reset panel options to defaults).";
 end
 commitFigureEdit(obj, cfg, "Added " + p.id + " (" + PT.Label(row) + ") " + at + " with " + layerLabel(p.layers(1)) + "." + how, Action="Add panel");
+end
+
+
+function s = emptyCellsText(p)
+%emptyCellsText  "the empty cell at row 4, column 2" (or the cells' rows or columns) that panel P filled.
+if p.rowSpan > 1
+    s = sprintf("the empty cells at rows %d-%d, column %d", p.row, p.row + p.rowSpan - 1, p.col);
+elseif p.colSpan > 1
+    s = sprintf("the empty cells at row %d, columns %d-%d", p.row, p.col, p.col + p.colSpan - 1);
+else
+    s = sprintf("the empty cell at row %d, column %d", p.row, p.col);
+end
 end
 
 

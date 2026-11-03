@@ -9,7 +9,9 @@ function drawFigureSchematic(obj)
 %   and its name in bold, each with its type and how many layers it has in
 %   its middle; a press on a panel picks it, and dragging it moves it to
 %   an empty cell or beside another panel (onSchematicPress). Cells no
-%   panel covers are dotted; an outline goes round the grid.
+%   panel covers are dotted, with a gray "+": a click on one opens the New
+%   panel window with that cell as the place (onNewPanel). An outline goes
+%   round the grid.
 %   The axes is a uiaxes in the Arrangement section's first row. One made
 %   or kept while its row is 0 px high (no figure, the section or its
 %   supersection collapsed)
@@ -53,9 +55,12 @@ for r = 1:size(cells, 1)
     for c = 1:size(cells, 2)
         if cells(r, c) ~= 0; continue; end
         b = inside(cx, cy, gx, gy, c, c, r, r);
-        x = b([1 2 2 1 1]);
-        y = b([3 3 4 4 3]);
-        line(ax, x, y, "Color", gray, "LineStyle", ":", "LineWidth", 1, "HitTest", "off", "Tag", "schematicEmpty");
+        rc = [r c];
+        patch(ax, b([1 2 2 1]), b([3 3 4 4]), "w", "FaceColor", "none", "EdgeColor", gray, "LineStyle", ":", "LineWidth", 1, ...
+            "PickableParts", "all", "Tag", "schematicEmpty", "UserData", rc, ...
+            "ButtonDownFcn", @(~, ~) onEmptyCellPress(obj, rc));   % its face takes the click, though unfilled
+        text(ax, (b(1) + b(2)) / 2, (b(3) + b(4)) / 2, "+", "HorizontalAlignment", "center", "VerticalAlignment", "middle", ...
+            "FontSize", 14, "Color", gray, "HitTest", "off", "PickableParts", "none", "Clipping", "on");
     end
 end
 PT = EphysAnalysisConfig.panelTypes();
@@ -91,6 +96,15 @@ end
 rectangle(ax, "Position", [0 0 1 1], "EdgeColor", [0.4 0.4 0.4], "HitTest", "off", "PickableParts", "none");
 ax.XLim = [-0.01 1.01];
 ax.YLim = [-0.02 1.02];
+end
+
+
+function onEmptyCellPress(obj, rc)
+%onEmptyCellPress  A left click on the empty cell RC ([row column]): the New panel window, with that cell as the place.
+%   Not while a panel is dragged (its release is the window's), and a
+%   right or double click does nothing.
+if ~isempty(obj.FigureDrag) || ~strcmp(obj.Fig.SelectionType, 'normal'); return; end
+obj.onNewPanel(Where="cell", Cell=rc);
 end
 
 

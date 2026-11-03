@@ -1,4 +1,4 @@
-function c = newPanelDialog(fig, F, anchor, lines, params, start)
+function c = newPanelDialog(fig, F, anchor, lines, params, start, at)
 %newPanelDialog  Pick a new panel's type, name, place and key parameters in a modal window over FIG.
 %   C = newPanelDialog(FIG, F, ANCHOR, LINES, PARAMS) shows the New panel
 %   window for the figure entry F, whose selected panel is ANCHOR (its
@@ -10,8 +10,10 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start)
 %   one) over its label; the type picked is amber. On the right, for the type picked: its label
 %   and description, Name (the panel's id: "<type>_<n>" until one is
 %   typed; it must be unique in the figure), Title (blank = none), Place
-%   (Below, Above, Right or Left of ANCHOR: a new row or column; the
-%   first panel goes to row 1, column 1) and the type's key parameters:
+%   (Below, Above, Right or Left of ANCHOR, each saying whether it fills
+%   the empty cells there or makes a new row or column, "Below raster_2
+%   (fills row 4, col 2)"; then every empty cell of the grid; the first
+%   panel goes to row 1, column 1) and the type's key parameters:
 %     every type      what it reads (the sources the type draws; a
 %                     coherence panel its seed and its partner) and the
 %                     binding (follows the observation or fixed; fixed
@@ -34,8 +36,9 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start)
 %     spectrogram     Frequency range (Hz), Moving window (s)
 %     coherence       Frequency range (Hz)
 %     eventTrace      Lines (LINES: one events layer each), Display
-%   OK returns C, a struct onNewPanel takes as its options: Type, Where,
-%   Id, Title, Source, Partner, Binding, Lines and Options (the partial
+%   OK returns C, a struct onNewPanel takes as its options: Type, Where
+%   (or "cell", with Cell [ROW COLUMN]), Cell ([] beside ANCHOR), Id,
+%   Title, Source, Partner, Binding, Lines and Options (the partial
 %   options the parameters set); a name another panel of F has is refused
 %   with a red line instead. Cancel, or closing the window, returns [].
 %   C = newPanelDialog(..., START): the parameters of each type start from
@@ -43,6 +46,9 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start)
 %   the type over its defaults); without it, from the type's defaults. A
 %   sort, parameter or series START names that PARAMS has not starts
 %   blank.
+%   C = newPanelDialog(..., START, AT): Place starts at the empty cell AT,
+%   [ROW COLUMN] (a click on an empty cell of the schematic); [] = Below
+%   ANCHOR.
 %   The window's UserData holds its controls for the tests: Types (the
 %   tiles, a struct by type), Pick (a function: Pick(TYPE) picks a
 %   type), Name, Title, Where, Params (a function returning the current
@@ -55,6 +61,7 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start)
 T = EphysAnalysisConfig.panelTypes();
 n = height(T);
 if nargin < 6; start = struct(); end
+if nargin < 7; at = []; end
 c = [];
 taken = string.empty(1, 0);
 if ~isempty(F.panels); taken = [F.panels.id]; end
@@ -104,14 +111,19 @@ titleField = uieditfield(rg, "text", "Placeholder", "none", ...
     "Tooltip", "The panel's own title (blank = none; under a figure title of your own the top-left panel names the observation).");
 titleField.Layout.Row = 4; titleField.Layout.Column = 2;
 l = uilabel(rg, "Text", "Place:"); l.Layout.Row = 5;
-if anchor == ""
+[placeText, placeData] = placeItems(F, anchor);
+if isempty(F.panels)
     whereDD = uidropdown(rg, "Items", "row 1, column 1 (the first panel)", "ItemsData", "below", "Enable", "off", ...
         "Tooltip", "The first panel of a figure fills its one cell.");
+elseif isempty(placeData)
+    whereDD = uidropdown(rg, "Items", "(select a panel first)", "ItemsData", "below", "Enable", "off", ...
+        "Tooltip", "Select a panel in the schematic: the new one goes next to it.");
 else
-    w = ["below" "above" "right" "left"];
-    whereDD = uidropdown(rg, "Items", ["Below" "Above" "Right of" "Left of"] + " " + anchor, "ItemsData", w, "Value", "below", ...
-        "Tooltip", "Where the panel goes next to the selected panel: Above and Below make a new row of the grid " + ...
-        "(the new panel takes the selected panel's columns), Left and Right a new column (it takes its rows).");
+    whereDD = uidropdown(rg, "Items", placeText, "ItemsData", placeData, "Value", placeData(1), ...
+        "Tooltip", "Where the panel goes: next to the selected panel, in the empty cells there when there are; " + ...
+        "else Above and Below make a new row of the grid (the new panel takes the selected panel's columns), " + ...
+        "Left and Right a new column (it takes its rows). Or any empty cell of the grid.");
+    if numel(at) == 2 && any(placeData == cellKey(at(1), at(2))); whereDD.Value = cellKey(at(1), at(2)); end
 end
 whereDD.Layout.Row = 5; whereDD.Layout.Column = 2;
 l = uilabel(rg, "Text", "Key parameters", "FontWeight", "bold"); l.Layout.Row = 6; l.Layout.Column = [1 2];
@@ -179,13 +191,79 @@ if isvalid(d); delete(d); end
             end
             c = gatherParams(P, current);
             c.Type = current;
-            c.Where = string(whereDD.Value);
+            [c.Where, c.Cell] = placeOf(string(whereDD.Value));
             c.Id = id;
             c.Title = string(titleField.Value);
-            c = orderfields(c, {'Type', 'Where', 'Id', 'Title', 'Source', 'Partner', 'Binding', 'Lines', 'Options'});
+            c = orderfields(c, {'Type', 'Where', 'Cell', 'Id', 'Title', 'Source', 'Partner', 'Binding', 'Lines', 'Options'});
         end
         uiresume(d);
     end
+end
+
+
+function [items, data] = placeItems(F, anchor)
+%placeItems  The Place choices for a new panel of figure F: beside ANCHOR (what each does), then every empty cell.
+%   ITEMS the items, DATA their keys ("below", ..., "cell R C"). Each side
+%   of ANCHOR is placed for real on a stand-in panel
+%   (EphysAnalysisConfig.placePanel), so the item says what OK will do.
+items = strings(1, 0);
+data = strings(1, 0);
+if isempty(F.panels); return; end
+if anchor ~= "" && any([F.panels.id] == anchor)
+    probe = struct('id', EphysAnalysisConfig.freeId("place", [F.panels.id]), 'type', "psth");
+    sides = ["below" "above" "right" "left"];
+    names = ["Below" "Above" "Right of" "Left of"];
+    for i = 1:numel(sides)
+        g = EphysAnalysisConfig.placePanel(F, probe, sides(i), anchor);
+        q = g.panels(end);
+        if isequal([g.grid.rows g.grid.cols], [F.grid.rows F.grid.cols])
+            how = "fills " + cellsText(q.row, q.col, q.rowSpan, q.colSpan);
+        elseif i <= 2
+            how = "new row";
+        else
+            how = "new column";
+        end
+        items(end+1) = names(i) + " " + anchor + " (" + how + ")"; %#ok<AGROW>
+        data(end+1) = sides(i); %#ok<AGROW>
+    end
+end
+cells = EphysAnalysisConfig.figureCells(F);
+for r = 1:size(cells, 1)
+    for k = 1:size(cells, 2)
+        if cells(r, k) ~= 0; continue; end
+        items(end+1) = "Empty cell: " + cellsText(r, k, 1, 1); %#ok<AGROW>
+        data(end+1) = cellKey(r, k); %#ok<AGROW>
+    end
+end
+end
+
+
+function s = cellsText(r, c, rs, cs)
+%cellsText  "row 4, col 2", or the cells' rows or columns for spans RS, CS (short: the drop-down is narrow).
+if rs > 1
+    s = sprintf("rows %d-%d, col %d", r, r + rs - 1, c);
+elseif cs > 1
+    s = sprintf("row %d, cols %d-%d", r, c, c + cs - 1);
+else
+    s = sprintf("row %d, col %d", r, c);
+end
+end
+
+
+function k = cellKey(r, c)
+%cellKey  The Place key of the empty cell R, C.
+k = sprintf("cell %d %d", r, c);
+end
+
+
+function [where, rc] = placeOf(key)
+%placeOf  onNewPanel's Where and Cell for a Place key.
+rc = [];
+where = key;
+if startsWith(key, "cell ")
+    where = "cell";
+    rc = reshape(sscanf(extractAfter(key, "cell "), '%d'), 1, []);
+end
 end
 
 

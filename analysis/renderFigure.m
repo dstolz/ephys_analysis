@@ -292,7 +292,7 @@ if opts.LayoutOnly   % the drawing kept, laid out at the new places: nothing dra
     return
 end
 if isfield(F, 'kind') && string(F.kind) == "probeFigure"   % a probe figure (figureProbeCompute): every tile on one page
-    args = namedargs2cell(opts);
+    args = namedargs2cell(rmfield(opts, 'LayoutOnly'));   % (a probe page has no layout-only path: handled above)
     [h, how] = renderProbeFigure(F, spec, target, args{:});
     return
 end

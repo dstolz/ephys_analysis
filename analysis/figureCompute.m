@@ -226,7 +226,7 @@ for k = 1:np
     end
     hit = false;
     if C.on   % the same data as a panel computed before (its looks may differ): its layers again
-        [eType, nBoot] = figureErrorType(spec, p);
+        [eType, nBoot] = figureErrorType(p);
         key = struct('panel', {rmfield(dataSpec.panels(k), 'id')}, 'epochs', {Ep}, 'groups', {Gp}, 'observation', {obs}, ...
             'observe', {spec.observe}, 'selection', {selectionOf(p, spec)}, 'errorType', eType, 'nBoot', nBoot, 'skips', {skips});
         [hit, P.layers, C] = figureReuse(C, "panel", key);

@@ -24,7 +24,10 @@ function [fig, notes] = legacyPlotToFigure(p, defaults, layout)
 %                 YLim goes to the data panel's options.yLim (psth,
 %                 continuous, waveforms, rate, tuning) and CLim to its
 %                 options.cLim (heatmap, probemap, corrmap); the others,
-%                 when set, are notes
+%                 when set, are notes; its error (ShowSEM, ErrorType,
+%                 ErrorResamples) and the bands' look (ErrorFaceColor ...
+%                 ErrorEdgeWidth) go to every panel that takes them
+%                 (errorType: psth, rate, tuning; errorResamples, band)
 %     the plot's bins, measure, baseline, auroc, maskAfterStop and
 %                 waveform (a PSTH's, raster's or tuning curve's inset; a
 %                 waveforms plot's own settings, its mode "off" drawn as
@@ -142,7 +145,11 @@ end
 for f = ["MaxTiles" "TileSpacing" "XLim" "YLim" "CLim"]
     st.(f) = sd.(f);
 end
-fig.style = st;
+ce = struct('errorType', st.ErrorType, 'errorResamples', st.ErrorResamples, 'band', struct('faceColor', st.ErrorFaceColor, ...
+    'faceAlpha', st.ErrorFaceAlpha, 'edgeColor', st.ErrorEdgeColor, 'edgeStyle', st.ErrorEdgeStyle, 'edgeWidth', st.ErrorEdgeWidth));
+if ~st.ShowSEM; ce.errorType = "off"; end   % the plot's error, which the panels keep (below)
+fig.style = rmfield(st, ["ShowSEM" "ErrorType" "ErrorResamples" "ErrorFaceColor" "ErrorFaceAlpha" "ErrorEdgeColor" ...
+    "ErrorEdgeStyle" "ErrorEdgeWidth"]);
 
 cm = struct('bins', p.bins, 'measure', p.measure, 'baseline', p.baseline, 'auroc', p.auroc, ...
     'maskAfterStop', p.maskAfterStop, 'waveform', p.waveform);   % the plot's options every panel of the figure takes
@@ -327,6 +334,11 @@ for j = 1:n   % the plot's options, in every panel that takes them
             if isfield(T.DefaultOptions{T.Type == P{j}.type}, f); P{j}.options.(f) = cm.(f); end
         end
         if P{j}.type == "waveforms" && P{j}.options.waveform.mode == "off"; P{j}.options.waveform.mode = "both"; end
+    end
+    def = T.DefaultOptions{T.Type == P{j}.type};   % the plot's error and its bands' look (a continuous panel's type: its own)
+    if ismember(P{j}.type, ["psth" "rate" "tuning"]); P{j}.options.errorType = ce.errorType; end
+    for f = ["errorResamples" "band"]
+        if isfield(def, f); P{j}.options.(f) = ce.(f); end
     end
     P{j} = rmfield(P{j}, 'plotOptions');
 end

@@ -117,6 +117,16 @@ function T = panelTypes()
 %   "trials" draw one unit's epochs (a layer following the observation, or
 %   fixed to one unit), binned as its PSTH, sorted as a raster
 %   (rasterSort, rasterSortOrder, rasterByGroup); its group is not used.
+%   The error a panel draws is its own: a PSTH's, rate's or tuning
+%   panel's errorType ("off" | "sem" | "std" | "ci95",
+%   EphysAnalysisConfig.PanelErrorTypes: a PSTH's band, a rate panel's
+%   error bars (display "bar"), a tuning curve's error bars), a continuous
+%   panel's ("off" | "sem" | "std" | "ci95" | "iqr", AuxErrorTypes), each
+%   with errorResamples (ci95: the bootstrap's resamples, default 1000).
+%   The look of the bands a PSTH, continuous, spectrum, coherence,
+%   waveforms or probe map panel draws is its band (defaults("ErrorBand"): face color
+%   and opacity, edge color, style and width); a waveform inset's band
+%   takes its panel's.
 %   Every aligned panel may take a trial selection of its own
 %   (Panel.selection): its own groups, colors and legend.
 %   The spectral types draw Chronux analyses (Chronux must be on the
@@ -174,6 +184,7 @@ waveformsOwn.mode = "both";                                    % a waveforms pan
 firstSpike = EphysAnalysisConfig.defaults("FirstSpike");       % raster: the first-spike latency marks' look (enabled false = none)
 latencyBox = EphysAnalysisConfig.defaults("LatencyBox");       % psth: the latency box plot's look (enabled false = none)
 auroc = EphysAnalysisConfig.defaults("Auroc");                % psth / heatmap of spikes: baseline Mode "auroc"
+band = EphysAnalysisConfig.defaults("ErrorBand");             % psth / continuous / spectrum / coherence / waveforms / probemap: the bands' look
 
 opts = struct();
 opts.raster = struct( ...
@@ -195,6 +206,9 @@ opts.psth = struct( ...
     'baseline',      baseline, ...      % Mode "none" | "subtract" | "zscore" | "percent" | "auroc"
     'auroc',         auroc, ...         % baseline Mode "auroc": the auROC's settings
     'display',       "trace", ...       % "trace" (bars or a line per group) | "heatmap" (an image: a row per group, the first on top)
+    'errorType',     "sem", ...         % the band, over the epochs: "off" | "sem" | "std" | "ci95" (bootstrap 95% CI of the mean)
+    'errorResamples', 1000, ...         % errorType "ci95": bootstrap resamples
+    'band',          band, ...          % the band's look
     'histStyle',     "bar", ...         % "bar" | "line"
     'fill',          true, ...          % filled bars / area under the line
     'fillAlpha',     NaN, ...           % fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
@@ -215,6 +229,8 @@ opts.continuous = struct( ...
     'statistic',    "mean", ...         % "mean" | "median" over the epochs, at each sample
     'transform',    "none", ...         % "none" | "rectify" (each epoch's absolute value, before the statistic) | "magnitude" (a layer's channels as one: their vector magnitude in each epoch, after the baseline)
     'errorType',    "sem", ...          % the band: "off" | "sem" | "std" | "ci95" | "iqr"
+    'errorResamples', 1000, ...         % errorType "ci95": bootstrap resamples
+    'band',         band, ...           % the band's look
     'stack',        "off", ...          % "off" (overlaid) | "groups" (a row per trial group, the items overlaid in it) | "items" (a row per channel or layer mean, the groups overlaid in it)
     'stackSpacing', 1.1, ...            % stack: the row step, x the row height (1: the rows touch; < 1 overlaps)
     'trials',       "off", ...          % each epoch's trace: "off" | "faint" (pale and thin, behind the mean) | "only" (the traces, no mean)
@@ -240,6 +256,7 @@ opts.heatmap = struct( ...
 opts.waveforms = struct( ...
     'layout',   "grid", ...             % "grid" (the unit's waveform, or several overlaid) | "probe" (every unit at its place on the probe)
     'waveform', waveformsOwn, ...       % mode "mean" | "subsample" | "both" (never "off")
+    'band',     band, ...               % the look of the mean's band (waveform.band)
     'yLimMode', "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',     []);
 opts.probemap = struct( ...
@@ -247,7 +264,8 @@ opts.probemap = struct( ...
     'cLim',       [], ...
     'unitLabels', false, ...            % each unit's id beside it, an arrow from the label to the unit
     'waveColor',  false, ...            % waveform glyphs colored by their unit's value (rate / nSpikes), with a color bar
-    'waveform',   waveform);            % mode "off": a circle per unit (colored by its value); else its waveform as a glyph
+    'waveform',   waveform, ...         % mode "off": a circle per unit (colored by its value); else its waveform as a glyph
+    'band',       band);                % the look of the glyphs' bands (waveform.band)
 opts.corrmap = struct( ...
     'metric',      "mean", ...          % each epoch's "mean" or "peak" (binned) rate
     'correlation', "pearson", ...       % "pearson" | "spearman"
@@ -261,6 +279,8 @@ opts.rate = struct( ...
     'measure',  "rate", ...             % "rate" (spikes/s) | "count" (spikes per window) | "probability" (share of epochs with a spike)
     'baseline', baseline, ...           % Mode "none" | "subtract" | "ratio" | "zscore" (firingRate's Normalize)
     'display',  "bar", ...              % "bar" (mean, error bar) | "box" | "points" (each epoch, the mean as a bar)
+    'errorType', "sem", ...             % display "bar": the error bars, over the epochs: "off" | "sem" | "std" | "ci95"
+    'errorResamples', 1000, ...         % errorType "ci95": bootstrap resamples
     'yLimMode', "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',     [], ...
     'waveform', waveform);              % the unit's waveform inset
@@ -271,6 +291,8 @@ opts.tuning = struct( ...
     'stackSpacing', 1.1, ...            % stack: the row step, x the row height
     'measure',     "rate", ...
     'baseline',    baseline, ...        % Mode "none" | "subtract" | "ratio" | "zscore"
+    'errorType',   "sem", ...           % the error bars, over the epochs: "off" | "sem" | "std" | "ci95"
+    'errorResamples', 1000, ...         % errorType "ci95": bootstrap resamples
     'yLimMode',    "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',        [], ...
     'waveform',    waveform);           % the unit's waveform inset
@@ -288,6 +310,7 @@ opts.spectrum = struct( ...
     'fpass',      [0 100], ...          % [fmin fmax] Hz (fmax Inf = Nyquist)
     'err',        "jackknife", ...      % the band: "none" | "theoretical" | "jackknife"
     'errP',       0.05, ...             % its p (0.05: 95%)
+    'band',       band, ...             % the band's look
     'detrend',    "constant", ...       % each trial's "none" | "constant" | "linear" trend removed
     'scale',      "db", ...             % "db" (10 log10) | "log" (a log y axis) | "linear"
     'spikeFs',    1000, ...             % point layers: the spike trains' time grid, Hz
@@ -325,6 +348,7 @@ opts.coherence = struct( ...
     'fpass',      [0 100], ...
     'err',        "jackknife", ...      % "jackknife" gives the band and the confidence level, "theoretical" the level
     'errP',       0.05, ...
+    'band',       band, ...             % the band's look
     'detrend',    "constant", ...
     'spikeFs',    1000, ...
     'overTime',   false, ...            % a coherogram over the moving window: an image over time

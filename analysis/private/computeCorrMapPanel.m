@@ -17,7 +17,7 @@ o = panel.options;
 b = [];
 if o.baseline.Mode ~= "none"; b = o.baseline.Window; end
 P = struct('layers', figurePanelLayers(panel, ctx.skips));
-[ctx.errorType, ctx.nBoot] = figureErrorType(ctx.spec, panel);   % the band this panel draws ("sem" where none)
+[ctx.errorType, ctx.nBoot] = figureErrorType(panel);   % the band this panel draws ("sem" where none)
 [j, P.layers] = figureFirstLayer(P.layers, "A unit correlation map");
 if j == 0 || P.layers(j).skip ~= ""; return; end
 L = panel.layers(j);

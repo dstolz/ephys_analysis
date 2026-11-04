@@ -139,7 +139,7 @@ for i = 1:nI
             if nG > 1; tg = names(i) + " · " + gl; end
         end
         if band
-            stackMark(errorPatch(ax, f, k * lo(:, c, g) + off, k * hi(:, c, g) + off, col, tg, style), off, k);
+            stackMark(errorPatch(ax, f, k * lo(:, c, g) + off, k * hi(:, c, g) + off, col, tg, style, "sem", o.band), off, k);
         end
         h1 = stackMark(tagPart(plot(ax, f, k * Y(:, c, g) + off, 'Color', col, 'LineWidth', style.LineWidth, 'LineStyle', ls), role, tg), off, k);
         if isfield(R, 'rate')

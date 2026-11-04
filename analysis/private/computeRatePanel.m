@@ -11,7 +11,7 @@ function P = computeRatePanel(src, panel, E, G, ctx)
 %         baseline window, Mode not "none">, Normalize=options.baseline.Mode,
 %         Groups=G, Meta=meta, ErrorType=, ErrorResamples=)
 %   (R.meanRate [nUnits x nGroups], R.rate [nEpochs x nUnits], R.err: the
-%   error figureErrorType gives a rate panel: the style's with ShowSEM and
+%   error figureErrorType gives a rate panel: its errorType with
 %   display "bar", else "sem"), with R.epochs (E) and R.dataset; aggregate
 %   "mean" adds R.layerMean (figureLayerMean over the units' means: mean,
 %   lo, hi [1 x 1 x nGroups]); options.waveform.mode other than "off"
@@ -26,7 +26,7 @@ o = panel.options;
 b = [];
 if o.baseline.Mode ~= "none"; b = o.baseline.Window; end
 P = struct('layers', figurePanelLayers(panel, ctx.skips));
-[ctx.errorType, ctx.nBoot] = figureErrorType(ctx.spec, panel);   % the error bars this panel draws ("sem" where none)
+[ctx.errorType, ctx.nBoot] = figureErrorType(panel);   % the error bars this panel draws ("sem" where none)
 for j = find(arrayfun(@(l) l.skip == "", P.layers))
     L = panel.layers(j);
     lay = P.layers(j);

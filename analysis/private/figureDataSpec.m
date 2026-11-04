@@ -2,9 +2,8 @@ function d = figureDataSpec(spec)
 %figureDataSpec  A figure spec without what only its drawing reads: what figureCompute's results depend on.
 %   D = figureDataSpec(SPEC) for a spec of EphysAnalysisConfig.figureFor
 %   is SPEC without
-%     the figure's   id, autoId, enabled, title, layout and aesthetics, and
-%                    its style but for ShowSEM, ErrorType and
-%                    ErrorResamples (the error a band takes:
+%     the figure's   id, autoId, enabled, title, layout, aesthetics and
+%                    style (the error a band takes is each panel's:
 %                    figureErrorType)
 %     each panel's   title, box, xLabel, yLabel, xSide, ySide, rect, note and
 %                    overlays, and the options of LookOptions (the draw
@@ -25,19 +24,15 @@ function d = figureDataSpec(spec)
 %
 %   See also figureCompute, figureErrorType, EphysAnalysisRunner.computeFigure.
 
-LookFigure = ["id" "autoId" "enabled" "title" "layout" "aesthetics"];
+LookFigure = ["id" "autoId" "enabled" "title" "layout" "aesthetics" "style"];
 LookPanel = ["title" "box" "xLabel" "yLabel" "xSide" "ySide" "rect" "note" "overlays"];
 LookLayer = ["color" "lineStyle"];
 LookOptions = ["tickColor" "tickWidth" "backColor" "yTicks" "firstSpike" "fill" "fillAlpha" "histStyle" "normalize" ...
-    "stack" "stackSpacing" "yLimMode" "yLim" "colormap" "cLim" "group" "order" "colorBy" "height" "alpha" "trialCount"];
-ErrorStyle = ["ShowSEM" "ErrorType" "ErrorResamples"];
+    "stack" "stackSpacing" "yLimMode" "yLim" "colormap" "cLim" "group" "order" "colorBy" "height" "alpha" "trialCount" "band"];
 
 d = drop(spec, LookFigure);
 if isfield(d, 'probe') && isstruct(d.probe) && isfield(d.probe, 'enabled')
     d.probe = d.probe.enabled;   % the tiles' choice and layout are the probe figure's: no tile computes them
-end
-if isfield(d, 'style') && isstruct(d.style)
-    d.style = drop(d.style, setdiff(string(fieldnames(d.style)), ErrorStyle));
 end
 if ~isfield(d, 'panels') || isempty(d.panels); return; end
 P = drop(d.panels, LookPanel);

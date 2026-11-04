@@ -10,7 +10,7 @@ function hk = drawTuningPanel(ax, P, look)
 %   over its units (R.layerMean, its error bars across the units) -- draws
 %   one curve per series in the series' color (the layer's color when set)
 %   and the item's line style (the layer's lineStyle, else by order: -,
-%   --, :, -.), markers at the values, with error bars (R.err; Style.ShowSEM),
+%   --, :, -.), markers at the values, with error bars (R.err; options.errorType not "off"),
 %   role "curve". The components' group
 %   is the series' label, with several items "<item> · <series>" (the item
 %   alone for one series). The legend gets the series (more than one), then
@@ -105,7 +105,7 @@ if stacked
     for i = 1:nI
         for k = 1:size(C(i).m, 2)
             v = C(i).m(:, k);
-            if style.ShowSEM; v = [v; C(i).lo(:, k); C(i).hi(:, k)]; end %#ok<AGROW>
+            if o.errorType ~= "off"; v = [v; C(i).lo(:, k); C(i).hi(:, k)]; end %#ok<AGROW>
             v = double(v(isfinite(v)));
             if isempty(v); continue; end
             rlo(k) = min([rlo(k); v]);
@@ -152,7 +152,7 @@ for i = 1:nI
             tg = names(i);
             if nS > 1; tg = names(i) + " · " + sl; end
         end
-        if style.ShowSEM
+        if o.errorType ~= "off"
             h = errorbar(ax, xv, sc * m(:, k) + off, sc * (m(:, k) - lo(:, k)), sc * (hi(:, k) - m(:, k)), 'o', 'LineStyle', ls, 'Color', c, ...
                 'LineWidth', style.LineWidth, 'MarkerSize', 4, 'MarkerFaceColor', c, 'CapSize', 3);
         else

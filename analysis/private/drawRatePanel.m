@@ -10,7 +10,7 @@ function hk = drawRatePanel(ax, P, look)
 %   draws, per group, as options.display says:
 %     bar     the mean over the group's epochs (a unit) or over the units'
 %             means (a layer's mean), role "bar", with its error bar
-%             (R.err, or the band across the units: Style.ShowSEM), role
+%             (R.err, or the band across the units; options.errorType not "off"), role
 %             "errorBar"
 %     box     a box of the epochs' rates (a unit) or of the units' means,
 %             role "box"
@@ -116,7 +116,7 @@ for i = 1:nI
                 h = tagPart(plot(ax, x + jit(ok), y(ok), '.', 'Color', c, 'MarkerSize', 7), "points", tg);
             otherwise   % bar
                 h = tagPart(bar(ax, x, m(g), w * 0.9, 'FaceColor', c, 'EdgeColor', 'none'), "bar", tg);
-                if style.ShowSEM && isfinite(lo(g)) && isfinite(hi(g))
+                if o.errorType ~= "off" && isfinite(lo(g)) && isfinite(hi(g))
                     tagPart(errorbar(ax, x, m(g), m(g) - lo(g), hi(g) - m(g), 'LineStyle', 'none', 'Color', [0.2 0.2 0.2], ...
                         'CapSize', 2, 'HandleVisibility', 'off'), "errorBar", tg);
                 end

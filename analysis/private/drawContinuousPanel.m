@@ -203,7 +203,7 @@ for pass = 1:2
             end
             only = trials == "only" && ~isempty(S(i).X);   % the traces alone: no band, no mean
             if band && ~only
-                stackMark(errorPatch(ax, S(i).t, k * S(i).lo(:, g) + off, k * S(i).hi(:, g) + off, c, tg, style), off, k);
+                stackMark(errorPatch(ax, S(i).t, k * S(i).lo(:, g) + off, k * S(i).hi(:, g) + off, c, tg, style, "sem", o.band), off, k);
             end
             h1 = traces{i}(g);
             if ~only

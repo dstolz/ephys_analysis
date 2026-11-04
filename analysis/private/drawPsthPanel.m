@@ -9,7 +9,8 @@ function hk = drawPsthPanel(ax, P, look)
 %   (R.layerMean, its band across the units; recomputed from the
 %   normalized rates when options.normalize is not "none"). Each item and
 %   trial group is
-%     a band   the error R.err holds (Style.ShowSEM), errorPatch, role "sem"
+%     a band   the error R.err holds (options.errorType not "off"), in the
+%              look of options.band: errorPatch, role "sem"
 %     a trace  bars or a line (options.histStyle, fill, fillAlpha:
 %              histTrace), roles "rate" / "rateFill"
 %   in the group's color (or the layer's color) and the item's line style
@@ -159,7 +160,7 @@ for i = 1:nI
         m = M.mean; mlo = M.lo; mhi = M.hi;
         if norm ~= "none"
             m = mean(N.rate, 2, 'omitnan');
-            [mlo, mhi] = errorBounds(N.rate, 2, M.type, look.spec.style.ErrorResamples);
+            [mlo, mhi] = errorBounds(N.rate, 2, M.type, o.errorResamples);
         end
         name = P.layers(j).name;
         peak = reshape(max(m, [], 1), [], 1);
@@ -206,6 +207,8 @@ if ~isfinite(hl.alpha)
     if nI > 0 && size(D(1).m, 2) > 1 && ~stacked; hl.alpha = 0.5; end
 end
 hl.alpha = min(1, max(0, hl.alpha));
+hl.error = o.errorType ~= "off";   % the band, in its look (drawStack, drawRows)
+hl.band = o.band;
 lss = strings(1, nI);
 if heat
     yName = drawHeat(ax, D(1), P.layers(items(1, 1)).name, look, o, style, cnt);
@@ -234,8 +237,8 @@ else
             ls = figSeriesStyle(D(i).R, g, ls, Ls(j));
             lss(i) = ls;
             tg = groupTag(names(i), gl, nI, nG);
-            if style.ShowSEM
-                errorPatch(ax, D(i).R.t, D(i).lo(:, g), D(i).hi(:, g), c, tg, style);
+            if hl.error
+                errorPatch(ax, D(i).R.t, D(i).lo(:, g), D(i).hi(:, g), c, tg, style, "sem", hl.band);
             end
             h1 = histTrace(ax, D(i).R.t, D(i).R.edges, D(i).m(:, g) - ref, ref, c, hli, style.LineWidth, tg, ls);
             if i == 1 && nG > 1
@@ -323,7 +326,7 @@ wave = EphysAnalysisConfig.normalizeSection("Waveform", o.waveform);
 first = find(items(:, 2) > 0, 1);
 if heat; first = find(items(1, 2) > 0, 1); end   % the unit drawn, if the first item is one
 if wave.mode ~= "off" && ~isempty(first) && isfield(P.layers(items(first, 1)).R, 'waveforms')
-    waveformInset(ax, P.layers(items(first, 1)).R.waveforms, items(first, 2), wave, style);
+    waveformInset(ax, P.layers(items(first, 1)).R.waveforms, items(first, 2), wave, style, o.band);
 end
 if heat && nI > 1
     P = heatNotes(P, items, names, Ls);
@@ -453,7 +456,7 @@ function [yName, lss, ext] = drawRows(ax, D, Ls, items, hl, style, o, look, boxe
 %drawRows  The stack: the first item's rows by drawStack, every further item drawn into the same rows as an outline.
 %   The rows' layout (stackLayout, Zero: every row from its zero; Mode and
 %   Limits the panel's yLimMode: panelYLimits) is taken from every item's
-%   reach in each row (its PSTH, and its band with Style.ShowSEM), so each
+%   reach in each row (its PSTH, and its band unless errorType is "off"), so each
 %   fits its rows; the y limits of both sides then cover every item's
 %   reach. EXT: the rows' reach in the rates' units, [lo hi] (from 0), not
 %   the latency lanes. With BOXES (latencyBoxes: a box per group) each row
@@ -472,7 +475,7 @@ rhi = NaN(1, nG);
 for i = 1:nI
     for g = 1:min(nG, size(D(i).m, 2))
         v = D(i).m(:, g);
-        if style.ShowSEM; v = [v; D(i).lo(:, g); D(i).hi(:, g)]; end %#ok<AGROW>
+        if hl.error; v = [v; D(i).lo(:, g); D(i).hi(:, g)]; end %#ok<AGROW>
         v = v(isfinite(v));
         if isempty(v); continue; end
         rlo(g) = min([rlo(g); v]);
@@ -551,12 +554,12 @@ for i = 2:nI
         ls = figSeriesStyle(D(i).R, g, ls, Ls(j));
         lss(i) = ls;
         tg = groupTag(D(i).name, gl, nI, nG);
-        if style.ShowSEM
-            errorPatch(ax, D(i).R.t, k * D(i).lo(:, g) + b, k * D(i).hi(:, g) + b, c, tg, style);
+        if hl.error
+            errorPatch(ax, D(i).R.t, k * D(i).lo(:, g) + b, k * D(i).hi(:, g) + b, c, tg, style, "sem", hl.band);
         end
         histTrace(ax, D(i).R.t, D(i).R.edges, k * D(i).m(:, g), b, c, out, style.LineWidth, tg, ls);
         reach = k * D(i).m(:, g);
-        if style.ShowSEM; reach = [reach; k * D(i).hi(:, g)]; end %#ok<AGROW>
+        if hl.error; reach = [reach; k * D(i).hi(:, g)]; end %#ok<AGROW>
         hi = max([hi; b + reach(isfinite(reach))]);
         lo = min([lo; b + reach(isfinite(reach))]);
     end

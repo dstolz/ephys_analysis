@@ -1,6 +1,6 @@
-function waveformInset(ax, W, u, opt, style)
+function waveformInset(ax, W, u, opt, style, band)
 %waveformInset  Unit U's waveform as a box at a compass point of AX.
-%   waveformInset(AX, W, U, OPT, STYLE) draws unit U of W (unitWaveforms)
+%   waveformInset(AX, W, U, OPT, STYLE, BAND) draws unit U of W (unitWaveforms)
 %   as OPT says (a plot's waveform settings, defaults("Waveform")): its mean
 %   (dark red) and / or its spikes (thin, pale blue), with the mean's
 %   peak-to-peak amplitude at the top. The box is a third of AX's width
@@ -17,10 +17,12 @@ function waveformInset(ax, W, u, opt, style)
 %   OPT.box it has an outline and a pale ground. A template (mode
 %   "template", or no spikes read) is drawn as the mean whatever the mode,
 %   and says so; OPT.band ("std" / "sem") draws the mean's error band
-%   (waveformParts). Nothing is drawn for mode "off" or a unit without a
+%   (waveformParts) in the look of BAND (the panel's options.band, errorPatch;
+%   default: defaults("ErrorBand")). Nothing is drawn for mode "off" or a unit without a
 %   waveform. The parts are tagged waveBox, waveBand, waveSpikes, waveMean
 %   and waveLabel, and kept out of legends.
 
+if nargin < 6; band = struct(); end
 if opt.mode == "off" || isempty(W) || ~isfield(W, 'mean') || u > numel(W.mean) || isempty(W.mean{u})
     return
 end
@@ -68,7 +70,7 @@ if opt.box
         'EdgeColor', [0.6 0.6 0.6], 'HandleVisibility', 'off'), "waveBox");
 end
 if p.band
-    errorPatch(ax, xw, yOf(p.bandLo), yOf(p.bandHi), [0.80 0.10 0.10], "", style, "waveBand");
+    errorPatch(ax, xw, yOf(p.bandLo), yOf(p.bandHi), [0.80 0.10 0.10], "", style, "waveBand", band);
 end
 if p.spikes
     K = size(p.S, 2);

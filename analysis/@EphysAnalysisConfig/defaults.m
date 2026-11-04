@@ -11,7 +11,8 @@ function s = defaults(section)
 %                     of Figures)
 %   Building blocks   EventRef, SequenceStep (one step of an EventRef's
 %                     sequence), EpochWindow, TrialSelection, UnitSelection,
-%                     Style, Auroc, Waveform, Latency (a figure's
+%                     Style, ErrorBand (an error band's look: a panel's
+%                     options.band), Auroc, Waveform, Latency (a figure's
 %                     first-spike latency and response onset: how they are
 %                     found, once for all its panels), FirstSpike (a
 %                     raster's first-spike latency marks: their look),
@@ -111,14 +112,6 @@ switch section
     case "Style"
         s = struct( ...
             'LineWidth',    1.2, ...
-            'ShowSEM',      true, ...           % error bands (traces) and bars (means), of ErrorType
-            'ErrorType',    "sem", ...          % "sem" (mean +/- SEM) | "std" (mean +/- SD) | "ci95" (bootstrap 95% CI of the mean, percentile)
-            'ErrorResamples', 1000, ...         % ci95: bootstrap resamples
-            'ErrorFaceColor', "", ...           % bands: "" = the trace's color; or a color
-            'ErrorFaceAlpha', NaN, ...          % bands: NaN = opaque, the trace's color paled towards the ground; 0-1 = that opacity
-            'ErrorEdgeColor', "none", ...       % bands: "none" | "auto" (the face color) | a color
-            'ErrorEdgeStyle', "-", ...          % bands: the edge's line style ("-" | "--" | ":" | "-.")
-            'ErrorEdgeWidth', 0.5, ...          % bands: the edge's width, points
             'ShowStop',     true, ...
             'ShowZeroLine', true, ...
             'ShowArtifactNote', true, ...       % a note under the title when drawn epochs touch an artifact period (excludeArtifacts off)
@@ -141,6 +134,16 @@ switch section
             'MaxTiles',     16, ...         % tiles per page in grid layouts
             'TileSpacing',  "compact", ...  % space between the tiles of a grid: "loose" | "compact" | "tight" | "none"
             'StackSpacing', NaN);           % evoked "stack" offset (NaN = automatic)
+
+    case "ErrorBand"
+        % an error band's look (errorPatch): a panel's options.band (psth, continuous, spectrum, coherence,
+        % waveforms, probemap), or a renderer's Band (renderWaveforms, renderProbeMap, renderChronux, renderPopulation)
+        s = struct( ...
+            'faceColor', "", ...            % "" = the trace's color; or a color
+            'faceAlpha', NaN, ...           % NaN = opaque, the trace's color paled towards the ground; 0-1 = that opacity
+            'edgeColor', "none", ...        % "none" | "auto" (the face color) | a color
+            'edgeStyle', "-", ...           % the edge's line style ("-" | "--" | ":" | "-.")
+            'edgeWidth', 0.5);              % the edge's width, points
 
     case "Auroc"
         % a psth / heatmap panel's baseline Mode "auroc" (aurocCurves; spikePSTH's Auroc)

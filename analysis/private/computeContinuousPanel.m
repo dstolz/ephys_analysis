@@ -25,7 +25,7 @@ w = panel.window;
 b = [];
 if o.baseline.Mode ~= "none"; b = o.baseline.Window; end
 P = struct('layers', figurePanelLayers(panel, ctx.skips));
-[ctx.errorType, ctx.nBoot] = figureErrorType(ctx.spec, panel);   % the band this panel draws ("sem" where none)
+[ctx.errorType, ctx.nBoot] = figureErrorType(panel);   % the band this panel draws ("sem" where none)
 for j = 1:numel(P.layers)
     if P.layers(j).skip ~= ""; continue; end
     L = panel.layers(j);

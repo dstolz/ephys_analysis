@@ -44,7 +44,10 @@ function h = renderChronux(R, target, opts)
 %     Display   chronuxSettings display fields ([] = R.settings.display)
 %     Page      the page (default: Display.page)
 %     Style     EphysAnalysisConfig Style fields (FontSize, LineWidth,
-%               Grid, Legend, ShowZeroLine, the error band's look ...)
+%               Grid, Legend, ShowZeroLine ...)
+%     Band      the error bands' look (errorPatch,
+%               EphysAnalysisConfig.defaults("ErrorBand"); default struct():
+%               the defaults)
 %     Design    "" (default): the user's design (PlotDesign.current; a
 %               new choice redraws the plot), a design's name, or a design
 %     Rules     the plot's own aesthetics rules, applied last
@@ -59,6 +62,7 @@ arguments
     opts.Display = []
     opts.Page double = []
     opts.Style = struct()
+    opts.Band = struct()
     opts.Design = ""
     opts.Rules = []
     opts.Editable = "auto"
@@ -76,12 +80,12 @@ st.Design = design;
 style = renderStyle(st);
 switch R.kind
     case {"chronuxSpectrum" "chronuxSpikeSpectrum"}
-        [h, n] = drawSpectrum(R, target, d, style, page);
+        [h, n] = drawSpectrum(R, target, d, style, page, opts.Band);
         mapField = "";
     case {"chronuxSpecgram" "chronuxSpikeSpecgram"}
         [h, n, mapField] = drawSpecgram(R, target, d, style, page);
     case {"chronuxCoherence" "chronuxSpikeField" "chronuxUnitCoherence"}
-        [h, n] = drawCoherence(R, target, d, style, page);
+        [h, n] = drawCoherence(R, target, d, style, page, opts.Band);
         mapField = "";
     case "chronuxCohgram"
         [h, n, mapField] = drawCohgram(R, target, d, style, page);
@@ -123,7 +127,7 @@ end
 end
 
 
-function [h, n] = drawSpectrum(R, target, d, style, page)
+function [h, n] = drawSpectrum(R, target, d, style, page, band)
 [~, nC, nG] = size(R.S);
 [Y, lo, hi] = chronuxScaled(R.S, R.Slo, R.Shi, d.scale);
 showErr = d.showErr && ~isempty(lo);
@@ -146,7 +150,7 @@ if d.layout == "grid"
         lh = gobjects(1, nG);
         for g = 1:nG
             if showErr
-                errorPatch(ax, f, lo(:, c, g), hi(:, c, g), colors(g, :), R.groups.label(g), style);
+                errorPatch(ax, f, lo(:, c, g), hi(:, c, g), colors(g, :), R.groups.label(g), style, "sem", band);
             end
             lh(g) = tagPart(plot(ax, f, Y(:, c, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth), ...
                 "trace", R.groups.label(g));
@@ -277,7 +281,7 @@ h = struct('layout', tl, 'axes', axs);
 end
 
 
-function [h, n] = drawCoherence(R, target, d, style, page)
+function [h, n] = drawCoherence(R, target, d, style, page, band)
 %drawCoherence  Coherence of pairs (channels, spike-field, unit-unit): magnitude and, under it, phase.
 [~, nP, nG] = size(R.C);
 f = R.f;
@@ -308,7 +312,7 @@ for j = 1:numel(idx)
         for g = 1:nG
             lab = R.groups.label(g);
             if showErr
-                errorPatch(ax, f, R.Clo(:, p, g), R.Chi(:, p, g), colors(g, :), lab, style);
+                errorPatch(ax, f, R.Clo(:, p, g), R.Chi(:, p, g), colors(g, :), lab, style, "sem", band);
             end
             lh(g) = tagPart(plot(ax, f, R.C(:, p, g), 'Color', colors(g, :), 'LineWidth', style.LineWidth), "trace", lab);
             confMark(ax, f, R.confC(p, g), colors(g, :), lab);

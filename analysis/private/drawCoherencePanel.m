@@ -119,7 +119,7 @@ for p = 1:nP
             tg = gl;
         end
         if band
-            stackMark(errorPatch(ax, f, k * R.Clo(:, p, g) + off, k * R.Chi(:, p, g) + off, col, tg, style), off, k);
+            stackMark(errorPatch(ax, f, k * R.Clo(:, p, g) + off, k * R.Chi(:, p, g) + off, col, tg, style, "sem", o.band), off, k);
         end
         h1 = stackMark(tagPart(plot(ax, f, k * R.C(:, p, g) + off, 'Color', col, 'LineWidth', style.LineWidth, 'LineStyle', ls), role, tg), off, k);
         c = R.confC(p, g);

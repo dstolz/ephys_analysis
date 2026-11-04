@@ -29,7 +29,7 @@ o = panel.options;
 b = [];
 if o.baseline.Mode ~= "none"; b = o.baseline.Window; end
 P = struct('layers', figurePanelLayers(panel, ctx.skips));
-[ctx.errorType, ctx.nBoot] = figureErrorType(ctx.spec, panel);   % the error bars this panel draws ("sem" where none)
+[ctx.errorType, ctx.nBoot] = figureErrorType(panel);   % the error bars this panel draws ("sem" where none)
 [param, series] = figureTuningParam(o, ctx.selection, src);
 vars = string(E.Properties.VariableNames);
 missing = [param series];

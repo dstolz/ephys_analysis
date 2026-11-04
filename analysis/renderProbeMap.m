@@ -57,6 +57,9 @@ function h = renderProbeMap(values, probe, target, opts)
 %                 "Waveform"): mode, band, timeMs, ampScale, ampLim, width,
 %                 height); mode "off" (default) draws dots
 %     ColorWaveforms  color each glyph by its unit's value (default false)
+%     Band        the look of the glyphs' bands (errorPatch,
+%                 EphysAnalysisConfig.defaults("ErrorBand"); default struct():
+%                 the defaults)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (HeatColormap, SiteSize,
 %                 CLim, FontSize)
 %
@@ -80,6 +83,7 @@ arguments
     opts.Waveform = struct()
     opts.ColorWaveforms (1,1) logical = false
     opts.Style = struct()
+    opts.Band = struct()
 end
 
 style = renderStyle(opts.Style);
@@ -242,7 +246,7 @@ if glyphs
         end
         for u = find(~cellfun(@isempty, Gl.band)).'
             B = Gl.band{u};
-            errorPatch(ax, B(:, 1), B(:, 2), B(:, 3), uc(u, :), names(u), style, "sem");
+            errorPatch(ax, B(:, 1), B(:, 2), B(:, 3), uc(u, :), names(u), style, "sem", opts.Band);
         end
         for u = find(~cellfun(@isempty, Gl.spikes)).'
             tagPart(line(ax, Gl.spikes{u}(:, 1), Gl.spikes{u}(:, 2), 'Color', [uc(u, :) 0.25], 'LineWidth', 0.5), "waveSpikes");
@@ -253,7 +257,7 @@ if glyphs
     else
         for u = find(~cellfun(@isempty, Gl.band)).'
             B = Gl.band{u};
-            errorPatch(ax, B(:, 1), B(:, 2), B(:, 3), meanColor, "", style, "waveBand");
+            errorPatch(ax, B(:, 1), B(:, 2), B(:, 3), meanColor, "", style, "waveBand", opts.Band);
         end
         Sx = vertcat(Gl.spikes{:});
         if ~isempty(Sx)

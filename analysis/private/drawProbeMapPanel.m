@@ -37,7 +37,7 @@ st.CLim = [];
 if numel(o.cLim) == 2 && o.cLim(2) > o.cLim(1); st.CLim = o.cLim; end
 W = [];
 if isfield(R, 'waveforms'); W = R.waveforms; end
-h = renderProbeMap(R, [], ax, Style=st, UnitLabels=o.unitLabels, Waveforms=W, Waveform=o.waveform, ColorWaveforms=o.waveColor);
+h = renderProbeMap(R, [], ax, Style=st, Band=o.band, UnitLabels=o.unitLabels, Waveforms=W, Waveform=o.waveform, ColorWaveforms=o.waveColor);
 ax = h.axes(1);
 hk.axes = ax;
 tagPart(ax, "axes", "", look.panelId);

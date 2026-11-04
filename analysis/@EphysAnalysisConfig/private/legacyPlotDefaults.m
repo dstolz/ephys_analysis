@@ -81,7 +81,7 @@ switch section
             'aux',           legacyPlotDefaults("Aux"), ...
             'note',          EphysAnalysisConfig.defaults("Note"), ...
             'overlays',      repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), ...
-            'style',         EphysAnalysisConfig.defaults("Style"), ...
+            'style',         legacyStyle(), ...
             'aesthetics',    PlotAesthetics.emptyRules());
 
     case "SessionPlot"
@@ -109,4 +109,20 @@ switch section
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown version-1 plot section "%s".', section);
 end
+end
+
+
+function s = legacyStyle()
+%legacyStyle  A version-1 plot's style: the Style with the error fields it held (ShowSEM, ErrorType, ErrorResamples and
+%   the bands' look), which a figure keeps per panel (legacyPlotToFigure moves them into the panels' options).
+s = EphysAnalysisConfig.defaults("Style");
+s.ShowSEM = true;
+s.ErrorType = "sem";
+s.ErrorResamples = 1000;
+b = EphysAnalysisConfig.defaults("ErrorBand");
+s.ErrorFaceColor = b.faceColor;
+s.ErrorFaceAlpha = b.faceAlpha;
+s.ErrorEdgeColor = b.edgeColor;
+s.ErrorEdgeStyle = b.edgeStyle;
+s.ErrorEdgeWidth = b.edgeWidth;
 end

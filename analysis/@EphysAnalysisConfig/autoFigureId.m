@@ -4,8 +4,9 @@ function id = autoFigureId(fig)
 %   by what it holds, as "<types> <data>", e.g. "Raster+PSTH units",
 %   "Continuous LFP", "Raster+PSTH+Continuous units+LFP":
 %   - <types>: the Short name (panelTypes) of each active panel's type (a
-%     panel with an enabled layer), in grid order (by row, then column),
-%     each once, joined by "+"; "Blank" when no panel is active. A type
+%     panel with an enabled layer), in reading order (panelOrder: top
+%     first, then left to right), each once, joined by "+"; "Blank" when
+%     no panel is active (a legend panel never is: it has no layers). A type
 %     panelTypes does not know is named by its type, first letter upper
 %     case
 %   - <data>: observe.data (unless "dataset"), then each source the
@@ -29,8 +30,7 @@ data = strings(1, 0);
 if fig.observe.data ~= "dataset"; data = fig.observe.data; end
 P = fig.panels;
 if ~isempty(P)
-    [~, order] = sortrows([reshape([P.row], [], 1) reshape([P.col], [], 1)]);
-    for q = reshape(order, 1, [])
+    for q = EphysAnalysisConfig.panelOrder(fig)
         p = P(q);
         if isempty(p.layers); continue; end
         on = p.layers([p.layers.enabled]);

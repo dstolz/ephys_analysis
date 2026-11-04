@@ -10,11 +10,13 @@ function [fig, unknown] = normalizeFigure(in, path)
 %   - ref, window and selection are the string "default" (the config's
 %     Defaults, see figureFor) or a struct, normalized as an EventRef /
 %     EpochWindow / TrialSelection; an empty value means "default"
-%   - observe and grid are coerced to their defaults
-%     (grid.rowHeights and grid.colWidths stay vectors: [] = equal;
-%     grid.rowGaps and grid.colGaps too: [] = rowGap / colGap each)
+%   - observe and layout are coerced to their defaults (a figure of the
+%     old shape, with a grid and panels in its cells, loses them: grid
+%     and each panel's row, col, rowSpan, colSpan, size, align and valign
+%     are unknown fields, and its panels all fill the page; no migration)
 %   - panels is a list of panels (a struct array, a cell from jsondecode,
-%     one struct or [] for none), each normalizePanel'd; a panel without
+%     one struct or [] for none), each normalizePanel'd (its rect a row
+%     of numbers, checked by validate); a panel without
 %     an id gets "<type>_<n>", and two panels with one id raise
 %     EphysAnalysisConfig:DuplicatePanelId
 %   - aesthetics is a list of rules, normalized by

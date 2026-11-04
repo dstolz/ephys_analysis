@@ -6,21 +6,21 @@ function T = figureTemplates()
 %     Description  one line
 %     Figure       the partial figure struct addFigure normalizes
 %
-%   "rasterPsth" (first, addFigure's default) is a 2 x 1 grid of equal
-%   rows drawn flush (spacing "none"): raster_1 over psth_1, each with one
-%   units layer following the observed unit. Each panel type has a
-%   template of its own: one panel ("<type>_1") holding
+%   "rasterPsth" (first, addFigure's default) is raster_1 on the page's
+%   top half ([0 0.5 1 0.5]) flush over psth_1 on its bottom half ([0 0 1
+%   0.5]), each with one units layer following the observed unit. Each
+%   panel type that draws data has a template of its own: one panel
+%   ("<type>_1") over the whole page ([0 0 1 1]) holding
 %   defaultLayer(type) (a coherence panel two: the observed unit, then the
-%   LFP of its channel, a spike-field coherence). "blank" is an empty 1 x
-%   1 grid.
+%   LFP of its channel, a spike-field coherence); a legend panel has none
+%   (it shows the other panels' legend). "blank" has no panels.
 %
 %   See also EphysAnalysisConfig.addFigure, EphysAnalysisConfig.panelTypes.
 
 P = EphysAnalysisConfig.panelTypes();
 
 rp = struct();
-rp.grid = struct('rows', 2, 'cols', 1, 'rowHeights', [1 1], 'colWidths', [], 'spacing', "none");
-rp.panels = {panelOf("raster", 1), panelOf("psth", 2)};
+rp.panels = {panelOf("raster", [0 0.5 1 0.5]), panelOf("psth", [0 0 1 0.5])};
 
 order = ["psth" "raster" "continuous" "eventTrace" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" "spectrum" "spectrogram" "coherence"];
 n = numel(order) + 2;
@@ -33,7 +33,7 @@ for k = 1:numel(order)
     t = order(k);
     row = P.Type == t;
     f = struct();
-    f.panels = {panelOf(t, 1)};
+    f.panels = {panelOf(t, [0 0 1 1])};
     Template(k + 1) = t;
     Label(k + 1) = P.Label(row);
     Description(k + 1) = "One panel: " + P.Description(row);
@@ -41,19 +41,19 @@ for k = 1:numel(order)
 end
 Template(n) = "blank";
 Label(n) = "Blank";
-Description(n) = "An empty 1 x 1 grid, to add panels to";
-Figure{n} = struct('grid', struct('rows', 1, 'cols', 1));
+Description(n) = "An empty page, to add panels to";
+Figure{n} = struct();
 T = table(Template, Label, Description, Figure);
 end
 
 
-function p = panelOf(type, row)
-%panelOf  A panel of TYPE in column 1 of ROW, holding the type's default layer (a coherence panel: its seed and partner).
+function p = panelOf(type, rect)
+%panelOf  A panel of TYPE at RECT, holding the type's default layer (a coherence panel: its seed and partner).
 L = EphysAnalysisConfig.defaultLayer(type);
 if type == "coherence"   % the observed unit with its own channel's LFP: a spike-field coherence
     L2 = L;
     L2.source = "LFP";
     L = [L L2];
 end
-p = struct('id', type + "_1", 'type', type, 'row', row, 'col', 1, 'layers', L);
+p = struct('id', type + "_1", 'type', type, 'rect', rect, 'layers', L);
 end

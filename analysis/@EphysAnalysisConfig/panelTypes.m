@@ -5,7 +5,7 @@ function T = panelTypes()
 %     Type            "raster" | "psth" | "continuous" | "heatmap" |
 %                     "waveforms" | "probemap" | "corrmap" | "rate" |
 %                     "tuning" | "spectrum" | "spectrogram" | "coherence" |
-%                     "eventTrace"
+%                     "eventTrace" | "legend"
 %     Label           name shown in the app
 %     Short           one word: the type's part of an automatic figure id
 %                     (autoFigureId: "Raster+PSTH units")
@@ -153,6 +153,15 @@ function T = panelTypes()
 %   size. It takes events layers only (categoryOf) and their eventsAs is
 %   not used. A session figure draws every session's epochs in it, as a
 %   raster does, its series (sessions, subjects or all) as the groups.
+%   A "legend" panel draws no data: it is where the figure's legend goes
+%   (Style.LegendLocation "auto"), placed and sized as any panel (its rect
+%   a frame the legend sits in, never scaled to fill it). It takes no
+%   layers (no Categories, DefaultBinding ""), and a figure holds at most
+%   one (validate). Its options: orientation ("auto": horizontal when the
+%   rect is wider than tall, else vertical | "vertical" | "horizontal"),
+%   align ("left" | "center" | "right") and valign ("top" | "middle" |
+%   "bottom": where the legend sits in its rect when smaller) and columns
+%   (0 = automatic from the rect's shape, else that many).
 %
 %   See also EphysAnalysisConfig.sourceCategories, EphysAnalysisConfig.categoryOf,
 %   EphysAnalysisConfig.defaultLayer.
@@ -348,6 +357,11 @@ opts.eventTrace = struct( ...
     'baselineWidth', 0.5, ...           % points
     'rowSpacing',    1.25, ...          % the step between the lines' rows, in row heights (1: the rows touch)
     'groupBands',    true);             % trials "rows": a pale band of each trial group's color behind its sub-rows
+opts.legend = struct( ...
+    'orientation', "auto", ...          % "auto" (horizontal when the rect is wider than tall, else vertical) | "vertical" | "horizontal"
+    'align',       "center", ...        % where the legend sits in its rect when narrower: "left" | "center" | "right"
+    'valign',      "middle", ...        % ... and when shorter: "top" | "middle" | "bottom"
+    'columns',     0);                  % 0 = automatic (NumColumns from the rect's aspect), else that many
 
 %   Type        Label                Short          Categories               Aligned SharesTime OneGroup MultiLayer DefaultBinding  Description
 rows = {
@@ -364,6 +378,7 @@ rows = {
     "spectrogram", "Spectrogram",      "Spectrogram", ["continuous" "point"],  true,   true,      true,    false,     "observation",  "A channel's or a unit's multitaper power over time from the event and frequency (Chronux), one trial group"
     "coherence",  "Coherence",         "Coherence",   ["point" "continuous"],  true,   false,     false,   true,      "observation",  "Multitaper coherence (Chronux) of a seed layer with a partner layer: field-field, spike-field or unit-unit"
     "eventTrace", "Event traces",      "EventTraces", "point",                 true,   true,      false,   true,      "fixed",        "Digital or derived lines as a logic analyzer shows them: a row per line, a bar (or a level) from each onset to its offset, epochs overlaid or a sub-row each"
+    "legend",     "Legend",            "Legend",      string.empty(1, 0),      false,  false,     false,   false,     "",             "The figure's legend in a panel of its own"
     };
 n = size(rows, 1);
 Type = strings(n, 1); Label = strings(n, 1); Short = strings(n, 1); DefaultBinding = strings(n, 1); Description = strings(n, 1);

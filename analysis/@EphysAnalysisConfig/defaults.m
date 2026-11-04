@@ -131,8 +131,8 @@ switch section
             'CLim',         [], ...
             'Grid',         true, ...
             'Legend',       true, ...
-            'LegendLocation',    "auto", ...  % "auto" (a grid's east of it, a single plot's its own) | "inside" (in the first tile) | "north" | "south" | "east" | "west" (outside the grid of plots)
-            'LegendOrientation', "auto", ...  % "auto" (horizontal north / south of the grid, else vertical) | "vertical" | "horizontal"
+            'LegendLocation',    "auto", ...  % "auto" (the figure's legend panel when it has one, else floating in the largest free space when the legend fits there, else inside the first panel) | "inside" (in the first panel) | "none"; never shrinks a plot area
+            'LegendOrientation', "auto", ...  % inside or floating: "auto" (vertical) | "vertical" | "horizontal" (a legend panel has its own options.orientation)
             'LegendBox',         false, ...   % the legend's outline and background
             'SortDepth',   true, ...       % units / channels: top of the probe first (probe y)
             'SortShank',    false, ...      % ... grouped by shank first (depth then orders within a shank)
@@ -330,8 +330,8 @@ switch section
             'lineStyle',   "");                 % "" = by layer order (- -- : -.); else one of OverlayLineStyles
 
     case "Panel"
-        % one panel of a figure (Figure.panels): a type, a cell of the grid and its span, optional alignment overrides,
-        % the type's options and the layers it draws
+        % one panel of a figure (Figure.panels): a type, its place on the page (rect), optional alignment overrides,
+        % the type's options and the layers it draws; the later of two overlapping panels is drawn on top
         T = EphysAnalysisConfig.panelTypes();
         s = struct( ...
             'id',      "", ...                  % unique within the figure ("" = "<type>_<n>")
@@ -342,13 +342,7 @@ switch section
             'yLabel',  "", ...                  % the y axis' label: "" = automatic
             'xSide',   "bottom", ...            % where the x axis' ticks and label go: "bottom" | "top"
             'ySide',   "left", ...              % ... and the y axis': "left" | "right" (not a stacked PSTH's: it has one on each side)
-            'row',     1, ...                   % the top-left cell
-            'col',     1, ...
-            'rowSpan', 1, ...
-            'colSpan', 1, ...
-            'size',    [1 1], ...               % [width height]: its share (0-1) of its cell
-            'align',   "center", ...            % where it sits in its cell when narrower: "left" | "center" | "right"
-            'valign',  "middle", ...            % ... and when shorter: "top" | "middle" | "bottom"
+            'rect',    [0 0 1 1], ...           % [x y width height], normalized 0-1 of the page, origin bottom-left (as a MATLAB Position); its box (Figure.layout.boxesMean)
             'ref',     "default", ...           % "default" (the figure's) or an EventRef
             'window',  "default", ...           % "default" (the figure's) or an EpochWindow (own epochs, the figure's selection)
             'selection', "default", ...         % "default" (the figure's) or a TrialSelection (own epochs and groups: its own colors and legend)
@@ -407,30 +401,23 @@ switch section
             'leaders',     true);                   % physical: a line from a moved tile to its site
 
     case "Figure"
-        % one figure (Figures): one observation's panels on a grid; the preview draws one observation, Generate many
+        % one figure (Figures): one observation's panels, each placed freely on the page (Panel.rect); the preview draws
+        % one observation, Generate many
         s = struct( ...
             'id',         "", ...               % unique among figures; with autoId, autoFigureId's ("" and not autoId = "figure_<n>")
             'autoId',     true, ...             % the id follows the panels and data (autoFigureId) until one of the user's own is typed
             'enabled',    true, ...
             'title',      "", ...               % "" = automatic: "<id>: <observation> - <ref label> (<n> epochs)"
             'size',       struct( ...           % the figure's page when exported (figureExportSize), and the preview's shape
-                'source',     "export", ...     % "export" (the Export section's FigureSizeCm, taller with the rows) | "own" (width x height in units)
+                'source',     "export", ...     % "export" (the Export section's FigureSizeCm) | "own" (width x height in units)
                 'width',      18, ...           % own: in units
                 'height',     12, ...
                 'units',      "cm", ...         % "px" (at the Export dpi) | "in" | "cm"
                 'lock',       false), ...       % the editor keeps the aspect ratio when one side is edited
             'observe',    EphysAnalysisConfig.defaults("Observe"), ...
-            'grid',       struct( ...
-                'rows',       1, ...
-                'cols',       1, ...
-                'rowHeights', [], ...           % [] = equal; else one positive relative height per row (its plot area's, exactly)
-                'colWidths',  [], ...           % [] = equal; else one positive relative width per column
-                'spacing',    "tight", ...      % the gap between panels' labels: "loose" | "compact" | "tight" | "none" (flush stacked time panels) | "custom"
-                'gapUnits',   "px", ...         % custom gaps: "px" | "%" (of the mean row's plot height / column's plot width)
-                'rowGap',     6, ...            % custom: the gap between every two rows
-                'colGap',     6, ...            % custom: the gap between every two columns
-                'rowGaps',    [], ...           % custom: [] = rowGap each; else rows - 1 gaps (between rows i and i + 1)
-                'colGaps',    []), ...          % custom: [] = colGap each; else cols - 1 gaps
+            'layout',     struct( ...           % how the panels' rects are read (BoxesMeans); the rects themselves are the panels'
+                'boxesMean',  "plot", ...       % "plot" (a rect is the panel's plot area; its labels are kept clear of the neighbors and the page edge) | "outer" (a rect encloses the panel with its labels)
+                'padding',    0.15), ...        % cm: the clear space between a panel's labels and its neighbors or the page edge (outer: between the rect's edge and the labels); two panels put flush stay flush
             'panels',     repmat(EphysAnalysisConfig.defaults("Panel"), 1, 0), ...
             'ref',        "default", ...        % "default" (Defaults.EventRef) or an EventRef
             'window',     "default", ...        % "default" (Defaults.Window) or an EpochWindow
@@ -438,7 +425,7 @@ switch section
             'sessions',   EphysAnalysisConfig.defaults("FigureSessions"), ...   % drawn across datasets (enabled) instead of per dataset
             'probe',      EphysAnalysisConfig.defaults("FigureProbe"), ...   % laid out on the probe (enabled): a tile per unit or channel, a page per dataset
             'latency',    EphysAnalysisConfig.defaults("Latency"), ...   % how the first-spike latencies and response onsets its panels read are found
-            'style',      EphysAnalysisConfig.defaults("Style"), ...   % YLim / CLim / MaxTiles / TileSpacing unused (panel options, grid.spacing)
+            'style',      EphysAnalysisConfig.defaults("Style"), ...   % YLim / CLim / MaxTiles / TileSpacing unused (panel options, the panels' rects)
             'aesthetics', PlotAesthetics.emptyRules());
 
     otherwise

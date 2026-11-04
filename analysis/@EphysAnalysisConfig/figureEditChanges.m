@@ -13,10 +13,11 @@ function changes = figureEditChanges(before, after, panel)
 %   that changes shape (an alignment of its own instead of "default", a
 %   struct array) is one entry.
 %   What belongs to one figure is left out: the figure's id, autoId,
-%   title, enabled, panels and remembered looks (aesthetics), its grid
-%   but for the spacing and the custom gaps (spacing, gapUnits, rowGap,
-%   colGap); the panel's id, type, title, axis labels, place, spans and
-%   size, layers, overlays and note text. The panel is compared only when
+%   title, enabled, panels and remembered looks (aesthetics); the panel's
+%   id, type, title, axis labels, place on the page (rect), layers,
+%   overlays and note text. How the figure's boxes are read and their
+%   padding (layout.boxesMean, layout.padding) are figure settings like
+%   any other. The panel is compared only when
 %   the edit kept the figure's panels (the same ids) and the panel's type.
 %   None: an edit of something left out only (a layer, the title).
 %
@@ -28,22 +29,17 @@ arguments
     panel (1,1) double = 0
 end
 changes = struct('scope', {}, 'path', {}, 'value', {});
-skip = ["id" "autoId" "title" "enabled" "panels" "aesthetics" "grid"];
+skip = ["id" "autoId" "title" "enabled" "panels" "aesthetics"];
 for f = string(fieldnames(after)).'
     if ismember(f, skip) || ~isfield(before, f); continue; end
     changes = leafChanges(changes, "figure", f, before.(f), after.(f));
-end
-for f = ["spacing" "gapUnits" "rowGap" "colGap"]
-    if isfield(before.grid, f) && isfield(after.grid, f)
-        changes = leafChanges(changes, "figure", "grid." + f, before.grid.(f), after.grid.(f));
-    end
 end
 pb = before.panels;
 pa = after.panels;
 if panel < 1 || panel > numel(pa) || numel(pb) ~= numel(pa) || ~isequal([pb.id], [pa.id]) || pb(panel).type ~= pa(panel).type
     return
 end
-skip = ["id" "type" "title" "xLabel" "yLabel" "row" "col" "rowSpan" "colSpan" "size" "layers" "overlays"];
+skip = ["id" "type" "title" "xLabel" "yLabel" "rect" "layers" "overlays"];
 p0 = pb(panel);
 p1 = pa(panel);
 for f = string(fieldnames(p1)).'

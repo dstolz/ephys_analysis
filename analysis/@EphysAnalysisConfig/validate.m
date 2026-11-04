@@ -27,10 +27,8 @@ function issues = validate(obj, opts)
 %               following layer, a warning for perGroup while the figure's
 %               selection groups by nothing (not on a session or probe
 %               figure, which ignore it); size: source and units, an own
-%               width and height above 0; grid: whole rows and cols >= 1,
-%               rowHeights / colWidths [] or one positive size each,
-%               spacing, gapUnits, rowGap / colGap >= 0, rowGaps / colGaps
-%               [] or one gap >= 0 between every two rows / columns;
+%               width and height above 0; layout: boxesMean (BoxesMeans),
+%               padding a finite number >= 0 (cm);
 %               latency ("<figure>.latency.<field>": method, baseline and
 %               baselineRate known values, the window minSec <= maxSec --
 %               a warning when it misses the figure's window --, the
@@ -38,10 +36,14 @@ function issues = validate(obj, opts)
 %               whole minSpikes >= 2, the CUSUM's bin and threshold > 0,
 %               drift and sustain >= 0; a warning when a rule that needs a
 %               baseline rate has none in the figure's window);
-%               panels: a known type, whole row / col / spans inside the
-%               grid, a size in (0, 1] each way, align and valign, no
-%               overlaps, ids of their own (warnings:
-%               no panels, cells no panel covers); a panel's own ref /
+%               panels: a known type, a rect of 4 finite numbers inside
+%               0-1 of the page (x, y >= 0, width and height > 0, x +
+%               width and y + height <= 1), ids of their own, one legend
+%               panel at most (warnings: no panels, two panels whose
+%               rects overlap by more than RectTol each way, rectOverlaps:
+%               the later one is drawn on top); a legend panel's
+%               orientation, align, valign and whole columns >= 0 (a
+%               warning for layers on it: it draws none); a panel's own ref /
 %               window / selection only on aligned types (its selection
 %               checked as the figure's), a "between" window only on a
 %               unit correlation, firing rate or tuning curve panel;
@@ -301,94 +303,49 @@ for k = 1:numel(obj.Figures)
         add("Figures", f0 + ".observe.data", "warning", "No layer follows the observation: the figure is the same for every " + kind + ".");
     end
 
-    % the grid
-    G = fg.grid;
-    gridOk = true;
-    for gf = ["rows" "cols"]
-        if ~isWhole(G.(gf))
-            add("Figures", f0 + ".grid." + gf, "error", "The grid's " + gf + " is a whole number, at least 1.");
-            gridOk = false;
-        end
+    % how the panels' rects are read
+    lay = fg.layout;
+    if ~ismember(lay.boxesMean, EphysAnalysisConfig.BoxesMeans)
+        add("Figures", f0 + ".layout.boxesMean", "error", "layout.boxesMean is plot (a rect is the panel's plot area) or outer " + ...
+            "(a rect holds the panel with its labels).");
     end
-    for gf = ["rowHeights" "colWidths"]
-        nWant = G.rows;
-        sizeWhat = "height per row";
-        if gf == "colWidths"; nWant = G.cols; sizeWhat = "width per column"; end
-        v = G.(gf);
-        if ~isempty(v) && ~(numel(v) == nWant && all(isfinite(v) & v > 0))
-            add("Figures", f0 + ".grid." + gf, "error", gf + " is [] (all equal) or one positive relative " + sizeWhat + ...
-                " (" + nWant + ").");
-        end
-    end
-    if ~ismember(G.spacing, EphysAnalysisConfig.GridSpacings)
-        add("Figures", f0 + ".grid.spacing", "error", "The grid's spacing is loose, compact, tight, none or custom.");
-    end
-    if ~ismember(G.gapUnits, EphysAnalysisConfig.GridGapUnits)
-        add("Figures", f0 + ".grid.gapUnits", "error", "The grid's gap units are px or %.");
-    end
-    for gf = ["rowGap" "colGap"]
-        if ~(isscalar(G.(gf)) && isfinite(G.(gf)) && G.(gf) >= 0)
-            add("Figures", f0 + ".grid." + gf, "error", "The grid's " + gf + " is a number, at least 0.");
-        end
-    end
-    for gf = ["rowGaps" "colGaps"]
-        nWant = G.rows - 1;
-        between = "rows";
-        if gf == "colGaps"; nWant = G.cols - 1; between = "columns"; end
-        v = G.(gf);
-        if ~isempty(v) && ~(numel(v) == nWant && all(isfinite(v) & v >= 0))
-            add("Figures", f0 + ".grid." + gf, "error", gf + " is [] (each the one gap) or a gap of at least 0 between " + ...
-                "every two " + between + " (" + max(nWant, 0) + ").");
-        end
+    if ~(isnumeric(lay.padding) && isscalar(lay.padding) && isfinite(lay.padding) && lay.padding >= 0)
+        add("Figures", f0 + ".layout.padding", "error", "layout.padding is a length in cm, at least 0.");
     end
     if isempty(fg.panels)
         add("Figures", f0 + ".panels", "warning", "The figure has no panels: it draws nothing.");
     end
     checkFigureLatency(fg, f0, fw);
 
-    % the panels' places
+    % the panels' places: ids, rects, overlaps, one legend panel
     pids = strings(1, 0);
     if ~isempty(fg.panels); pids = [fg.panels.id]; end
-    placed = true;
+    rectOk = true;
     for j = 1:numel(fg.panels)
         pj = fg.panels(j);
         p0 = f0 + "." + pj.id;
         if pj.id == "" || nnz(pids == pj.id) > 1
             add("Figures", p0 + ".id", "error", "Each panel of a figure needs an id of its own.");
         end
-        for pf = ["row" "col" "rowSpan" "colSpan"]
-            if ~isWhole(pj.(pf))
-                add("Figures", p0 + "." + pf, "error", "A panel's " + pf + " is a whole number, at least 1.");
-                placed = false;
-            end
-        end
-        if gridOk && isWhole(pj.row) && isWhole(pj.rowSpan) && pj.row + pj.rowSpan - 1 > G.rows
-            add("Figures", p0 + ".row", "error", sprintf("Panel ""%s"" reaches row %d; the grid has %d.", pj.id, pj.row + pj.rowSpan - 1, G.rows));
-        end
-        if gridOk && isWhole(pj.col) && isWhole(pj.colSpan) && pj.col + pj.colSpan - 1 > G.cols
-            add("Figures", p0 + ".col", "error", sprintf("Panel ""%s"" reaches column %d; the grid has %d.", pj.id, pj.col + pj.colSpan - 1, G.cols));
-        end
-        if ~(numel(pj.size) == 2 && all(isfinite(pj.size) & pj.size > 0 & pj.size <= 1))
-            add("Figures", p0 + ".size", "error", "A panel's size is [width height], each a share of its cell over 0 and at most 1.");
-        end
-        if ~ismember(pj.align, EphysAnalysisConfig.PanelAligns)
-            add("Figures", p0 + ".align", "error", "A panel's align is left, center or right.");
-        end
-        if ~ismember(pj.valign, EphysAnalysisConfig.PanelVAligns)
-            add("Figures", p0 + ".valign", "error", "A panel's valign is top, middle or bottom.");
+        r = pj.rect;
+        if ~(isnumeric(r) && numel(r) == 4 && all(isfinite(r)) && r(1) >= 0 && r(2) >= 0 && r(3) > 0 && r(4) > 0 ...
+                && r(1) + r(3) <= 1 + 1e-9 && r(2) + r(4) <= 1 + 1e-9)
+            add("Figures", p0 + ".rect", "error", "A panel's rect is [x y width height], inside 0-1 of the page, with a " + ...
+                "positive width and height.");
+            rectOk = false;
         end
     end
-    if gridOk && placed && ~isempty(fg.panels)
-        [cells, over] = EphysAnalysisConfig.figureCells(fg);
+    if rectOk && numel(fg.panels) > 1
+        over = EphysAnalysisConfig.rectOverlaps(fg);
         for j = 1:size(over, 1)
-            add("Figures", f0 + "." + pids(over(j, 2)) + ".row", "error", "Panels """ + pids(over(j, 1)) + """ and """ + ...
-                pids(over(j, 2)) + """ overlap: a cell holds one panel.");
+            add("Figures", f0 + "." + pids(over(j, 2)) + ".rect", "warning", "Panels """ + pids(over(j, 1)) + """ and """ + ...
+                pids(over(j, 2)) + """ overlap: the later one is drawn on top.");
         end
-        [ec, er] = find(cells.' == 0);   % row by row
-        if ~isempty(er)
-            add("Figures", f0 + ".grid", "warning", "No panel covers cell(s) " + strjoin(compose("(%d,%d)", er(:).', ec(:).'), ", ") + ...
-                ": they stay blank.");
-        end
+    end
+    legends = pids([string.empty(1, 0) fg.panels.type] == "legend");
+    if numel(legends) > 1
+        add("Figures", f0 + "." + legends(2) + ".type", "error", "A figure has one legend panel at most (" + ...
+            strjoin(legends, ", ") + ").");
     end
 
     % each panel: type, alignment, layers, options
@@ -443,7 +400,12 @@ for k = 1:numel(obj.Figures)
         Lp = pj.layers;
         on = false(1, 0);
         if ~isempty(Lp); on = [Lp.enabled]; end
-        if ~any(on)
+        if isempty(tr.Categories{1})   % a legend panel: no layers to draw
+            if any(on)
+                add("Figures", p0 + ".layers", "warning", A + " draws no layers: they are not drawn.");
+            end
+            on = false(size(on));
+        elseif ~any(on)
             add("Figures", p0 + ".layers", "warning", "The panel has no enabled layer: it draws nothing.");
         elseif nnz(on) > 1 && ~tr.MultiLayer && ~(pj.type == "waveforms" && isfield(pj.options, 'layout') && pj.options.layout == "probe")
             add("Figures", p0 + ".layers", "warning", A + " draws one layer: only the first enabled one is drawn.");
@@ -728,6 +690,19 @@ for k = 1:numel(obj.Figures)
                 checkSpectral(pj, op, pw, Lp(on), o0, p0, find(on));
             case "eventTrace"
                 checkEventTrace(op, o0);
+            case "legend"
+                if ~ismember(op.orientation, ["auto" "vertical" "horizontal"])
+                    add("Figures", o0 + ".orientation", "error", "A legend panel's orientation is auto, vertical or horizontal.");
+                end
+                if ~ismember(op.align, ["left" "center" "right"])
+                    add("Figures", o0 + ".align", "error", "A legend panel's align is left, center or right.");
+                end
+                if ~ismember(op.valign, ["top" "middle" "bottom"])
+                    add("Figures", o0 + ".valign", "error", "A legend panel's valign is top, middle or bottom.");
+                end
+                if ~(isscalar(op.columns) && isfinite(op.columns) && op.columns >= 0 && op.columns == round(op.columns))
+                    add("Figures", o0 + ".columns", "error", "A legend panel's columns is a whole number, 0 (automatic) or more.");
+                end
         end
         if isfield(op, 'stack'); checkStack(pj.type, op, o0); end
         if isfield(op, 'yLimMode'); checkYLimMode(op, o0); end
@@ -1227,8 +1202,9 @@ issues = table(Section, Field, Severity, Message);
         if ~ismember(st.TileSpacing, ["loose" "compact" "tight" "none"])
             add(sec, id + ".style.TileSpacing", "error", "TileSpacing is loose, compact, tight or none.");
         end
-        if ~ismember(st.LegendLocation, ["auto" "inside" "north" "south" "east" "west"])
-            add(sec, id + ".style.LegendLocation", "error", "LegendLocation is auto, inside, north, south, east or west.");
+        if ~ismember(st.LegendLocation, ["auto" "inside" "none"])
+            add(sec, id + ".style.LegendLocation", "error", "LegendLocation is auto (the legend panel, else free space, " + ...
+                "else inside the first panel), inside or none.");
         end
         if ~ismember(st.LegendOrientation, ["auto" "vertical" "horizontal"])
             add(sec, id + ".style.LegendOrientation", "error", "LegendOrientation is auto, vertical or horizontal.");

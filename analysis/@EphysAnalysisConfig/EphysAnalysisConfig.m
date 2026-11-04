@@ -17,12 +17,18 @@ classdef EphysAnalysisConfig
     %               selection is "default"
     %     Figures   struct array, one entry per figure (defaults("Figure")):
     %               one observation's panels (a unit, a channel or the
-    %               dataset: observe) on a grid with spans (grid), each
+    %               dataset: observe), each placed freely on the page by
+    %               its rect (layout says whether a rect is the plot area
+    %               or the panel with its labels, and the padding kept
+    %               between them), each
     %               panel of a type (panelTypes) drawing one or more layers,
     %               each layer bound to a source (FigureSources) that either
     %               follows the observation or names fixed items: id,
-    %               autoId, enabled, title, observe, grid, panels, ref,
+    %               autoId, enabled, title, observe, layout, panels, ref,
     %               window, selection, sessions, probe, style, aesthetics.
+    %               placePanel, placeBlock, removePanel and orderPanel edit
+    %               the panels' places (freeRect, rectOverlaps and
+    %               panelOrder read them).
     %               sessions (defaults("FigureSessions")) with enabled true
     %               makes it a session figure: drawn once across the ticked
     %               (or listed) datasets, each layer merged across them
@@ -49,8 +55,10 @@ classdef EphysAnalysisConfig
     %               (defaults("Panel")): id, type, title, box (the axes'
     %               box: "auto" = the design's, "on", "off"), xLabel and
     %               yLabel ("" = automatic), xSide ("bottom" | "top") and
-    %               ySide ("left" | "right"), row, col,
-    %               rowSpan, colSpan, ref, window, selection (its own:
+    %               ySide ("left" | "right"), rect ([x y width height],
+    %               0-1 of the page from its bottom-left corner; the later
+    %               of two overlapping panels is drawn on top), ref,
+    %               window, selection (its own:
     %               its own groups, colors and legend), layers, options
     %               (the type's DefaultOptions), note
     %               (a Note) and overlays (Overlays drawn on
@@ -165,17 +173,18 @@ classdef EphysAnalysisConfig
         % Where a panel's note sits (note.placement): outside the panel, over it, or at a point.
         NotePlacements = ["below" "above" "right" "left" "northwest" "north" "northeast" "west" "center" "east" ...
             "southwest" "south" "southeast" "custom"]
-        % The gap between a figure's panels (grid.spacing): a named gap of GridSpacingPx px (in that order), or custom
-        % (grid.rowGap / colGap, or the lists rowGaps / colGaps, in grid.gapUnits); and where a panel smaller than its
-        % cell sits in it (panel.align, panel.valign).
-        GridSpacings  = ["loose" "compact" "tight" "none" "custom"]
-        GridSpacingPx = [24 12 6 0]
-        GridGapUnits  = ["px" "%"]
+        % What a panel's rect (Panel.rect) is (Figure.layout.boxesMean): its plot area, its labels kept clear of the
+        % neighbors and the page edge, or the panel with its labels.
+        BoxesMeans = ["plot" "outer"]
+        % The units a rect is shown and typed in (figureRectConvert): 0-1 of the page, percent of it, or a length from
+        % the page's edge.
+        RectUnits  = ["normalized" "%" "cm" "in" "px"]
+        % Two rects closer than this (0-1 of the page) touch: an overlap no deeper is none (rectOverlaps), an edge
+        % this near another lines up with it (figureNeighbors).
+        RectTol    = 0.005
         % A figure's page when exported (size.source, size.units): the Export section's size, or its own, in px (at the Export dpi), in or cm.
         FigureSizeSources = ["export" "own"]
         FigureSizeUnits   = ["px" "in" "cm"]
-        PanelAligns   = ["left" "center" "right"]
-        PanelVAligns  = ["top" "middle" "bottom"]
         % The sides a panel's x and y axes take, their ticks and label (panel.xSide, panel.ySide).
         PanelXSides   = ["bottom" "top"]
         PanelYSides   = ["left" "right"]
@@ -273,12 +282,13 @@ classdef EphysAnalysisConfig
             %   autoFigureId's, "Raster+PSTH units", or "<that> (n)" when
             %   another figure has it, and it follows the figure's panels
             %   and data from then on. The templates (figureTemplates):
-            %   "rasterPsth" (the default: a 2 x 1 grid, a raster flush over
-            %   a PSTH, each with a units layer following the observed
-            %   unit), one per panel type ("psth", "raster", "continuous",
-            %   "heatmap", "waveforms", "probemap", "corrmap":
-            %   one panel holding defaultLayer(type)) and "blank" (an
-            %   empty 1 x 1 grid). A figure that names no observe.data
+            %   "rasterPsth" (the default: a raster on the page's top half
+            %   flush over a PSTH on its bottom half, each with a units
+            %   layer following the observed unit), one per panel type
+            %   ("psth", "raster", "continuous", "heatmap", "waveforms",
+            %   "probemap", "corrmap", ...: one panel over the whole page
+            %   holding defaultLayer(type)) and "blank" (no panels). A
+            %   figure that names no observe.data
             %   (every template) observes what its following layers read
             %   (followedData: units for the unit templates, LFP for
             %   continuous and spectrogram, the dataset for a heat map, a
@@ -423,13 +433,13 @@ classdef EphysAnalysisConfig
         [p, unknown] = normalizePanel(in, path)
         [L, unknown] = normalizeLayer(in, path)
         id = autoFigureId(fig)
-        [cells, overlap] = figureCells(fig)
-        fig = placePanel(fig, panel, where, anchorId, at)
-        [fig, ids] = placePanels(fig, block, where, anchorId, opts)
+        fig = placePanel(fig, panel, where, anchorId, rect)
+        [fig, ids] = placeBlock(fig, block, where, anchorId, rect, opts)
         fig = removePanel(fig, id)
-        [fig, what, removed] = removeCell(fig, rc, how)
-        T = cellRemovals(fig, rc)
-        [fig, moved] = movePanel(fig, id, direction)
+        [fig, k] = orderPanel(fig, id, step)
+        rect = freeRect(fig, opts)
+        pairs = rectOverlaps(fig)
+        order = panelOrder(fig)
         [fig, changed] = adoptPanelOptions(fig, panelId)
         [tf, kept] = panelTakes(P, Q, path)
         changes = figureEditChanges(before, after, panel)
@@ -656,7 +666,9 @@ classdef EphysAnalysisConfig
             %   for raster / psth / heatmap / waveforms / probemap /
             %   corrmap, LFP for continuous; an events layer, fixed, for
             %   eventTrace) and the
-            %   type's DefaultBinding, so a new panel draws at once.
+            %   type's DefaultBinding, so a new panel draws at once. A type
+            %   that draws no layers (a legend panel: no Categories) gets
+            %   none: a 1 x 0 Layer struct.
             %   Error: EphysAnalysisConfig:BadValue (an unknown type).
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
@@ -664,6 +676,10 @@ classdef EphysAnalysisConfig
                 error('EphysAnalysisConfig:BadValue', 'Unknown panel type "%s" (types: %s).', type, strjoin(T.Type, ", "));
             end
             cats = T.Categories{row};
+            if isempty(cats)
+                L = repmat(EphysAnalysisConfig.defaults("Layer"), 1, 0);
+                return
+            end
             S = EphysAnalysisConfig.sourceCategories();
             srcs = S.Sources{S.Category == cats(1)};
             L = EphysAnalysisConfig.defaults("Layer");

@@ -43,6 +43,9 @@ function [fig, notes] = legacyPlotToFigure(p, defaults, layout)
 %   The plot's source (units / detected) is the layers' source and, for a
 %   figure drawn per unit, observe.data; its unit filter is observe.units
 %   when the figure observes units, else the fixed layer's units.
+%   The panels are stacked top to bottom over the whole page, flush, each
+%   as tall as its share of the plot's rows (stackedRects: the unit's
+%   panels twice the aux signal's).
 %
 %   By kind
 %     psth, grid      per unit: a raster panel (withRaster) over a PSTH
@@ -51,8 +54,8 @@ function [fig, notes] = legacyPlotToFigure(p, defaults, layout)
 %                     drawn as marks) on the raster, histStyle / fill /
 %                     fillAlpha / normalize / stack (true: "groups") /
 %                     stackSpacing on the PSTH; the aux signal as a continuous panel below (or
-%                     above the raster) with a fixed AUX layer; spacing
-%                     "none"
+%                     above the raster) with a fixed AUX layer; all
+%                     flush
 %     psth, overlay   per dataset: one PSTH panel with a fixed units layer
 %                     (the plot's filter) and aggregate "mean"
 %     raster          per unit: one raster panel, events layers, aux
@@ -131,7 +134,7 @@ if ~isequal(st.MaxTiles, sd.MaxTiles)
     addNote(sprintf("Tiles per page (MaxTiles %g) is not used: a figure draws one observation per page.", st.MaxTiles));
 end
 if ~isequal(st.TileSpacing, sd.TileSpacing)
-    addNote(sprintf("TileSpacing ""%s"" is not used: the figure's panels take grid.spacing.", st.TileSpacing));
+    addNote(sprintf("TileSpacing ""%s"" is not used: the figure's panels are placed by their rects.", st.TileSpacing));
 end
 if ~isempty(st.XLim)
     addNote(sprintf("XLim %s is not used: the time panels take the epoch window.", mat2str(st.XLim)));
@@ -160,7 +163,7 @@ end
 
 % --- the panels, top to bottom ---------------------------------------------------------------------
 P = {};          % partial panel structs
-heights = [];    % relative row heights
+heights = [];    % relative panel heights, top to bottom
 grouped = ~isempty(spec.selection.groupBy);
 follow = struct('source', p.source, 'binding', "observation");
 switch p.kind
@@ -193,7 +196,6 @@ switch p.kind
                     numel(p.rasterEvents)));
             end
             addPanel(panelOf("psth", psthOptions(), {follow}), 1);
-            fig.grid = struct('spacing', "none");
         end
         if p.stack && p.stackRaster && p.withRaster && spec.layout ~= "overlay"
             addNote("stackRaster (each group's raster in its PSTH row) is not available: the raster is a panel of its own above the stack.");
@@ -202,7 +204,6 @@ switch p.kind
     case "raster"
         observeUnits();
         addPanel(panelOf("raster", rasterOptions(), [{follow}, markLayers()]), 1);
-        fig.grid = struct('spacing', "none");
         addAux();
     case "evoked"
         o = continuousOptions();
@@ -313,22 +314,12 @@ if lost > 0
     addNote(sprintf("%d overlay(s) not carried: the figure has no panel of the kind they name.", lost));
 end
 
-% --- the grid ---------------------------------------------------------------------------------------
+% --- the panels' places: stacked flush, top to bottom ------------------------------------------------
 n = numel(P);
+R = stackedRects(heights);
 for j = 1:n
-    P{j}.row = j;
-    P{j}.col = 1;
+    P{j}.rect = R(j, :);
 end
-g = struct('rows', max(n, 1), 'cols', 1);
-if isfield(fig, 'grid') && isfield(fig.grid, 'spacing') && n > 1
-    g.spacing = fig.grid.spacing;
-end
-if n > 1 && numel(unique(heights)) > 1
-    g.rowHeights = heights;
-elseif n > 1
-    g.rowHeights = ones(1, n);
-end
-fig.grid = g;
 T = EphysAnalysisConfig.panelTypes();
 for j = 1:n   % the plot's options, in every panel that takes them
     if P{j}.plotOptions
@@ -443,6 +434,17 @@ fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
             P{end+1} = x;
             heights(end+1) = h;
         end
-        fig.grid = struct('spacing', "none");
     end
+end
+
+
+function R = stackedRects(heights)
+%stackedRects  Panels stacked flush over the whole page, top to bottom, each as tall as its share of HEIGHTS.
+%   R(j, :) = [0 y_j 1 h_j / sum(h)], y_j = 1 - cumsum(h)(j) / sum(h):
+%   the first panel on top. No heights: one row each of equal height.
+h = reshape(double(heights), [], 1);
+if isempty(h); R = zeros(0, 4); return; end
+c = cumsum(h) / sum(h);
+R = [zeros(numel(h), 1), 1 - c, ones(numel(h), 1), h / sum(h)];
+R(end, 2) = 0;   % the last one on the page's bottom edge exactly
 end

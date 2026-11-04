@@ -1,5 +1,5 @@
 function onPanelSelected(obj, k)
-%onPanelSelected  Pick panel K of the selected figure (a click on its patch in the schematic): its rows fill the editor.
+%onPanelSelected  Pick panel K of the selected figure (Ctrl+Click on it in the preview, Ctrl+] and Ctrl+[, Ctrl+Alt+arrows): its rows fill the editor.
 %   Its first layer is picked. The figure is unchanged, so the preview
 %   stays as it is.
 f = obj.SelectedFigure;

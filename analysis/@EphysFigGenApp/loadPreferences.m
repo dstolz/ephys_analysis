@@ -6,7 +6,9 @@ function loadPreferences(obj, openLast)
 %   FigureSupersectionsCollapsed (the Figures tab's Auto box, on by
 %   default, and its editor's collapsed sections and supersections),
 %   FigureGroupBy and FigureGroupsCollapsed (the figure tree's
-%   grouping and collapsed groups), ApplyTicked, ApplySeen and ApplyReplot
+%   grouping and collapsed groups), FigureRectUnits, FigureSnap and
+%   FigureSnapStep (the Panels section's units, Snap box and step:
+%   onRectUnitsChanged, onSnapChanged), ApplyTicked, ApplySeen and ApplyReplot
 %   (Apply to figures' ticks and its Replot box: onApplyToFigures),
 %   PanelOptions (the options last set on a panel of each type, which a
 %   new panel starts from: rememberPanelOptions, onNewPanel), ReportWorkers
@@ -42,6 +44,18 @@ if AppPrefs.ispref(g, 'FigureGroupBy')
 end
 if AppPrefs.ispref(g, 'FigureGroupsCollapsed')
     obj.FigureGroupsCollapsed = reshape(string(AppPrefs.getpref(g, 'FigureGroupsCollapsed')), 1, []);
+end
+if AppPrefs.ispref(g, 'FigureRectUnits')
+    u = string(AppPrefs.getpref(g, 'FigureRectUnits'));
+    if isscalar(u) && ismember(u, EphysAnalysisConfig.RectUnits); obj.FigureRectUnits = u; end
+end
+if AppPrefs.ispref(g, 'FigureSnap'); obj.FigureSnap = isequal(AppPrefs.getpref(g, 'FigureSnap'), true); end
+if AppPrefs.ispref(g, 'FigureSnapStep')
+    v = AppPrefs.getpref(g, 'FigureSnapStep');
+    if isstruct(v) && isscalar(v) && isfield(v, 'value') && isfield(v, 'units') && isnumeric(v.value) && isscalar(v.value) ...
+            && isfinite(v.value) && v.value > 0 && isscalar(string(v.units)) && ismember(string(v.units), EphysAnalysisConfig.RectUnits)
+        obj.FigureSnapStep = struct('value', double(v.value), 'units', string(v.units));   % shown in the units picked (showPanelPlace)
+    end
 end
 if AppPrefs.ispref(g, 'ApplyTicked'); obj.ApplyTicked = reshape(string(AppPrefs.getpref(g, 'ApplyTicked')), 1, []); end
 if AppPrefs.ispref(g, 'ApplySeen'); obj.ApplySeen = reshape(string(AppPrefs.getpref(g, 'ApplySeen')), 1, []); end

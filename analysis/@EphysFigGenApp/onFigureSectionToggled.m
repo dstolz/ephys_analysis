@@ -9,5 +9,4 @@ i = find([obj.FigureSections.Name] == name, 1);
 if isempty(i); return; end
 obj.FigureSections(i).Expanded = ~obj.FigureSections(i).Expanded;
 obj.layoutFigureEditor();
-if name == "arrangement"; obj.drawFigureSchematic(); end   % the schematic is made afresh when it shows again
 end

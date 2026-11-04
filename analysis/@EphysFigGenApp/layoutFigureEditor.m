@@ -53,10 +53,6 @@ end
 rh = [num2cell([hs(on) zeros(1, nnz(~on))]) {'1x'}];
 if ~isequal(obj.FigureEditorGrid.RowHeight, rh); obj.FigureEditorGrid.RowHeight = rh; end
 obj.FigureSections = S;
-i = find(names == "arrangement", 1);
-if ~isempty(i) && ~(h(i) > 0 && S(i).Expanded) && isfield(obj.FigureEditor, 'schematicPanel')
-    obj.FigureEditor.schematicPanel.UserData = false;   % its axes is made afresh when it shows (drawFigureSchematic)
-end
 end
 
 
@@ -75,7 +71,7 @@ if U.Name == "panel"
         if isempty(lbl); lbl = p.type; end
         t = t + "   " + p.id + " (" + lbl + ")";
     elseif ~shows
-        t = t + "   (none picked: add a panel, or click one in the schematic)";
+        t = t + "   (none picked: add a panel, or Ctrl+Click one in the preview)";
     end
 end
 if ismac; chord = "Option+" + U.Key; else; chord = "Alt+" + U.Key; end

@@ -74,9 +74,10 @@ switch key
         tail = "is for a figure of units drawn across datasets.";
     case "sesMappingFile"
         tail = "shows when the units are matched by a mapping file (Units matched by: Mapping).";
-    case {"selPanel" "rowSpan" "colSpan" "rowHeight" "colWidth" "panelButtons" "panelWidth" "panelAlign" "panelType" ...
-            "panelTitle" "panelBox" "panelXLabel" "panelXSide" "panelYLabel" "panelYSide"}
-        tail = "is a setting of the selected panel: pick one in the schematic.";
+    case {"selPanel" "rectXY" "rectWH" "panelButtons" "panelType" "panelTitle"}
+        tail = "is a setting of the selected panel: pick one with Ctrl+] or Ctrl+Click on it in the preview.";
+    case {"panelBox" "panelXLabel" "panelXSide" "panelYLabel" "panelYSide"}
+        tail = "is a setting of the selected panel's axes: pick a panel that draws data (a legend panel has no axes).";
     case "group"
         tail = "is an option of heat map, unit correlation and spectrogram panels (and a coherence panel drawn over time); " + ...
             "a heat map of one unit's epochs and a stacked panel (Stack: one row per group) draw every group.";
@@ -173,6 +174,8 @@ for f = ["etDisplay" "etTrials" "etColorBy" "etHeight" "etEdge" "etMinWidth" "et
     T.(f) = o("eventTrace", "");
 end
 T.value = o("probemap", "");
+T.legOrient = o("legend", "");
+T.legAlign = T.legOrient;
 T.unitLabels = o("probemap", "");
 T.waveColor = o("probemap", "with Waveform: Show, and Value: rate or nSpikes");
 for f = ["metric" "correlation" "fisherZ" "detrend"]; T.(f) = o("corrmap", ""); end

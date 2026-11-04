@@ -8,8 +8,7 @@ function onFigurePanelClicked(obj, id, panel, ctrl, fromWindow)
 %   with the app's own record of the key (CtrlHeld: onKeyPress), so a
 %   right-click is left to its menu. The figure (when the click is in a
 %   window of its own, the app comes to the front and the Figures tab
-%   shows) and the panel are selected as a click on the panel in the
-%   arrangement's schematic does (onFigureSelected, onPanelSelected: the
+%   shows) and the panel are selected (onFigureSelected, onPanelSelected: the
 %   editor shows it, the preview outlines it), then the editor scrolls to
 %   the Selected panel section (gotoFigureSection: opened if collapsed).
 %   Picking a panel is not an edit: nothing is recorded in the undo

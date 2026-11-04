@@ -1,7 +1,8 @@
 function onKeyPress(obj, evt)
 %onKeyPress  The figure's key presses: on the Figures tab the editor's supersections and sections, the search field, the columns, the panels and the observations.
 %   EVT is the WindowKeyPressFcn event (Key, Modifier, Character). Only
-%   with the Figures tab showing (but Escape during a drag); Cmd instead of
+%   with the Figures tab showing (but Escape during an Arrange drag or
+%   Set corners); Cmd instead of
 %   Ctrl on a Mac; a digit on the digit row or the number pad:
 %     Alt+1 to Alt+3        a supersection: Figure, Panel, Look
 %                           (gotoFigureSuper; Option on a Mac)
@@ -15,7 +16,8 @@ function onKeyPress(obj, evt)
 %     Ctrl+], Ctrl+[        the next or previous panel of the figure, in
 %                           its panel order, round at the ends
 %     Ctrl+Alt+arrows       the panel above, below, left or right of the
-%                           selected one (stepFigurePanel)
+%                           selected one, by the panels' rects
+%                           (stepFigurePanel)
 %     Page Up, Page Down    the previous and next observation
 %                           (onFigureObservationStep), left alone while a
 %                           preview computes or draws
@@ -41,14 +43,15 @@ function onKeyPress(obj, evt)
 %   a match picked in its list), Enter goes to the match picked (else the
 %   first) with the focus on its control, Down and Up (after typing) pick
 %   another match, and Escape clears the search (gotoFigureRow). Escape,
-%   while a panel is dragged in the schematic, cancels the drag
-%   (cancelSchematicDrag), on any tab. A chord with more modifiers than
+%   while Arrange drags a panel or waits for Set corners' clicks
+%   (FigureArrangeMode), cancels it (cancelArrange), on any tab. A chord with more modifiers than
 %   these is left alone (AltGr is Ctrl+Alt on Windows: a digit or a letter
 %   with it is a character, not a key of the app's).
 key = string(evt.Key);
 obj.CtrlHeld = any(ismember([key string(evt.Modifier)], ["control" "command"]));
-if key == "escape" && ~isempty(obj.FigureDrag)
-    obj.cancelSchematicDrag();   % a panel dragged in the Figures tab's schematic stays where it was
+if key == "escape" && obj.FigureArrangeMode ~= ""
+    obj.cancelArrange("");   % a drag or Set corners over the preview: nothing changes
+    obj.setStatus("Arrange: canceled; the figure is unchanged.");
     return
 end
 if obj.Tabs.SelectedTab ~= obj.TabFigures; return; end

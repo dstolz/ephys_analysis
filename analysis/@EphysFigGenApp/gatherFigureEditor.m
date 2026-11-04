@@ -3,8 +3,7 @@ function fig = gatherFigureEditor(obj)
 %   The figure's rows, the selected panel's (SelectedPanel) and that
 %   panel's selected layer's (SelectedLayer); the other panels and layers,
 %   and every field without a control, keep their values. The panel's type
-%   is not read here (onPanelTypeChanged changes it), nor its place (the
-%   Arrangement's buttons). With a section's "Use default" box ticked the
+%   is not read here (onPanelTypeChanged changes it). With a section's "Use default" box ticked the
 %   figure's ref / window / selection is "default"; unticked (or edited:
 %   onFigureAlignEdited), the figure takes the values its controls show.
 %   The panel's ref and window are its own where it has them
@@ -12,13 +11,15 @@ function fig = gatherFigureEditor(obj)
 %   selection is its own while "Trial selection as the figure" is
 %   unticked (the selection rows of the Panel alignment section), else
 %   "default". The
-%   panel's spans, its row's height, its column's width and its own size
-%   (% of its cell) are written only when their spinners differ from what
-%   applyFigureEditor showed, so a value they cannot show is kept as
-%   stored; a row height or column width of 1 keeps equal rows ([] sizes)
-%   equal. The figure's gaps beyond the Spacing drop-down (custom's units
-%   and values) are the Spacing window's (figureSpacingDialog), kept here
-%   as they are. The panel's options are its Options rows', every field
+%   panel's rect (the Panels section's Position and Size, in the units
+%   picked) and the figure's padding are written only where a field no
+%   longer shows what showPanelPlace showed (on the page, dpi and units
+%   it showed them on), so a value the fields round is kept as stored: a
+%   field typed is converted to 0-1 of the page (figureRectConvert), the
+%   padding to cm, and the rect kept on the page (x and y at least 0,
+%   width and height at least 0.01 and inside the page: a position typed
+%   moves the panel, a size typed is cut at the page's edge). Boxes mean
+%   is the drop-down's. The panel's options are its Options rows', every field
 %   of its type, but its waveform: the Waveform section's rows (the time
 %   span [] while both its fields are blank, ampLim only with the fixed
 %   scale).
@@ -132,8 +133,14 @@ L.cusumThreshold = E.latCusumSD.Value;
 L.cusumDrift = E.latCusumDrift.Value;
 fig.latency = L;
 
-% arrangement and appearance
-fig.grid.spacing = string(E.spacing.Value);
+% what a rect means and the padding (in the units shown: cm when edited); appearance
+fig.layout.boxesMean = string(E.boxesMean.Value);
+[page, dpi, units] = shownOn(obj, E);
+[~, d] = unitsShown([], "", units);
+tol = 0.5 * 10^-d + 1e-9;
+if abs(E.padding.Value - unitsShown(double(fig.layout.padding), "cm", units, page, dpi, "x")) > tol
+    fig.layout.padding = max(0, figureRectConvert(E.padding.Value, units, "cm", page, dpi, "x"));
+end
 s = fig.style;
 s.FontSize = E.fontSize.Value;
 s.LineWidth = E.lineWidth.Value;
@@ -187,23 +194,17 @@ if j >= 1 && j <= numel(fig.panels)
     p.yLabel = strtrim(string(E.panelYLabel.Value));
     p.xSide = string(E.panelXSide.Value);
     p.ySide = string(E.panelYSide.Value);
-    % the place and sizes only when edited: the controls cannot show every stored value (Validate reports a bad one)
-    if E.rowSpan.Value ~= shownSpan(p.rowSpan, E.rowSpan.Limits); p.rowSpan = E.rowSpan.Value; end
-    if E.colSpan.Value ~= shownSpan(p.colSpan, E.colSpan.Limits); p.colSpan = E.colSpan.Value; end
-    if E.rowHeight.Value ~= shownSize(fig.grid.rowHeights, p.row)
-        fig.grid.rowHeights = setSize(fig.grid.rowHeights, p.row, fig.grid.rows, E.rowHeight.Value);
+    % its rect only where a field was edited: the fields round what they show (Validate reports a bad rect)
+    r = double(p.rect);
+    if numel(r) == 4 && all(isfinite(r))
+        typed = [E.rectX.Value E.rectY.Value E.rectW.Value E.rectH.Value];
+        edited = abs(typed - unitsShown(r, "normalized", units, page, dpi, "rect")) > tol & isfinite(typed);
+        if any(edited)
+            n = figureRectConvert(typed, units, "normalized", page, dpi, "rect");
+            r(edited) = n(edited);
+            p.rect = onPage(r, edited);
+        end
     end
-    if E.colWidth.Value ~= shownSize(fig.grid.colWidths, p.col)
-        fig.grid.colWidths = setSize(fig.grid.colWidths, p.col, fig.grid.cols, E.colWidth.Value);
-    end
-    shown = shownShare(p.size);
-    for d = 1:2   % the panel's own size in its cell, % in the editor
-        sp = E.panelWidth;
-        if d == 2; sp = E.panelHeight; end
-        if sp.Value ~= shown(d); p.size(d) = sp.Value / 100; end
-    end
-    p.align = string(E.panelAlign.Value);
-    p.valign = string(E.panelVAlign.Value);
     own = E.panelSame.UserData;
     if ~(islogical(own) && numel(own) == 2); own = [false false]; end
     ownSel = ~E.panelSameSel.Value;   % "Trial selection as the figure" unticked: the panel's own
@@ -259,6 +260,12 @@ if isfield(op, 'param')   % a tuning curve's parameters
     op.seriesParam = strtrim(string(E.seriesParam.Value));
 end
 if p.type == "rate"; op.display = string(E.rateDisplay.Value); end
+if p.type == "legend"
+    op.orientation = string(E.legOrient.Value);
+    op.columns = round(E.legColumns.Value);
+    op.align = string(E.legAlign.Value);
+    op.valign = string(E.legVAlign.Value);
+end
 if isfield(op, 'layout'); op.layout = string(E.waveLayout.Value); end
 if isfield(op, 'rasterSort')
     op.rasterSort = strtrim(string(E.rasterSort.Value));
@@ -468,40 +475,41 @@ if L.lineStyle == "auto"; L.lineStyle = ""; end
 end
 
 
-function v = shownSize(sizes, i)
-%shownSize  The relative size applyFigureEditor shows for row (column) I.
-v = 1;
-if numel(sizes) >= i && isfinite(sizes(i)) && sizes(i) > 0; v = sizes(i); end
+function [page, dpi, units] = shownOn(obj, E)
+%shownOn  The page ([w h] cm), dpi and units the Panels section's fields were shown on (showPanelPlace), else the figure's now.
+S = E.rectUnits.UserData;
+if isstruct(S) && isscalar(S) && all(isfield(S, {'page', 'dpi', 'units'}))
+    page = S.page;
+    dpi = S.dpi;
+    units = S.units;
+    return
+end
+[page, dpi] = figurePage(obj);
+units = obj.FigureRectUnits;
 end
 
 
-function v = shownSpan(span, limits)
-%shownSpan  The span applyFigureEditor shows.
-v = min(limits(2), max(1, round(span)));
+function r = onPage(r, edited)
+%onPage  Rect R ([x y w h], 0-1 of the page) kept on the page: x, y >= 0, w, h >= 0.01, inside [0 1]; EDITED says which parts were typed.
+%   A side too long for the page is cut at its edge when its size was
+%   typed; else (its position typed) the panel moves back onto the page.
+minSize = 0.01;
+r(3:4) = min(max(r(3:4), minSize), 1);
+r(1:2) = min(max(r(1:2), 0), 1 - minSize);
+for a = 1:2   % x with the width, y with the height
+    if r(a) + r(a + 2) <= 1; continue; end
+    if edited(a + 2) && ~edited(a)
+        r(a + 2) = 1 - r(a);   % the size typed: cut at the page's edge
+    else
+        r(a) = 1 - r(a + 2);   % the position typed: back onto the page
+    end
+end
 end
 
 
 function v = shownIn(x, limits)
 %shownIn  The value applyFigureEditor shows for X in a spinner of LIMITS (clipped to them).
 v = min(limits(2), max(limits(1), x));
-end
-
-
-function v = shownShare(s)
-%shownShare  The panel size applyFigureEditor shows, % of its cell each way (100 for what is not two numbers).
-v = [100 100];
-if numel(s) == 2 && all(isfinite(s)); v = min(100, max(1, 100 * reshape(s, 1, 2))); end
-end
-
-
-function s = setSize(s, i, n, v)
-%setSize  Relative sizes S with entry I set to V: [] (equal) stays [] while V is 1.
-if isempty(s)
-    if v == 1; return; end
-    s = ones(1, n);
-end
-if numel(s) < n; s(end+1:n) = 1; end
-s(i) = v;
 end
 
 

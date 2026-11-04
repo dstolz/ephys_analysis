@@ -1,8 +1,9 @@
 function buildFiguresTab(obj)
-%buildFiguresTab  The Figures tab: the figures, their editor with the arrangement's schematic, and the preview of one observation.
+%buildFiguresTab  The Figures tab: the figures, their editor, and the preview of one observation.
 %   A figure (the Figures section of the config) is designed for one
-%   observation -- a sorted unit, a signal channel, or the dataset -- as a
-%   grid of panels (raster, PSTH, continuous signal, heat map, ...), each
+%   observation -- a sorted unit, a signal channel, or the dataset -- as
+%   panels placed freely on its page (raster, PSTH, continuous signal,
+%   heat map, ..., each at its rect), each
 %   holding layers of data that follow the observation or name fixed items.
 %   Three columns:
 %   Left    the figures as a tree (FiguresTree, refreshFigureList: a
@@ -39,15 +40,21 @@ function buildFiguresTab(obj)
 %           Enabled and a summary, always open; then Observations (the data
 %           the figure is drawn for, Starred only, the unit filter or the
 %           channels, Per trial group: one
-%           figure per observation and group), Panels (the
-%           schematic of the grid, drawFigureSchematic: click a panel to
-%           pick it, or drag it to an empty cell or to an edge of another
-%           panel, onSchematicPress; New panel... (the New panel window:
-%           its type, name, place and key parameters, onNewPanel); its
-%           spans, its row's height and column's width, its own size in its
-%           cell and where it sits there, the spacing with Spacing...
-%           (figureSpacingDialog: the gaps between the panels),
-%           Remove panel, Move), Selected panel (its type, title, box,
+%           figure per observation and group), Panels (New panel... (the
+%           New panel window: its type, name, place and key parameters,
+%           onNewPanel); the selected panel, "psth_1 (PSTH): 10.2 x 6.0 cm
+%           at 0, 0"; Units (normalized, %, cm, in or px: how the rect,
+%           the padding and the snap step are shown and typed, a
+%           preference: onRectUnitsChanged); Position (x, y) and Size (w,
+%           h) of the selected panel's rect, from the page's bottom-left
+%           corner (onPanelRectEdited: one undo step per field); Boxes
+%           mean (the plot area, its labels kept clear, or the outer box,
+%           labels inside); Padding (the clear space round a panel's
+%           labels); Snap and its step (Arrange's snapping and the arrow
+%           keys' nudge, preferences: onSnapChanged); Set corners (with
+%           Arrange), Remove panel, Bring forward and Send back (the
+%           drawing order where panels overlap: onPanelOrder); a hint on
+%           Arrange), Selected panel (its type, title, box,
 %           group shown), the
 %           figure's Event reference, Epoch window and Trial selection (the
 %           Alignment tab's while "Use default" is ticked; Epoch Diagram),
@@ -138,9 +145,8 @@ function buildFiguresTab(obj)
 %           opens, refreshTemplates; Apply... into figures picked or as a
 %           new figure, onApplyTemplate; Save as..., Update, Remove,
 %           Import..., Export... and Report issue, onFigureTemplate) and,
-%           at its right, Apply last change... (Edit > Apply last change
-%           to figures, onApplyToFigures; on and tooltipped with the menu
-%           item, naming the step: refreshEditMenu). Under it the preview
+%           at its right, Arrange (a state button: the panels moved and
+%           resized over the preview, onArrangeToggled). Under it the preview
 %           (refreshFigurePreview: computeFigure and renderFigure for that
 %           one observation; the selected panel outlined there,
 %           markFigurePanel): a container per figure (FigurePreviewHost,
@@ -659,82 +665,84 @@ E.prbNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "Ve
 place(E.prbNote, r, [1 2]);
 sec(end+1) = S;
 
-% the panels: the schematic, adding (New panel...), sizing and moving them (the section's key stays "arrangement")
+% the panels: adding them (New panel...), the selected one's place on the page, what a box means, the padding, snapping
+% and the order they are drawn in (the section's key stays "arrangement")
 S = formSection(eg, 3, "arrangement", "Panels", Color=tint("arrangement"));
-[S, r] = formRow(S, "schematic", "", 160);
-E.schematicPanel = uipanel(S.Body, "BorderType", "none", "UserData", false);   % formLayout shows and hides the row's panel
-place(E.schematicPanel, r, [1 2]);   % its axes: drawFigureSchematic makes it while the row is shown (one made or kept at 0 px does not draw)
 [S, r] = formRow(S, "newPanel", "", 30);
 E.newPanel = uibutton(S.Body, "Text", "New panel...", "ButtonPushedFcn", @(~,~) obj.onNewPanel(), ...
-    "Tooltip", "Add a panel: pick its type (each shown as a small plot), its name, where it goes next to the " + ...
-    "selected panel (a new row or column) and its key parameters. The first panel goes to row 1, column 1.");
+    "Tooltip", "Add a panel: pick its type (each shown as a small plot), its name, where it goes (the largest " + ...
+    "empty space of the page, or beside the selected panel, which it halves) and its key parameters. The first " + ...
+    "panel fills the page.");
 place(E.newPanel, r, [1 2]);
 [S, r] = formRow(S, "selPanel", "Selected panel:");
-E.selPanel = uilabel(S.Body, "Text", "", "FontWeight", "bold");
+E.selPanel = uilabel(S.Body, "Text", "", "FontWeight", "bold", ...
+    "Tooltip", "The selected panel: its id, type, size and place (its bottom-left corner, from the page's), in the Units below.");
 place(E.selPanel, r, 2);
 [S, r] = formRow(S, "noPanel", "");
 E.noPanel = uilabel(S.Body, "Text", "No panel yet: press New panel... to add one.", "FontColor", gray);
 place(E.noPanel, r, [1 2]);
-[S, r] = formRow(S, "rowSpan", "Row span:");
-E.rowSpan = uispinner(S.Body, "Limits", [1 32], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
-    "ValueChangedFcn", @(sp, evt) onSpanEdited(obj, sp, evt, "row"), ...
-    "Tooltip", "How many rows of the grid the selected panel covers, down from its own.");
-place(E.rowSpan, r, 2);
-[S, r] = formRow(S, "colSpan", "Column span:");
-E.colSpan = uispinner(S.Body, "Limits", [1 32], "Step", 1, "Value", 1, "RoundFractionalValues", "on", ...
-    "ValueChangedFcn", @(sp, evt) onSpanEdited(obj, sp, evt, "col"), ...
-    "Tooltip", "How many columns of the grid the selected panel covers, right from its own.");
-place(E.colSpan, r, 2);
-[S, r] = formRow(S, "rowHeight", "Row height:");
-E.rowHeight = uispinner(S.Body, "Limits", [0 Inf], "LowerLimitInclusive", "off", "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.4gx", ...
-    "ValueChangedFcn", changed, "Tooltip", "The relative height of the selected panel's (first) row, against the " + ...
-    "other rows' (1 each when all are equal): every panel of the row. The rows' plot areas take exactly these shares.");
-place(E.rowHeight, r, 2);
-[S, r] = formRow(S, "colWidth", "Column width:");
-E.colWidth = uispinner(S.Body, "Limits", [0 Inf], "LowerLimitInclusive", "off", "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.4gx", ...
-    "ValueChangedFcn", changed, "Tooltip", "The relative width of the selected panel's (first) column, against the " + ...
-    "other columns': every panel of the column.");
-place(E.colWidth, r, 2);
-[S, r] = formRow(S, ["panelWidth" "panelHeight"], "Panel size:");
-zg = subgrid(S.Body, r, {'1x', 'fit', '1x', 'fit'});
-E.panelWidth = uispinner(zg, "Limits", [1 100], "Step", 5, "Value", 100, "ValueDisplayFormat", "%.4g %%", ...
-    "ValueChangedFcn", changed, "Tooltip", "The selected panel's width, as a share of its cell's: this panel only, " + ...
-    "not the others of its column. Under 100 %, Align places it in the cell.");
-uilabel(zg, "Text", "wide");
-E.panelHeight = uispinner(zg, "Limits", [1 100], "Step", 5, "Value", 100, "ValueDisplayFormat", "%.4g %%", ...
-    "ValueChangedFcn", changed, "Tooltip", "The selected panel's height, as a share of its cell's: this panel only, " + ...
-    "not the others of its row. Under 100 %, Align places it in the cell.");
-uilabel(zg, "Text", "high");
-[S, r] = formRow(S, ["panelAlign" "panelVAlign"], "Align in cell:");
-ng = subgrid(S.Body, r, {'1x', '1x'});
-E.panelAlign = uidropdown(ng, "Items", EphysAnalysisConfig.PanelAligns, "Value", "center", "ValueChangedFcn", changed, ...
-    "Tooltip", "Where a panel narrower than its cell sits in it.");
-E.panelVAlign = uidropdown(ng, "Items", EphysAnalysisConfig.PanelVAligns, "Value", "middle", "ValueChangedFcn", changed, ...
-    "Tooltip", "Where a panel shorter than its cell sits in it.");
-[S, r] = formRow(S, ["spacing" "spacingDialog"], "Spacing:", 30);
-sg = subgrid(S.Body, r, {'1x', 'fit'});
-E.spacing = uidropdown(sg, "Items", ["loose" "compact" "tight" "none (flush)" "custom"], "ItemsData", EphysAnalysisConfig.GridSpacings, ...
-    "ValueChangedFcn", changed, "Tooltip", "The clear space between neighboring panels' labels: loose, compact, tight " + ...
-    "(24, 12, 6 px), none (flush: stacked time panels share their edges) or custom (Spacing...: px or %, each gap " + ...
-    "between two rows or columns of its own).");
-E.spacingDialog = uibutton(sg, "Text", "Spacing...", "ButtonPushedFcn", @(~,~) figureSpacingDialog(obj), ...
-    "Tooltip", "Set the gaps between the panels: a preset or custom, in px or % of the panels' size, one gap " + ...
-    "between rows and one between columns, or each gap apart. Apply shows it in the preview.");
+[S, r] = formRow(S, "rectUnits", "Units:");
+E.rectUnits = uidropdown(S.Body, "Items", ["normalized (0-1 of the page)" "% of the page" "cm" "in" "px (at the Export dpi)"], ...
+    "ItemsData", EphysAnalysisConfig.RectUnits, "Value", "cm", "ValueChangedFcn", @(~,~) obj.onRectUnitsChanged(), ...
+    "Tooltip", "The units the panel's position and size, the padding and the snap step are shown and typed in: " + ...
+    "0-1 or % of the page, or a length on the exported page (px at the Export tab's dpi). The panels are kept as " + ...
+    "0-1 of the page, so they keep their places when the page size changes. A preference, for every figure.");
+place(E.rectUnits, r, 2);
+[S, r] = formRow(S, "rectXY", "Position (x, y):");
+xyg = subgrid(S.Body, r, {'1x', '1x', 44});
+E.rectX = uieditfield(xyg, "numeric", "ValueDisplayFormat", "%.10g", "ValueChangedFcn", @(~,~) obj.onPanelRectEdited("x"), ...
+    "Tooltip", "The selected panel's left edge, from the page's left edge (its plot area's or its outer box's: Boxes mean).");
+E.rectY = uieditfield(xyg, "numeric", "ValueDisplayFormat", "%.10g", "ValueChangedFcn", @(~,~) obj.onPanelRectEdited("y"), ...
+    "Tooltip", "The selected panel's bottom edge, from the page's bottom edge.");
+E.rectXYUnits = uilabel(xyg, "Text", "cm", "FontColor", gray);
+[S, r] = formRow(S, "rectWH", "Size (w, h):");
+whg = subgrid(S.Body, r, {'1x', '1x', 44});
+E.rectW = uieditfield(whg, "numeric", "ValueDisplayFormat", "%.10g", "ValueChangedFcn", @(~,~) obj.onPanelRectEdited("w"), ...
+    "Tooltip", "The selected panel's width. Kept on the page: a panel never reaches past its right edge.");
+E.rectH = uieditfield(whg, "numeric", "ValueDisplayFormat", "%.10g", "ValueChangedFcn", @(~,~) obj.onPanelRectEdited("h"), ...
+    "Tooltip", "The selected panel's height. Kept on the page: a panel never reaches past its top edge.");
+E.rectWHUnits = uilabel(whg, "Text", "cm", "FontColor", gray);
+[S, r] = formRow(S, "boxesMean", "Boxes mean:");
+E.boxesMean = uidropdown(S.Body, "Items", ["plot area (labels kept clear)" "outer box (labels inside)"], ...
+    "ItemsData", EphysAnalysisConfig.BoxesMeans, "Value", "plot", "ValueChangedFcn", changed, ...
+    "Tooltip", "What a panel's rect is. Plot area: the axes themselves; their tick labels and labels are kept clear of " + ...
+    "the neighbors and the page edge, so two panels put flush stay flush (a raster over its PSTH). Outer box: the " + ...
+    "rect holds the panel with its labels, as a box on a slide does. For the whole figure.");
+place(E.boxesMean, r, 2);
+[S, r] = formRow(S, "padding", "Padding:");
+pdg = subgrid(S.Body, r, {'1x', 44});
+E.padding = uispinner(pdg, "Limits", [0 Inf], "Step", 0.05, "Value", 0.15, "ValueDisplayFormat", "%.10g", ...
+    "ValueChangedFcn", changed, "Tooltip", "The clear space kept between a panel's labels and its neighbors or the page " + ...
+    "edge (Boxes mean outer box: between the rect's edge and the labels). Two panels put flush stay flush. For the " + ...
+    "whole figure, in the Units above.");
+E.paddingUnits = uilabel(pdg, "Text", "cm", "FontColor", gray);
+[S, r] = formRow(S, "snap", "");
+sng = subgrid(S.Body, r, {'fit', 'fit', 70, '1x'});
+place(sng, r, [1 2]);
+E.snap = uicheckbox(sng, "Text", "Snap", "Value", true, "ValueChangedFcn", @(~,~) obj.onSnapChanged(), ...
+    "Tooltip", "Arrange snaps a panel moved or resized to the other panels' edges and centers, the page's edges and " + ...
+    "center and the step's grid (Alt held: no snapping). A preference, not part of the figure.");
+uilabel(sng, "Text", "every");
+E.snapStep = uieditfield(sng, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "Value", 0.5, ...
+    "ValueDisplayFormat", "%.10g", "ValueChangedFcn", @(~,~) obj.onSnapChanged(), ...
+    "Tooltip", "The snap step: the grid Arrange snaps to, and how far an arrow key nudges the selected panel (Shift: " + ...
+    "ten steps). In the Units above. A preference.");
+E.snapUnits = uilabel(sng, "Text", "cm", "FontColor", gray);
 [S, r] = formRow(S, "panelButtons", "", 30);
-pb = subgrid(S.Body, r, {'fit', 'fit', 40, 40, 40, 40});
+pb = subgrid(S.Body, r, {'1x', '1x', '1x', '1x'});
 place(pb, r, [1 2]);
+E.setCorners = uibutton(pb, "Text", "Set corners", "Enable", "off", ...
+    "Tooltip", "needs the Arrange mode (coming with the overlay)");
 E.removePanel = uibutton(pb, "Text", "Remove panel", "ButtonPushedFcn", @(~,~) obj.onRemovePanel(), ...
-    "Tooltip", "Remove the selected panel; the rows and columns no panel starts in any more go with it.");
-uilabel(pb, "Text", "  Move:", "HorizontalAlignment", "right");
-dirs = ["up" "down" "left" "right"];
-arrows = ["↑" "↓" "←" "→"];
-for i = 1:4
-    d = dirs(i);
-    E.("move" + upper(extractBefore(d, 2)) + extractAfter(d, 1)) = uibutton(pb, "Text", arrows(i), ...
-        "ButtonPushedFcn", @(~,~) obj.onMovePanel(d), ...
-        "Tooltip", "Swap the selected panel with the panel of the same shape " + ternary(ismember(d, ["up" "down"]), ...
-        ternary(d == "up", "above", "below") + " it", "to its " + d) + ".");
-end
+    "Tooltip", "Remove the selected panel. The other panels keep their places; the space it held is left free.");
+E.bringForward = uibutton(pb, "Text", "Bring forward", "ButtonPushedFcn", @(~,~) obj.onPanelOrder(1), ...
+    "Tooltip", "Draw the selected panel after the next one: over it where the two overlap.");
+E.sendBack = uibutton(pb, "Text", "Send back", "ButtonPushedFcn", @(~,~) obj.onPanelOrder(-1), ...
+    "Tooltip", "Draw the selected panel before the one drawn before it: under it where the two overlap.");
+[S, r] = formRow(S, "arrangeHint", "", 34);
+E.arrangeHint = uilabel(S.Body, "Text", "Arrange (over the preview) drags and resizes the panels; arrows nudge the " + ...
+    "selected one by the snap step, Shift x10.", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
+place(E.arrangeHint, r, [1 2]);
 sec(end+1) = S;
 
 hPanel = superHeader(eg);   % the Panel supersection's header
@@ -1153,6 +1161,21 @@ E.order = uidropdown(S.Body, "Items", ["probe" "peak" "modulation"], "ValueChang
     "Tooltip", "probe: the rows follow the sort options (Appearance); peak: by the time of each row's maximum; " + ...
     "modulation (the auROC baseline): by the mean auROC in the call window, highest first.");
 place(E.order, r, 2);
+[S, r] = formRow(S, ["legOrient" "legColumns"], "Entries:");   % a legend panel's
+lg2 = subgrid(S.Body, r, {'1x', 'fit', 70});
+E.legOrient = uidropdown(lg2, "Items", ["auto (by the panel's shape)" "vertical" "horizontal"], ...
+    "ItemsData", ["auto" "vertical" "horizontal"], "Value", "auto", "ValueChangedFcn", changed, ...
+    "Tooltip", "How the legend's entries line up: auto is a row when the panel is wider than tall, else a column.");
+uilabel(lg2, "Text", "columns:");
+E.legColumns = uispinner(lg2, "Limits", [0 50], "Step", 1, "Value", 0, "RoundFractionalValues", "on", ...
+    "ValueDisplayFormat", "%d", "ValueChangedFcn", changed, ...
+    "Tooltip", "How many columns the entries take: 0 = automatic, from the panel's shape.");
+[S, r] = formRow(S, ["legAlign" "legVAlign"], "Place in panel:");
+lg3 = subgrid(S.Body, r, {'1x', '1x'});
+E.legAlign = uidropdown(lg3, "Items", ["left" "center" "right"], "Value", "center", "ValueChangedFcn", changed, ...
+    "Tooltip", "Where the legend sits across the panel when narrower than it (it is never stretched to fill it).");
+E.legVAlign = uidropdown(lg3, "Items", ["top" "middle" "bottom"], "Value", "middle", "ValueChangedFcn", changed, ...
+    "Tooltip", "Where the legend sits up the panel when shorter than it.");
 [S, r] = formRow(S, "value", "Value:");
 E.value = uidropdown(S.Body, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", ...
     "What colors each unit (rate, nSpikes) or each site (nUnits). Units drawn as waveforms (Waveform: Show) are " + ...
@@ -1494,7 +1517,7 @@ sec(end+1) = S;
 
 hLook = superHeader(eg);   % the Look supersection's header
 
-% appearance: the figure's style (no tiles, grid spacing or limits: the arrangement and the panels have those)
+% appearance: the figure's style (no tiles or limits: the panels have those)
 S = formSection(eg, 12, "style", "Appearance", Color=tint("style"));
 [S, r] = formRow(S, "fontSize", "Font size:");
 E.fontSize = uispinner(S.Body, "Limits", [5 24], "Value", 9, "ValueChangedFcn", changed);
@@ -1541,9 +1564,10 @@ E.legend = uicheckbox(shg, "Text", "Legend", "Value", true, "ValueChangedFcn", c
 E.grid = uicheckbox(shg, "Text", "Grid", "Value", true, "ValueChangedFcn", changed);
 [S, r] = formRow(S, ["legendLoc" "legendOrient" "legendBox"], "Legend:");
 lgg = subgrid(S.Body, r, {'1x', '1x', 'fit'});
-E.legendLoc = uidropdown(lgg, "Items", ["Auto" "Inside" "North (above)" "South (below)" "East (right)" "West (left)"], ...
-    "ItemsData", ["auto" "inside" "north" "south" "east" "west"], "Value", "auto", "ValueChangedFcn", changed, ...
-    "Tooltip", "Where the figure's one legend goes.");
+E.legendLoc = uidropdown(lgg, "Items", ["Auto" "Inside" "None"], "ItemsData", ["auto" "inside" "none"], ...
+    "Value", "auto", "ValueChangedFcn", changed, ...
+    "Tooltip", "Auto: the figure's legend panel when it has one, else floating in free space, else inside the first " + ...
+    "panel. Drag the floating legend with Arrange on to make it a panel.");
 E.legendOrient = uidropdown(lgg, "Items", ["Auto" "Vertical" "Horizontal"], "ItemsData", ["auto" "vertical" "horizontal"], ...
     "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "How the legend's entries line up.");
 E.legendBox = uicheckbox(lgg, "Text", "Box", "ValueChangedFcn", changed, "Tooltip", "Draw the legend's outline and background.");
@@ -1697,8 +1721,8 @@ obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPus
     "preview is out of date.");
 obj.SaveDesignButton.Layout.Row = 2; obj.SaveDesignButton.Layout.Column = [4 5];
 % the figure templates of yours (FigureTemplate: a figure's settings, copied into figures when applied), and Apply
-% (Apply last change is at the top of the settings column), in the row above the preview
-tg = uigridlayout(pg, [1 9], "ColumnWidth", {'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'}, ...
+% (Apply last change is at the top of the settings column), in the row above the preview; Arrange at its right
+tg = uigridlayout(pg, [1 10], "ColumnWidth", {'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'}, ...
     "ColumnSpacing", 4, "Padding", [0 2 0 2]);
 tg.Layout.Row = 4; tg.Layout.Column = [1 5];
 uilabel(tg, "Text", "Template:", "FontWeight", "bold", ...
@@ -1720,7 +1744,7 @@ obj.FigureTemplateApplyButton = uibutton(tg, "Text", "Apply...", "ButtonPushedFc
     "The copy is made once: there is no link, so apply it again to give figures a template's later changes.");
 obj.FigureTemplateSaveButton = uibutton(tg, "Text", "Save as...", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("save"), ...
     "Tooltip", "Save the figure shown as a new template: every setting (observations, alignment, page size, panels with their " + ...
-    "options, layers, notes and overlays, spacing, appearance, remembered looks, sessions, probe layout) but its id, title and enabled.");
+    "options, layers, notes and overlays, their places and padding, appearance, remembered looks, sessions, probe layout) but its id, title and enabled.");
 obj.FigureTemplateUpdateButton = uibutton(tg, "Text", "Update", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("update"), ...
     "Tooltip", "Replace the template picked with the settings of the figure shown (asks first). The figures it was applied " + ...
     "to keep their settings until it is applied to them again.");
@@ -1734,6 +1758,11 @@ obj.FigureTemplateIssueLink = uihyperlink(tg, "Text", "Report issue", ...
     "HyperlinkClickedFcn", @(~, ~) obj.onFigureTemplate("issue"), ...
     "Tooltip", "Report a problem with figure templates: an issue on GitHub, opened prefilled with the template picked. " + ...
     "To ask for something they do not do: Help > Request a figure template feature..., or right-click the list.");
+obj.FigureArrangeButton = uibutton(tg, "state", "Text", "Arrange", "Value", false, ...
+    "ValueChangedFcn", @(~, ~) obj.onArrangeToggled(), ...
+    "Tooltip", "Arrange the panels over the preview: drag a panel to move it, a handle to resize it; it snaps to the " + ...
+    "other panels, the page and the snap step (Alt: no snapping), and the arrow keys nudge the selected panel. " + ...
+    "Off: the preview as usual (data tips, right-click editors).");
 obj.refreshTemplates();
 % the previews: a container per figure, all in this one cell, the selected figure's shown (syncFigureView); the
 % first, "", is shown while no figure is selected
@@ -1817,44 +1846,6 @@ if b.Value
 else
     obj.setStatus("The figure's id " + id + " is your own now: it no longer follows its panels.");
 end
-end
-
-
-function onSpanEdited(obj, sp, evt, which)
-%onSpanEdited  A panel's row or column span: refused past the grid's edge or over another panel.
-if obj.Applying; return; end
-k = obj.SelectedFigure;
-if k < 1 || k > numel(obj.Config.Figures); return; end
-fig = obj.Config.Figures(k);
-j = obj.SelectedPanel;
-if j < 1 || j > numel(fig.panels); return; end
-p = fig.panels(j);
-v = round(sp.Value);
-if which == "row"
-    if p.row + v - 1 > fig.grid.rows
-        sp.Value = evt.PreviousValue;
-        obj.setStatus(p.id + " cannot span past the grid's last row: add a row below it first.");
-        return
-    end
-    fig.panels(j).rowSpan = v;
-else
-    if p.col + v - 1 > fig.grid.cols
-        sp.Value = evt.PreviousValue;
-        obj.setStatus(p.id + " cannot span past the grid's last column: add a column right of it first.");
-        return
-    end
-    fig.panels(j).colSpan = v;
-end
-[~, over] = EphysAnalysisConfig.figureCells(fig);
-if ~isempty(over)
-    sp.Value = evt.PreviousValue;
-    q = over(1, :);
-    q = q(q ~= j);
-    obj.setStatus(p.id + " would overlap " + fig.panels(q(1)).id + ".");
-    return
-end
-obj.onConfigChanged("figure", "Panel span");
-obj.setStatus(sprintf("%s spans %d row(s) and %d column(s).", p.id, fig.panels(j).rowSpan, fig.panels(j).colSpan));
 end
 
 
@@ -2268,9 +2259,4 @@ end
 function place(c, row, col)
 c.Layout.Row = row;
 c.Layout.Column = col;
-end
-
-
-function s = ternary(c, a, b)
-if c; s = a; else; s = b; end
 end

@@ -12,9 +12,8 @@ function trackFigureIds(obj, cfg)
 %     (FigureEditorStates);
 %   - FigureIdRenames maps the old id to the new one, for what holds a
 %     figure's id while it lives: the right-click editor of the preview
-%     and of a figure window (rememberFigureAesthetics) and the Spacing
-%     window (figureSpacingDialog), which find the figure through
-%     followedFigureId.
+%     and of a figure window (rememberFigureAesthetics), which find the
+%     figure through followedFigureId.
 %   Adding, removing, duplicating and moving figures rename none (an
 %   automatic id that still fits its figure is kept), so a change in the
 %   number of figures is not looked at; the figure tree and the editor

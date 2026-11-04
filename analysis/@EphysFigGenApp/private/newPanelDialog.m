@@ -1,4 +1,4 @@
-function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, at)
+function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0)
 %newPanelDialog  Pick a new panel's type, name, place and key parameters in a modal window over FIG.
 %   C = newPanelDialog(FIG, F, ANCHOR, LINES, PARAMS) shows the New panel
 %   window for the figure entry F, whose selected panel is ANCHOR (its
@@ -10,10 +10,13 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, at)
 %   one) over its label; the type picked is amber. On the right, for the type picked: its label
 %   and description, Name (the panel's id: "<type>_<n>" until one is
 %   typed; it must be unique in the figure), Title (blank = none), Place
-%   (Below, Above, Right or Left of ANCHOR, each saying whether it fills
-%   the empty cells there or makes a new row or column, "Below raster_2
-%   (fills row 4, col 2)"; then every empty cell of the grid; the first
-%   panel goes to row 1, column 1) and the type's key parameters:
+%   (Largest empty space: the largest empty rectangle of the page,
+%   EphysAnalysisConfig.freeRect, grayed and refused when the page has
+%   none; Below, Above, Right of and Left of ANCHOR, "Below raster_2
+%   (splits it)": the anchor keeps the half next to the new panel; Draw
+%   it on the preview (two clicks), grayed and refused until the Arrange
+%   overlay comes; the first panel of a figure has one place, Fill the
+%   page) and the type's key parameters:
 %     every type      what it reads (the sources the type draws; a
 %                     coherence panel its seed and its partner) and the
 %                     binding (follows the observation or fixed; fixed
@@ -36,12 +39,17 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, at)
 %     spectrogram     Frequency range (Hz), Moving window (s)
 %     coherence       Frequency range (Hz)
 %     eventTrace      Lines (LINES: one events layer each), Display
+%     legend          Orientation (auto, vertical, horizontal) and
+%                     Columns (0 = automatic); no source: a legend panel
+%                     shows the figure's legend entries
 %   OK returns C, a struct onNewPanel takes as its options: Type, Where
-%   (or "cell", with Cell [ROW COLUMN]), Cell ([] beside ANCHOR), Id,
-%   Title, Source, Partner, Binding, Lines and Options (the partial
-%   options the parameters set), Set ("") and Alignment; a name another
-%   panel of F has is refused with a red line instead. Cancel, or closing
-%   the window, returns [].
+%   ("free", "below", "above", "right", "left"; "draw" once the Arrange
+%   overlay comes), Rect ([]), Id, Title, Source, Partner, Binding, Lines
+%   and Options (the partial options the parameters set), Set ("") and
+%   Alignment. Refused with a red line instead: a name another panel of F
+%   has; a second legend panel ("The figure already has a legend panel
+%   (legend_1)."); a place grayed out. Cancel, or closing the window,
+%   returns [].
 %   C = newPanelDialog(..., START): the parameters of each type start from
 %   START.(<type>), its options (onNewPanel: the options remembered for
 %   the type over its defaults); without it, from the type's defaults. A
@@ -50,18 +58,18 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, at)
 %   C = newPanelDialog(..., START, SETS): under the types, "Saved figures"
 %   and a tile per row of SETS (FigureTemplate.panelTypes: the built-in
 %   Raster over PSTH, then the figures you saved as panel types), its
-%   picture the type pictures of its panels where they sit in its grid.
+%   picture the type pictures of its panels, each painted into its rect.
 %   One picked shows its name, description and shape, the ids its panels
-%   will have in F (Name, not editable), Place (Below, Above, Right or
-%   Left of ANCHOR only: the block always gets new rows or columns, so
-%   the empty cells are not offered while it is picked), and as its key
+%   will have in F (Name, not editable), Place (the same places: the
+%   block's page is mapped onto the place picked,
+%   EphysAnalysisConfig.placeBlock), and as its key
 %   parameter Alignment: "This figure's" (its panels follow F's event
 %   reference, window and trial selection) or "Its own, as saved"
 %   (offered when the saved figure has its own). OK then returns C with
 %   Set (its Key), Where and Alignment ("figure" | "own"), Type "".
-%   C = newPanelDialog(..., START, SETS, AT): Place starts at the empty
-%   cell AT, [ROW COLUMN] (a click on an empty cell of the schematic);
-%   [] = Below ANCHOR.
+%   C = newPanelDialog(..., START, SETS, WHERE0): Place starts at WHERE0
+%   ("free" by default; a place not offered, or grayed: the first one
+%   that can be taken).
 %   The window's UserData holds its controls for the tests: Types (the
 %   tiles, a struct by type), Pick (a function: Pick(TYPE) picks a
 %   type), Sets (a struct array: Key, Tile), PickSet (PickSet(KEY) picks
@@ -73,12 +81,12 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, at)
 %   Ok and Cancel.
 %
 %   See also onNewPanel, EphysAnalysisConfig.panelTypes, figureEditorChoices,
-%   FigureTemplate.panelTypes, EphysAnalysisConfig.placePanels.
+%   FigureTemplate.panelTypes, EphysAnalysisConfig.placePanel, EphysAnalysisConfig.placeBlock.
 T = EphysAnalysisConfig.panelTypes();
 n = height(T);
 if nargin < 6; start = struct(); end
 if nargin < 7; sets = FigureTemplate.panelTypes(Yours=false); end
-if nargin < 8; at = []; end
+if nargin < 8 || isempty(where0); where0 = "free"; end
 ns = height(sets);
 c = [];
 taken = string.empty(1, 0);
@@ -121,7 +129,7 @@ end
 setTiles = struct('Key', {}, 'Tile', {});
 if ns > 0
     l = uilabel(tg, "Text", "Saved figures  (all their panels, as arranged)", "FontWeight", "bold", "VerticalAlignment", "bottom", ...
-        "Tooltip", "A saved figure places all its panels, arranged as saved, next to the selected panel. Save as panel " + ...
+        "Tooltip", "A saved figure places all its panels, arranged as saved, at the place picked. Save as panel " + ...
         "type... under the figure list adds the figure shown here.");
     l.Layout.Row = nr + 1; l.Layout.Column = [1 nc];
 end
@@ -154,20 +162,20 @@ titleField = uieditfield(rg, "text", "Placeholder", "none", ...
     "Tooltip", "The panel's own title (blank = none; under a figure title of your own the top-left panel names the observation).");
 titleField.Layout.Row = 4; titleField.Layout.Column = 2;
 l = uilabel(rg, "Text", "Place:"); l.Layout.Row = 5;
-[placeText, placeData] = placeItems(F, anchor);
-[setText, setData] = setPlaceItems(F, anchor);
+[placeText, placeData, grayed, placeTip] = placeItems(F, anchor);
 if isempty(F.panels)
-    whereDD = uidropdown(rg, "Items", "row 1, column 1 (the first panel)", "ItemsData", "below", "Enable", "off", ...
-        "Tooltip", "The first panel of a figure fills its one cell.");
-elseif isempty(placeData)
-    whereDD = uidropdown(rg, "Items", "(select a panel first)", "ItemsData", "below", "Enable", "off", ...
-        "Tooltip", "Select a panel in the schematic: the new one goes next to it.");
+    whereDD = uidropdown(rg, "Items", placeText, "ItemsData", placeData, "Enable", "off", "Tooltip", placeTip);
 else
-    whereDD = uidropdown(rg, "Items", placeText, "ItemsData", placeData, "Value", placeData(1), ...
-        "Tooltip", "Where the panel goes: next to the selected panel, in the empty cells there when there are; " + ...
-        "else Above and Below make a new row of the grid (the new panel takes the selected panel's columns), " + ...
-        "Left and Right a new column (it takes its rows). Or any empty cell of the grid.");
-    if numel(at) == 2 && any(placeData == cellKey(at(1), at(2))); whereDD.Value = cellKey(at(1), at(2)); end
+    v0 = string(where0);
+    if ~any(placeData == v0) || any(grayed == v0); v0 = placeData(find(~ismember(placeData, grayed), 1)); end
+    if isempty(v0); v0 = placeData(1); end
+    whereDD = uidropdown(rg, "Items", placeText, "ItemsData", placeData, "Value", v0, "Tooltip", placeTip);
+    for gx = grayed   % the places that cannot be taken now: gray text (OK refuses them, saying why)
+        try
+            addStyle(whereDD, uistyle("FontColor", [0.6 0.6 0.6]), "item", find(placeData == gx, 1));
+        catch
+        end
+    end
 end
 whereDD.Layout.Row = 5; whereDD.Layout.Column = 2;
 l = uilabel(rg, "Text", "Key parameters", "FontWeight", "bold"); l.Layout.Row = 6; l.Layout.Column = [1 2];
@@ -188,8 +196,6 @@ styleButton(okB, "confirm");
 typed = false;
 current = "";
 currentSet = "";
-onSets = false;     % Place lists a saved figure's places
-typePlace = "";     % the place picked for a type, back when a type is picked again
 P = struct();
 first = "psth";
 if ~any(T.Type == first); first = T.Type(1); end
@@ -204,7 +210,6 @@ if isvalid(d); delete(d); end
     function pick(t)
         %pick  Type T picked: its tile pressed (the others not), its label, description, default name and parameters.
         press(t, "");
-        places(false);
         current = t;
         currentSet = "";
         row = T.Type == t;
@@ -225,7 +230,6 @@ if isvalid(d); delete(d); end
         si = find(sets.Key == key, 1);
         if isempty(si); return; end
         press("", key);
-        places(true);   % before the ids: they depend on the place
         current = "";
         currentSet = key;
         typed = false;   % a type picked next gets its own free name
@@ -236,7 +240,7 @@ if isvalid(d); delete(d); end
         B = sets.Figure{si};
         ids = strings(1, 0);
         try
-            [~, ids] = EphysAnalysisConfig.placePanels(F, B, string(whereDD.Value), anchor);
+            [~, ids] = EphysAnalysisConfig.placeBlock(F, B, "rect", "", [0 0 1 1]);   % the ids, wherever it goes
         catch
         end
         nameField.Value = strjoin(ids, ", ");
@@ -267,28 +271,6 @@ if isvalid(d); delete(d); end
         end
     end
 
-    function places(isSet)
-        %places  Place's items for a type (ISSET false: beside ANCHOR, filling the empty cells there when it can, then every empty cell) or a saved figure (beside ANCHOR only).
-        if isempty(F.panels); return; end   % the first panel's one place
-        if isSet
-            it = setText;
-            dt = setData;
-        else
-            it = placeText;
-            dt = placeData;
-        end
-        v = string(whereDD.Value);
-        if isSet && ~onSets; typePlace = v; end
-        if ~isSet && onSets; v = typePlace; end
-        onSets = isSet;
-        if isempty(dt)
-            set(whereDD, "Items", "(select a panel first)", "ItemsData", "below", "Value", "below", "Enable", "off");
-            return
-        end
-        if ~any(dt == v); v = dt(1); end
-        set(whereDD, "Items", it, "ItemsData", dt, "Value", v, "Enable", "on");
-    end
-
     function out = currentParams()
         %currentParams  The current parameters' controls (made again at every pick).
         out = P;
@@ -298,8 +280,22 @@ if isvalid(d); delete(d); end
         typed = strtrim(string(nameField.Value)) ~= "";
     end
 
+    function refuse(text)
+        %refuse  OK refused: the red line says why; the window stays.
+        msg.Text = text;
+        msg.FontColor = [0.75 0.1 0.1];
+    end
+
     function finish(accept)
         if accept
+            w = string(whereDD.Value);
+            if w == "draw"
+                refuse("Drawing on the preview comes with the Arrange overlay: pick another place.");
+                return
+            elseif any(grayed == w)
+                refuse("The page has no empty space left: pick a place beside a panel.");
+                return
+            end
             if currentSet ~= ""
                 c = gatherParams(struct(), "");
                 c.Type = "";
@@ -310,8 +306,11 @@ if isvalid(d); delete(d); end
             else
                 id = strtrim(string(nameField.Value));
                 if any(taken == id)
-                    msg.Text = "Another panel of " + F.id + " is named " + id + ": pick another name.";
-                    msg.FontColor = [0.75 0.1 0.1];
+                    refuse("Another panel of " + F.id + " is named " + id + ": pick another name.");
+                    return
+                end
+                if current == "legend" && ~isempty(F.panels) && any([F.panels.type] == "legend")
+                    refuse("The figure already has a legend panel (" + F.panels(find([F.panels.type] == "legend", 1)).id + ").");
                     return
                 end
                 c = gatherParams(P, current);
@@ -319,87 +318,46 @@ if isvalid(d); delete(d); end
                 c.Id = id;
                 c.Title = string(titleField.Value);
             end
-            [c.Where, c.Cell] = placeOf(string(whereDD.Value));
-            c = orderfields(c, {'Type', 'Where', 'Cell', 'Id', 'Title', 'Source', 'Partner', 'Binding', 'Lines', 'Options', 'Set', 'Alignment'});
+            c.Where = w;
+            c.Rect = [];
+            c = orderfields(c, {'Type', 'Where', 'Rect', 'Id', 'Title', 'Source', 'Partner', 'Binding', 'Lines', 'Options', 'Set', 'Alignment'});
         end
         uiresume(d);
     end
 end
 
 
-function [items, data] = placeItems(F, anchor)
-%placeItems  The Place choices for a new panel of figure F: beside ANCHOR (what each does), then every empty cell.
-%   ITEMS the items, DATA their keys ("below", ..., "cell R C"). Each side
-%   of ANCHOR is placed for real on a stand-in panel
-%   (EphysAnalysisConfig.placePanel), so the item says what OK will do.
-items = strings(1, 0);
-data = strings(1, 0);
-if isempty(F.panels); return; end
+function [items, data, grayed, tip] = placeItems(F, anchor)
+%placeItems  The Place choices for a new panel (or a saved figure's block) in figure F: the free space, beside ANCHOR, drawn.
+%   ITEMS the items, DATA their keys ("free", "below", "above", "right",
+%   "left", "draw"), GRAYED the keys that cannot be taken now (no free
+%   space; "draw" until the Arrange overlay comes), TIP the drop-down's
+%   tooltip. A figure without panels: one item, "Fill the page" ("free").
+if isempty(F.panels)
+    items = "Fill the page";
+    data = "free";
+    grayed = strings(1, 0);
+    tip = "The first panel of a figure fills its page; the next ones go into the space left, or beside it.";
+    return
+end
+items = "Largest empty space";
+data = "free";
+grayed = strings(1, 0);
+tip = "Where the panel goes: the largest empty rectangle of the page; or beside the selected panel, which is " + ...
+    "cut in two flush halves (it keeps the half next to the new panel); or drawn on the preview with two clicks.";
+if isempty(EphysAnalysisConfig.freeRect(F))
+    items(1) = "Largest empty space (none left)";
+    grayed(end+1) = "free";
+    tip = tip + " The page has no empty space left.";
+end
 if anchor ~= "" && any([F.panels.id] == anchor)
-    probe = struct('id', EphysAnalysisConfig.freeId("place", [F.panels.id]), 'type', "psth");
-    sides = ["below" "above" "right" "left"];
-    names = ["Below" "Above" "Right of" "Left of"];
-    for i = 1:numel(sides)
-        g = EphysAnalysisConfig.placePanel(F, probe, sides(i), anchor);
-        q = g.panels(end);
-        if isequal([g.grid.rows g.grid.cols], [F.grid.rows F.grid.cols])
-            how = "fills " + cellsText(q.row, q.col, q.rowSpan, q.colSpan);
-        elseif i <= 2
-            how = "new row";
-        else
-            how = "new column";
-        end
-        items(end+1) = names(i) + " " + anchor + " (" + how + ")"; %#ok<AGROW>
-        data(end+1) = sides(i); %#ok<AGROW>
-    end
+    items = [items ["Below" "Above" "Right of" "Left of"] + " " + anchor + " (splits it)"];
+    data = [data "below" "above" "right" "left"];
 end
-cells = EphysAnalysisConfig.figureCells(F);
-for r = 1:size(cells, 1)
-    for k = 1:size(cells, 2)
-        if cells(r, k) ~= 0; continue; end
-        items(end+1) = "Empty cell: " + cellsText(r, k, 1, 1); %#ok<AGROW>
-        data(end+1) = cellKey(r, k); %#ok<AGROW>
-    end
-end
-end
-
-
-function s = cellsText(r, c, rs, cs)
-%cellsText  "row 4, col 2", or the cells' rows or columns for spans RS, CS (short: the drop-down is narrow).
-if rs > 1
-    s = sprintf("rows %d-%d, col %d", r, r + rs - 1, c);
-elseif cs > 1
-    s = sprintf("row %d, cols %d-%d", r, c, c + cs - 1);
-else
-    s = sprintf("row %d, col %d", r, c);
-end
-end
-
-
-function k = cellKey(r, c)
-%cellKey  The Place key of the empty cell R, C.
-k = sprintf("cell %d %d", r, c);
-end
-
-
-function [where, rc] = placeOf(key)
-%placeOf  onNewPanel's Where and Cell for a Place key.
-rc = [];
-where = key;
-if startsWith(key, "cell ")
-    where = "cell";
-    rc = reshape(sscanf(extractAfter(key, "cell "), '%d'), 1, []);
-end
-end
-
-
-function [items, data] = setPlaceItems(F, anchor)
-%setPlaceItems  The Place choices for a saved figure in figure F: below, above, right or left of ANCHOR (new rows or columns; EphysAnalysisConfig.placePanels).
-items = strings(1, 0);
-data = strings(1, 0);
-if isempty(F.panels) || anchor == "" || ~any([F.panels.id] == anchor); return; end
-items = ["Below" "Above" "Right of" "Left of"] + " " + anchor + [" (new rows)" " (new rows)" " (new columns)" " (new columns)"];
-data = ["below" "above" "right" "left"];
+items(end+1) = "Draw it on the preview (two clicks)";
+data(end+1) = "draw";
+grayed(end+1) = "draw";
+tip = tip + " Drawing it on the preview is coming with the Arrange overlay.";
 end
 
 
@@ -524,6 +482,14 @@ switch t
         end
         specs(end+1, :) = {"Display", "Draw as:", @(gr) uidropdown(gr, "Items", ["solid bars (onset to offset)" "a logic level (a line)"], ...
             "ItemsData", ["bars" "line"], "Value", def.display, "Tooltip", "How each interval of a line is drawn.")};
+    case "legend"
+        specs(end+1, :) = {"Orientation", "Orientation:", @(gr) uidropdown(gr, "Items", ["auto (by the panel's shape)" ...
+            "vertical" "horizontal"], "ItemsData", ["auto" "vertical" "horizontal"], ...
+            "Value", among(def.orientation, ["auto" "vertical" "horizontal"]), ...
+            "Tooltip", "How the legend's entries line up: auto is a row when the panel is wider than tall, else a column.")};
+        specs(end+1, :) = {"Columns", "Columns:", @(gr) uispinner(gr, "Limits", [0 50], "Step", 1, ...
+            "RoundFractionalValues", "on", "Value", def.columns, ...
+            "Tooltip", "How many columns the entries take: 0 = automatic, from the panel's shape.")};
 end
 m = size(specs, 1);
 gr = uigridlayout(pp, [max(m, 1) 2], "RowHeight", repmat({26}, 1, max(m, 1)), "ColumnWidth", {120, '1x'}, ...
@@ -652,39 +618,27 @@ if isfield(P, 'Series'); o.seriesParam = strtrim(string(P.Series.Value)); end
 if isfield(P, 'FreqFrom'); o.fpass = [P.FreqFrom.Value P.FreqTo.Value]; end
 if isfield(P, 'Scale'); o.scale = string(P.Scale.Value); end
 if isfield(P, 'WinSec'); o.movingwin = [P.WinSec.Value P.StepSec.Value]; end
+if isfield(P, 'Orientation'); o.orientation = string(P.Orientation.Value); end
+if isfield(P, 'Columns'); o.columns = round(P.Columns.Value); end
 c.Options = o;
 if t == "eventTrace"; c.Source = ""; end
 end
 
 
 function img = setThumbnail(iconDir, B)
-%setThumbnail  The tile's picture of saved figure B: each panel's type picture where the panel sits in B's grid (rows and columns in proportion).
+%setThumbnail  The tile's picture of saved figure B: each panel's type picture painted into its rect (the page's y up, the image's down).
 H = 84; W = 112;
 img = ones(H, W, 3);
-G = B.grid;
-nr = max(1, round(double(G.rows)));
-nc = max(1, round(double(G.cols)));
-rh = sizes(G.rowHeights, nr);
-cw = sizes(G.colWidths, nc);
-yb = round([0 cumsum(rh)] / sum(rh) * H);   % the rows' and columns' edges, px
-xb = round([0 cumsum(cw)] / sum(cw) * W);
 for p = reshape(B.panels, 1, [])
-    r1 = min(max(p.row, 1), nr); r2 = min(max(p.row + p.rowSpan - 1, r1), nr);
-    c1 = min(max(p.col, 1), nc); c2 = min(max(p.col + p.colSpan - 1, c1), nc);
-    ys = yb(r1) + 1 + (r1 > 1); ye = yb(r2 + 1) - (r2 < nr);   % a px apart from a neighbor
-    xs = xb(c1) + 1 + (c1 > 1); xe = xb(c2 + 1) - (c2 < nc);
+    r = double(p.rect);
+    if numel(r) ~= 4 || ~all(isfinite(r)); continue; end
+    xs = max(1, round(r(1) * W) + 1); xe = min(W, round((r(1) + r(3)) * W));
+    ys = max(1, round((1 - r(2) - r(4)) * H) + 1); ye = min(H, round((1 - r(2)) * H));
+    xs = xs + (xs > 1); ys = ys + (ys > 1);   % a px apart from a neighbor
     if ye < ys || xe < xs; continue; end
     img(ys:ye, xs:xe, :) = imresize(iconImage(iconDir, p.type), [ye - ys + 1, xe - xs + 1]);
 end
 img = min(max(img, 0), 1);
-end
-
-
-function s = sizes(v, n)
-%sizes  N relative sizes: V when it holds N positive numbers, else equal ones.
-s = ones(1, n);
-v = reshape(double(v), 1, []);
-if numel(v) == n && all(isfinite(v) & v > 0); s = v; end
 end
 
 

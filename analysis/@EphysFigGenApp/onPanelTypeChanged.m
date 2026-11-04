@@ -16,8 +16,11 @@ function onPanelTypeChanged(obj)
 %   map's units); a layer both types could bind keeps its binding. A
 %   layer's aggregate the new type does not offer it is "each"
 %   (EphysAnalysisConfig.aggregates). With none left the type's default layer is
-%   added. A type not aligned to events uses the figure's event and window.
-%   The status bar says what changed.
+%   added (a legend panel has none: it draws the figure's legend entries).
+%   A type not aligned to events uses the figure's event and window. A
+%   second legend panel is refused (the drop-down goes back): "The figure
+%   already has a legend panel (legend_1)." The status bar says what
+%   changed.
 if obj.Applying; return; end
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end
@@ -29,6 +32,12 @@ fig = cfg.Figures(k);
 p = fig.panels(j);
 old = p.type;
 if new == old; return; end
+others = fig.panels([1:j-1, j+1:end]);
+if new == "legend" && ~isempty(others) && any([others.type] == "legend")
+    obj.FigureEditor.panelType.Value = old;
+    obj.setStatus("The figure already has a legend panel (" + others(find([others.type] == "legend", 1)).id + ").");
+    return
+end
 PT = EphysAnalysisConfig.panelTypes();
 row = PT.Type == new;
 
@@ -53,8 +62,8 @@ for i = 1:numel(L)
 end
 added = "";
 if isempty(L)
-    L = EphysAnalysisConfig.defaultLayer(new);
-    added = "; added its default layer (" + layerLabel(L) + ")";
+    L = EphysAnalysisConfig.defaultLayer(new);   % a legend panel: none
+    if ~isempty(L); added = "; added its default layer (" + layerLabel(L) + ")"; end
 end
 p.layers = L;
 
@@ -62,7 +71,8 @@ p.layers = L;
 op = PT.DefaultOptions{row};
 i = find([L.enabled], 1);
 if isempty(i); i = 1; end
-first = L(i).source;
+first = "";
+if ~isempty(L); first = L(i).source; end
 modes = figureEditorChoices(new, first).BaselineModes;
 for f = string(fieldnames(op)).'
     % same names, other meanings: an inset vs a waveforms panel's own waveform; a rate panel's display (bar | box |

@@ -7,13 +7,19 @@ function syncFigureEditor(obj)
 %                    the response test's rows, its auROC rows with the
 %                    auROC test), the channels for a signal, nothing more
 %                    for the dataset
-%     Arrangement    the selected panel's rows once there is one (Align in
-%                    cell's drop-downs enabled each way the panel is
-%                    smaller than its cell)
+%     Panels         New panel..., Units, Boxes mean, Padding, Snap and the
+%                    Arrange hint always; the selected panel's line, its
+%                    Position and Size and its buttons (Bring forward
+%                    while a panel is drawn after it, Send back while one
+%                    is drawn before it; Set corners waits for Arrange)
+%                    once there is one, else "No panel yet"; the values
+%                    in the units picked (showPanelPlace)
 %     Panel, Panel alignment, Layers, Options   with a panel selected;
 %                    Group shown for the one-group types (heat map, unit
 %                    correlation; hidden on a stack); the Y axis row's side grayed out on a
-%                    stacked line panel (a y axis on each side); Panel alignment's rows grayed out (they
+%                    stacked line panel (a y axis on each side); a legend
+%                    panel's without Box and the axes' rows (it has no
+%                    axes); Panel alignment's rows grayed out (they
 %                    show the figure's) while "Same as the figure" is
 %                    ticked, and, with a note, for a type not aligned to
 %                    events; its trial selection rows grayed out while
@@ -72,7 +78,9 @@ function syncFigureEditor(obj)
 %                    window, color limits and group); an event-trace
 %                    panel's rows (the bar outline with bars, the level
 %                    line with a line, the group bands with a sub-row per
-%                    epoch, the baseline's look with a baseline)
+%                    epoch, the baseline's look with a baseline); a
+%                    legend panel's entries (orientation, columns) and
+%                    place in the panel
 %     Waveform       with a panel whose type draws spikes (its sources
 %                    hold units or detected: figureEditorChoices), titled
 %                    with the panel's id: a note (waveformNote: what it
@@ -115,11 +123,13 @@ function syncFigureEditor(obj)
 %   amplitude; Spikes drawn but with Template, the band with a mean), the
 %   bins of a unit
 %   correlation for its peak rate, the mask with a stop event, the stack
-%   spacing when stacked, the error and legend rows with their boxes, each
-%   Move button when the panel has a same-shaped neighbor that way, and
-%   the list buttons; Up and Down when the figure has a neighbor that way in
-%   its group of the tree. The schematic is redrawn (drawFigureSchematic),
-%   and the preview outlines the selected panel (markFigurePanel).
+%   spacing when stacked, the error and legend rows with their boxes, and
+%   the list buttons (Add layer off on a legend panel, which has no
+%   layers: the Layers note says so); Up and Down when the figure has a
+%   neighbor that way in its group of the tree. The Panels section's
+%   values are shown again in the units picked (showPanelPlace: an edit
+%   kept on the page, a page resized), and the preview outlines the
+%   selected panel (markFigurePanel).
 E = obj.FigureEditor;
 S = obj.FigureSections;
 k = obj.SelectedFigure;
@@ -149,8 +159,8 @@ if ~has
     E.summary.Text = "Add a figure: press Add under the list, then pick its first panel.";
     if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown); obj.FiguresDatasetDropDown.Enable = "on"; end
     obj.FigureSections = S;
+    showPanelPlace(obj);
     obj.layoutFigureEditor();
-    obj.drawFigureSchematic();
     return
 end
 fig = obj.Config.Figures(k);
@@ -162,7 +172,7 @@ kind = EphysAnalysisConfig.observeKind(fig);
 spikes = EphysAnalysisConfig.SpikeSources;
 signals = EphysAnalysisConfig.SignalSources;
 plural = @(n, w) sprintf("%d %s%s", n, w, repmat('s', 1, n ~= 1));
-E.summary.Text = plural(fig.grid.rows, "row") + " x " + plural(fig.grid.cols, "column") + ", " + plural(np, "panel") + "; per " + kind;
+E.summary.Text = plural(np, "panel") + "; per " + kind;
 aligned = false(1, np);
 for q = 1:np
     row = PT.Type == fig.panels(q).type;
@@ -170,7 +180,7 @@ for q = 1:np
 end
 
 v = struct();
-for f = ["id" "title" "size" "sizeWidth" "enabled" "summary" "observe" "obsStarred" "sesEnabled" "prbEnabled" "obsPerGroup" "obsCount" "schematic" "newPanel" "spacing" ...
+for f = ["id" "title" "size" "sizeWidth" "enabled" "summary" "observe" "obsStarred" "sesEnabled" "prbEnabled" "obsPerGroup" "obsCount" "newPanel" "rectUnits" "boxesMean" "padding" "snap" "arrangeHint" ...
         "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText"]
     v.(f) = true;   % the rows every figure shows
 end
@@ -226,11 +236,12 @@ en([E.latBaseFrom E.latBaseTo], string(E.latBaseline.Value) == "window");
 E.latNote.Text = latencyNote(fig);
 % arrangement and panel
 v.selPanel = hasPanel; v.noPanel = ~hasPanel;
-v.rowSpan = hasPanel; v.colSpan = hasPanel; v.rowHeight = hasPanel; v.colWidth = hasPanel; v.panelButtons = hasPanel;
-v.panelWidth = hasPanel; v.panelAlign = hasPanel;
-en(E.panelAlign, E.panelWidth.Value < 100);   % where it sits only matters when it is smaller than its cell
-en(E.panelVAlign, E.panelHeight.Value < 100);
-v.panelType = hasPanel; v.panelTitle = hasPanel; v.panelBox = hasPanel; v.panelXLabel = hasPanel; v.panelYLabel = hasPanel;
+v.rectXY = hasPanel; v.rectWH = hasPanel; v.panelButtons = hasPanel;
+en(E.bringForward, hasPanel && j < np);   % the drawing order: forward while a panel is drawn after it
+en(E.sendBack, hasPanel && j > 1);
+E.setCorners.Enable = "off";   % with the Arrange overlay
+axesOn = hasPanel && fig.panels(j).type ~= "legend";   % a legend panel has no axes
+v.panelType = hasPanel; v.panelTitle = hasPanel; v.panelBox = axesOn; v.panelXLabel = axesOn; v.panelYLabel = axesOn;
 v.group = false;
 % layers and options: off unless the panel uses them
 layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layerBinding" "layerFollows" "layerClasses" ...
@@ -243,7 +254,7 @@ optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
     "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
-    "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"];
+    "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing" "legOrient" "legAlign"];
 waveKeys = ["waveNote" "waveMode" "waveSpikes" "waveFrom" "waveAmp" "waveWidth" "waveLocation" "wavePP" "waveSites"];
 noteKeys = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"];
 overlayKeys = ["ovList" "ovName" "ovKind" "ovValue" "ovFrom" "ovLayer" "ovColor" "ovFill" "ovEdge" "ovStyle"];
@@ -285,8 +296,10 @@ if hasPanel
     end
     v.layerList = true; v.layerAdd = true;
     multi = known && PT.MultiLayer(row);
-    v.layerNote = ~multi && nl > 1;
-    if v.layerNote
+    v.layerNote = (~multi && nl > 1) || isempty(ch.Sources);
+    if isempty(ch.Sources)
+        E.layerNote.Text = "A " + lower(typeLabel) + " panel has no layers: it draws the figure's legend entries.";
+    elseif v.layerNote
         E.layerNote.Text = "A " + lower(typeLabel) + " panel draws one layer: only the first enabled one is drawn.";
     end
     i = obj.SelectedLayer;
@@ -363,6 +376,7 @@ if hasPanel
     en([E.etBaseColor E.etBaseStyle E.etBaseWidth], E.etBaseline.Value);
     if trialHeat; v.group = false; end   % a heat map of trials draws every group
     v.value = t == "probemap";
+    v.legOrient = t == "legend"; v.legAlign = v.legOrient;
     v.unitLabels = v.value;
     v.waveColor = v.value;
     v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric; v.detrend = v.metric;
@@ -476,12 +490,6 @@ if hasPanel
     outlined = isLine || ~ismember(lower(strtrim(string(E.ovEdge.Value))), ["" "none"]);
     en([E.ovStyle E.ovWidth], outlined);
     nOv = numel(items);
-
-    % moving and removing
-    for d = ["up" "down" "left" "right"]
-        [~, moved] = EphysAnalysisConfig.movePanel(fig, p.id, d);
-        en(E.("move" + upper(extractBefore(d, 2)) + extractAfter(d, 1)), moved);
-    end
 end
 en(E.removePanel, hasPanel);
 own = false;   % any panel with its own event, window or selection: Re-link all panels has something to do
@@ -557,8 +565,8 @@ if ~isempty(obj.FiguresDatasetDropDown) && isvalid(obj.FiguresDatasetDropDown)
     obj.FiguresDatasetDropDown.Enable = onoff(~ses);   % a session figure is drawn across the datasets, not on the active one
 end
 syncColorSwatches(E.swatch);   % each color field's swatch: its color, enabled with it
+showPanelPlace(obj);   % the rect, padding and snap step in the units picked (kept on the page, the page resized)
 obj.layoutFigureEditor();
-obj.drawFigureSchematic();
 obj.markFigurePanel();   % the preview outlines the selected panel
 end
 

@@ -27,8 +27,8 @@ classdef EphysFigGenApp < handle
     %                (refreshAlignPreview)
     %     Figures    figures (buildFiguresTab): panels of different types
     %                (raster, PSTH, continuous signal, heat map, unit
-    %                waveforms, behavior, probe map, unit correlation) on a
-    %                grid, designed for ONE observation (a sorted unit, a
+    %                waveforms, probe map, unit correlation, legend, ...),
+    %                each placed freely on the page, designed for ONE observation (a sorted unit, a
     %                channel or the dataset) at a time; a tree of figures
     %                under groups (what they observe, enabled / off, none),
     %                each with a check box that enables it (add a blank
@@ -38,16 +38,17 @@ classdef EphysFigGenApp < handle
     %                editor in collapsible sections under three collapsible
     %                supersections (Figure, Panel, Look), with a search
     %                field that finds a setting by name: the observations (the
-    %                unit filter), the panels (a schematic of the grid:
-    %                drag a panel to an empty cell or beside another one;
-    %                an empty cell's minus sign: a menu of the ways to
-    %                remove it, onRemoveCell;
-    %                New panel... (a window: the type, each shown as a small
-    %                plot, or a saved figure placed as one block -- Raster
-    %                over PSTH, or a figure of yours kept with Save as panel
-    %                type... -- its name, place and key parameters: onNewPanel),
-    %                spans, relative row heights and column widths,
-    %                spacing, Remove, Move), the selected panel (type, title,
+    %                unit filter), the panels (each placed freely on the
+    %                page by its rect: New panel... (a window: the type,
+    %                each shown as a small plot, or a saved figure placed
+    %                as one block -- Raster over PSTH, or a figure of yours
+    %                kept with Save as panel type... -- its name, place and
+    %                key parameters: onNewPanel), the selected panel's
+    %                position and size typed in the units picked
+    %                (onPanelRectEdited, onRectUnitsChanged), what a box
+    %                means and the padding, Snap (onSnapChanged), Remove
+    %                panel, Bring forward, Send back: onPanelOrder; the
+    %                preview's Arrange button, onArrangeToggled), the selected panel (type, title,
     %                box, group shown), the figure's event reference, epoch window and
     %                trial selection ("Use default" for the Alignment tab's),
     %                the panel's own event and window ("Same as the figure"),
@@ -144,7 +145,8 @@ classdef EphysFigGenApp < handle
     %   previous and next observation (onFigureObservationStep). Ctrl+P,
     %   Ctrl+R, Ctrl+U, Ctrl+T, Ctrl+K, Ctrl+E and Ctrl+W press Preview,
     %   Redraw All, Test report (the Export tab's), Auto, Export preview,
-    %   Export code and Open in window (pressFigureButton). Escape cancels a panel drag. Ctrl+Z undoes
+    %   Export code and Open in window (pressFigureButton). Escape cancels
+    %   an Arrange drag or Set corners (cancelArrange). Ctrl+Z undoes
     %   the last edit of the figures, Ctrl+Y and Ctrl+Shift+Z redo it
     %   (onUndoRedo). The "?" button lists them all (onFigureKeys).
     %
@@ -155,7 +157,9 @@ classdef EphysFigGenApp < handle
     %   one observation is quick), FigureSectionsCollapsed and
     %   FigureSupersectionsCollapsed (its editor's collapsed sections and
     %   supersections), FigureGroupBy and FigureGroupsCollapsed (how
-    %   its figure tree groups, and its collapsed groups), ReportWorkers
+    %   its figure tree groups, and its collapsed groups), FigureRectUnits,
+    %   FigureSnap and FigureSnapStep (the Panels section's units, Snap box
+    %   and step), ReportWorkers
     %   (the Export tab's Workers: the process workers a run draws and
     %   writes its pages on, 4 by default; 0 = in this MATLAB).
     %
@@ -280,7 +284,6 @@ classdef EphysFigGenApp < handle
         FigureEditor struct = struct()           % figure-editor controls by field
         FigureAlignControls struct = struct()    % the figure's event / window / selection (buildAlignControls)
         PanelAlignControls struct = struct()     % the selected panel's own event / window (buildAlignControls; its selection hidden)
-        FigureSchematic        matlab.ui.control.UIAxes         % the arrangement's schematic (drawFigureSchematic)
         FiguresDatasetDropDown matlab.ui.control.DropDown       % the active dataset (as on the other tabs)
         FigureObservationDropDown matlab.ui.control.DropDown    % the observation previewed; ItemsData = row of FigureObservations
         FiguresDatasetStar     matlab.ui.control.StateButton    % stars the active dataset (starButton)
@@ -297,6 +300,7 @@ classdef EphysFigGenApp < handle
         FigureCodeButton       matlab.ui.control.Button         % Export code: the code behind the preview (its data in its epochs, the drawing), in the editor (onFigureCode)
         FigureExportPreviewButton matlab.ui.control.Button      % Export preview under the preview: the observation picked written as a run writes it (onExportPreview)
         FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
+        FigureArrangeButton    matlab.ui.control.StateButton    % Arrange, on the template row: panels moved and resized over the preview (onArrangeToggled)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
         SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
         FigureTemplateDropDown matlab.ui.control.DropDown       % your figure templates (FigureTemplate.list; refreshTemplates), above the preview
@@ -390,7 +394,15 @@ classdef EphysFigGenApp < handle
         FigureSessionResults = []           % a session figure's last preview: struct(res (figureSessionCompute's RES), spec, what, label, seconds)
         FigureProbeTiles = []               % a probe figure's tiles on the active dataset, counted once per key (private/probeTileCount: key, T, left, words)
         FigureGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the figure tree's groups the user collapsed
-        FigureDrag = []                     % a panel dragged in the schematic (onSchematicPress): its state, else []
+        FigureDrag = []                     % a drag over the preview in Arrange (a rubber band, a fallback widget): its state with the window's oldMotion and oldUp callbacks, else [] (cancelArrange)
+        FigureArrange (1,1) logical = false % the preview's Arrange button is on: the panels are moved and resized over it (onArrangeToggled; session state, not a preference)
+        FigureArrangeOverlay = []           % Arrange's overlay over the preview: its axes, a widget per panel, the guides; else []
+        FigureArrangeMode (1,1) string = "" % what Arrange is doing: "" | "drag" | "corners" (Set corners: two clicks); cancelArrange ends it
+        FigureCorners = []                  % Set corners: what the two clicks place ("panel", "new", "block") and the first corner, else []
+        FigureArrangeFocus (1,1) logical = false   % the overlay was clicked last: the arrow keys nudge the selected panel (cleared by an editor edit)
+        FigureRectUnits (1,1) string = "cm"  % the Panels section's units for a rect, padding and snap step (EphysAnalysisConfig.RectUnits; pref FigureRectUnits)
+        FigureSnap (1,1) logical = true     % Arrange snaps the panels to edges, centers and the step (pref FigureSnap)
+        FigureSnapStep = struct('value', 0.5, 'units', "cm")   % the snap step and the arrow keys' nudge: a value in its units (pref FigureSnapStep)
         FigureSearchIndex struct = struct([])   % the editor's searchable rows, as built (figureSearchIndex)
         FigureSearchState (1,1) string = ""     % "typing" (the search field), "list" (its matches), "" (Enter, arrows and Escape are left alone)
         FigureFlash = []                    % the row gotoFigureRow highlights: struct(handles, saved, timer), else []
@@ -587,12 +599,15 @@ classdef EphysFigGenApp < handle
         onPanelSelected(obj, k)
         onNewPanel(obj, opts)
         onRemovePanel(obj)
-        onRemoveCell(obj, rc, how)
-        onMovePanel(obj, direction)
+        onPanelOrder(obj, step)
+        onPanelRectEdited(obj, part)
+        onRectUnitsChanged(obj)
+        onSnapChanged(obj)
+        onArrangeToggled(obj)
+        cancelArrange(obj, msg)
         onPanelTypeChanged(obj)
         onResetPanelOptions(obj)
         onForgetPanelOptions(obj)
-        drawFigureSchematic(obj)
         onLayerSelected(obj, j)
         onAddLayer(obj)
         onRemoveLayer(obj)
@@ -632,9 +647,6 @@ classdef EphysFigGenApp < handle
         onRemoveFigureOverlay(obj)
         onDuplicateFigureOverlay(obj)
         onFigureOverlayPicked(obj)
-        onSchematicPress(obj, q, evt)
-        cancelSchematicDrag(obj, msg)
-        p = schematicPixel(obj, xy)
 
         % --- app-wide ---
         loadPreferences(obj, openLast)

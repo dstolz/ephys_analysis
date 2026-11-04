@@ -10,8 +10,7 @@ says how to cut a release.
 
 ### Changed
 
-- Figures place their panels freely on the page instead of on a grid (config, part 1 of the free placement
-  work). A panel has `rect`, `[x y width height]` in 0-1 of the page from its bottom-left corner, in place of
+- Figures: free panel placement. Figures place their panels freely on the page instead of on a grid (config). A panel has `rect`, `[x y width height]` in 0-1 of the page from its bottom-left corner, in place of
   `row`, `col`, `rowSpan`, `colSpan`, `size`, `align` and `valign`; a figure has `layout` (`boxesMean` `"plot"` |
   `"outer"`: a rect is the panel's plot area or encloses its labels; `padding`, 0.15 cm) in place of `grid`.
   The `"rasterPsth"` template is the raster on the page's top half flush over the PSTH on its bottom half; a panel
@@ -21,13 +20,13 @@ says how to cut a release.
   types in reading order (`panelOrder`). `layout.boxesMean` and `layout.padding` are settings Apply to figures and
   Copy figure settings give other figures (the panels' rects are not); Copy figure settings has *Panels*
   (`arrangement.panels`) and *Boxes mean and padding* (`arrangement.layout`). A version-1 config's plots migrate
-  to panels stacked flush over the page. Old grid-shaped configs are not converted: `grid` and the panels' cell
-  fields are unknown fields (load warnings) and the panels all fill the page; an old figure template whose
+  to panels stacked flush over the page. Grid-shaped configs and templates are not read: `grid` and the panels'
+  cell fields are unknown fields (load warnings) and the panels all fill the page; a figure template whose
   figure has a `grid` is not read (`FigureTemplate:Bad`, named in the template list's Problem).
-- `Style.LegendLocation` is `"auto"` (the figure's legend panel, else floating in free space, else inside the first
+- Figures: free panel placement, the legend. `Style.LegendLocation` is `"auto"` (the figure's legend panel, else floating in free space, else inside the first
   panel), `"inside"` or `"none"`; `"north"`, `"south"`, `"east"` and `"west"` are gone (a legend never shrinks a
   plot area).
-- Figures are laid out at their panels' rects (layout engine, part 2 of the free placement work). Each panel sits at
+- Figures: free panel placement, the layout engine. Figures are laid out at their panels' rects. Each panel sits at
   its rect on the page (inside a 6 px margin; the title band at the top is kept clear); with `layout.boxesMean`
   `"plot"` its plot area moves in only as far as its labels need to stay `layout.padding` clear of the neighbors'
   labels and the page's edge, the shortfall between two panels split by their labels' room, and plot edges that
@@ -45,18 +44,18 @@ says how to cut a release.
   is 1.5 cm per level of panels (their rects' distinct top edges) per row of tiles, and each tile's panels sit at
   their rects in it. The title of a figure of the user's own names the observation on the top-left panel in reading
   order (`panelOrder`).
-- Analysis app, Figures tab (free placement, part 3): the Panels section places the selected panel by its rect.
+- Figures: free panel placement, the Figures tab. The Panels section places the selected panel by its rect.
   It shows the panel's place (*psth_1 (PSTH): 10.2 x 6.0 cm at 0, 0*), **Position** and **Size** fields in the
   **Units** picked (normalized, %, cm, in or px at the Export dpi; a preference), a value typed being one undo step
   named after its field (*Undo Panel x*) and kept on the page; **Boxes mean** and **Padding** (the figure's
-  `layout`); **Snap** and its step (preferences, for the Arrange overlay to come); **Remove panel** (the others keep
+  `layout`); **Snap** and its step (preferences, for Arrange); **Remove panel** (the others keep
   their places), **Bring forward** and **Send back** (the drawing order, *Undo Reorder panel*). **New panel...**
   places a panel in the largest empty space of the page or below, above, right or left of the selected panel,
   which it halves (the first panel fills the page); a saved figure is placed the same way as one block, its page
   mapped onto the place. The New panel window offers the *Legend* panel type (Orientation, Columns; one per
   figure, a second refused) and the editor its Options rows. Ctrl+Alt+arrows step to the panel above, below, left
   or right by the rects. The preview's template row has an **Arrange** button, and the Panels section **Set
-  corners**: both wait for the Arrange overlay. The Appearance section's legend place is *Auto*, *Inside* or
+  corners** (below). The Appearance section's legend place is *Auto*, *Inside* or
   *None*. Preferences `FigureRectUnits`, `FigureSnap` and `FigureSnapStep`.
 - `EphysAnalysisApp` is renamed `EphysFigGenApp` (class folder `analysis/@EphysFigGenApp`, `test_EphysFigGenApp`,
   `documentation/EphysFigGenApp.md`, the wiki's `API-EphysFigGenApp` page). Its preferences group is
@@ -75,18 +74,12 @@ says how to cut a release.
   to rerun it), stops the run and exits 3. Under `-batch`, MATLAB refuses its own blocking dialogs and the test
   fails, which prints the block too. `-Interactive` (with `-DialogSec`, default 30) runs on your desktop under `-r`,
   where such a dialog waits for your answer.
-- Analysis app: a new panel put above, below, left or right of the selected one fills the empty cells on that side
-  (across all the anchor's columns or rows) and leaves the grid as it is; a new row or column is added only when
-  one of those cells is taken (`EphysAnalysisConfig.placePanel`). The empty cells of the Panels sketch show a gray
-  **+**: a click on one opens the New panel window with that cell as the place (`placePanel(fig, panel, "cell", "",
-  [R C])`, `onNewPanel(Where="cell", Cell=[R C])`; error `EphysAnalysisConfig:CellTaken`). A saved figure picked in
-  the New panel window (below) still goes above, below, left or right of the selected panel, in new rows or columns.
 - Analysis app: figures saved as panel types. **Save as panel type...** under the Figures tab's figure list keeps
   the figure shown as a figure template marked `"panel": true` (`FigureTemplate.fromFigure(..., Panel=true)`; the
   template window's **Save as...** has the same box). The New panel window lists these under *Saved figures*, after
   the built-in *Raster over PSTH* (`FigureTemplate.panelTypes`, `panelFigure`): one picked places all its panels as
-  one block next to the selected panel, keeping their arrangement and gaps, with the figure's or its own alignment
-  (`EphysAnalysisConfig.placePanels`; `onNewPanel(Set=, Alignment=)`). The panels are copied, as a template is.
+  one block in the free space or beside the selected panel, keeping their arrangement (a raster flush over its PSTH
+  stays flush), with the figure's or its own alignment (`EphysAnalysisConfig.placeBlock`; `onNewPanel(Set=, Alignment=)`). The panels are copied, as a template is.
 - Analysis app: the **Add Raster + PSTH** button is gone from the Figures tab; **Add** (now full width) and the
   empty preview's **Add figure** open the New panel window, where *Raster over PSTH* is a saved figure.
   `onAddFigure("rasterPsth")` and `cfg.addFigure("rasterPsth")` are unchanged.
@@ -402,12 +395,11 @@ says how to cut a release.
 
 ### Removed
 
-- Analysis app, Figures tab: the Panels section's schematic of the grid (with its drag and drop and the empty
-  cells' **+** and **−** menus), **Row span**, **Column span**, **Row height**, **Column width**, **Panel size**,
+- Analysis app, Figures tab: the Panels section's schematic of the grid (with its drag and drop), **Row span**, **Column span**, **Row height**, **Column width**, **Panel size**,
   **Align in cell**, **Spacing** and the Spacing window, and **Move** (`drawFigureSchematic`, `onSchematicPress`,
-  `cancelSchematicDrag`, `schematicPixel`, `onRemoveCell`, `onMovePanel`, `private/figureSpacingDialog`, the
+  `cancelSchematicDrag`, `schematicPixel`, `onMovePanel`, `private/figureSpacingDialog`, the
   `FigureSchematic` property). New panel's empty-cell places go with them.
-- `EphysAnalysisConfig`'s grid editors `placePanels`, `removeCell`, `cellRemovals`, `movePanel` and
+- `EphysAnalysisConfig`'s grid editors `placePanels`, `movePanel` and
   `figureCells` (with their private helpers), and the constants `GridSpacings`, `GridSpacingPx`, `GridGapUnits`,
   `PanelAligns` and `PanelVAligns`.
 - The grid layout engine (`figureArrange`, `figurePanelCells`), the legend bands beside the panels
@@ -419,7 +411,7 @@ says how to cut a release.
 
 ### Added
 
-- Analysis app, Figures tab: the preview's **Arrange** button (free placement, part 4) puts a box over the preview
+- Figures: free panel placement, Arrange. The preview's **Arrange** button on the Figures tab puts a box over the preview
   for each panel at its rect (`syncArrangeOverlay`; `images.roi.Rectangle`, so it needs the Image Processing
   Toolbox). Drag a box to move its panel, a handle to resize it: it snaps, within 6 px, to the other panels' edges
   (aligned or flush), their centers and the page's, the page's edges, an equal spacing and (resizing) an equal
@@ -436,23 +428,16 @@ says how to cut a release.
   Bring forward, Send back and Remove panel. While Arrange is on the selected panel's outline gives way to its blue
   box and the plot's data tips and right-click editors wait; another figure not drawn, or a probe figure, gets no
   boxes and the status bar says why.
-- `EphysAnalysisConfig.placePanel(fig, panel, where, anchorId, rect)` places a panel in the page's largest free
+- Figures: free panel placement, scripting. `EphysAnalysisConfig.placePanel(fig, panel, where, anchorId, rect)` places a panel in the page's largest free
   space (`"free"`, the default), in the far half of an anchor panel's rect (`"below"`, `"above"`, `"left"`,
   `"right"`) or at a rect; `placeBlock` places a figure's panels as one block the same ways, mapped into the target
   rect; `orderPanel` brings a panel forward or sends it back; `freeRect`, `rectOverlaps` and `panelOrder` read the
   rects; `removePanel` moves nothing else. Constants `BoxesMeans`, `RectUnits`, `RectTol`. New helpers
   `figureRectConvert` (places between normalized, %, cm, in and px) and `figureNeighbors` (shared extents, gaps,
   and which rects touch which).
-- Panel type `legend` ("The figure's legend in a panel of its own"): no layers, options `orientation`, `align`,
+- Figures: free panel placement, the legend panel. Panel type `legend` ("The figure's legend in a panel of its own"): no layers, options `orientation`, `align`,
   `valign` and `columns`; at most one per figure. `renderFigure` hides its axes (`legendHost`) and lays the figure's
   legend out in it.
-- Analysis app: an empty cell of the Panels sketch shows a gray **−** beside its **+**. A click on it (or a
-  right click on the cell) opens a menu of the ways to remove the cell: stretch its column's or row's panels over it
-  (with the other empty cells of that run), shift the cells up or left, grow a panel next to it over it, or delete
-  its row or column; the ways that cannot are grayed with why. Rows and columns left without a panel go too; Undo
-  takes it back (*Remove cell*). `EphysAnalysisConfig.removeCell(fig, [r c], how)` does it in a script
-  (`EphysAnalysisConfig:CannotRemoveCell` when that way cannot), `EphysAnalysisConfig.cellRemovals` lists the ways,
-  `onRemoveCell(rc, how)` is the app's.
 - The unit correlation panel's `detrend` option (default `true`, as `unitCorrelation`'s `Detrend`) and its
   **Detrend over the session** box in the figures editor.
 - `S_DatasetBrowserToNeuroGLM.m` models the trial's response: a kernel per response word on `opts.responseEvents`

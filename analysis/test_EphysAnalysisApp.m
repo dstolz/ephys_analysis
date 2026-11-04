@@ -3866,6 +3866,15 @@ if S.sec("5n", "Apply to figures: an edit made with Ctrl held given to other fig
     check(F4(2).style.FontSize == 14 && F4(3).style.FontSize ~= 14 && app.Config.Figures(2).style.FontSize ~= 14 ...
         && app.Config.Figures(1).style.FontSize == 14, 'Ctrl+Shift+A gives the font size to the figure ticked; Undo takes that back only');
 
+    % Apply last change after a step named by a string, not a control (its Key is that string)
+    FE.fontSize.Value = 16;
+    app.onConfigChanged("figure", "Font size");
+    app.onApplyToFigures(Ticked=ids(2), Replot=false);
+    check(app.Config.Figures(2).style.FontSize == 16 && contains(string(app.StatusBar.Text), "Font size: 16 went to " + ids(2)), ...
+        'Apply last change gives an edit named by a string (no control) too');
+    app.onUndoRedo("undo");
+    app.onUndoRedo("undo");
+
     % an edit that stays with its figure: no window
     applyRows = [];
     tm = answerDialog("Apply to figures", @(D) answerApply(D, false(1, 0), false, false));

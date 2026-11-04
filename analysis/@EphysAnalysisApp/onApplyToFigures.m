@@ -233,7 +233,8 @@ end
 
 function t = valueText(v, ctl)
 %valueText  A value as text: the drop-down item CTL shows for it, else on / off, the text, the numbers, or a summary.
-if ~isempty(ctl) && isscalar(ctl) && isobject(ctl) && isvalid(ctl) && isprop(ctl, 'ItemsData') && ~isempty(ctl.ItemsData) ...
+%   CTL is a control only when it is a handle (not isobject: a history step's Key, a string, is an object too).
+if ~isempty(ctl) && isscalar(ctl) && isa(ctl, 'handle') && isvalid(ctl) && isprop(ctl, 'ItemsData') && ~isempty(ctl.ItemsData) ...
         && (isstring(v) || ischar(v) || (isnumeric(v) && isscalar(v)))
     data = ctl.ItemsData;
     items = string(ctl.Items);

@@ -633,12 +633,13 @@ drawn in every tile), there are no boxes and the status bar says why
 
 | Do | Effect |
 | --- | --- |
-| click a box | selects its panel: the editor shows it |
+| click a box | selects its panel alone: the editor shows it |
+| **Shift**+click a box | adds its panel to the selection (it becomes the one the editor shows), or takes a selected one out. Every selected box is blue, the editor's panel's line thicker. A drag of any selected box moves them all by the same amount (the group stays on the page); a resize changes every one's width or height by the same amount about the same edge (dragging the right edge widens each; a corner changes both); the arrow keys nudge them all; one undo step, *Move panels* or *Resize panels*. A plain click on one of them (without dragging) selects it alone; a click on the page between the boxes leaves the editor's panel alone. Arrange off, another figure, or a panel added or removed ends the selection |
 | drag a box | moves the panel: its plots go with the box, and the Position fields follow, as you drag; the figure takes the place when you let go, one undo step, *Move panel* (*"Moved psth_1: 9.0 x 6.0 cm at 0, 6."*) |
 | drag a handle (a corner or an edge of the box) | resizes the panel: *Resize panel* |
 | hold **Alt** while dragging | no snapping: the box goes exactly where the pointer puts it |
-| **Escape** while dragging | the box and the plots go back; letting go then changes nothing |
-| right-click a box | **Set corners**, **Bring forward**, **Send back**, **Remove panel**, as the Panels section's buttons |
+| **Escape** while dragging | the box and the plots go back (every selected one); letting go then changes nothing |
+| right-click a box | **Set corners**, **Bring forward**, **Send back**, **Remove panel**, as the Panels section's buttons; with several panels selected, **Remove panel** removes them all (one undo step, *Remove panels*) and the others act on the box right-clicked |
 | click the page, then the arrows | nudge the selected panel (below) |
 | **Set corners** | click one corner on the preview, then the opposite one: the panel takes the rect between them (a dashed rectangle follows the pointer after the first click); Escape or a click off the page cancels |
 
@@ -2653,7 +2654,13 @@ spacing beyond a neighbor and between two, an equal size, only the dragged
 edge, the grid, no reach (Alt), a corner. After a click on the page, three
 arrows are one undo step of one snap step each, Shift ten, Ctrl a preview
 pixel, Alt+Right a resize; the guides go after a second, an editor edit takes
-the arrows back, Ctrl+Alt+Up still selects. **Set corners** locks the boxes
+the arrows back, Ctrl+Alt+Up still selects. Shift+click on psth_2 after a
+click on psth_1 selects both (both blue, psth_2's line thicker); a drag of
+psth_2 moves psth_1 by the same shift (its box and plot along the way), one
+step *Move panels*; a resize widens both alike (*Resize panels*); Escape puts
+both back; an arrow nudges both; a plain click on one keeps both until the
+release (the window's `WindowButtonUpFcn` called), then selects it alone; a
+box's Remove panel removes both (*Remove panels*). **Set corners** locks the boxes
 and takes two clicks (the window's `CurrentPoint` set on the page, the
 overlay's `ButtonDownFcn` called); Escape after the first, or a click off the
 page, cancels. **New panel** with `Where="draw"` adds a panel at two clicks,

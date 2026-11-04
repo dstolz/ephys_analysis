@@ -432,6 +432,14 @@ says how to cut a release.
   Bring forward, Send back and Remove panel. While Arrange is on the selected panel's outline gives way to its blue
   box and the plot's data tips and right-click editors wait; another figure not drawn, or a probe figure, gets no
   boxes and the status bar says why.
+- Figures, Arrange: several panels at once. Shift+click on a box adds its panel to the selection (or takes it out;
+  the editor's panel is the last one clicked); a drag of any selected box moves them all by the same amount, a
+  resize changes every one's width and height alike about the same edges, the arrow keys nudge them all (one undo
+  step, *Move panels* / *Resize panels*), Escape puts them all back, and a box's Remove panel removes them all
+  (*Remove panels*). A plain click selects one panel alone; Arrange off, another figure or a panel added or removed
+  ends the selection. `PlotAesthetics` (its components, the looks it applies, the right-click menus and
+  `scaleSizes`) leaves out axes with `HandleVisibility` `"off"`, such as Arrange's overlay, so a preview drawn while
+  Arrange is on keeps the boxes' own menus and sizes.
 - Figures: free panel placement, scripting. `EphysAnalysisConfig.placePanel(fig, panel, where, anchorId, rect)` places a panel in the page's largest free
   space (`"free"`, the default), in the far half of an anchor panel's rect (`"below"`, `"above"`, `"left"`,
   `"right"`) or at a rect; `placeBlock` places a figure's panels as one block the same ways, mapped into the target

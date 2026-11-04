@@ -2,9 +2,9 @@ classdef FigureTemplate
     %FigureTemplate  Figures kept as templates of yours: a figure's settings, to apply to other figures.
     %   A template is everything a figure is set to in the config -- what it
     %   observes, its event reference, epoch window and trial selection, its
-    %   page size, the grid with every panel (type, place, options, own
-    %   alignment, layers, text note, overlays, waveform), the spacing, the
-    %   Appearance, the looks remembered from the preview and the Sessions
+    %   page size, every panel (type, place on the page, options, own
+    %   alignment, layers, text note, overlays, waveform), what the
+    %   panels' boxes mean and their padding (layout), the Appearance, the looks remembered from the preview and the Sessions
     %   settings -- but what makes a figure that figure: its id (and
     %   whether the id is automatic), its title and whether it is enabled.
     %   An event reference, window or selection the figure takes from the
@@ -27,7 +27,8 @@ classdef FigureTemplate
     %   block of new figures: the New panel window lists it beside the
     %   built-in panel types, and picking it places all its panels, as one
     %   block in its own arrangement (a raster flush over its PSTH stays
-    %   so), next to the selected panel (EphysAnalysisConfig.placePanels).
+    %   so), in the page's free space or beside the selected panel
+    %   (EphysAnalysisConfig.placeBlock).
     %   As with applying a template, the panels are copied: they are
     %   ordinary panels of the new figure from then on. panelTypes lists
     %   them, the built-in "Raster over PSTH" first.
@@ -44,9 +45,9 @@ classdef FigureTemplate
     %   Using
     %     fig = FigureTemplate.figureOf(t)     the figure to apply (no id: automatic)
     %     I = FigureTemplate.check(t, D)       the config's checks of its figure (validate)
-    %     s = FigureTemplate.summary(FIG)      "2 x 1: raster, psth; observes units"
+    %     s = FigureTemplate.summary(FIG)      "2 panels: raster, psth; observes units"
     %     T = FigureTemplate.panelTypes()      the figures New panel offers as panel types (Key, Label, Figure, ...)
-    %     [fig, label] = FigureTemplate.panelFigure(KEY)   one of them, to place (EphysAnalysisConfig.placePanels)
+    %     [fig, label] = FigureTemplate.panelFigure(KEY)   one of them, to place (EphysAnalysisConfig.placeBlock)
     %
     %   A template struct has: name, description, saved (when it was made
     %   from a figure, "yyyy-MM-dd HH:mm"), from (the id of that figure),
@@ -73,7 +74,10 @@ classdef FigureTemplate
     %   version -- does not stop it: the field is dropped and named in the
     %   template's notes (the app shows them). Only a file that is not a
     %   template, or a value the config itself would refuse, is an error
-    %   (FigureTemplate:Bad). save writes the current Version.
+    %   (FigureTemplate:Bad), and so is a template of the old shape, whose
+    %   figure has a grid (panels in its cells, not placed on the page):
+    %   it is not migrated; make it again from a figure. save writes the
+    %   current Version.
     %
     %   Errors: FigureTemplate:Bad (not a template), FigureTemplate:Unknown
     %   (no such template), FigureTemplate:BadName (not a file name),
@@ -247,7 +251,7 @@ classdef FigureTemplate
             %                  one, else the template's name
             %     Label        the name shown on its tile
             %     Description  one line ("" when it has none)
-            %     Summary      summary(its figure): "2 x 1: raster, psth; ..."
+            %     Summary      summary(its figure): "2 panels: raster, psth; ..."
             %     Builtin      true for a built-in one
             %     Problem      what reading it reported ("" when it read cleanly)
             %     Figure       its figure (a cell; normalized)
@@ -283,7 +287,7 @@ classdef FigureTemplate
         end
 
         function [fig, label] = panelFigure(key)
-            %panelFigure  The figure panel type KEY gives (a panelTypes Key): to place with EphysAnalysisConfig.placePanels.
+            %panelFigure  The figure panel type KEY gives (a panelTypes Key): to place with EphysAnalysisConfig.placeBlock.
             %   LABEL is its name ("Raster over PSTH", or the template's).
             %   A template's name that is not a panel type gives its figure
             %   too. Errors: FigureTemplate:Unknown, FigureTemplate:Bad.
@@ -411,13 +415,19 @@ classdef FigureTemplate
         end
 
         function s = summary(fig)
-            %summary  A figure's shape in a line: "2 x 1: raster, psth; observes units".
-            %   With a page size of its own, across sessions or on the probe, it says so.
+            %summary  A figure's shape in a line: "2 panels: raster, psth; observes units".
+            %   The panels' types in their order ("1 panel: psth"; "no
+            %   panels"). With a page size of its own, across sessions or
+            %   on the probe, it says so.
             types = strings(1, 0);
             if ~isempty(fig.panels); types = string([fig.panels.type]); end
             what = "no panels";
-            if ~isempty(types); what = strjoin(types, ", "); end
-            s = string(sprintf("%d x %d: %s; observes %s", fig.grid.rows, fig.grid.cols, what, fig.observe.data));
+            if isscalar(types)
+                what = "1 panel: " + types;
+            elseif ~isempty(types)
+                what = numel(types) + " panels: " + strjoin(types, ", ");
+            end
+            s = what + "; observes " + fig.observe.data;
             if fig.size.source == "own"; s = s + sprintf(", %g x %g %s", fig.size.width, fig.size.height, fig.size.units); end
             if fig.sessions.enabled; s = s + ", across sessions"; end
             if isfield(fig, 'probe') && fig.probe.enabled; s = s + ", on the probe"; end
@@ -446,6 +456,11 @@ classdef FigureTemplate
             end
             if ~isfield(s, 'figure') || ~isstruct(s.figure) || ~isscalar(s.figure)
                 error('FigureTemplate:Bad', '%s holds no figure.', where);
+            end
+            if isfield(s.figure, 'grid')
+                error('FigureTemplate:Bad', ['%s is a template of the old shape: its figure has a grid (figure.grid), ' ...
+                    'its panels in the grid''s cells. Figures place their panels on the page now, and old templates ' ...
+                    'are not converted: make it again from a figure.'], where);
             end
             t = FigureTemplate.blank();
             if isfield(s, 'version') && isnumeric(s.version) && isscalar(s.version); t.version = double(s.version); end

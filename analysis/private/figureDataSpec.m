@@ -2,12 +2,11 @@ function d = figureDataSpec(spec)
 %figureDataSpec  A figure spec without what only its drawing reads: what figureCompute's results depend on.
 %   D = figureDataSpec(SPEC) for a spec of EphysAnalysisConfig.figureFor
 %   is SPEC without
-%     the figure's   id, autoId, enabled, title, grid and aesthetics, and
+%     the figure's   id, autoId, enabled, title, layout and aesthetics, and
 %                    its style but for ShowSEM, ErrorType and
 %                    ErrorResamples (the error a band takes:
 %                    figureErrorType)
-%     each panel's   title, box, xLabel, yLabel, xSide, ySide, row, col,
-%                    rowSpan, colSpan, size, align, valign, note and
+%     each panel's   title, box, xLabel, yLabel, xSide, ySide, rect, note and
 %                    overlays, and the options of LookOptions (the draw
 %                    functions' alone: the compute functions read none of
 %                    them); a PSTH's latencyBox and onsetLine count only as
@@ -26,9 +25,8 @@ function d = figureDataSpec(spec)
 %
 %   See also figureCompute, figureErrorType, EphysAnalysisRunner.computeFigure.
 
-LookFigure = ["id" "autoId" "enabled" "title" "grid" "aesthetics"];
-LookPanel = ["title" "box" "xLabel" "yLabel" "xSide" "ySide" "row" "col" "rowSpan" "colSpan" "size" "align" "valign" ...
-    "note" "overlays"];
+LookFigure = ["id" "autoId" "enabled" "title" "layout" "aesthetics"];
+LookPanel = ["title" "box" "xLabel" "yLabel" "xSide" "ySide" "rect" "note" "overlays"];
 LookLayer = ["color" "lineStyle"];
 LookOptions = ["tickColor" "tickWidth" "backColor" "yTicks" "firstSpike" "fill" "fillAlpha" "histStyle" "normalize" ...
     "stack" "stackSpacing" "yLimMode" "yLim" "colormap" "cLim" "group" "order" "colorBy" "height" "alpha" "trialCount"];

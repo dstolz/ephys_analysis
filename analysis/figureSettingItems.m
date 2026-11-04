@@ -4,7 +4,7 @@ function T = figureSettingItems(fig)
 %   row per setting, grouped under figureSettingParts' parts in the
 %   editor's order (the Copy figure settings window's tree):
 %     Key      unique: "<part>.<name>" ("observe.data", "style.LineWidth",
-%              "arrangement.layout", "looks.2"), a panel's
+%              "arrangement.panels", "looks.2"), a panel's
 %              "panel.<panel id>.<name>" ("panel.psth_1.options.yLim")
 %     Part     figureSettingParts' Part
 %     Groups   the tree's levels between the part and the setting (a
@@ -26,16 +26,17 @@ function T = figureSettingItems(fig)
 %              heat colors (when set) and each remembered look
 %   Observations: each field of observe. Alignment: ref, window,
 %   selection. First-spike latency: each field of the latency block (the
-%   baseline window with the baseline). Arrangement: "layout" (the grid's rows, columns, sizes and
-%   per-gap lists, with every panel: the panels are the grid's) and
-%   "spacing" (the spacing and the custom gaps) and "page" (the figure's
-%   page size, figureExportSize). Panel settings, per panel:
+%   baseline window with the baseline). Arrangement: "panels" (every
+%   panel, its place on the page with it: "3 panels: raster, psth,
+%   continuous"), "layout" (what the panels' boxes mean and the padding
+%   between them, layout.boxesMean and layout.padding) and "page" (the
+%   figure's page size, figureExportSize). Panel settings, per panel:
 %   Axes and limits (box, axis sides, yLimMode, yLim, cLim, yTicks,
 %   scale), Colors and lines, Display and stacks, Marks and insets (first
 %   spike, latency box, onset line, waveform), Data and analysis (every
 %   other option),
-%   Size and alignment (size and place in its cell, its own event
-%   reference / window / selection, its note's look but not its text).
+%   Alignment and note (its own event reference / window / selection,
+%   its note's look but not its text; its place goes with the panels).
 %   Appearance: the Style fields a figure draws with, grouped (Lines and
 %   error bands, Colors, Text and legend, Marks, Sorting and labels; Other
 %   for a field not named here), not YLim, XLim, CLim, MaxTiles,
@@ -68,12 +69,10 @@ for f = string(fieldnames(fig.latency)).'
     add("latency", strings(1, 0), f, word(f, LL), "figure", 0, paths, false);
 end
 % Arrangement
-g = fig.grid;
-add("arrangement", strings(1, 0), "layout", "Grid and panels (types, places, options, layers)", "figure", 0, ...
-    ["grid.rows" "grid.cols" "grid.rowHeights" "grid.colWidths" "grid.rowGaps" "grid.colGaps" "panels"], false, ...
-    sprintf('%d x %d: %s', g.rows, g.cols, panelList(fig.panels)));
-add("arrangement", strings(1, 0), "spacing", "Spacing between panels", "figure", 0, ...
-    ["grid.spacing" "grid.gapUnits" "grid.rowGap" "grid.colGap"], false, spacingText(g));
+add("arrangement", strings(1, 0), "panels", "Panels (types, places, options, layers)", "figure", 0, "panels", false, ...
+    panelList(fig.panels));
+add("arrangement", strings(1, 0), "layout", "Boxes mean and padding", "figure", 0, ...
+    ["layout.boxesMean" "layout.padding"], false, layoutText(fig.layout));
 add("arrangement", strings(1, 0), "page", "Page size (export and preview)", "figure", 0, "size", false, pageText(fig.size));
 % Panel settings
 types = EphysAnalysisConfig.panelTypes();
@@ -88,15 +87,13 @@ for j = 1:numel(fig.panels)
     for f = string(fieldnames(p.options)).'
         pa(optionGroup(f), "options." + f, word(f, optionLabels()), "options." + f, p.options.(f));
     end
-    pa("Size and alignment", "size", "Size and place in its cell", ["size" "align" "valign"], ...
-        sprintf('%g x %g, %s, %s', p.size(1), p.size(end), p.align, p.valign));
-    pa("Size and alignment", "alignment", "Its own alignment (event, window, selection)", ["ref" "window" "selection"], ...
+    pa("Alignment and note", "alignment", "Its own alignment (event, window, selection)", ["ref" "window" "selection"], ...
         alignText(p));
     nf = setdiff(string(fieldnames(p.note)).', "text", 'stable');
-    pa("Size and alignment", "note", "Its note's look (not the text)", "note." + nf, p.note.placement);
+    pa("Alignment and note", "note", "Its note's look (not the text)", "note." + nf, p.note.placement);
 end
 % Appearance
-unused = ["YLim" "XLim" "CLim" "MaxTiles" "TileSpacing" "StackSpacing"];   % a figure's limits, tiles and stacks are its panels' and grid's
+unused = ["YLim" "XLim" "CLim" "MaxTiles" "TileSpacing" "StackSpacing"];   % a figure's limits, tiles and stacks are its panels'
 S = styleGroups();
 for f = setdiff(string(fieldnames(fig.style)).', unused, 'stable')
     grp = "Other";
@@ -228,7 +225,8 @@ elseif ismember(f, ["colormap" "tickColor" "tickWidth" "backColor" "fill" "fillA
         "groupBands" "height" "minWidth" "rowSpacing"])
     g = "Colors and lines";
 elseif ismember(f, ["display" "stack" "stackSpacing" "layout" "rows" "order" "rasterSort" "rasterSortEvent" ...
-        "rasterSortOrder" "rasterByGroup" "maskAfterStop" "trials" "maxTrials" "group" "showPhase" "overTime"])
+        "rasterSortOrder" "rasterByGroup" "maskAfterStop" "trials" "maxTrials" "group" "showPhase" "overTime" ...
+        "orientation" "align" "valign" "columns"])
     g = "Display and stacks";
 elseif ismember(f, ["firstSpike" "latencyBox" "onsetLine" "waveform"])
     g = "Marks and insets";
@@ -257,15 +255,18 @@ L = struct('bins', "Bins", 'measure', "Measure", 'baseline', "Baseline", 'auroc'
     'height', "Height", 'alpha', "Opacity", 'edgeColor', "Edge color", 'edgeWidth', "Edge width", ...
     'minWidth', "Smallest width", 'lineWidth', "Line width", 'lineStyle', "Line style", 'showBaseline', "Baseline line", ...
     'baselineColor', "Baseline color", 'baselineStyle', "Baseline style", 'baselineWidth', "Baseline width", ...
-    'rowSpacing', "Row spacing", 'groupBands', "Group bands", 'unitLabels', "Unit labels", 'waveColor', "Color waveforms by value");
+    'rowSpacing', "Row spacing", 'groupBands', "Group bands", 'unitLabels', "Unit labels", 'waveColor', "Color waveforms by value", ...
+    'orientation', "Orientation", 'align', "Horizontal place", 'valign', "Vertical place", 'columns', "Columns");
 end
 
 
 function t = panelList(P)
 if isempty(P)
     t = "no panels";
+elseif isscalar(P)
+    t = "1 panel: " + P.type;
 else
-    t = strjoin([P.type], ", ");
+    t = numel(P) + " panels: " + strjoin([P.type], ", ");
 end
 end
 
@@ -274,9 +275,11 @@ function t = pageText(s)
 if s.source == "export"; t = "the Export tab's size"; else; t = figureSizeText(s.width, s.height, s.units); end
 end
 
-function t = spacingText(g)
-t = string(g.spacing);
-if g.spacing == "custom"; t = t + sprintf(' (%g, %g %s)', g.rowGap, g.colGap, g.gapUnits); end
+function t = layoutText(L)
+%layoutText  "plot areas, padding 0.15 cm" or "outer boxes, padding 0.3 cm".
+what = "plot areas";
+if L.boxesMean == "outer"; what = "outer boxes"; end
+t = what + ", padding " + sprintf('%g', L.padding) + " cm";
 end
 
 

@@ -15,12 +15,13 @@ function [F, changed, copied] = copyFigureSettings(F, D, from, to, keys)
 %   The copy is Apply to figures' (EphysAnalysisConfig.changeTargets,
 %   applyChanges), so a field of an alignment a figure or panel uses but
 %   does not have of its own becomes its own first:
-%   - the figure's settings, in one go; "arrangement.layout" gives the
-%     grid and every panel as they are, panel ids included
+%   - the figure's settings, in one go; "arrangement.panels" gives every
+%     panel as it is, its place on the page (rect) and id included, and
+%     "arrangement.layout" what the boxes mean and the padding
 %   - the remembered looks picked are added to each figure's own
 %     (PlotAesthetics.mergeRules: each replaces the rules it covers)
 %   - then each panel setting goes to the panels of each figure (after the
-%     layout, when copied) that take it: an option the panel has and its
+%     panels, when copied) that take it: an option the panel has and its
 %     type takes (EphysAnalysisConfig.panelTakes). A panel takes them from
 %     the panel of FROM with its id and type, else the first of its type,
 %     else from the first panel of FROM that gives it a setting

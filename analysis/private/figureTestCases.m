@@ -6,7 +6,8 @@ function [C, fx] = figureTestCases(root)
 %   groups, not ordered) and computes each figure for its first
 %   observation (EphysAnalysisRunner.computeFigure). C is a struct array
 %   (id, F, spec), one entry per figure:
-%     every panel type, its template (addFigure(<type>)): raster, psth,
+%     every panel type with a template (addFigure(<type>); not the legend
+%       panel, which draws no data of its own): raster, psth,
 %       continuous, heatmap, waveforms, probemap, corrmap, rate, tuning,
 %       spectrum, spectrogram, coherence (the spectral ones need Chronux
 %       on the path; without it their panels are skipped, drawn as notes),
@@ -72,7 +73,7 @@ cfg.Source.Root = fx.proj;
 cfg.Defaults.EventRef.line = "Stim";
 cfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
 cfg.Defaults.Selection.groupBy = "TrialType";
-types = reshape(EphysAnalysisConfig.panelTypes().Type, 1, []);
+types = intersect(reshape(EphysAnalysisConfig.panelTypes().Type, 1, []), EphysAnalysisConfig.figureTemplates().Template, 'stable');
 for t = types
     cfg = cfg.addFigure(t, Id=t);
 end

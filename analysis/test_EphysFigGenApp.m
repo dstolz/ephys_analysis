@@ -5120,7 +5120,7 @@ targets = string({D.Targets.CheckedNodes.Text});
 press(D, "None");
 nodes = findall(D.Settings, 'Type', 'uitreenode');
 align = nodes(string({nodes.Text}) == "Alignment");
-layout = nodes(startsWith(string({nodes.Text}), "Grid and panels"));
+layout = nodes(startsWith(string({nodes.Text}), "Arrangement and panels"));
 D.Settings.CheckedNodes = [align; align.Children; layout];
 D.Settings.CheckedNodesChangedFcn(D.Settings, []);
 D.Find.ValueChangingFcn(D.Find, struct('Value', 'font'));

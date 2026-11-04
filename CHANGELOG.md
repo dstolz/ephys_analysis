@@ -417,9 +417,13 @@ says how to cut a release.
   (aligned or flush), their centers and the page's, the page's edges, an equal spacing and (resizing) an equal
   size, else to the snap step's grid; **Alt** held, no snapping. Magenta smart guides show what lines up, the
   distances to the neighbors and the page's edges in the Panels section's units, equal spacing (*= 0.50 cm*) and
-  size (*= raster_1*), and a readout of the place and size. The figure takes the rect on release, one undo step
-  (*Move panel*, *Resize panel*), laid out again in place (no panel drawn again) unless the time stack or the
-  top-left panel changes; Escape during a drag puts the box back. After a click on the preview the arrow keys
+  size (*= raster_1*), and a readout of the place and size. The panel's plots move along with its box during the
+  drag (shifted or scaled, nothing laid out). The figure takes the rect on release, one undo step (*Move panel*,
+  *Resize panel*), and the preview is laid out at the new rects whatever Auto and the time a preview takes, out of
+  date or not (`renderFigure` `LayoutOnly=true`, new, lays a kept drawing out at a spec's rects and draws
+  nothing); a move that changes the time stack or the top-left panel is drawn again with Auto on and a quick
+  preview, else the preview is marked out of date (*Laid out; press Preview ...*). Arrange switched off with Auto
+  on draws the preview again, whatever the time it takes. Escape during a drag puts the box and the plots back. After a click on the preview the arrow keys
   nudge the selected panel by the snap step (Shift: ten, Ctrl: one preview pixel, Alt: resize its right or top
   edge), a burst of presses one undo step. **Set corners** (the Panels section, a box's right-click menu) and New
   panel's *Draw it on the preview (two clicks)* place a panel, or a saved figure's block, by two corner clicks

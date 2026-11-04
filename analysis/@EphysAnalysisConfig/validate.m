@@ -125,7 +125,13 @@ function issues = validate(obj, opts)
 %               finite position (line) or edges (region, which must
 %               differ), layer, line style and width, opacities (0-1),
 %               colors (one that is not a color is a warning); two
-%               overlays of one name anywhere in the figure warn); the
+%               overlays of one name anywhere in the figure warn); a
+%               warning for a name in braces in the figure's title, a
+%               panel's title, xLabel, yLabel or note text or a layer's
+%               name that is no label variable (figureLabelVariables;
+%               it is drawn as typed), saying the variable it likely
+%               meant (one differing only in case; in a TeX note only
+%               such a one is reported); the
 %               style; sessions
 %               (a session figure, "<figure>.sessions.<field>"): datasets,
 %               facet, series, colorOrder, error, match (site / mapping)
@@ -246,6 +252,7 @@ for k = 1:numel(obj.Figures)
     if ~isempty(regexp(fg.id, '[\\/:*?"<>|]', 'once')) || strtrim(fg.id) == ""
         add("Figures", f0 + ".id", "error", "A figure id names its files: no \ / : * ? "" < > |, and not empty.");
     end
+    checkLabelText(fg.title, f0 + ".title", false);
 
     % the figure's alignment
     if isstruct(fg.ref); checkRef(fg.ref, "Figures", f0 + ".ref"); end
@@ -356,6 +363,14 @@ for k = 1:numel(obj.Figures)
         p0 = f0 + "." + pj.id;
         % the panel's text note and overlays (an overlay is drawn on the panel's own axes)
         checkNote(pj.note, "Figures", p0 + ".note", "panel");
+        % its texts' label variables ({Line}, ...): a name in braces that is none of them is likely a typo
+        checkLabelText(pj.title, p0 + ".title", false);
+        checkLabelText(pj.xLabel, p0 + ".xLabel", false);
+        checkLabelText(pj.yLabel, p0 + ".yLabel", false);
+        checkLabelText(pj.note.text, p0 + ".note.text", pj.note.interpreter == "tex");
+        for i = 1:numel(pj.layers)
+            checkLabelText(pj.layers(i).name, p0 + ".layers(" + i + ").name", false);
+        end
         ovNames = checkOverlays(pj.overlays, "Figures", p0, ovNames);
         if ~ismember(pj.box, ["auto" "on" "off"])
             add("Figures", p0 + ".box", "error", "A panel's box is auto (the design's), on or off.");
@@ -1256,6 +1271,30 @@ issues = table(Section, Field, Severity, Message);
                 if cm == "Colormap"; what = "colormap function or color"; end
                 add(sec, id + ".style." + cm, "warning", "No " + what + " """ + st.(cm) + """; the default is used.");
             end
+        end
+    end
+
+    function checkLabelText(hTxt, hKey, hTex)
+        %checkLabelText  A figure's text (title, axis label, layer name, note) that names a label variable not on figureLabelVariables' list: a warning, with the name it likely meant.
+        %   A name in braces that is none of them is drawn as typed. With
+        %   HTEX (a TeX note: braces group, as in x^{2} or \bf{word}) only
+        %   a name that differs from a variable's in case is reported.
+        hTxt = string(hTxt);
+        if ~contains(hTxt, "{"); return; end
+        hFound = regexp(hTxt, '\{(\w+)\}', 'tokens');
+        if isempty(hFound); return; end
+        hNames = figureLabelVariables().Name;
+        for hName = reshape(unique(string(cellfun(@(c) c{1}, hFound, 'UniformOutput', false)), 'stable'), 1, [])
+            if ismember(hName, hNames); continue; end
+            hMeant = hNames(lower(hNames) == lower(hName));
+            if hTex && isempty(hMeant); continue; end
+            hMsg = "{" + hName + "} is no label variable, so it is drawn as typed";
+            if ~isempty(hMeant)
+                hMsg = hMsg + ": did you mean {" + hMeant(1) + "}? (Names are case-sensitive.)";
+            else
+                hMsg = hMsg + ". Help > Label variables lists them.";
+            end
+            add("Figures", hKey, "warning", hMsg);
         end
     end
 

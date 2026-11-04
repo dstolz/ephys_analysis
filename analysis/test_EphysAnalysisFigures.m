@@ -205,9 +205,19 @@ function test_EphysAnalysisFigures(opts)
 %   tile labels, a skipped tile's note, renderFigure's dispatch, a resize,
 %   every component a known role, a uipanel and a grid layout, Scale 0.5,
 %   the time it takes.
+%   Label variables (17), on the "clean" fixture: figureLabelVariables'
+%   list; figureFileName Kind="label" (unknown and TeX braces left as
+%   typed); the values for a figure and a panel of its own alignment, with
+%   and without F, a sequence's aligned step, PerObservation=false;
+%   renderFigure filling the title, a panel's labels, note and a layer's
+%   name (the top-left panel untitled under a title naming {Unit}); the
+%   right-click editor's text as typed (ownLabels, typedLabel) and an
+%   in-place label edit; {Group} in a per-group title; a TeX note's values
+%   escaped; validate's warnings for names that are no variable; the
+%   report's heading and caption.
 %
 %   The sections run on their own after the setup (TestSections): 1-6, 12 and 13 need
-%   no data, 7, 9, 11, 14, 15 and 16 build the "clean" fixture once (fixtureA), 8 needs
+%   no data, 7, 9, 11, 14, 15, 16 and 17 build the "clean" fixture once (fixtureA), 8 needs
 %   7's results (declared), 10 builds its own two-dataset fixture.
 %
 %   Usage:  test_EphysAnalysisFigures
@@ -5627,6 +5637,150 @@ if S.sec("16", "probe figures: layout and render (probeTileLayout, renderProbeFi
     check(same && dev < 1e-6 && abs(w2 / w1 - 1) < 0.03 && PlotAesthetics.drawScale(h2.canvas) == 0.5, ...
         sprintf('Scale 0.5: every size of the page''s %d parts half the export''s (largest deviation %.2g), a tile %.3f of the width vs %.3f', ...
         height(E), dev, w2, w1));
+end
+
+%% ============================================================================ label variables
+if S.sec("17", "label variables: the list, their values, filled in by renderFigure, the right-click editor, validate, the report")
+    fixtureA();
+    cfg = EphysAnalysisConfig();
+    cfg.Source.Root = FX.proj;
+    cfg.Defaults.EventRef.line = "Stim";
+    cfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+    cfg.Defaults.Selection.groupBy = "Depth";
+    cfg = cfg.addFigure("rasterPsth", Id="rp");
+    rn = EphysAnalysisRunner(cfg, LogFcn=[]);
+    src = rn.source(1);
+    spec = cfg.figureFor("rp");
+    Tu = figureObservations(src, spec);
+    F = figureCompute(src, spec, Observation=Tu(1, :));
+    kP = find([spec.panels.type] == "psth");
+    kR = find([spec.panels.type] == "raster");
+
+    % the list, and figureFileName's label kind
+    L = figureLabelVariables();
+    check(height(L) == 22 && numel(unique(L.Name)) == height(L) && all(ismember(["Line" "Edge" "Response" "Unit" "Epochs" "Name"], L.Name)) ...
+        && isequal(string(L.Properties.VariableNames), ["Name" "Topic" "Meaning" "Example"]) && all(L.Meaning ~= "") && all(L.Example ~= ""), ...
+        'figureLabelVariables(): a row per variable (name, topic, meaning, example), {Line} {Response} {Unit} among them');
+    V0 = struct('Line', "Stim", 'Edge', "onset");
+    check(figureFileName("Time (s) re {Line} {Edge}", V0, Kind="label") == "Time (s) re Stim onset" ...
+        && figureFileName("x^{2} {Nope} {line}", V0, Kind="label") == "x^{2} {Nope} {line}" ...
+        && figureFileName("no braces", V0, Kind="label") == "no braces" && figureFileName("{Line}/{Line}", V0, Kind="label") == "Stim/Stim" ...
+        && strcmp(errorId(@() figureFileName("{Line}", V0)), 'figureFileName:UnknownToken'), ...
+        'figureFileName Kind="label": each {Name} given filled, any other brace (unknown, wrong case, TeX) left as typed; file names unchanged');
+
+    % the values: the figure's alignment and trials, the observation and data from F, a panel's own alignment
+    sv = spec;
+    sv.selection.response = ["Hit" "FA"];
+    for q = 1:numel(sv.panels); sv.panels(q).selection.response = ["Hit" "FA"]; end   % (figureFor gives each panel the figure's)
+    sv.panels(kP).ref = sv.ref;
+    sv.panels(kP).ref.line = "Trial";
+    sv.panels(kP).ref.edge = "offset";
+    [T0, V] = figureLabelVariables(sv, F);
+    [~, Vp] = figureLabelVariables(sv, F, Panel=kP);
+    [~, Vn] = figureLabelVariables(sv, []);
+    unitTxt = figureOutputName("{Unit}", src.name, spec, Tu(1, :), 1, 1);
+    okV = V.Line == "Stim" && V.Edge == "onset" && V.Event == eventRefLabel(sv.ref) && V.Window == "-0.2 to 0.8 s" ...
+        && V.Response == "Hit or FA" && V.Filter == "" && V.GroupBy == "Depth" && V.Group == "all" ...
+        && V.Epochs == string(height(F.epochs)) && V.Unit == unitTxt && V.Observation == F.observation.label ...
+        && V.Channel == string(F.observation.channel) && V.Name == src.name && V.Subject == F.subject && V.Sessions == "1" ...
+        && V.Figure == "rp" && V.Panel == "" && V.Bin == "" && V.Date == string(datetime('now', 'Format', 'yyyy-MM-dd')) ...
+        && isequal(T0.Value, arrayfun(@(n) V.(n), T0.Name));
+    okP = Vp.Line == "Trial" && Vp.Edge == "offset" && Vp.Panel == sv.panels(kP).id && Vp.Bin == "10" && Vp.Smooth == "10" ...
+        && Vp.Response == "Hit or FA";
+    okN = Vn.Line == "Stim" && Vn.Unit == "<Unit>" && Vn.Epochs == "<Epochs>" && Vn.Name == "<Name>";
+    check(okV && okP && okN, sprintf(['the values: the figure''s event, window and trials, F''s observation (%s), dataset and epochs (%s); ' ...
+        'a panel''s own event and bins; without F "<Unit>"'], V.Unit, V.Epochs));
+    sq = sv;
+    st = EphysAnalysisConfig.defaults("SequenceStep");
+    st.line = "Resp";
+    st.edge = "offset";
+    sq.ref.sequence = st;
+    sq.ref.alignStep = Inf;
+    [~, Vq] = figureLabelVariables(sq, []);
+    sq.ref.alignStep = 0;
+    [~, Vq0] = figureLabelVariables(sq, []);
+    [~, Vo] = figureLabelVariables(sv, F, PerObservation=false);
+    check(Vq.Line == "Resp" && Vq.Edge == "offset" && Vq0.Line == "Stim" && contains(Vq.Event, "then Resp offset") ...
+        && Vo.Unit == "<Unit>" && Vo.Name == src.name, ...
+        '{Line} and {Edge} follow the sequence step aligned to (alignStep); PerObservation=false leaves the observation''s "<Unit>"');
+
+    % renderFigure fills them in: the title, labels, note and a layer's name, each panel with its own values
+    sr = spec;
+    sr.title = "{Figure}: {Unit}, {Response} trials";
+    sr.panels(kP).xLabel = "Time (s) re {Line} {Edge}";
+    sr.panels(kP).yLabel = "Rate ({Bin} ms bins)";
+    sr.panels(kP).note.text = "n = {Epochs}";
+    sr.panels(kP).layers(1).name = "{Unit} PSTH";
+    Fr = figureCompute(src, sr, Observation=Tu(1, :));   % (a layer's name is data: the compute keeps it as typed)
+    drawTargets();
+    delete(ufig.Children);
+    pL = uipanel(ufig, 'Units', 'pixels', 'Position', [1 1 690 790], 'BorderType', 'none');
+    hV = renderFigure(Fr, sr, pL, Reuse=true, Editable=true);
+    axP = hV.panels(kP).axes;
+    axR = hV.panels(kR).axes;
+    noteTxt = "";
+    if ~isempty(hV.panels(kP).note); noteTxt = strjoin(string(hV.panels(kP).note.String), " "); end
+    [~, Ff] = figureLabelFill(Fr, sr);
+    check(figTitle(hV) == "rp: " + V.Unit + ", all trials" && strjoin(string(axP.XLabel.String), "") == "Time (s) re Stim onset" ...
+        && strjoin(string(axP.YLabel.String), "") == "Rate (10 ms bins)" && noteTxt == "n = " + V.Epochs ...
+        && strjoin(string(axR.Title.String), "") == "" && Ff.panels(kP).layers(1).name == V.Unit + " PSTH", ...
+        sprintf(['renderFigure fills the variables in: title "%s", the PSTH''s labels, its note "%s" and layer name; a title naming ' ...
+        '{Unit} leaves the top-left panel untitled'], figTitle(hV), noteTxt));
+    % the right-click editor edits the texts as typed; an edit of one is set in place, filled in
+    ctx = getappdata(pL, PlotAesthetics.ContextKey);
+    pid = sr.panels(kP).id;
+    okCtx = isfield(ctx, 'ownLabels') && ctx.ownLabels.x(kP) == "Time (s) re {Line} {Edge}" ...
+        && PlotAesthetics.typedLabel(ctx, pid, "x", "shown") == "Time (s) re {Line} {Edge}" ...
+        && PlotAesthetics.typedLabel(ctx, sr.panels(kR).id, "y", "shown") == "shown";
+    sr2 = sr;
+    sr2.panels(kP).yLabel = "Spikes/s re {Line}";
+    [~, how] = renderFigure(Fr, sr2, pL, Reuse=true, Editable=true);
+    ctx2 = getappdata(pL, PlotAesthetics.ContextKey);
+    check(okCtx && how == "inplace" && strjoin(string(axP.YLabel.String), "") == "Spikes/s re Stim" ...
+        && ctx2.ownLabels.y(kP) == "Spikes/s re {Line}", ...
+        'the right-click editor starts from the label as typed (an automatic one: as shown); a new label is set in place, filled in');
+    % a per-group observation: a title naming {Group} gets no " · <group>"; a TeX note gets its values escaped
+    Fg = F;
+    Fg.observation.groupLabel = "Depth = 100";
+    sg = sr;
+    sg.title = "{Group} trials";
+    [sg, ~, tvg] = figureLabelFill(Fg, sg);
+    so = sr;
+    so.title = "Own";
+    [so, ~, tvo] = figureLabelFill(Fg, so);
+    Fx = F;
+    Fx.observation.label = "su1_RAT^2";
+    sx = sr;
+    sx.panels(kP).note.text = "{Observation}";
+    sx.panels(kP).note.interpreter = "tex";
+    sx = figureLabelFill(Fx, sx);
+    check(figureAutoTitle(Fg, sg, tvg) == "Depth = 100 trials" && figureAutoTitle(Fg, so, tvo) == "Own · Depth = 100" && isequal(tvg, "Group") ...
+        && sx.panels(kP).note.text == "su1\_RAT\^2", ...
+        'a title naming {Group} is not told the group again (an own title is: "· <group>"); a TeX note''s values escaped');
+
+    % validate: a name in braces that is no variable warns, with the one it likely meant; TeX braces do not
+    cv = cfg;
+    k = cv.figureIndex("rp");
+    cv.Figures(k).title = "{line} {Foo} {Line}";
+    cv.Figures(k).panels(kP).note.text = "x^{2} {epochs}";
+    cv.Figures(k).panels(kP).note.interpreter = "tex";
+    cv.Figures(k).panels(kP).xLabel = "{Bin} ms";
+    mt = issueMessages(cv, "rp.title");
+    mn = issueMessages(cv, "rp." + pid + ".note.text");
+    mx = issueMessages(cv, "rp." + pid + ".xLabel");
+    check(numel(mt) == 2 && any(contains(mt, "did you mean {Line}")) && any(contains(mt, "{Foo}") & contains(mt, "Label variables")) ...
+        && isscalar(mn) && contains(mn, "did you mean {Epochs}") && isempty(mx) && ~has(cfg, "rp.title", "warning"), ...
+        'validate: {line} and {Foo} warn (did you mean {Line}?); in a TeX note only a variable''s name in the wrong case; {Bin} is fine');
+
+    % the report: one entry for every observation, so the observation's variables stay "<Unit>"
+    sc = spec;
+    sc.title = "{Line} {Unit} {Name}";
+    cap = figureCaption(sc, Tu, Dataset=src.name);
+    rep = newAnalysisReport();
+    rep = addReportDataset(rep, src);
+    rep = addReportFigure(rep, sc, F);
+    check(contains(cap, "(Stim <Unit> " + src.name + ")") && rep.datasets(1).entries(1).title == "Stim <Unit> " + src.name, ...
+        'the report''s heading and caption: the figure''s variables filled in, the observation''s left "<Unit>"');
 end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);

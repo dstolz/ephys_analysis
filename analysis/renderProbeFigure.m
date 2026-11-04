@@ -145,6 +145,8 @@ if ~(isa(target, 'matlab.ui.Figure') || isa(target, 'matlab.ui.container.Panel')
     error('renderProbeFigure:BadTarget', 'Draw a probe figure into a figure, a panel, a tab or a grid layout, not an axes.');
 end
 
+raw = spec;   % the texts as typed (the right-click editor's); the page's have their label variables filled in (figureLabelFill)
+[spec, PF, titleVars] = figureLabelFill(PF, spec);
 popts = struct();
 if isfield(spec, 'probe'); popts = spec.probe; end
 o = probeOptions(popts);
@@ -179,6 +181,11 @@ if istable(G) && height(G) > 0; colors = groupPalette(G, style); end
 tiles = struct('F', {}, 'skip', {}, 'observation', {});
 if isfield(PF, 'tiles') && isstruct(PF.tiles); tiles = PF.tiles; end
 n = numel(tiles);
+for i = 1:n   % each tile's layer names with its own unit's or channel's values
+    if isfield(tiles(i), 'F') && isstruct(tiles(i).F) && ~isempty(tiles(i).F) && isfield(tiles(i).F, 'panels')
+        [~, tiles(i).F] = figureLabelFill(tiles(i).F, raw);
+    end
+end
 L = probeTileLayout(PF, o);
 placed = reshape(all(isfinite(L.box), 2), 1, []);
 why = strings(1, n);   % "" = drawn
@@ -222,7 +229,7 @@ catch
 end
 
 % the title's lines (the band they take, until they are drawn)
-[txt, ~] = figureAutoTitle(PF, spec);
+[txt, ~] = figureAutoTitle(PF, spec, titleVars);
 sub = "";
 if isfield(PF, 'dataset'); sub = string(PF.dataset); end
 lines = [sub; leftLine(PF, o)];
@@ -421,7 +428,7 @@ if figureEditable(opts.Editable, target)
     if menuTile == 0 && any(drawable); menuTile = find(drawable, 1); end
     menuAxes = gobjects(1, 0);
     if menuTile > 0; menuAxes = [D.parts{menuTile, :}]; end
-    ctx = figureEditContext(PF, spec, target, opts, canvas, design, follows, txt);
+    ctx = figureEditContext(PF, raw, target, opts, canvas, design, follows, txt);
     ctx.menuRoot = [pax reshape(menuAxes, 1, []) th lhost];
     PlotAesthetics.enableEditing(target, ctx);
 end

@@ -43,7 +43,12 @@ if isempty(report.datasets)
 end
 kind = "figure";
 if isfield(spec, 'kind'); kind = string(spec.kind); end
-e = struct('plot', spec.id, 'kind', kind, 'title', spec.title, 'caption', "", 'spec', spec, ...
+ttl = string(spec.title);   % its label variables filled in as one entry has them: its pages' observations left "<Unit>"
+if contains(ttl, "{")
+    [~, V] = figureLabelVariables(spec, F, PerObservation=false);
+    ttl = figureFileName(ttl, V, Kind="label");
+end
+e = struct('plot', spec.id, 'kind', kind, 'title', ttl, 'caption', "", 'spec', spec, ...
     'images', {cell(1, 0)}, 'pages', string.empty(1, 0), 'files', opts.Files, 'status', opts.Status, 'message', opts.Message, ...
     'obsKeys', string.empty(1, 0), 'obsLabels', string.empty(1, 0));
 if ~isempty(F) && opts.Status == "done"

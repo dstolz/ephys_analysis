@@ -58,6 +58,15 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            taken as figureSessionSpec gives it (as it was computed). An
 %            observation of one trial group (a perGroup figure) names its
 %            group: in the observation's label, else appended ("· <group>").
+%   Variables  the label variables (figureLabelVariables: {Line},
+%            {Response}, {Unit}, ...) in SPEC.title, a panel's title, xLabel,
+%            yLabel and note text and a layer's name are filled in for F
+%            (figureLabelFill; each panel's with its own alignment and trial
+%            selection) before anything is drawn. A title of the figure's
+%            own that names {Unit} or {Observation} is not followed by the
+%            observation on the top-left panel; one that names {Group}
+%            gets no "· <group>". The right-click editor edits the texts as
+%            typed, with their variables.
 %   Notes and overlays  each panel's (SPEC.panels(k).note, .overlays, as a
 %            plot's): the overlays drawn on the panel's axes (drawOverlays,
 %            every one on them: a panel has no raster / data choice; a
@@ -283,6 +292,8 @@ if opts.InPlaceOnly; opts.Reuse = true; end
 if isfield(F, 'nSessions') && isfield(spec, 'sessions')
     spec = figureSessionSpec(spec);   % merged across sessions: drawn as computed (e.g. "combine" draws a PSTH's bars as lines)
 end
+raw = spec;   % the texts as typed (the right-click editor edits them); the drawing's have their label variables filled in
+[spec, F, titleVars] = figureLabelFill(F, spec);   % (titleVars: what the title names, as typed)
 [design, follows] = figureDesignFor(opts.Design, opts.UserAesthetics);
 s = spec.style;
 s.Design = design;
@@ -324,7 +335,7 @@ kept = false(1, np);   % the panels whose drawing is kept from the last one (Reu
 prior = [];
 if opts.Reuse
     keys = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, target);
-    h = inPlace(F, spec, target, keys, opts, own, design, follows);
+    h = inPlace(F, spec, target, keys, opts, own, design, follows, raw, titleVars);
     if ~isempty(h)   % only text changed: set on what is drawn
         how = "inplace";
         return
@@ -472,9 +483,9 @@ for k = 1:np; sided(k) = isempty(ax0) && sideNote(panels(k)); end
 hidden = figureTimeStack(axs, panels, isTime, labelSize, sided);
 
 % title: the figure's, or what it shows; the top-left panel names the observation under a title of the figure's own
-[txt, named] = figureAutoTitle(F, spec);
+[txt, named] = figureAutoTitle(F, spec, titleVars);
 obs = F.observation;
-if spec.title ~= "" && named && any(drawn & ~isLeg)
+if spec.title ~= "" && named && any(drawn & ~isLeg) && ~any(ismember(["Unit" "Observation"], titleVars))
     k1 = firstPanel(spec, drawn & ~isLeg);
     if panels(k1).title == "" && strjoin(string(axs(k1).Title.String), "") == ""
         title(axs(k1), string(obs.label), 'FontWeight', 'normal', 'Interpreter', 'none');
@@ -605,7 +616,7 @@ else   % the layout, once everything is drawn and dressed: every axes, band, the
     figureLayout(canvas, layoutOf(spec, panels, axs, extra, notes, bands, th, G2, isLeg, opts.Scale));
 end
 if figureEditable(opts.Editable, target)
-    PlotAesthetics.enableEditing(target, figureEditContext(F, spec, target, opts, root, design, follows, txt));
+    PlotAesthetics.enableEditing(target, figureEditContext(F, raw, target, opts, root, design, follows, txt));
 end
 
 if ~isempty(opts.OnSelect)
@@ -626,7 +637,7 @@ end
 if opts.Reuse && ~isempty(canvas) && isequal(canvas, target)   % what the next drawing with Reuse can keep
     setappdata(target, drawingAppdata(), struct('keys', keys, 'axes', axs, 'extra', {extra}, 'hks', {hks}, 'notes', {notes}, ...
         'bands', {bands}, 'ovls', {ovls}, 'yExt', yExt, 'parts', {parts}, 'pos', {pos}, 'legend', lgd, 'title', th, ...
-        'spec', spec, 'labels', {labs}, 'hidden', hidden, 'txt', txt));
+        'spec', spec, 'labels', {labs}, 'hidden', hidden, 'txt', txt, 'titleVars', titleVars));
 elseif isappdata(target, drawingAppdata())
     rmappdata(target, drawingAppdata());
 end
@@ -691,7 +702,7 @@ end
 end
 
 
-function h = inPlace(F, spec, target, keys, opts, own, design, follows)
+function h = inPlace(F, spec, target, keys, opts, own, design, follows, raw, titleVars)
 %inPlace  Make the drawing TARGET keeps (Reuse) the one SPEC draws by setting text on it and laying it out again: H as renderFigure returns it; [] = it cannot be.
 %   Only when SPEC differs from the spec drawn in text and places alone --
 %   a panel's xLabel, yLabel, title or rect, the figure's own title, its
@@ -709,7 +720,8 @@ function h = inPlace(F, spec, target, keys, opts, own, design, follows)
 %   after (an empty label or title is no component: no looks were set on
 %   it and it has no menu), when a panel's title or the figure's is not its
 %   own before or after (the type's, or the observation's on the top-left
-%   panel), or when a time panel with further axes (a coherogram's)
+%   panel), when the figure's title starts or stops naming {Unit},
+%   {Observation} or {Group} (TITLEVARS, figureLabelFill's), or when a time panel with further axes (a coherogram's)
 %   changes its x label. Then the parts go back to where a new drawing
 %   starts, as Reuse puts its kept panels, and figureLayout lays them out
 %   again (a new text can take more room); the data tips of the panels
@@ -728,6 +740,8 @@ if ~isstruct(D) || ~isfield(D, 'spec') || numel(D.keys.panels) ~= np || ~isequal
         || ~isequal(D.keys.ownTime, keys.ownTime)
     return
 end
+named = ["Unit" "Observation" "Group"];   % a title that starts or stops naming these changes the top-left panel's title or the group's: drawn
+if ~isfield(D, 'titleVars') || ~isequal(ismember(named, D.titleVars), ismember(named, titleVars)); return; end
 if ~all(isgraphics(D.axes)) || ~all(cellfun(@(p) all(isgraphics(p)), D.parts))
     return   % the drawing is gone (a canceled preview cleared the target): drawn again
 end
@@ -796,7 +810,7 @@ end
 txt = D.txt;
 if spec.title ~= D.spec.title   % the figure's own before and after (the global key says whether it has one)
     if isempty(D.title) || ~isgraphics(D.title); return; end
-    txt = figureAutoTitle(F, spec);
+    txt = figureAutoTitle(F, spec, titleVars);
     sets(end+1, :) = {D.title.Title, txt, ""};
 end
 for i = 1:size(sets, 1)
@@ -832,11 +846,12 @@ if any(tips) && figureEditable(opts.DataTips, target)
     FigureDataTips.attach(F, spec, hT);
 end
 if figureEditable(opts.Editable, target) && isappdata(target, PlotAesthetics.ContextKey)
-    setappdata(target, PlotAesthetics.ContextKey, figureEditContext(F, spec, target, opts, target, design, follows, txt));
+    setappdata(target, PlotAesthetics.ContextKey, figureEditContext(F, raw, target, opts, target, design, follows, txt));
 end
 D.spec = spec;
 D.keys = keys;
 D.txt = txt;
+D.titleVars = titleVars;
 setappdata(target, drawingAppdata(), D);
 end
 

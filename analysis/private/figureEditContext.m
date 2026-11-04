@@ -1,7 +1,9 @@
 function ctx = figureEditContext(F, spec, target, opts, root, design, follows, txt)
 %figureEditContext  The right-click aesthetics editor's context of F drawn with SPEC on TARGET (PlotAesthetics.enableEditing): its redraw draws them again.
 %   ROOT: what was drawn on (the canvas, or the one axes); TXT: the
-%   figure's title. Its colormap field: "diverging" with a correlation map
+%   figure's title. SPEC is the figure as typed (its label variables not
+%   filled in: ownLabels, each panel's own xLabel and yLabel, start the
+%   "Edit label text..." dialog). Its colormap field: "diverging" with a correlation map
 %   or an auROC or baseline-normalized heat map or spectrogram, "heat"
 %   with another heat map, a probe map, a spectrogram or a coherogram.
 %
@@ -47,6 +49,13 @@ ctx = struct('kind', "figure", 'id', spec.id, 'title', txt, 'root', root, 'targe
         OnAxisEdit=opts.OnAxisEdit, OnSelect=opts.OnSelect, BatchYLim=opts.BatchYLim, Scale=opts.Scale));
 ctx.panelTypes = struct('id', sIds, 'type', types);   % each tile's panel type by the id it is tagged with (PlotDesign.capture)
 ctx.panelIds = sIds;   % "Move every panel's X axis to top": every panel of the figure
+xs = strings(1, np);
+ys = strings(1, np);
+for k = 1:np
+    xs(k) = string(panels(k).xLabel);
+    ys(k) = string(panels(k).yLabel);
+end
+ctx.ownLabels = struct('id', sIds, 'x', xs, 'y', ys);   % each panel's own label texts as typed, with their label variables ("Edit label text...")
 ctx.onAxisEdit = @(panel, change) axisEdited(F, spec, target, opts, panel, change);   % an axis label's or axes' menu (PlotAesthetics)
 end
 

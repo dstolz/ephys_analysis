@@ -1,12 +1,15 @@
-function [txt, named] = figureAutoTitle(F, spec)
+function [txt, named] = figureAutoTitle(F, spec, titleVars)
 %figureAutoTitle  The figure's title: SPEC.title, else what it shows (autoTitle); an observation of one trial group adds its group. NAMED: it observes something with a label (not the dataset).
 %   [TXT, NAMED] = figureAutoTitle(F, SPEC) for a figureCompute result,
 %   a figure merged across sessions (nSessions) or a probe figure
 %   (figureProbeCompute's PF: its observation names what the tiles are, its
 %   epochs the first tile's; a field it lacks is taken from its first
-%   computed tile).
+%   computed tile). TITLEVARS (default none): the label variables
+%   SPEC.title named as typed (figureLabelFill); a title that named {Group}
+%   gets no " · <group>".
 %
-%   See also renderFigure, renderProbeFigure.
+%   See also renderFigure, renderProbeFigure, figureLabelFill.
+if nargin < 3; titleVars = string.empty(1, 0); end
 if isfield(F, 'tiles'); F = probeFields(F); end
 txt = spec.title;
 obs = F.observation;
@@ -15,7 +18,7 @@ grpTxt = "";   % one figure per trial group: the group drawn
 if isstruct(obs) && isfield(obs, 'groupLabel'); grpTxt = string(obs.groupLabel); end
 if txt == ""
     txt = autoTitle(F, spec, named, grpTxt);
-elseif grpTxt ~= ""
+elseif grpTxt ~= "" && ~any(titleVars == "Group")   % (a title naming {Group} has it)
     txt = txt + " · " + grpTxt;
 end
 end

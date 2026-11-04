@@ -54,7 +54,8 @@ function [F, K] = figureCompute(src, spec, opts)
 %   (by panel type).
 %
 %   F fields
-%     kind "figure", id, spec (SPEC), dataset (SRC.name), observation (OBS
+%     kind "figure", id, spec (SPEC), dataset (SRC.name), subject (SRC.subject;
+%     "" without), observation (OBS
 %     as a struct: kind, label, unitId, channel, column, shank, depth,
 %     meta, group, groupLabel), epochs (E; [] when no panel is aligned), groups (G; []
 %     likewise), skip ("" or why a per-group observation has no epoch),
@@ -253,6 +254,8 @@ F.kind = "figure";
 F.id = spec.id;
 F.spec = spec;
 F.dataset = src.name;
+F.subject = "";
+if isfield(src, 'subject'); F.subject = string(src.subject); end
 F.observation = obs;
 F.epochs = E;
 F.groups = G;

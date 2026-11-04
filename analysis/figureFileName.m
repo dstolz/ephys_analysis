@@ -12,18 +12,35 @@ function name = figureFileName(pattern, tokens, opts)
 %   pattern instead: tokens OutputFolder (the dataset's output folder),
 %   OutputRoot, Root, Name and Date; path values are used as they are.
 %
+%   TEXT = figureFileName(TEXT, VALUES, Kind="label") fills a figure's
+%   label text (a title, an axis label, a layer's name, a note) with the
+%   label variables (figureLabelVariables' V): each {Name} that is a field
+%   of VALUES becomes its value as it is; any other brace (a name not on
+%   the list, TeX's x^{2}) is left as typed, and nothing is an error.
+%
 %   Errors: figureFileName:UnknownToken (a token this kind does not have),
 %   figureFileName:MissingToken (no value given), figureFileName:BadPattern
 %   (an unmatched brace, or a file name holding \ / : * ? " < > |).
 %
-%   See also exportFigure, EphysAnalysisConfig.validate.
+%   See also exportFigure, EphysAnalysisConfig.validate, figureLabelVariables.
 
 arguments
     pattern (1,1) string
     tokens (1,1) struct = struct()
-    opts.Kind (1,1) string {mustBeMember(opts.Kind, ["file" "folder"])} = "file"
+    opts.Kind (1,1) string {mustBeMember(opts.Kind, ["file" "folder" "label"])} = "file"
 end
 
+if opts.Kind == "label"
+    name = pattern;
+    if ~contains(name, "{"); return; end
+    found = regexp(pattern, '\{(\w+)\}', 'tokens');
+    for tok = reshape(unique(string(cellfun(@(c) c{1}, found, 'UniformOutput', false))), 1, [])
+        if ~isfield(tokens, tok); continue; end
+        v = string(tokens.(tok));
+        name = replace(name, "{" + tok + "}", strjoin(reshape(v(~ismissing(v)), 1, []), ", "));
+    end
+    return
+end
 if opts.Kind == "file"
     allowed = ["Name" "Plot" "Kind" "Group" "Unit" "Index" "Date"];
     pathTokens = string.empty(1, 0);

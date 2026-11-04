@@ -791,8 +791,8 @@ classdef PlotAesthetics
             if isempty(ctx); return; end
             [role, panel] = PlotAesthetics.partOf(h, ctx);
             if panel == "" || ~ismember(role, ["xlabel" "ylabel"]); return; end
-            was = strjoin(string(h.String), " ");
             axisName = upper(extractBefore(role, 2));
+            was = PlotAesthetics.typedLabel(ctx, panel, lower(axisName), strjoin(string(h.String), " "));
             [txt, ok] = askLabelText(ancestor(h, 'figure'), axisName, panel, was);
             if ~ok || txt == was; return; end   % unchanged: an automatic label stays automatic
             PlotAesthetics.axisEdit(h, struct(char(lower(axisName) + "Label"), txt));
@@ -811,10 +811,20 @@ classdef PlotAesthetics
             letter = string(menu.UserData);
             lab = ax.XLabel;
             if letter == "y"; lab = ax.YAxis(1).Label; end   % (a yyaxis: its left one, as panelAxes sets it)
-            was = strjoin(string(lab.String), " ");
+            was = PlotAesthetics.typedLabel(ctx, panel, letter, strjoin(string(lab.String), " "));
             [txt, ok] = askLabelText(ancestor(ax, 'figure'), upper(letter), panel, was);
             if ~ok || txt == was; return; end
             PlotAesthetics.axisEdit(ax, struct(char(letter + "Label"), txt));
+        end
+
+        function txt = typedLabel(ctx, panel, letter, shown)
+            %typedLabel  The text "Edit label text..." starts with: the panel's own x or y label as typed (its label variables unfilled, the context's ownLabels), else SHOWN (what is drawn: the automatic label).
+            txt = shown;
+            if ~isfield(ctx, 'ownLabels') || ~isstruct(ctx.ownLabels); return; end
+            k = find(ctx.ownLabels.id == panel, 1);
+            if isempty(k); return; end
+            own = ctx.ownLabels.(char(letter))(k);
+            if own ~= ""; txt = own; end
         end
 
         function onMenuSide(menu, ~)

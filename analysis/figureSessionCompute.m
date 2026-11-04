@@ -332,6 +332,11 @@ end
 if F.dataset == ""
     F.dataset = sessionsText(S(S.status == "done", :), group);
 end
+F.subject = "";   % the subjects merged ({Subject})
+if ismember("subject", string(S.Properties.VariableNames))
+    subj = unique(string(S.subject(S.status == "done")), 'stable');
+    F.subject = strjoin(reshape(subj(subj ~= "" & ~ismissing(subj)), 1, []), ", ");
+end
 o = observationStruct(obs);
 if group ~= ""; o.groupLabel = group; end
 F.observation = o;

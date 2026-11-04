@@ -96,7 +96,15 @@ elseif nStar > 0
     starTxt = sprintf("; %d starred", nStar);
 end
 head = spec.id;
-if isfield(spec, 'title') && spec.title ~= ""; head = head + " (" + spec.title + ")"; end
+if isfield(spec, 'title') && spec.title ~= ""
+    ttl = string(spec.title);
+    if contains(ttl, "{")   % its label variables as one caption has them: the observations' left "<Unit>"
+        [~, V] = figureLabelVariables(spec);
+        if opts.Dataset ~= ""; V.Name = opts.Dataset; end
+        ttl = figureFileName(ttl, V, Kind="label");
+    end
+    head = head + " (" + ttl + ")";
+end
 onProbe = ~across && isfield(spec, 'probe') && isstruct(spec.probe) && spec.probe.enabled;
 if onProbe
     tw = ["unit" "units" "at its site" "at their sites"];

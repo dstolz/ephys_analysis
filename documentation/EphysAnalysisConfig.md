@@ -918,7 +918,7 @@ words; the other fields are not checked until then.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `text` | `""` | the words; a new line starts a new line of text |
+| `text` | `""` | the words; a new line starts a new line of text; [label variables](#label-variables) are filled in (escaped for TeX with `interpreter` `"tex"`) |
 | `placement` | `"below"` | outside the panel: `"below"`, `"above"`, `"right"`, `"left"` (the panel's area gives up a band for the text); over it, in the panel's whole area: `"northwest"`, `"north"`, `"northeast"`, `"west"`, `"center"`, `"east"`, `"southwest"`, `"south"`, `"southeast"`; or `"custom"`, at `x`, `y` |
 | `x`, `y` | `0.5`, `0.5` | custom: the text's anchor, 0-1 across (from the left edge) and up (from the bottom edge) the panel's area; may lie outside it |
 | `align` | `"left"` | `"left"`, `"center"` or `"right"`: how the lines line up; below and above the panel, also where the text sits across it; custom, the anchor's side of the text |
@@ -1061,7 +1061,7 @@ give the fields below; every field exists on every entry.
 | `id` | automatic | unique among figures (`EphysAnalysisConfig:DuplicateFigureId`), file-name safe and distinct once sanitized (`{Plot}` replaces characters outside `A-Z a-z 0-9 _ - .` by `_`, and Windows ignores case: a [validation](#validating-figures) error). Names the exported files (`{Plot}`). With `autoId` the content's ([Figure ids](#figure-ids)); blank with `autoId` false: `figure_<n>` |
 | `autoId` | `true` | the id follows the figure's active panel types and data ([Figure ids](#figure-ids)) whenever the figure is stored (every edit, load); `false`: the id is the user's own and stays. A new figure's is `true` until an id is given (`addFigure(..., Id=)`, a struct with an id, an id typed in the app). An entry that leaves it out (a file written by hand) takes `true` for a blank id and `false` for an id it names |
 | `enabled` | `true` | unticked, it stays in the config: `figureSkipReason` says "disabled", and `computeFigure` still computes it when asked, as the preview does |
-| `title` | `""` | `""` = automatic: the id, the observation's label, the aligned event and the epoch count (a dataset figure names no observation, a figure with no aligned panel no event); the dataset is the subtitle. With a title of your own, the top-left panel names the observation |
+| `title` | `""` | `""` = automatic: the id, the observation's label, the aligned event and the epoch count (a dataset figure names no observation, a figure with no aligned panel no event); the dataset is the subtitle. With a title of your own, the top-left panel names the observation (unless the title names `{Unit}` or `{Observation}`). It may use [label variables](#label-variables) |
 | `size` | below | the page the figure is exported on, and the shape of its preview |
 | `observe` | below | what the figure is drawn for |
 | `layout` | below | how the panels' rects are read: what a rect is (`boxesMean`) and the clear space kept around the panels' labels (`padding`). The places themselves are each panel's [`rect`](#panel-fields) |
@@ -1122,6 +1122,38 @@ is the figure's own: adding or rebinding layers does not change it. The app
 offers no template (its **Add** makes a blank figure and asks for its first
 panel); the templates stay for scripts and tests.
 
+### Label variables
+
+A figure's `title`, a panel's `title`, `xLabel`, `yLabel` and `note.text` and a
+layer's `name` may name variables in braces, which `renderFigure` (and
+`renderProbeFigure`) fill in for each figure drawn: `"Time (s) re {Line} {Edge}"`
+draws *Time (s) re Stim onset*, `"{Response} trials"` *Hit trials*. The config
+keeps the text as typed. `figureLabelVariables()` lists them (a table of `Name`,
+`Topic`, `Meaning`, `Example`):
+
+| Topic | Variables |
+| --- | --- |
+| Alignment | `{Line}`, `{Edge}` (the event aligned to; with a sequence, the step `alignStep` names), `{Event}` (`eventRefLabel`), `{Window}` (`"-1 to 1 s"`; a `between` window `"-0.2 s to Lick onset +0.5 s"`) |
+| Trials | `{Response}` (the selection's response words joined by `" or "`; `"all"` without), `{Filter}`, `{GroupBy}` (blank without), `{Group}` (a perGroup observation's group, else `"all"`), `{Epochs}` (the panel's epochs, else the figure's) |
+| Observation | `{Unit}` (the short label of the files' `{Unit}`: `su12`, `ch7`, `dataset`, `probe`), `{Observation}` (its label), `{Channel}`, `{Shank}`, `{Depth}` (blank where unknown) |
+| Data | `{Name}` (`F.dataset`), `{Subject}` (`F.subject`, the subjects merged for a session figure), `{Sessions}` (`F.nSessions`, else 1) |
+| Figure | `{Figure}`, `{Panel}` (ids), `{Bin}`, `{Smooth}` (the panel's `options.bins` in ms; blank without), `{Date}` (today, `yyyy-MM-dd`) |
+
+`[T, V] = figureLabelVariables(spec, F, Panel=k)` gives each one's value for
+panel `k` of `spec` (a `figureFor` spec; `0`, the default, is the figure's own:
+its title) as computed in `F` (`[]`: the observation's, the dataset's and the
+epochs' are `"<Name>"`; `PerObservation=false` keeps the observation's so even
+with `F`); `figureFileName(text, V, Kind="label")` fills a text with them. Each
+panel's texts take its own values (its own `ref`, `window` and `selection`
+after `figureFor`), the figure's title the figure's. Names are case-sensitive;
+a brace that names no variable is left as typed (so TeX's `x^{2}` is safe), and
+a note drawn with `interpreter` `"tex"` gets its values escaped. A title of the
+figure's own that names `{Unit}` or `{Observation}` keeps the top-left panel
+from naming the observation; one that names `{Group}` gets no `· <group>`. The
+report's heading and caption of a figure fill its title with
+`PerObservation=false`: one heading serves every observation. Validate warns of
+a name in braces that is no variable ([Validating figures](#validating-figures)).
+
 ### Figure ids
 
 A figure whose `autoId` is true is named by what it holds,
@@ -1180,9 +1212,9 @@ follow its id.
 | --- | --- | --- |
 | `id` | auto | unique within the figure (`EphysAnalysisConfig:DuplicatePanelId`); blank: `<type>_<n>`. The aesthetics editor names a panel's tile by it |
 | `type` | `"psth"` | one of the [panel types](#panel-types) |
-| `title` | `""` | `""` = none, but for the observation's label on the top-left panel under a title of the figure's own |
+| `title` | `""` | `""` = none, but for the observation's label on the top-left panel under a title of the figure's own. It may use [label variables](#label-variables) |
 | `box` | `"auto"` | the frame around the panel's axes (and a coherence panel's phase axes): `"auto"` leaves it to the [design](EphysAnalysis.md#plot-designs) (Tufte and Journal turn it off) and to the looks remembered for the panel's kind; `"on"` or `"off"` is the panel's own and wins over all of them, the figure's own `aesthetics` rules included (a right-click edit of a panel's *Box* does not show while `box` is not `"auto"`: set the panel's Box row instead). Validate: `auto`, `on` or `off` |
-| `xLabel`, `yLabel` | `""`, `""` | the panel's own x and y axis labels, any text (no TeX); `""` = automatic: the label the panel type draws (`"Time (s)"` on a time axis, the rate's unit, `"Frequency (Hz)"`, ...). A stack of time panels tells the time once ([shared time axis](#shared-time-axis)): `xLabel` shows where the panel tells it. On a coherence panel with its phase strip the y label is the magnitude's; on a stacked PSTH, its left axis' |
+| `xLabel`, `yLabel` | `""`, `""` | the panel's own x and y axis labels, any text (no TeX; [label variables](#label-variables) filled in); `""` = automatic: the label the panel type draws (`"Time (s)"` on a time axis, the rate's unit, `"Frequency (Hz)"`, ...). A stack of time panels tells the time once ([shared time axis](#shared-time-axis)): `xLabel` shows where the panel tells it. On a coherence panel with its phase strip the y label is the magnitude's; on a stacked PSTH, its left axis' |
 | `xSide`, `ySide` | `"bottom"`, `"left"` | where the panel's x axis' ticks and label go, `"bottom"` or `"top"`, and its y axis', `"left"` or `"right"`; drawn once the type has drawn, for every type. A coherence panel's x axis on top goes on its magnitude, its phase strip dropping its tick labels; a stacked PSTH keeps its two y axes (left: the groups, right: the peaks) whatever `ySide` says. A color bar outside on the side an axis moves to goes to the opposite side. Validate: `bottom` or `top`, `left` or `right` |
 | `rect` | `[0 0 1 1]` | the panel's place on the page, `[x y width height]`, normalized 0-1 of the page with the origin at its bottom-left corner (as a MATLAB `Position`): `[0 0.5 1 0.5]` is the top half. It is the panel's plot area or its outer box, as the figure's `layout.boxesMean` says. Panels may overlap; the later one in `panels` is drawn on top (`orderPanel`). The app shows and takes it in `RectUnits` (`figureRectConvert`). [Placing panels](#placing-panels) |
 | `ref`, `window` | `"default"` | `"default"` = the figure's, or the panel's own [EventRef](#eventref) / [EpochWindow](#epochwindow) (aligned types only). A panel with its own cuts its own epochs, with the figure's selection or its own (next row); with the figure's, its groups must match the figure's by label, or the panel is skipped. It then no longer [shares the time axis](#shared-time-axis) |
@@ -1196,7 +1228,7 @@ follow its id.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `name` | `""` | the legend and aesthetics label; `""` = automatic: the unit's label, `LFP ch 3`, the event's label |
+| `name` | `""` | the legend and aesthetics label; `""` = automatic: the unit's label, `LFP ch 3`, the event's label. It may use [label variables](#label-variables) |
 | `enabled` | `true` | unticked, the layer stays in the config and is not drawn |
 | `source` | `"units"` | one of `FigureSources`: `"units"`, `"detected"`, `"events"` (a digital or derived line's events), `"LFP"`, `"MUA"`, `"SPIKE"` or `"AUX"`; the panel type decides which a panel takes ([source categories](#source-categories)) |
 | `binding` | `"observation"` | `"observation"`: follows the previewed or generated unit or channel ([what a layer reads](#what-a-layer-reads)); `"fixed"`: reads what `units`, `channels` or `event` name. Events layers are always fixed |
@@ -2383,6 +2415,11 @@ Errors:
   `minWidth` of 0 or more, and with `trials "rows"` its sort as a raster's
   (`rasterSortOrder`, a `rasterSortEvent` for `rasterSort "event"`) (an
   `edgeColor` or `baselineColor` that is not a color is a warning);
+- a name in braces in the figure's `title`, a panel's `title`, `xLabel`, `yLabel`
+  or `note.text`, or a layer's `name`, that is no [label variable](#label-variables)
+  is a warning at that field (it is drawn as typed), naming the variable it likely
+  meant when one differs only in case (*{line} ... did you mean {Line}?*); in a
+  TeX note only such a near miss is reported (its braces group);
 - each panel's text note and overlays, by one function's rules ([Panel notes](#panel-notes), [Panel overlays](#panel-overlays)): a note with no text is not
   checked (a panel of an unknown `type` has its note and overlays checked all the same; `box` is `auto`, `on` or `off`,
   `xSide` `bottom` or `top`, `ySide` `left` or `right`),

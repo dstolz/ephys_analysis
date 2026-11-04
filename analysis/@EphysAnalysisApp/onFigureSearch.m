@@ -20,7 +20,7 @@ grid = lb.Parent;
 X = obj.FigureSearchIndex;
 if text == "" || isempty(X)
     set(lb, "Items", {}, "ItemsData", [], "Visible", "off", "UserData", []);
-    grid.RowHeight{2} = 0;
+    grid.RowHeight{3} = 0;
     obj.FigureSearchState = "";
     return
 end
@@ -48,7 +48,7 @@ n = numel(hit);
 hit = hit(1:min(n, 40));
 if isempty(hit)
     set(lb, "Items", "No setting matches """ + text + """", "ItemsData", 0, "Value", 0, "Visible", "on", "UserData", []);
-    grid.RowHeight{2} = 26;
+    grid.RowHeight{3} = 26;
     obj.FigureSearchState = "typing";
     obj.setStatus("No setting of the figure editor matches """ + text + """.");
     return
@@ -58,7 +58,7 @@ for i = 1:numel(hit)
     paths(i) = figureSearchPath(obj, X(hit(i)));
 end
 set(lb, "Items", paths, "ItemsData", hit, "Value", hit(1), "Visible", "on", "UserData", []);
-grid.RowHeight{2} = min(numel(hit), 6) * 20 + 6;
+grid.RowHeight{3} = min(numel(hit), 6) * 20 + 6;
 obj.FigureSearchState = "typing";
 if n > numel(hit)
     obj.setStatus(sprintf("%d settings match ""%s"" (the first %d listed): Enter goes to the first, a click to any.", n, text, numel(hit)));

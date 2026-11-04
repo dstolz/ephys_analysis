@@ -236,9 +236,17 @@ l = uilabel(lg, "Text", "A figure is one observation's panels: a unit's, a chann
     "WordWrap", "on", "FontColor", gray, "VerticalAlignment", "top");
 place(l, 10, [1 2]);
 
-% --- middle: the search field, its matches and the editor ------------------------------------------
-mc = uigridlayout(g, [3 1], "RowHeight", {30, 0, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 4);
+% --- middle: Apply last change, the search field, its matches and the editor -------------------------
+mc = uigridlayout(g, [4 1], "RowHeight", {34, 30, 0, '1x'}, "Padding", [0 0 0 0], "RowSpacing", 4);
+% Apply last change... (Edit > Apply last change to figures...): named after the step by refreshEditMenu
+cmdKey = "Ctrl";
+if ismac; cmdKey = "Cmd"; end
+obj.FigureApplyLastButton = uibutton(mc, "Text", "Apply last change...", "Enable", "off", ...
+    "ButtonPushedFcn", @(~,~) obj.onApplyToFigures(), ...
+    "Tooltip", "Apply last change to figures (" + cmdKey + "+Shift+A)");
+obj.FigureApplyLastButton.Layout.Row = 1;
 fg0 = uigridlayout(mc, [1 2], "ColumnWidth", {'1x', 34}, "Padding", [0 0 0 0], "ColumnSpacing", 4);
+fg0.Layout.Row = 2;
 obj.FigureSearchField = uieditfield(fg0, "text", "Placeholder", "Find a setting by name  (Ctrl+F)", ...
     "ValueChangingFcn", @(~, evt) obj.onFigureSearch(evt.Value), ...
     "Tooltip", "Type part of a setting's name (or a word of its tooltip): the matches are listed below as " + ...
@@ -249,8 +257,9 @@ obj.FigureKeysButton = uibutton(fg0, "Text", "?", "FontWeight", "bold", "ButtonP
 obj.FigureSearchList = uilistbox(mc, "Items", {}, "Visible", "off", ...
     "ValueChangedFcn", @(lb, ~) searchPicked(obj, lb, false), "ClickedFcn", @(lb, evt) searchClicked(obj, lb, evt), ...
     "Tooltip", "The settings that match. Click one to go there; with the keyboard, the arrows show each and Enter goes there.");
+obj.FigureSearchList.Layout.Row = 3;
 ep = uipanel(mc, "Title", "Figure");
-ep.Layout.Row = 3;
+ep.Layout.Row = 4;
 obj.FigureEditorPanel = ep;
 eg = uigridlayout(ep, [21 1]);
 eg.RowHeight = [repmat({0}, 1, 20) {'1x'}];
@@ -1688,8 +1697,8 @@ obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPus
     "preview is out of date.");
 obj.SaveDesignButton.Layout.Row = 2; obj.SaveDesignButton.Layout.Column = [4 5];
 % the figure templates of yours (FigureTemplate: a figure's settings, copied into figures when applied), and Apply
-% last change (Edit > Apply last change to figures...), in the row above the preview
-tg = uigridlayout(pg, [1 11], "ColumnWidth", {'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 8, 'fit'}, ...
+% (Apply last change is at the top of the settings column), in the row above the preview
+tg = uigridlayout(pg, [1 9], "ColumnWidth", {'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'}, ...
     "ColumnSpacing", 4, "Padding", [0 2 0 2]);
 tg.Layout.Row = 4; tg.Layout.Column = [1 5];
 uilabel(tg, "Text", "Template:", "FontWeight", "bold", ...
@@ -1725,10 +1734,6 @@ obj.FigureTemplateIssueLink = uihyperlink(tg, "Text", "Report issue", ...
     "HyperlinkClickedFcn", @(~, ~) obj.onFigureTemplate("issue"), ...
     "Tooltip", "Report a problem with figure templates: an issue on GitHub, opened prefilled with the template picked. " + ...
     "To ask for something they do not do: Help > Request a figure template feature..., or right-click the list.");
-obj.FigureApplyLastButton = uibutton(tg, "Text", "Apply last change...", "Enable", "off", ...
-    "ButtonPushedFcn", @(~,~) obj.onApplyToFigures(), ...
-    "Tooltip", "Apply last change to figures (" + cmdKey + "+Shift+A)");   % named after the step: refreshEditMenu
-obj.FigureApplyLastButton.Layout.Column = 11;
 obj.refreshTemplates();
 % the previews: a container per figure, all in this one cell, the selected figure's shown (syncFigureView); the
 % first, "", is shown while no figure is selected

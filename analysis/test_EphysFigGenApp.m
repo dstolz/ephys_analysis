@@ -25,27 +25,29 @@ function test_EphysFigGenApp(opts)
 %   time range, trial rows); save and reopen; a version-1 config opened
 %   (its plot migrated to a figure, the status bar and the Log saying so);
 %   a standalone script from the app's config; Plan and a run of one
-%   figure writing its pages and the report; the Figures tab (a figure from a template, its automatic id, the
-%   schematic, the observation picker and its preview of one unit, < and
+%   figure writing its pages and the report; the Figures tab (a figure from a template, its automatic id,
+%   the observation picker and its preview of one unit, < and
 %   > and Page Up, a continuous panel added below, an events layer on the
 %   raster, the rows a panel type shows, Ctrl+digit to a section, the
 %   supersections (their order, collapsing, Alt+digit), the search (a
 %   row's path, a hidden row's reason, a shown row gone to and
 %   highlighted, Down and Escape, a section by its title), the panel keys
-%   (Ctrl+Alt+arrows, Ctrl+[ and Ctrl+]) and the preview's outline of the
+%   (Ctrl+Alt+arrows by the panels' rects, Ctrl+[ and Ctrl+]) and the preview's outline of the
 %   selected panel (moved without a redraw, following a resize, not in
 %   Open in window), the keys window, Out of
 %   date with Auto off, Cancel, the figure's own event, a panel's own
 %   window, a tightened unit filter and one nothing passes, a listing
 %   error, a type change, the gather / apply round trip, a remembered look
-%   and Forget, another config opened, a row height the spinner's old
-%   limits clipped, Remove panel, Duplicate ("<id> (2)"), New panel above / right /
-%   left, Add (a blank figure and the New panel window, answered and
-%   canceled), every panel type at every place, the Id row (an id typed
-%   sticks, auto goes back; references follow an automatic rename),
-%   spans (and their refusals), sizes and spacing, a panel's own
-%   size and alignment, the Spacing window (custom gaps, one set apart,
-%   a refused value, Apply, a preset and OK), Move, layer and
+%   and Forget, another config opened, a rect the fields round kept as
+%   stored, Remove panel, Duplicate ("<id> (2)"), New panel by Where (the
+%   free space, below / above / right / left of the selected panel, a
+%   rect; the first panel fills the page), the rect's fields in each unit
+%   (a value typed, refused, kept on the page; the units switched), Boxes
+%   mean and Padding round trip, Bring forward / Send back, the Snap
+%   preferences, Add (a blank figure and the New panel window, answered and
+%   canceled), every panel type at every place (a legend panel too, a
+%   second one refused), the Id row (an id typed
+%   sticks, auto goes back; references follow an automatic rename), layer and
 %   figure Up / Down, no Behavior type or trials source offered, linked
 %   panels' locked alignment, a panel's own options (Apply to all
 %   panels, Re-link all panels, Ctrl+7 / Ctrl+9), a scan listing the
@@ -67,8 +69,7 @@ function test_EphysFigGenApp(opts)
 %   within a group; Group by and the collapsed groups restored by a new
 %   app), a panel's text note and overlays (their rows reach the panel
 %   picked and the preview, Add / Duplicate / Remove, another panel's
-%   own) and dragging a panel in the schematic (an edge drop, a move to
-%   an empty cell, a release outside it and Escape canceling);
+%   own);
 %   favorites (the star toggles beside Dataset and the observation, the Data
 %   tab's ★ column, the files beside the data read back by a scan, ★ marks
 %   in the drop-downs, a unit's sort recorded, a detection channel showing
@@ -193,14 +194,14 @@ app = EphysFigGenApp(F.proj);   % built on the project and scanned: the setup ev
 appCleanup = onCleanup(@() closeApp(app));
 
 % what the sections share: key presses, the figure editor's controls and sections, the preview's axes and title,
-% the schematic's patches, section 4's Export folder and config file, the two datasets' places in the Runner
+% a panel's rect near the one wanted, section 4's Export folder and config file, the two datasets' places in the Runner
 pressed = @(k, mods) struct('Key', k, 'Modifier', {mods}, 'Character', '');
 FE = app.FigureEditor;
 FA = app.FigureAlignControls;
 FP = app.PanelAlignControls;
 figAxes = @() findall(app.FigurePreviewPanel, 'Type', 'axes', '-regexp', 'Tag', '^(axes|rasterAxes)$');
-figTitle = @() strjoin(string(findall(app.FigurePreviewPanel, 'Type', 'axes', 'Tag', 'titleHost').Title.String), " ");
-nPatches = @() numel(findall(app.FigureSchematic, 'Type', 'patch', 'Tag', 'schematicPanel'));   % the panels' (an empty cell's is schematicEmpty)
+figTitle = @() previewTitle(app.FigurePreviewPanel);
+rectIs = @(r, want) numel(r) == 4 && all(abs(double(r) - want) < 1e-6);
 secOf = @(n) app.FigureSections([app.FigureSections.Name] == n);
 outRoot = fullfile(root, 'out');
 cfgFile = fullfile(root, 'app_analysis.json');
@@ -246,6 +247,12 @@ timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a 
     function withFigure(template)
         %withFigure  A figure from TEMPLATE when the config has none (section 3's "PSTH units").
         if isempty(app.Config.Figures); app.onAddFigure(template); end
+    end
+
+    function unitsTo(u)
+        %unitsTo  The Panels section's Units set to U, as a pick in its drop-down does (onRectUnitsChanged).
+        FE.rectUnits.Value = u;
+        FE.rectUnits.ValueChangedFcn(FE.rectUnits, []);
     end
 
     function noFigures()
@@ -575,7 +582,8 @@ if S.sec("1d", "messages: what stops an action is an alert that says what to do;
     answerDialog('New panel', @(D) newPanelSetPick(D, "builtin:rasterPsth"));
     cardButtons.ButtonPushedFcn(cardButtons, []);   % the empty preview's button, as a click: a blank figure, then the New panel window
     check(numel(app.Config.Figures) == 1 && app.SelectedFigure == 1 && isequal([app.Config.Figures(1).panels.type], ["raster" "psth"]) ...
-        && app.Config.Figures(1).id == "Raster+PSTH units" && app.Config.Figures(1).grid.spacing == "none" ...
+        && app.Config.Figures(1).id == "Raster+PSTH units" && rectIs(app.Config.Figures(1).panels(1).rect, [0 0.5 1 0.5]) ...
+        && rectIs(app.Config.Figures(1).panels(2).rect, [0 0 1 0.5]) ...
         && contains(app.StatusBar.Text, "Added Raster over PSTH (raster_1, psth_1)"), ...
         'the card''s button adds a figure and opens New panel: the saved figure Raster over PSTH gives a raster flush over a PSTH');
     kIssue = 1;
@@ -1032,10 +1040,10 @@ if S.sec("5d.add", "the Figures tab: a figure from the rasterPsth template, the 
     app.onAddFigure("rasterPsth");
     fg = app.Config.Figures;
     check(isscalar(fg) && fg.id == "Raster+PSTH units" && numel(fg.panels) == 2 && app.SelectedFigure == 1 && app.SelectedPanel == 1 ...
-        && nPatches() == 2 && string(figureNode(app.FiguresTree, 1).Text) == "Raster+PSTH units  (2 panels)" ...
+        && string(figureNode(app.FiguresTree, 1).Text) == "Raster+PSTH units  (2 panels)" && string(FE.summary.Text) == "2 panels; per unit" ...
         && startsWith(string(figureNode(app.FiguresTree, 1).Parent.Text), "Per unit") && string(FE.id.Value) == "Raster+PSTH units" ...
         && FE.idAuto.Value && startsWith(app.Fig.Name, "*"), ...
-        'a figure from the rasterPsth template: "Raster+PSTH units" (auto ticked), two panels, two patches in the schematic, listed per unit; the config is unsaved');
+        'a figure from the rasterPsth template: "Raster+PSTH units" (auto ticked), two panels ("2 panels; per unit"), listed per unit; the config is unsaved');
     spec = app.Config.figureFor(1);
     T0 = figureObservations(app.Runner.source(app.ActiveIdx), spec);
     T = app.FigureObservations;
@@ -1108,10 +1116,12 @@ if S.sec("5d.layers", "a continuous panel below (drawn at once); its layers: AUX
         && isKey(app.FigureObservation, char(fg.id)) && ~isKey(app.FigureObservation, 'Raster+PSTH units') ...
         && app.FigureIdRenames('Raster+PSTH units') == fg.id, ...
         'the automatic id follows the new panel (Continuous, its LFP); the Id row and the tree show it, the observation picked moves with it');
-    check(fg.grid.rows == 3 && fg.grid.cols == 1 && p3.type == "continuous" && p3.row == 3 && isscalar(p3.layers) ...
-        && p3.layers.source == "LFP" && p3.layers.binding == "observation" && app.SelectedPanel == 3 && nPatches() == 3 ...
-        && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3 && contains(app.StatusBar.Text, "below psth_1"), ...
-        'Continuous signal, Below: a 3 x 1 stack whose new panel''s LFP layer follows the observed unit, drawn at once');
+    check(p3.type == "continuous" && rectIs(p3.rect, [0 0 1 0.25]) && rectIs(fg.panels(2).rect, [0 0.25 1 0.25]) ...
+        && rectIs(fg.panels(1).rect, [0 0.5 1 0.5]) && isscalar(p3.layers) ...
+        && p3.layers.source == "LFP" && p3.layers.binding == "observation" && app.SelectedPanel == 3 ...
+        && contains(app.StatusBar.Text, "below psth_1 (psth_1 halved)"), ...
+        'Continuous signal, Below: psth_1 halved, the new panel flush under it, its LFP layer following the observed unit');
+    check(app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, 'the three panels drawn at once');
     app.FigureAutoCheckBox.Value = false;   % Auto off again: no redraw per edit
     check(string(FE.panelType.Value) == "continuous" && shown(FE.stack) && shown(FE.errorType) && shown(FE.layerFollows) ...
         && isequal(string(FE.stack.ItemsData), ["off" "groups" "items"]) ...
@@ -1248,13 +1258,15 @@ if S.sec("5d.outline", "the panel keys across the grid and in the panel order; t
         'the preview outlines the selected panel (raster_1): a frame of four strips round its axes and labels');
     app.onKeyPress(pressed('downarrow', {'control' 'alt'}));
     [bm, nm] = markBox(P);
-    moved = app.SelectedPanel == 2 && nm == 4 && boxNear(bm, expectBox(P, "psth_1")) && numel(figAxes()) == numel(ax0) ...
-        && all(ismember(figAxes(), ax0)) && app.FigurePreviewState == "drawn" && contains(app.FigureSupers(2).Header.Text, "psth_1");
+    moved = app.SelectedPanel == 2 && contains(app.FigureSupers(2).Header.Text, "psth_1");
+    outlined = nm == 4 && boxNear(bm, expectBox(P, "psth_1")) && numel(figAxes()) == numel(ax0) ...
+        && all(ismember(figAxes(), ax0)) && app.FigurePreviewState == "drawn";
     app.onKeyPress(pressed('downarrow', {'control' 'alt'}));
     third = app.SelectedPanel == 3;
     app.onKeyPress(pressed('downarrow', {'control' 'alt'}));
     check(moved && third && app.SelectedPanel == 3 && contains(app.StatusBar.Text, "No panel below continuous_1"), ...
-        'Ctrl+Alt+Down selects the panel below (psth_1, then continuous_1; none below the last): the outline moves, the preview is not drawn again');
+        'Ctrl+Alt+Down selects the panel below by the rects (psth_1, then continuous_1; none below the last)');
+    check(outlined, 'the outline moves with the selection; the preview is not drawn again');
     app.onKeyPress(pressed('leftarrow', {'control' 'alt'}));
     noLeft = app.SelectedPanel == 3 && contains(app.StatusBar.Text, "No panel to the left of continuous_1");
     app.onKeyPress(pressed('uparrow', {'control' 'alt'}));
@@ -1267,23 +1279,48 @@ if S.sec("5d.outline", "the panel keys across the grid and in the panel order; t
     check(noLeft && up && prev && round1 && app.SelectedPanel == 1 && contains(app.StatusBar.Text, "panel 1 of 3"), ...
         'Ctrl+Alt+Left (none), Ctrl+Alt+Up; Ctrl+[ and Ctrl+] step through the panel order, round at the ends');
     % the outline follows the figure laid out again (the preview resized)
+    if app.FigurePreviewState == "drawn"   % (a preview that failed has no axes to follow)
+        app.onPanelSelected(2);
+        pos0 = findPanelAxes(P, "psth_1").Position;
+        app.Fig.Position(3:4) = app.Fig.Position(3:4) + [160 120];   % (the preview is the shape of its page: it grows with whichever side limits it)
+        drawnow;
+        app.fitFigureViews();   % (the preview host's SizeChangedFcn: MATLAB runs it for a visible figure only)
+        P.SizeChangedFcn(P, []);   % (MATLAB runs it for a visible figure only)
+        [bm, nm] = markBox(P);
+        check(nm == 4 && ~isequal(findPanelAxes(P, "psth_1").Position, pos0) && boxNear(bm, expectBox(P, "psth_1")), ...
+            'the preview made larger, the figure is laid out again and the outline follows psth_1''s axes');
+        app.Fig.Position(3:4) = app.Fig.Position(3:4) - [160 120];
+        drawnow;
+        app.fitFigureViews();
+        P.SizeChangedFcn(P, []);
+        h = app.onOpenFigureWindow();
+        check(isgraphics(h) && isempty(findall(h, 'Tag', 'previewPanelMark')) && numel(findall(P, 'Tag', 'previewPanelMark')) == 4, ...
+            'Open in window draws no outline (it is the preview''s, not the figure''s)');
+        delete(h);
+    else
+        check(false, "the outline follows a resize, and Open in window draws none: no preview drawn (" + app.FigurePreviewState + ")");
+    end
+    % across the page: two panels side by side under a wide one; Right and Left go between them, Up from either to the wide one
+    cfg0 = app.gatherConfig();
+    cfgO = cfg0;
+    fO = cfgO.Figures(app.SelectedFigure);
+    fO.panels(2).rect = [0 0 0.4 0.5];
+    fO.panels(3).rect = [0.45 0.1 0.55 0.3];
+    cfgO.Figures(app.SelectedFigure) = fO;
+    app.applyConfig(cfgO);
     app.onPanelSelected(2);
-    pos0 = findPanelAxes(P, "psth_1").Position;
-    app.Fig.Position(3:4) = app.Fig.Position(3:4) + [160 120];   % (the preview is the shape of its page: it grows with whichever side limits it)
-    drawnow;
-    app.fitFigureViews();   % (the preview host's SizeChangedFcn: MATLAB runs it for a visible figure only)
-    P.SizeChangedFcn(P, []);   % (MATLAB runs it for a visible figure only)
-    [bm, nm] = markBox(P);
-    check(nm == 4 && ~isequal(findPanelAxes(P, "psth_1").Position, pos0) && boxNear(bm, expectBox(P, "psth_1")), ...
-        'the preview made larger, the figure is laid out again and the outline follows psth_1''s axes');
-    app.Fig.Position(3:4) = app.Fig.Position(3:4) - [160 120];
-    drawnow;
-    app.fitFigureViews();
-    P.SizeChangedFcn(P, []);
-    h = app.onOpenFigureWindow();
-    check(isgraphics(h) && isempty(findall(h, 'Tag', 'previewPanelMark')) && numel(findall(P, 'Tag', 'previewPanelMark')) == 4, ...
-        'Open in window draws no outline (it is the preview''s, not the figure''s)');
-    delete(h);
+    app.onKeyPress(pressed('rightarrow', {'control' 'alt'}));
+    right = app.SelectedPanel == 3;
+    app.onKeyPress(pressed('leftarrow', {'control' 'alt'}));
+    left = app.SelectedPanel == 2;
+    app.onPanelSelected(3);
+    app.onKeyPress(pressed('uparrow', {'control' 'alt'}));
+    upWide = app.SelectedPanel == 1;
+    app.onKeyPress(pressed('rightarrow', {'control' 'alt'}));
+    check(right && left && upWide && app.SelectedPanel == 1 && contains(app.StatusBar.Text, "No panel to the right of raster_1"), ...
+        'by the rects: Right from psth_1 goes to continuous_1 beside it (a gap between them), Left back; Up from continuous_1 to raster_1 above them both; nothing right of raster_1');
+    app.applyConfig(cfg0);
+    app.refreshFigurePreview(Force=true);
 end
 
 if S.sec("5d.goto", "right-click Go to setting: the part's setting, in the panel the part is in")
@@ -1698,19 +1735,22 @@ if S.sec("5d.otherconfig", "another config opened; sizes the spinners cannot sho
     app.applyConfig(cfgA);
     app.SavedConfigStruct = saved0;
     app.updateTitle();
-    rows0 = app.Config.Figures(1).grid.rowHeights;
+    rect0 = app.Config.Figures(1).panels(1).rect;
     cfgC = app.gatherConfig();
-    cfgC.Figures(1).grid.rowHeights = [0.2 0.8 ones(1, cfgC.Figures(1).grid.rows - 2)];
+    cfgC.Figures(1).panels(1).rect = [0.0001234 0.5 0.9876543 0.5];   % finer than the fields show
     app.applyConfig(cfgC);
     app.onPanelSelected(1);
     name0 = app.ConfigNameField.Value;
     app.ConfigNameField.Value = [name0 ' (2)'];
     app.onConfigChanged("name");
-    check(isequal(app.Config.Figures(1).grid.rowHeights(1:2), [0.2 0.8]) && FE.rowHeight.Value == 0.2, ...
-        'a row height the old spinner limits did not take (0.2) survives an edit elsewhere');
+    FE.panelTitle.Value = 'kept';
+    FE.panelTitle.ValueChangedFcn(FE.panelTitle, []);   % a figure edit: the editor gathered
+    check(isequal(app.Config.Figures(1).panels(1).rect, [0.0001234 0.5 0.9876543 0.5]) && FE.rectX.Value == 0, ...
+        'a rect finer than the fields show survives an edit of the figure elsewhere (the fields round it; written only when edited)');
     app.ConfigNameField.Value = name0;
     cfgC = app.gatherConfig();
-    cfgC.Figures(1).grid.rowHeights = rows0;
+    cfgC.Figures(1).panels(1).rect = rect0;
+    cfgC.Figures(1).panels(1).title = "";
     app.applyConfig(cfgC);
     app.refreshFigurePreview(Force=true);
 end
@@ -1721,8 +1761,14 @@ if S.sec("5d.remove", "Remove panel, Duplicate, Remove")
     app.onRemovePanel();
     app.refreshFigurePreview(Force=true);
     fg = app.Config.Figures(1);
-    check(fg.grid.rows == 2 && numel(fg.panels) == 2 && nPatches() == 2 && app.SelectedPanel == 2 && numel(figAxes()) == 2 ...
-        && app.FigurePreviewState == "drawn", 'Remove panel takes the continuous panel and its row away');
+    check(numel(fg.panels) == 2 && app.SelectedPanel == 2 && rectIs(fg.panels(2).rect, [0 0.25 1 0.25]) ...
+        && rectIs(EphysAnalysisConfig.freeRect(fg), [0 0 1 0.25]) && contains(app.StatusBar.Text, "Removed continuous_1.") ...
+        && app.FigureHistory.undoLabel() == "Remove panel", ...
+        'Remove panel takes the continuous panel away; psth_1 keeps its place, the space left free; one step, Remove panel');
+    check(numel(figAxes()) == 2 && app.FigurePreviewState == "drawn", 'the preview draws the two panels left');
+    cfgR = app.gatherConfig();
+    cfgR.Figures(1).panels(2).rect = [0 0 1 0.5];   % psth_1 back to the template's place, flush under the raster
+    app.applyConfig(cfgR);
     app.onDuplicateFigure();
     check(numel(app.Config.Figures) == 2 && app.Config.Figures(1).id == "Raster+PSTH units" && app.Config.Figures(2).id == "Raster+PSTH units (2)" ...
         && app.SelectedFigure == 2 && isequaln(rmfield(app.Config.Figures(2), 'id'), rmfield(app.Config.Figures(1), 'id')) ...
@@ -1732,120 +1778,141 @@ if S.sec("5d.remove", "Remove panel, Duplicate, Remove")
     check(isscalar(app.Config.Figures) && app.SelectedFigure == 1 && string(FE.id.Value) == "Raster+PSTH units", 'Remove takes the copy away');
 end
 
-if S.sec("5d.arrange", "the arrangement on a blank figure: New panel above, right and left, spans, sizes and spacing, the Spacing window, Move, layer and figure Up and Down (Auto off: nothing here needs drawing)")
+if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where (the first fills the page, below / above / right / left, the free space, a rect), Remove, the rect's fields in each unit (typed, refused, kept on the page), the units switched, Boxes mean and Padding, Bring forward / Send back, Snap and its step, Arrange's button and Escape, layer and figure Up and Down (Auto off: nothing here needs drawing)")
     app.FigureAutoCheckBox.Value = false;
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5d.outline), let go: an edit stays with its figure
+    units5a = app.FigureRectUnits;
     app.onAddFigure("blank");
-    cellOf = @(id) arrayfun(@(q) [q.row q.col q.rowSpan q.colSpan], app.Config.Figures(2).panels([app.Config.Figures(2).panels.id] == id), ...
-        'UniformOutput', false);
-    gridOf = @() [app.Config.Figures(2).grid.rows app.Config.Figures(2).grid.cols];
+    unitsTo("cm");
+    ids2 = @() [app.Config.Figures(2).panels.id];
+    rectOf = @(id) app.Config.Figures(2).panels(ids2() == id).rect;
+    page = figureExportSize(app.Config.Export, [], app.Config.Figures(2));
+    dpi5a = app.Config.Export.Dpi;
     app.onNewPanel(Type="psth", Where="right");
-    check(app.SelectedFigure == 2 && isequal(gridOf(), [1 1]) && isequal(cellOf("psth_1"), {[1 1 1 1]}), ...
-        'a blank figure''s first panel goes to row 1, column 1, whatever the place');
+    check(app.SelectedFigure == 2 && rectIs(rectOf("psth_1"), [0 0 1 1]) ...
+        && contains(app.StatusBar.Text, "Added psth_1 (PSTH) filling the page, " + sprintf("%.1f x %.1f cm at 0, 0", page(1), page(2))) ...
+        && startsWith(string(FE.selPanel.Text), "psth_1 (PSTH): ") && string(FE.summary.Text) == "1 panel; per unit", ...
+        sprintf('a blank figure''s first panel fills the page, whatever the place; the status bar and the Panels section say so in cm (%s)', FE.selPanel.Text));
     app.onNewPanel(Type="raster", Where="above");
-    check(isequal(gridOf(), [2 1]) && isequal(cellOf("raster_1"), {[1 1 1 1]}) && isequal(cellOf("psth_1"), {[2 1 1 1]}) ...
-        && app.Config.Figures(2).panels(app.SelectedPanel).id == "raster_1", 'Above: a row before the selected panel; the new one is selected');
+    check(rectIs(rectOf("psth_1"), [0 0 1 0.5]) && rectIs(rectOf("raster_1"), [0 0.5 1 0.5]) ...
+        && app.Config.Figures(2).panels(app.SelectedPanel).id == "raster_1" && contains(app.StatusBar.Text, "above psth_1 (psth_1 halved)"), ...
+        'Above: the selected panel halved, the new one flush over it, and selected');
     app.onNewPanel(Type="raster", Where="right");
-    check(isequal(gridOf(), [2 2]) && isequal(cellOf("raster_2"), {[1 2 1 1]}) && isequal(cellOf("psth_1"), {[2 1 1 1]}), ...
-        'Right: a column after it, in its row');
+    check(rectIs(rectOf("raster_1"), [0 0.5 0.5 0.5]) && rectIs(rectOf("raster_2"), [0.5 0.5 0.5 0.5]) ...
+        && contains(app.StatusBar.Text, "right of raster_1 (raster_1 halved)"), 'Right of: the selected panel halved across, the new one at its right');
+    app.onPanelSelected(find(ids2() == "raster_1"));
     app.onNewPanel(Type="raster", Where="left");
-    check(isequal(gridOf(), [2 3]) && isequal(cellOf("raster_3"), {[1 2 1 1]}) && isequal(cellOf("raster_2"), {[1 3 1 1]}) ...
-        && nPatches() == 4, 'Left: a column before it; the panels right of it move over');
-    empties = findall(app.FigureSchematic, 'Tag', 'schematicEmpty');
-    app.onPanelSelected(find([app.Config.Figures(2).panels.id] == "raster_3"));
-    app.onNewPanel(Type="psth", Where="below");
-    check(numel(empties) == 2 && isequal(gridOf(), [2 3]) && isequal(cellOf("psth_2"), {[2 2 1 1]}) ...
-        && contains(app.StatusBar.Text, "below raster_3 (the empty cell at row 2, column 2)"), ...
-        'Below a panel over an empty cell: the new panel fills that cell, the grid unchanged (the schematic showed both empty cells)');
-    E = findall(app.FigureSchematic, 'Tag', 'schematicEmpty');
-    eCell = {E.UserData};   % read before the click: the schematic is drawn again after it
-    answerDialog('New panel', @emptyCellAnswer);
-    E(1).ButtonDownFcn(E(1), []);
-    seenE = getappdata(groot, 'emptyCellSeen');
-    if isappdata(groot, 'emptyCellSeen'); rmappdata(groot, 'emptyCellSeen'); end
-    check(isequal(eCell, {[2 3]}) && isstruct(seenE) && seenE.value == "cell 2 3" ...
-        && isequal(seenE.items, ["Below psth_2 (new row)" "Above psth_2 (new row)" "Right of psth_2 (fills row 2, col 3)" ...
-        "Left of psth_2 (new column)" "Empty cell: row 2, col 3"]) ...
-        && isequal(cellOf("psth_3"), {[2 3 1 1]}) && isequal(gridOf(), [2 3]) && contains(app.StatusBar.Text, "in the empty cell at row 2, column 3"), ...
-        'a click on an empty cell opens New panel there (Place: what each side of the selected panel does, then the empty cells); OK fills it');
+    check(rectIs(rectOf("raster_1"), [0.25 0.5 0.25 0.5]) && rectIs(rectOf("raster_3"), [0 0.5 0.25 0.5]) && rectIs(rectOf("psth_1"), [0 0 1 0.5]), ...
+        'Left of: the new one takes the left half; nothing else moves');
+    app.onPanelSelected(find(ids2() == "psth_1"));
     app.onRemovePanel();
-    app.onPanelSelected(find([app.Config.Figures(2).panels.id] == "psth_2"));
+    removed = ~any(ids2() == "psth_1") && contains(app.StatusBar.Text, "Removed psth_1.") && app.FigureHistory.undoLabel() == "Remove panel" ...
+        && rectIs(EphysAnalysisConfig.freeRect(app.Config.Figures(2)), [0 0 1 0.5]);
+    app.onNewPanel(Type="psth", Where="free", Id="psth_2");
+    check(removed && rectIs(rectOf("psth_2"), [0 0 1 0.5]) ...
+        && contains(app.StatusBar.Text, "in the free space, " + sprintf("%.1f x %.1f cm at 0, 0", page(1), page(2) / 2)), ...
+        'Remove panel leaves its space free (Removed psth_1.); New panel''s free space fills it');
+    app.onNewPanel(Type="continuous", Where="rect", Rect=[0.1 0.2 0.3 0.25]);
+    check(rectIs(rectOf("continuous_1"), [0.1 0.2 0.3 0.25]) && contains(app.StatusBar.Text, "at the place given"), ...
+        'Where "rect": the panel at the rect given (over psth_2: drawn on top)');
     app.onRemovePanel();
-    check(isequal(gridOf(), [2 3]) && nPatches() == 4 && numel(findall(app.FigureSchematic, 'Tag', 'schematicEmpty')) == 2, ...
-        'the two removed again: the grid as it was');
-    minus = findall(app.FigureSchematic, 'Tag', 'schematicRemoveCell');
-    cms = findall(app.Fig, '-depth', 1, 'Type', 'uicontextmenu', 'Tag', 'schematicCellMenu');
-    cm = cms(arrayfun(@(m) isequal(m.UserData, [2 3]), cms));
-    cm.ContextMenuOpeningFcn(cm, []);   % (as it opens: its items made from the figure then)
-    items = flip(cm.Children);
-    check(numel(minus) == 2 && numel(cms) == 2 && isscalar(cm) && isequal(minus(1).ContextMenu.Tag, 'schematicCellMenu') ...
-        && isequal(string({items.Text}), ["Stretch column 3 over it" "Stretch row 2 over its 2 empty cells" ...
-        "Shift cells up  (nothing lies below it in column 3)" "Shift cells left  (nothing lies right of it in row 2)" ...
-        "Grow raster_2 down over it" "Delete row 2  (row 2 holds psth_1)" "Delete column 3  (column 3 holds raster_2)"]) ...
-        && isequal(logical([items.Enable]), [true true false false true false false]) ...
-        && isequal(logical([items.Separator]), [false false true false true true false]), ...
-        'each empty cell has a minus sign and a menu of the ways to remove it: those that cannot grayed with why, its sections set apart');
-    items(2).MenuSelectedFcn(items(2), []);
-    check(isequal(cellOf("psth_1"), {[2 1 1 3]}) && isequal(gridOf(), [2 3]) && isempty(app.Config.Figures(2).grid.colWidths) ...
-        && isempty(findall(app.FigureSchematic, 'Tag', 'schematicEmpty')) && app.FigureHistory.undoLabel() == "Remove cell" ...
-        && contains(app.StatusBar.Text, "Removed the empty cell at row 2, column 3: psth_1 stretched over row 2's 2 empty cells."), ...
-        'Stretch row 2: psth_1 spans the row, no empty cell left (the columns as they were); undoable as Remove cell');
-    app.onRemoveCell([2 3], "shiftUp");
-    check(isequal(cellOf("psth_1"), {[2 1 1 3]}) && contains(app.StatusBar.Text, "Remove cell at row 2, column 3: Row 2, column 3 holds psth_1: it is not an empty cell."), ...
-        'a cell no longer empty stays, the status bar says why');
-    app.onPanelSelected(find([app.Config.Figures(2).panels.id] == "psth_1"));
-    FE.colSpan.Value = 3;
-    FE.colSpan.ValueChangedFcn(FE.colSpan, struct('PreviousValue', 1, 'Value', 3));
-    check(isequal(cellOf("psth_1"), {[2 1 1 3]}), 'Column span 3: the bottom panel spans the three columns');
-    FE.rowSpan.Value = 2;
-    FE.rowSpan.ValueChangedFcn(FE.rowSpan, struct('PreviousValue', 1, 'Value', 2));
-    check(isequal(cellOf("psth_1"), {[2 1 1 3]}) && FE.rowSpan.Value == 1 && contains(app.StatusBar.Text, "cannot span past"), ...
-        'a row span past the grid''s last row is refused');
-    app.onPanelSelected(find([app.Config.Figures(2).panels.id] == "raster_3"));
-    FE.rowSpan.Value = 2;
-    FE.rowSpan.ValueChangedFcn(FE.rowSpan, struct('PreviousValue', 1, 'Value', 2));
-    check(isequal(cellOf("raster_3"), {[1 2 1 1]}) && FE.rowSpan.Value == 1 && contains(app.StatusBar.Text, "would overlap psth_1"), ...
-        'a span over another panel is refused');
-    FE.rowHeight.Value = 1.5;
-    FE.colWidth.Value = 2;
-    FE.spacing.Value = "loose";
-    app.onConfigChanged("figure");
-    G2 = app.Config.Figures(2).grid;
-    check(isequal(G2.rowHeights, [1.5 1]) && isequal(G2.colWidths, [1 2 1]) && G2.spacing == "loose", ...
-        'Row height, Column width and Spacing reach the grid (its row and column, the others 1)');
-    FE.panelWidth.Value = 60;
-    FE.panelAlign.Value = "right";
-    app.onConfigChanged("figure");
-    pS = app.Config.Figures(2).panels(app.SelectedPanel);
-    check(isequal(pS.size, [0.6 1]) && pS.align == "right" && pS.valign == "middle" && FE.panelAlign.Enable == "on" ...
-        && FE.panelVAlign.Enable == "off", ...
-        'Panel size and Align reach the selected panel alone (60 % of its cell''s width, at the right); Align up the cell off while 100 % high');
-    FE.spacingDialog.ButtonPushedFcn(FE.spacingDialog, []);
-    dS = findall(groot, 'Type', 'figure', 'Tag', 'figureSpacingDialog');
-    DS = dS.UserData;
-    DS.Spacing.Value = "custom"; DS.Spacing.ValueChangedFcn(DS.Spacing, []);
-    DS.Units.Value = "px"; DS.Units.ValueChangedFcn(DS.Units, []);
-    DS.RowGap.Value = 10; DS.RowGap.ValueChangedFcn(DS.RowGap, []);
-    DS.ColGap.Value = 4; DS.ColGap.ValueChangedFcn(DS.ColGap, []);
-    TS = DS.Table.Data;
-    check(isscalar(dS) && DS.FigureId == app.Config.Figures(2).id && app.Config.Figures(2).id == "Raster+PSTH units (2)" && height(TS) == 3 && isequal(TS.Gap, [10; 4; 4]) && DS.Units.Enable == "on", ...
-        'Spacing...: the window lists every gap of the 2 x 3 grid, filled by the one gap between rows and the one between columns');
-    DS.Table.CellEditCallback(DS.Table, struct('Indices', [3 2], 'NewData', 16));
-    DS.Table.CellEditCallback(DS.Table, struct('Indices', [1 2], 'NewData', -3));
-    DS.Apply.ButtonPushedFcn(DS.Apply, []);
-    G3 = app.Config.Figures(2).grid;
-    check(isvalid(dS) && G3.spacing == "custom" && G3.gapUnits == "px" && G3.rowGap == 10 && isempty(G3.rowGaps) && G3.colGap == 4 ...
-        && isequal(G3.colGaps, [4 16]) && string(FE.spacing.Value) == "custom", ...
-        'Apply: the gaps reach the grid (a gap under 0 refused; the second column gap set apart, the row gap the one value); the window stays');
-    DS.Spacing.Value = "compact"; DS.Spacing.ValueChangedFcn(DS.Spacing, []);
-    DS.Ok.ButtonPushedFcn(DS.Ok, []);
-    G4 = app.Config.Figures(2).grid;
-    check(~isvalid(dS) && G4.spacing == "compact" && isequal(G4.colGaps, [4 16]), 'OK: a preset, the custom gaps kept unused; the window closes');
-    app.onMovePanel("right");
-    check(isequal(cellOf("raster_3"), {[1 3 1 1]}) && isequal(cellOf("raster_2"), {[1 2 1 1]}) && contains(app.StatusBar.Text, "Moved raster_3 right"), ...
-        'Move right swaps the panel with its same-shaped neighbor');
-    app.onMovePanel("up");
-    check(isequal(cellOf("raster_3"), {[1 3 1 1]}) && contains(app.StatusBar.Text, "no panel of the same shape above"), ...
-        'Move up with nothing above it changes nothing, and says so');
+    % the rect's fields: in cm, then in each unit
+    app.onPanelSelected(find(ids2() == "psth_2"));
+    nUndo5a = numel(app.FigureHistory.Undo);
+    shownCm = [FE.rectX.Value FE.rectY.Value FE.rectW.Value FE.rectH.Value];
+    FE.rectW.Value = 9;
+    FE.rectW.ValueChangedFcn(FE.rectW, []);
+    widthSet = rectIs(rectOf("psth_2"), [0 0 9 / page(1) 0.5]) && app.FigureHistory.undoLabel() == "Panel width" ...
+        && numel(app.FigureHistory.Undo) == nUndo5a + 1 && contains(app.StatusBar.Text, sprintf("psth_2: 9.0 x %.1f cm at 0, 0.", page(2) / 2));
+    FE.rectX.Value = page(1) - 2;   % past the page with its width: moved back onto it
+    FE.rectX.ValueChangedFcn(FE.rectX, []);
+    check(isequal(shownCm, round([0 0 page(1) page(2) / 2], 2)) && widthSet ...
+        && rectIs(rectOf("psth_2"), [1 - 9 / page(1), 0, 9 / page(1), 0.5]) && contains(app.StatusBar.Text, "Kept on the page") ...
+        && FE.rectX.Value == round(page(1) - 9, 2) && app.FigureHistory.undoLabel() == "Panel x", ...
+        'the Size and Position fields in cm: a width typed (one step, Undo Panel width), an x past the page moved back onto it (Undo Panel x)');
+    r5a = rectOf("psth_2");
+    FE.rectH.Value = 0;
+    FE.rectH.ValueChangedFcn(FE.rectH, []);
+    check(isequal(rectOf("psth_2"), r5a) && FE.rectH.Value == round(page(2) / 2, 2) && contains(app.StatusBar.Text, "above 0"), ...
+        'a height of 0 is refused: the rect as it was, the field shows it again, the status bar says why');
+    unitsTo("%");
+    inPct = FE.rectW.Value == round(900 / page(1), 2) && FE.rectH.Value == 50 && string(FE.rectXYUnits.Text) == "%" && string(FE.paddingUnits.Text) == "%";
+    FE.rectY.Value = 10;
+    FE.rectY.ValueChangedFcn(FE.rectY, []);
+    pctTyped = rectIs(rectOf("psth_2"), [r5a(1) 0.1 r5a(3) 0.5]) && app.FigureHistory.undoLabel() == "Panel y";
+    unitsTo("px");
+    inPx = FE.rectW.Value == round(9 / 2.54 * dpi5a) && string(FE.rectWHUnits.Text) == "px";
+    unitsTo("in");
+    inIn = FE.rectW.Value == round(9 / 2.54, 3);
+    unitsTo("normalized");
+    inNorm = abs(FE.rectW.Value - round(9 / page(1), 4)) < 1e-12 && FE.rectY.Value == 0.1 && string(FE.rectWHUnits.Text) == "0-1";
+    unitsTo("cm");
+    check(inPct && pctTyped && inPx && inIn && inNorm && FE.rectW.Value == 9 && rectIs(rectOf("psth_2"), [r5a(1) 0.1 r5a(3) 0.5]) ...
+        && app.FigureRectUnits == "cm", ...
+        sprintf('Units: the fields in %% (a y typed: Undo Panel y), px at %g dpi, in, 0-1 of the page and cm again; the rect as stored', dpi5a));
+    % Boxes mean and Padding: the figure's layout, the padding in the units shown, written only when edited
+    FE.boxesMean.Value = "outer";
+    FE.padding.Value = 0.3;
+    app.onConfigChanged("figure", FE.padding);
+    L5a = app.Config.Figures(2).layout;
+    unitsTo("px");
+    padPx = FE.padding.Value == round(0.3 / 2.54 * dpi5a);
+    FE.panelTitle.Value = 'padding kept';
+    FE.panelTitle.ValueChangedFcn(FE.panelTitle, []);
+    kept5a = app.Config.Figures(2).layout.padding == 0.3;
+    FE.padding.Value = 12;
+    app.onConfigChanged("figure", FE.padding);
+    padTyped = abs(app.Config.Figures(2).layout.padding - 12 / dpi5a * 2.54) < 1e-9;
+    unitsTo("cm");
+    check(L5a.boxesMean == "outer" && L5a.padding == 0.3 && padPx && kept5a && padTyped && app.FigureHistory.undoLabel() == "Padding", ...
+        'Boxes mean and Padding reach the figure''s layout; the padding shown in px, kept exact through another edit, typed in px stored in cm');
+    % Bring forward / Send back: the drawing order, the selection follows
+    app.onPanelSelected(find(ids2() == "raster_1"));
+    order0 = ids2();
+    j0 = app.SelectedPanel;
+    canBack = FE.sendBack.Enable == "on";
+    FE.bringForward.ButtonPushedFcn(FE.bringForward, []);
+    o1 = ids2();
+    fwd = isequal(o1, order0([1:j0-1, j0+1, j0, j0+2:end])) && app.SelectedPanel == j0 + 1 && o1(app.SelectedPanel) == "raster_1" ...
+        && app.FigureHistory.undoLabel() == "Reorder panel" && contains(app.StatusBar.Text, "raster_1 is drawn");
+    FE.sendBack.ButtonPushedFcn(FE.sendBack, []);
+    check(canBack == (j0 > 1) && fwd && isequal(ids2(), order0) && app.SelectedPanel == j0 && rectIs(rectOf("raster_1"), [0.25 0.5 0.25 0.5]), ...
+        sprintf('Bring forward draws raster_1 after the next panel (Undo Reorder panel), Send back before it again; its rect unchanged (%s)', strjoin(order0, ", ")));
+    app.onPanelSelected(1);
+    app.onPanelOrder(-1);
+    check(FE.sendBack.Enable == "off" && FE.bringForward.Enable == "on" && contains(app.StatusBar.Text, "first (at the back) already"), ...
+        'the first panel: Send back off, and asked anyway it says so');
+    % Snap and its step: preferences, no edit; the step follows the units
+    nUndo5a = numel(app.FigureHistory.Undo);
+    cfg5a = app.Config.Figures;
+    FE.snap.Value = false;
+    FE.snap.ValueChangedFcn(FE.snap, []);
+    FE.snapStep.Value = 0.25;
+    FE.snapStep.ValueChangedFcn(FE.snapStep, []);
+    snapPref = ~app.FigureSnap && isequal(app.FigureSnapStep, struct('value', 0.25, 'units', "cm")) ...
+        && numel(app.FigureHistory.Undo) == nUndo5a && isequaln(app.Config.Figures, cfg5a);
+    unitsTo("in");
+    stepIn = FE.snapStep.Value == 0.098 && string(FE.snapUnits.Text) == "in";
+    unitsTo("cm");
+    check(snapPref && stepIn && FE.snapStep.Value == 0.25 && FE.setCorners.Enable == "off" && contains(string(FE.setCorners.Tooltip), "Arrange"), ...
+        'Snap and its step are preferences (no edit, no undo step); the step keeps its length in other units; Set corners waits for Arrange');
+    FE.snap.Value = true;
+    FE.snap.ValueChangedFcn(FE.snap, []);
+    FE.snapStep.Value = 0.5;
+    FE.snapStep.ValueChangedFcn(FE.snapStep, []);
+    % the preview's Arrange button and Escape (the overlay is the next package's)
+    app.FigureArrangeButton.Value = true;
+    app.FigureArrangeButton.ValueChangedFcn(app.FigureArrangeButton, []);
+    arrOn = app.FigureArrange && contains(app.StatusBar.Text, "overlay");
+    app.FigureArrangeMode = "corners";
+    app.FigureCorners = struct('what', "panel");
+    app.onKeyPress(pressed('escape', {}));
+    escaped = app.FigureArrangeMode == "" && isempty(app.FigureCorners) && contains(app.StatusBar.Text, "canceled");
+    app.FigureArrangeButton.Value = false;
+    app.FigureArrangeButton.ValueChangedFcn(app.FigureArrangeButton, []);
+    check(arrOn && escaped && ~app.FigureArrange && app.FigureArrangeButton.Parent == app.FigureTemplateDropDown.Parent, ...
+        'Arrange, on the template row, is noted on and off; Escape ends Set corners (cancelArrange)');
+    app.onPanelSelected(find(ids2() == "raster_1"));
     FE.addSource.Value = "events";
     FE.addSource.ValueChangedFcn(FE.addSource, []);
     app.onAddLayer();
@@ -1868,10 +1935,11 @@ if S.sec("5d.arrange", "the arrangement on a blank figure: New panel above, righ
         sprintf('figure Up and Down reorder the list (the ids stay: %s); the figure stays selected', strjoin(ids0, " | ")));
     app.onRemoveFigure();
     app.FigureAutoCheckBox.Value = true;
+    unitsTo(units5a);
     check(isscalar(app.Config.Figures) && app.SelectedFigure == 1, 'the blank figure removed again');
 end
 
-if S.sec("5d.newpanel", "Add: a blank figure, then the New panel window (answered from a timer); every type at every place; the Id row")
+if S.sec("5d.newpanel", "Add: a blank figure, then the New panel window (answered from a timer); every type at every place; one legend panel; the Id row")
     app.FigureAutoCheckBox.Value = false;
     PTn = EphysAnalysisConfig.panelTypes();
     answerDialog('New panel', @(D) press(D, "Cancel"));
@@ -1885,37 +1953,64 @@ if S.sec("5d.newpanel", "Add: a blank figure, then the New panel window (answere
     seen = getappdata(groot, 'newPanelSeen');
     if isappdata(groot, 'newPanelSeen'); rmappdata(groot, 'newPanelSeen'); end
     f2 = app.Config.Figures(2);
-    check(isstruct(seen) && isequal(sort(seen.types), sort(PTn.Type.')) && all(seen.icons) && isempty(seen.failed) && seen.where == "off" ...
+    check(isstruct(seen) && isequal(sort(seen.types), sort(PTn.Type.')) && all(seen.icons | seen.types == "legend") && isempty(seen.failed) ...
+        && seen.where == "off" && isequal(seen.whereItems, "Fill the page") && seen.legendTile && isequal(seen.legendParams, ["Orientation" "Columns"]) ...
         && seen.name0 == "continuous_1" && all(ismember(["Source" "Binding" "Stack" "ErrorType"], seen.params)) && seen.binding == "on" ...
         && isscalar(f2.panels) && f2.panels.id == "lfp_a" && f2.panels.title == "Its LFP" && f2.panels.type == "continuous" ...
         && f2.panels.options.stack == "items" && f2.panels.layers.source == "LFP" && f2.panels.layers.binding == "observation" ...
         && f2.observe.data == "LFP" && f2.id == "Continuous LFP" && app.SelectedPanel == 1, ...
-        'New panel...: a tile with its picture per panel type, the name, title, place (the first panel: row 1, column 1) and the type''s key parameters; OK adds it, and the id and Observe follow');
-    wh = ["below" "right" "above" "left"];
+        ['New panel...: a tile with its picture per panel type (Legend: a gray placeholder, its parameters Orientation and Columns), ' ...
+        'the name, title, place (the first panel: Fill the page) and the type''s key parameters; OK adds it, and the id and Observe follow']);
+    wh = ["free" "below" "right" "above" "left"];   % lfp_a fills the page: "free" has no room, so it goes below
+    want = struct('free', [0 0 1 0.5; 0 0.5 1 0.5], 'below', [0 0 1 0.5; 0 0.5 1 0.5], 'right', [0.5 0 0.5 1; 0 0 0.5 1], ...
+        'above', [0 0.5 1 0.5; 0 0 1 0.5], 'left', [0 0 0.5 1; 0.5 0 0.5 1]);   % the new panel's rect, then the anchor's
     bad = strings(1, 0);
     for t = reshape(PTn.Type, 1, [])
         for w = wh
             app.onPanelSelected(1);
-            f0 = app.Config.Figures(2);
-            a0 = f0.panels(1);
+            a0 = app.Config.Figures(2).panels(1);
             app.onNewPanel(Type=t, Where=w, Options=struct());
             f = app.Config.Figures(2);
             p = f.panels(end);
             a = f.panels(1);
-            placed = (w == "below" && p.row == a.row + a.rowSpan && p.col == a.col) || (w == "right" && p.col == a.col + a.colSpan && p.row == a.row) ...
-                || (w == "above" && p.row + 1 == a.row && p.col == a.col) || (w == "left" && p.col + 1 == a.col && p.row == a.row);
-            if ~(numel(f.panels) == 2 && p.type == t && ~isempty(p.layers) && placed && app.SelectedPanel == 2 && a.id == a0.id ...
-                    && f.grid.rows * f.grid.cols == 2)
+            if ~(numel(f.panels) == 2 && p.type == t && (~isempty(p.layers) || t == "legend") && rectIs(p.rect, want.(w)(1, :)) ...
+                    && rectIs(a.rect, want.(w)(2, :)) && app.SelectedPanel == 2 && a.id == a0.id)
                 bad(end+1) = t + " " + w; %#ok<AGROW>
             end
-            app.onRemovePanel();
+            app.onUndoRedo("undo");   % the anchor whole again
         end
     end
-    check(isempty(bad) && isscalar(app.Config.Figures(2).panels) && isequal([app.Config.Figures(2).grid.rows app.Config.Figures(2).grid.cols], [1 1]), ...
-        sprintf('New panel adds every panel type (%d) at every place (below, right, above, left of the selected panel), each with its default layer%s', ...
-        height(PTn), strjoin(", not: " + bad, "")));
-    check(all(isfile(fullfile(repo, 'analysis', 'icons', 'panels', PTn.Type + ".png"))), ...
-        'every panel type has its picture (analysis/icons/panels, tools/makePanelThumbnails)');
+    check(isempty(bad) && isscalar(app.Config.Figures(2).panels) && rectIs(app.Config.Figures(2).panels(1).rect, [0 0 1 1]), ...
+        sprintf(['New panel adds every panel type (%d) at every place (the free space, below, right, above, left of the selected ' ...
+        'panel, which it halves), each with its default layer (a legend panel none)%s'], height(PTn), strjoin(", not: " + bad, "")));
+    check(all(isfile(fullfile(repo, 'analysis', 'icons', 'panels', PTn.Type(PTn.Type ~= "legend") + ".png"))), ...
+        'every panel type with layers has its picture (analysis/icons/panels, tools/makePanelThumbnails); the legend panel''s is a placeholder until it is made');
+    % one legend panel per figure: a second is refused, without the window and in it
+    app.onPanelSelected(1);
+    app.onNewPanel(Type="legend", Where="right");
+    nLeg = numel(app.Config.Figures(2).panels);
+    app.onNewPanel(Type="legend", Where="below");
+    refusedHere = numel(app.Config.Figures(2).panels) == nLeg && contains(app.StatusBar.Text, "The figure already has a legend panel (legend_1).");
+    answerDialog('New panel', @secondLegendAnswer);
+    app.onNewPanel();
+    legSeen = getappdata(groot, 'secondLegendSeen');
+    if isappdata(groot, 'secondLegendSeen'); rmappdata(groot, 'secondLegendSeen'); end
+    check(nLeg == 2 && app.Config.Figures(2).panels(2).type == "legend" && isempty(app.Config.Figures(2).panels(2).layers) && refusedHere ...
+        && isequal(legSeen, "The figure already has a legend panel (legend_1).") && numel(app.Config.Figures(2).panels) == nLeg, ...
+        'a legend panel (no layers); a second one is refused: the status bar says so, and the window''s red line');
+    app.onPanelSelected(2);
+    rowShown = @(key) any(arrayfun(@(sc) any(cellfun(@(kk) any(kk == key), sc.Keys) & sc.Shown), app.FigureSections));
+    check(rowShown("legOrient") && rowShown("legAlign") && ~rowShown("panelXLabel") && ~rowShown("panelBox") && rowShown("layerNote") ...
+        && contains(string(FE.layerNote.Text), "has no layers") && FE.addLayer.Enable == "off", ...
+        'a legend panel selected: its Options rows (entries, place in the panel), no axes rows, the Layers note and Add off');
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % (no Ctrl held from an earlier section: the edit stays with this figure)
+    FE.legOrient.Value = "horizontal";
+    FE.legColumns.Value = 3;
+    app.onConfigChanged("figure", FE.legColumns);
+    oL = app.Config.Figures(2).panels(2).options;
+    check(oL.orientation == "horizontal" && oL.columns == 3, 'the legend panel''s Options rows reach its options');
+    app.onUndoRedo("undo");
+    app.onUndoRedo("undo");
     % a saved figure as a panel type: Raster over PSTH placed as one block, from the window and with Set=
     app.onPanelSelected(1);
     answerDialog('New panel', @newPanelSetAnswer);
@@ -1925,18 +2020,19 @@ if S.sec("5d.newpanel", "Add: a blank figure, then the New panel window (answere
     f2 = app.Config.Figures(2);
     check(isstruct(seenSet) && seenSet.keys(1) == "builtin:rasterPsth" && seenSet.icon && seenSet.pressed ...
         && seenSet.name == "raster_1, psth_1" && seenSet.nameEnable == "off" && isempty(seenSet.params) ...
-        && isequal([f2.panels.type], ["continuous" "raster" "psth"]) && isequal([f2.panels.row], [1 2 3]) && f2.grid.rows == 3 ...
-        && f2.grid.spacing == "custom" && isequal(f2.grid.rowGaps, [6 0]) && app.SelectedPanel == 2 ...
-        && contains(app.StatusBar.Text, "Added Raster over PSTH (raster_1, psth_1) below lfp_a"), ...
-        'New panel...: the saved figures under the types (Raster over PSTH first, a picture of its panels); picked, the ids its panels get; OK places them as one block below the selected panel, flush as saved, the first selected');
+        && isequal([f2.panels.type], ["continuous" "raster" "psth"]) && rectIs(f2.panels(1).rect, [0 0.5 1 0.5]) ...
+        && rectIs(f2.panels(2).rect, [0 0.25 1 0.25]) && rectIs(f2.panels(3).rect, [0 0 1 0.25]) && app.SelectedPanel == 2 ...
+        && contains(app.StatusBar.Text, "Added Raster over PSTH (raster_1, psth_1) below lfp_a (lfp_a halved)"), ...
+        ['New panel...: the saved figures under the types (Raster over PSTH first, a picture of its panels); picked, the ids its ' ...
+        'panels get; OK (no free space: below the selected panel) places them as one block in its lower half, flush as saved, the first selected']);
     app.onUndoRedo("undo");
-    check(isscalar(app.Config.Figures(2).panels) && app.Config.Figures(2).grid.rows == 1, 'one Undo takes the whole block off');
+    check(isscalar(app.Config.Figures(2).panels) && rectIs(app.Config.Figures(2).panels(1).rect, [0 0 1 1]), 'one Undo takes the whole block off');
     app.onPanelSelected(1);
     app.onNewPanel(Set="builtin:rasterPsth", Where="right");
     f2 = app.Config.Figures(2);
-    check(isequal([f2.panels.type], ["continuous" "raster" "psth"]) && isequal([f2.grid.rows f2.grid.cols], [2 2]) ...
-        && f2.panels(1).rowSpan == 2 && isequal([f2.panels(2:3).col], [2 2]) && isequal([f2.panels(2:3).row], [1 2]), ...
-        'Set= without the window, right of the panel: its row split in two for the block''s rows');
+    check(isequal([f2.panels.type], ["continuous" "raster" "psth"]) && rectIs(f2.panels(1).rect, [0 0 0.5 1]) ...
+        && rectIs(f2.panels(2).rect, [0.5 0.5 0.5 0.5]) && rectIs(f2.panels(3).rect, [0.5 0 0.5 0.5]), ...
+        'Set= without the window, right of the panel: the block''s page mapped onto its right half');
     app.onUndoRedo("undo");
     FE.id.Value = 'lfp_card';
     FE.id.ValueChangedFcn(FE.id, struct('PreviousValue', 'Continuous LFP', 'Value', 'lfp_card'));
@@ -2210,7 +2306,7 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
     app.onPanelSelected(numel(app.Config.Figures(1).panels));
     app.onRemovePanel();
     app.refreshFigurePreview(Force=true);
-    check(numel(app.Config.Figures(1).panels) == 2 && app.Config.Figures(1).grid.rows == 2 && app.FigurePreviewState == "drawn", ...
+    check(numel(app.Config.Figures(1).panels) == 2 && app.FigurePreviewState == "drawn", ...
         'the tuning and rate panels removed again');
     clear restoreAutoLimit
 end
@@ -2237,6 +2333,12 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     workersDefault = app.WorkersSpinner.Value;
     app.WorkersSpinner.Value = 2;
     app.WorkersSpinner.ValueChangedFcn(app.WorkersSpinner, []);
+    units0 = app.FigureRectUnits;
+    FE.rectUnits.Value = "in";
+    FE.rectUnits.ValueChangedFcn(FE.rectUnits, []);
+    FE.snap.Value = false;
+    FE.snapStep.Value = 0.25;
+    FE.snapStep.ValueChangedFcn(FE.snapStep, []);
     app.onSaveConfig();
     app2 = EphysFigGenApp(Splash=true);
     H2 = app2.Splash.History;
@@ -2249,6 +2351,9 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
         && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded ...
         && isequal([app2.FigureSupers.Expanded], [true true false]) && ~shown(app2.FigureEditor.fontSize);
     workersKept = app2.WorkersSpinner.Value;
+    snapKept = app2.FigureRectUnits == "in" && ~app2.FigureSnap && isequal(app2.FigureSnapStep, struct('value', 0.25, 'units', "in")) ...
+        && string(app2.FigureEditor.rectUnits.Value) == "in" && ~app2.FigureEditor.snap.Value && app2.FigureEditor.snapStep.Value == 0.25 ...
+        && string(app2.FigureEditor.snapUnits.Text) == "in";
     closeApp(app2);
     check(workersDefault == 4 && workersKept == 2, sprintf(['the Export tab''s Workers: 4 by default, and a new app ' ...
         'restores the number set (%g, then %g)'], workersDefault, workersKept));
@@ -2256,13 +2361,19 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     app.WorkersSpinner.ValueChangedFcn(app.WorkersSpinner, []);
     check(~startsWith(app.Fig.Name, "*") && kept, 'saved and opened again, the config keeps the figure');
     check(restored, 'a new app restores the Figures tab''s Auto, collapsed section and collapsed supersection (Look)');
+    check(snapKept, 'a new app restores the Panels section''s Units (in), Snap (off) and its step (0.25 in)');
+    FE.rectUnits.Value = units0;
+    FE.rectUnits.ValueChangedFcn(FE.rectUnits, []);
+    FE.snap.Value = true;
+    FE.snapStep.Value = 0.5;
+    FE.snapStep.ValueChangedFcn(FE.snapStep, []);
     app.FigureAutoCheckBox.Value = true;
     app.onFigureAutoPreviewToggled();
     app.onFigureSectionToggled("options");
     app.onFigureSuperToggled("look");
     app.onRemoveFigure();
     check(isempty(app.Config.Figures) && isempty(findall(app.FiguresTree, 'Type', 'uitreenode')) && app.FigurePreviewState == "idle" && ~shown(FE.id) ...
-        && app.RemoveFigureButton.Enable == "off" && nPatches() == 0 && ~any(arrayfun(@(u) shown(u.Header), app.FigureSupers)) ...
+        && app.RemoveFigureButton.Enable == "off" && ~any(arrayfun(@(u) shown(u.Header), app.FigureSupers)) ...
         && isempty(findall(app.FigurePreviewPanel, 'Tag', 'previewPanelMark')), ...
         'Remove takes the figure away; the editor (its supersection headers too) and preview (its outline too) are empty');
 end
@@ -2420,7 +2531,7 @@ if S.sec("5e", "Copy settings... for figures: one setting, one figure onto anoth
     check(isstruct(seen) && seen.count == "4 setting(s) onto 1 figure(s)" && isequal(seen.targets, "Raster+PSTH units  (2 panels), shown") ...
         && isequal(seen.found, "Font size = 15") && seen.from == "Heatmap units  (1 panels)" ...
         && f1.id == "Heatmap units (2)" && isequal([f1.panels.type], "heatmap") && f1.panels.options.bins.BinSec == 0.05 && app.SelectedPanel == 1 ...
-        && nPatches() == 1 && f1.style.FontSize == 15, ...
+        && f1.style.FontSize == 15, ...
         ['the window: From the heat map ticks the figure selected; Find shows the font size alone; the alignment and the layout ticked ' ...
         'copy the heat map''s panels, their options too, and the automatic id follows ("Heatmap units (2)")']);
     check(ismember("style.FontSize", app.CopyUnticked) && ~ismember("alignment.ref", app.CopyUnticked) && isequal(app.CopyTargets, "Heatmap units (2)"), ...
@@ -2758,7 +2869,7 @@ if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the 
     clear restoreAutoLimit
 end
 
-if S.sec("5h", "the figure tree, a panel's note and overlays, dragging a panel in the schematic")
+if S.sec("5h", "the figure tree, a panel's note and overlays")
     savedConfig();
     app.FigureAutoPreviewSeconds = Inf;   % as in 5d-5f: a preview slowed by a loaded machine must not leave the next one out of date
     restoreAutoLimit5h = onCleanup(@() resetAutoLimit(app));
@@ -2990,102 +3101,6 @@ if S.sec("5h", "the figure tree, a panel's note and overlays, dragging a panel i
         ['the text of an x label the stack hides (Edit X label text... on the raster''s axes) is kept, the status saying the stack ' ...
         'hides it; an every-panel move that changes nothing says so']);
 
-    % drag a panel in the schematic: the press installs the window's pointer callbacks; motion shades the target; release applies
-    if ~app.FigureSections([app.FigureSections.Name] == "arrangement").Expanded; app.onFigureSectionToggled("arrangement"); end
-    app.onFigureSelected(1);
-    sch = @() app.FigureSchematic;
-    cellOf1 = @(id) arrayfun(@(q) [q.row q.col q.rowSpan q.colSpan], app.Config.Figures(1).panels([app.Config.Figures(1).panels.id] == id), ...
-        'UniformOutput', false);
-    qOf = @(id) find([app.Config.Figures(1).panels.id] == id);
-    app.Fig.CurrentPoint = [400 300];
-    app.onSchematicPress(qOf("raster_1"), struct('IntersectionPoint', [0.5 0.25 0]));
-    installed = isa(app.Fig.WindowButtonMotionFcn, 'function_handle') && isa(app.Fig.WindowButtonUpFcn, 'function_handle') ...
-        && ~isempty(app.FigureDrag) && app.SelectedPanel == qOf("raster_1");
-    axS = sch();
-    unitsS = axS.Units;
-    axS.Units = 'pixels';
-    ipS = axS.InnerPosition;
-    axS.Units = unitsS;
-    wantScale = [diff(axS.XLim) / ipS(3), -diff(axS.YLim) / ipS(4)];
-    pHalf = app.schematicPixel([0.5 0.25] + [diff(axS.XLim) / 2, diff(axS.YLim) / 2]) - [400 300];
-    check(all(abs(app.FigureDrag.scale - wantScale) < 1e-9) && norm(app.schematicPixel([0.5 0.25]) - [400 300]) < 1e-6 ...
-        && norm(pHalf - [ipS(3) / 2, -ipS(4) / 2]) < 1e-6, ...
-        sprintf('the drag''s scale is the schematic''s limits over its plot box (%g x %g px), y down; the press point maps to the pointer', ipS(3), ipS(4)));
-    app.Fig.CurrentPoint = app.schematicPixel([0.5 0.92]);   % psth_1's bottom band, in its middle third
-    app.Fig.WindowButtonMotionFcn(app.Fig, []);
-    T1 = app.FigureDrag.target;
-    dragGfx = isscalar(findall(sch(), 'Tag', 'schematicDragOutline')) && isscalar(findall(sch(), 'Tag', 'schematicDropTarget'));
-    check(installed && dragGfx && T1.kind == "edge" && T1.where == "below" && T1.anchor == "psth_1", ...
-        'a press on raster_1 starts a drag (the window''s motion and release callbacks); over psth_1''s bottom band the outline follows and "below psth_1" is shaded');
-    app.Fig.WindowButtonUpFcn(app.Fig, []);
-    check(isempty(app.FigureDrag) && isempty(app.Fig.WindowButtonMotionFcn) && isempty(app.Fig.WindowButtonUpFcn) ...
-        && isequal(cellOf1("psth_1"), {[1 1 1 1]}) && isequal(cellOf1("raster_1"), {[2 1 1 1]}) && app.Config.Figures(1).grid.rows == 2 ...
-        && app.SelectedPanel == qOf("raster_1") && contains(app.StatusBar.Text, "Moved raster_1 below psth_1") && nPatches() == 2 ...
-        && isempty(findall(sch(), 'Tag', 'schematicDragOutline')) && app.FigurePreviewState == "drawn", ...
-        'released there, raster_1 is moved below psth_1 (removePanel, placePanel); the callbacks are cleared, the schematic and preview redrawn');
-    app.onPanelSelected(qOf("psth_1"));
-    app.onNewPanel(Type="continuous", Where="right");   % a column right of psth_1: the cell under it, right of raster_1, stays empty
-    emptyCell = EphysAnalysisConfig.figureCells(app.Config.Figures(1));
-    app.Fig.CurrentPoint = [400 300];
-    app.onSchematicPress(qOf("raster_1"), struct('IntersectionPoint', [0.25 0.75 0]));
-    app.Fig.CurrentPoint = app.schematicPixel([0.75 0.75]);
-    app.Fig.WindowButtonMotionFcn(app.Fig, []);
-    T2 = app.FigureDrag.target;
-    app.Fig.WindowButtonUpFcn(app.Fig, []);
-    check(isequal(size(emptyCell), [2 2]) && emptyCell(2, 2) == 0 && T2.kind == "cell" && T2.row == 2 && T2.col == 2 ...
-        && isequal(cellOf1("raster_1"), {[2 2 1 1]}) && contains(app.StatusBar.Text, "Moved raster_1 to row 2, column 2") ...
-        && isempty(app.Fig.WindowButtonUpFcn), 'dragged onto the empty cell, raster_1 moves there (its row and column)');
-    % cancel: released outside the schematic, or Escape
-    before = app.Config.Figures(1);
-    app.Fig.CurrentPoint = [400 300];
-    app.onSchematicPress(qOf("raster_1"), struct('IntersectionPoint', [0.75 0.75 0]));
-    app.Fig.CurrentPoint = app.schematicPixel([0.25 0.75]);
-    app.Fig.WindowButtonMotionFcn(app.Fig, []);
-    app.Fig.CurrentPoint = app.schematicPixel([1.6 0.5]);
-    app.Fig.WindowButtonUpFcn(app.Fig, []);
-    check(isequaln(app.Config.Figures(1), before) && isempty(app.FigureDrag) && isempty(app.Fig.WindowButtonUpFcn) ...
-        && contains(app.StatusBar.Text, "released outside") && isempty(findall(sch(), 'Tag', 'schematicDropTarget')), ...
-        'released outside the schematic, the drag is canceled: nothing moves, the callbacks are cleared');
-    app.Fig.CurrentPoint = [400 300];
-    app.onSchematicPress(qOf("raster_1"), struct('IntersectionPoint', [0.75 0.75 0]));
-    app.Fig.CurrentPoint = app.schematicPixel([0.25 0.75]);
-    app.Fig.WindowButtonMotionFcn(app.Fig, []);
-    shaded = app.FigureDrag.target.kind == "cell";
-    app.onKeyPress(pressed('escape', {}));
-    check(shaded && isequaln(app.Config.Figures(1), before) && isempty(app.FigureDrag) && isempty(app.Fig.WindowButtonMotionFcn) ...
-        && contains(app.StatusBar.Text, "Drag canceled") && isempty(findall(sch(), 'Tag', 'schematicDragOutline')), ...
-        'Escape cancels a drag over an empty cell: nothing moves, the outline goes');
-    % a 3 x 2 grid: psth_1 over rows 1-2 of column 1, continuous_1 at (1, 2), raster_1 at (3, 2); (2, 2) and (3, 1) empty
-    cfgD = app.gatherConfig();
-    fz = cfgD.Figures(1);
-    fz.grid.rows = 3; fz.grid.cols = 2; fz.grid.rowHeights = []; fz.grid.colWidths = [];
-    place3 = struct('psth_1', [1 1 2 1], 'continuous_1', [1 2 1 1], 'raster_1', [3 2 1 1]);
-    for q = 1:numel(fz.panels)
-        v = place3.(fz.panels(q).id);
-        fz.panels(q).row = v(1); fz.panels(q).col = v(2); fz.panels(q).rowSpan = v(3); fz.panels(q).colSpan = v(4);
-    end
-    cfgD.Figures(1) = fz;
-    app.applyConfig(cfgD);
-    before = app.Config.Figures(1);
-    dragTo = @(id, from, to) dragPanel(app, qOf(id), from, to);
-    T3 = dragTo("psth_1", [0.25 1/3], [0.75 0.5]);   % (2, 2): rows 2-3 would cover raster_1
-    check(T3.kind == "none" && isfield(T3, 'why') && isequaln(app.Config.Figures(1), before) ...
-        && contains(app.StatusBar.Text, "psth_1 does not fit at row 2, column 2: it would overlap raster_1") ...
-        && isempty(findall(sch(), 'Tag', 'schematicDropTarget')), ...
-        'an empty cell the panel would not fit in is no target (not shaded): released there, nothing moves and the status bar says why');
-    T4 = dragTo("psth_1", [0.25 1/3], [0.25 5/6]);   % (3, 1): its two rows clipped to one
-    check(T4.kind == "cell" && isequal(cellOf1("psth_1"), {[3 1 1 1]}) ...
-        && contains(app.StatusBar.Text, "Moved psth_1 to row 3, column 1. Its spans became 1 x 1 to fit the grid."), ...
-        'dropped on the bottom row, a panel over two rows moves there with its span clipped to the grid, and says so');
-    before = app.Config.Figures(1);
-    T5 = dragTo("psth_1", [0.25 5/6], [0.75 1/6]);   % continuous_1's middle: no edge band
-    check(T5.kind == "none" && isequaln(app.Config.Figures(1), before) && contains(app.StatusBar.Text, "Nothing to drop psth_1 on there"), ...
-        'released over another panel''s middle, nothing moves and the status bar says where to drop it');
-    order0 = [app.Config.Figures(1).panels.id];
-    T6 = dragTo("continuous_1", [0.75 1/6], [0.75 0.95]);   % raster_1's bottom band: below it
-    check(T6.kind == "edge" && isequal([app.Config.Figures(1).panels.id], order0) && app.SelectedPanel == qOf("continuous_1") ...
-        && contains(app.StatusBar.Text, "Moved continuous_1 below raster_1"), ...
-        'an edge drop keeps the panel''s place in the figure''s panel order (the draw order and the legend''s first panel)');
     noFigures();
     app.onSaveConfig();
     app.Tabs.SelectedTab = app.TabData;
@@ -3512,6 +3527,15 @@ if S.sec("5k", "Edit menu: undo and redo of the figure editor")
     app.FigureEditor.title.Value = 'named by its caller';
     app.onConfigChanged("figure", "Event sequence");   % as the sequence dialog's OK
     nameCheck("Event sequence", 'a caller naming the step (the event-sequence dialog''s OK): Undo Event sequence, not Undo Edit');
+    app.onPanelSelected(1);
+    app.onPanelOrder(1);
+    nameCheck("Reorder panel", 'Bring forward: Undo Reorder panel');
+    FE.rectW.Value = FE.rectW.Value - 2;
+    FE.rectW.ValueChangedFcn(FE.rectW, []);
+    nameCheck("Panel width", 'a panel''s width typed: Undo Panel width (named after its field)');
+    FE.rectX.Value = FE.rectX.Value + 1;
+    FE.rectX.ValueChangedFcn(FE.rectX, []);
+    nameCheck("Panel x", 'its x typed: Undo Panel x');
     app.applyConfig(app.Config, MarkSaved=true);
     Hx = FigureEditHistory();
     Hx.Depth = 3;
@@ -3895,6 +3919,7 @@ end
 
 if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like it, redrawn without computing; Ctrl+Click on a panel selects it")
     noFigures();
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5k), let go: edits stay with their figure
     app.selectTab(app.TabFigures);
     app.FigureAutoCheckBox.Value = true;
     app.FigureAutoPreviewSeconds = Inf;   % Auto draws every figure shown here, however loaded the machine
@@ -4191,7 +4216,7 @@ if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into
     check(isequal(T5q.Name, "Card") && T5q.Description == "a raster over a PSTH" && string(app.FigureTemplateDropDown.Value) == "Card" ...
         && all([app.FigureTemplateApplyButton.Enable app.FigureTemplateUpdateButton.Enable app.FigureTemplateRemoveButton.Enable ...
         app.FigureTemplateExportButton.Enable] == "on") && contains(string(app.StatusBar.Text), "as the template Card") ...
-        && contains(string(app.FigureTemplateDropDown.Tooltip), "2 x 1: raster, psth"), ...
+        && contains(string(app.FigureTemplateDropDown.Tooltip), "2 panels: raster, psth"), ...
         'Save as... keeps the figure shown as a template: listed and picked, its shape in the tooltip, the buttons on');
     answerDialog("Save the figure as a template", @(D) saveTemplateAnswer(D, "Dialog card"));
     app.onFigureTemplate("save");
@@ -4208,7 +4233,7 @@ if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into
     P5p = FigureTemplate.panelTypes();
     status5p = string(app.StatusBar.Text);
     check(isequal(sort(T5p.Name).', ["Card" "Card panel"]) && isequal(T5p.Panel(T5p.Name == "Card panel"), true) && nnz(T5p.Panel) == 1 ...
-        && isequal(P5p.Key.', ["builtin:rasterPsth" "Card panel"]) && P5p.Summary(2) == "2 x 1: raster, psth; observes units" ...
+        && isequal(P5p.Key.', ["builtin:rasterPsth" "Card panel"]) && P5p.Summary(2) == "2 panels: raster, psth; observes units" ...
         && string(app.FigureTemplateDropDown.Value) == "Card panel" && any(string(app.FigureTemplateDropDown.Items) == "Card panel  (panel type)") ...
         && isequal(getappdata(groot, 'panelBoxTicked'), true) && contains(status5p, "as the panel type Card panel") ...
         && app.SavePanelTypeButton.Parent == app.AddFigureButton.Parent, ...
@@ -4715,10 +4740,13 @@ for t = types   % every type's key parameters build
         failed(end+1) = t + " (" + ME.message + ")"; %#ok<AGROW>
     end
 end
+D.Pick("legend");
+legendParams = string(fieldnames(D.Params())).';
 D.Pick("continuous");
 P = D.Params();
-seen = struct('types', types, 'icons', icons, 'where', string(D.Where.Enable), 'params', string(fieldnames(P)).', ...
-    'name0', string(D.Name.Value), 'binding', string(P.Binding.Enable), 'failed', failed);
+seen = struct('types', types, 'icons', icons, 'where', string(D.Where.Enable), 'whereItems', string(D.Where.Items), ...
+    'legendTile', isnumeric(D.Types.legend.Icon) && size(D.Types.legend.Icon, 3) == 3, 'legendParams', legendParams, ...
+    'params', string(fieldnames(P)).', 'name0', string(D.Name.Value), 'binding', string(P.Binding.Enable), 'failed', failed);
 D.Name.Value = 'lfp_a';
 D.Name.ValueChangedFcn(D.Name, []);
 D.Title.Value = 'Its LFP';
@@ -4728,10 +4756,20 @@ press(D, "Ok");
 end
 
 
-function emptyCellAnswer(D)
-%emptyCellAnswer  In the New panel window opened from an empty cell: note the Place items and the one picked (appdata emptyCellSeen), OK.
-setappdata(groot, 'emptyCellSeen', struct('items', string(D.Where.Items), 'value', string(D.Where.Value)));
+function secondLegendAnswer(D)
+%secondLegendAnswer  In the New panel window of a figure with a legend panel: pick Legend, OK (refused), note the red line (appdata secondLegendSeen), Cancel.
+D.Pick("legend");
 press(D, "Ok");
+setappdata(groot, 'secondLegendSeen', string(D.Message.Text));
+press(D, "Cancel");
+end
+
+
+function t = previewTitle(P)
+%previewTitle  The preview's title text ("" while none is drawn: a preview not drawn yet, or failed, fails its check instead of erroring).
+h = findall(P, 'Type', 'axes', 'Tag', 'titleHost');
+t = "";
+if ~isempty(h); t = strjoin(string(h(1).Title.String), " "); end
 end
 
 
@@ -4954,16 +4992,4 @@ end
 
 function tf = boxNear(a, b)
 tf = all(isfinite(a)) && max(abs(a - b)) < 1.5;
-end
-
-
-function T = dragPanel(app, q, from, to)
-%dragPanel  Drag panel Q of the figure tree's figure in the schematic from FROM to TO ([x y], its units): press, one motion, release.
-%   T: the drop target the motion found.
-app.Fig.CurrentPoint = [400 300];
-app.onSchematicPress(q, struct('IntersectionPoint', [from 0]));
-app.Fig.CurrentPoint = app.schematicPixel(to);
-app.Fig.WindowButtonMotionFcn(app.Fig, []);
-T = app.FigureDrag.target;
-app.Fig.WindowButtonUpFcn(app.Fig, []);
 end

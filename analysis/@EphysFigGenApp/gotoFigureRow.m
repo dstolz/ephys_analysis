@@ -86,7 +86,7 @@ switch S.Name
         if isempty(fig.panels)
             why = what + " is a panel's: add a panel to the figure first (Panels: New panel...).";
         elseif ~hasPanel
-            why = what + " is a panel's: pick a panel in the schematic (Ctrl+] steps through them).";
+            why = what + " is a panel's: pick a panel: Ctrl+Click it in the preview, or Ctrl+] steps through them.";
         elseif S.Name == "waveform"
             why = what + " is not used: " + waveformNote(type);
         else

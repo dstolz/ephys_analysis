@@ -33,7 +33,11 @@ K = [ ...
     c + "+U",                           "Test report: every enabled figure for the observation picked (and the dataset's), in the browser"
     c + "+T",                           "Auto: tick or untick it"
     c + "+E, " + c + "+W",              "Export code, Open in window (the buttons under the preview)"
-    "Escape (dragging a panel)",         "Cancel the drag in the schematic"
+    "Arrows (Arrange)",                  "Nudge the selected panel by the snap step (the Panels section's Snap step), after a click on the preview"
+    "Shift+Arrows (Arrange)",            "Nudge it by ten steps"
+    c + "+Arrows (Arrange)",            "Nudge it by one pixel of the preview: the finest move the screen shows"
+    a + "+Arrows (Arrange)",            "Resize it: its right or top edge by one step (with Shift, ten)"
+    "Escape (Arrange: a drag or Set corners)", "Cancel the drag, or Set corners' clicks: the figure is unchanged"
     c + "+Z",                          "Undo the last edit of the figures: the layout, a panel, a layer, an option, the figure list (the Edit menu names it)"
     c + "+Y, " + c + "+Shift+Z",       "Redo the last edit undone"
     c + "+N, " + c + "+O, " + c + "+S", "New, open, save the config (the File menu)"
@@ -44,7 +48,7 @@ w = uifigure('Name', 'Keyboard shortcuts and right-click menus', 'Tag', 'EphysFi
     'WindowStyle', 'alwaysontop');
 g = uigridlayout(w, [3 1], 'RowHeight', {'fit', '1x', 30});
 uilabel(g, 'Text', "The keys work with the Figures tab showing. The search, the sections and the panels are also reached with the mouse: " + ...
-    "the search field over the editor, the headers, the schematic. Right-click menus are listed at the end.", 'WordWrap', 'on');
+    "the search field over the editor, the headers, a Ctrl+Click on a panel in the preview. Right-click menus are listed at the end.", 'WordWrap', 'on');
 t = uitable(g, 'Data', table(K(:, 1), K(:, 2), 'VariableNames', ["Key" "Does"]), 'ColumnWidth', {190, 'auto'}, ...
     'RowName', {}, 'ColumnEditable', false, 'Tag', 'keysTable');
 t.Layout.Row = 2;

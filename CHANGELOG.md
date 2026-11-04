@@ -45,6 +45,19 @@ says how to cut a release.
   is 1.5 cm per level of panels (their rects' distinct top edges) per row of tiles, and each tile's panels sit at
   their rects in it. The title of a figure of the user's own names the observation on the top-left panel in reading
   order (`panelOrder`).
+- Analysis app, Figures tab (free placement, part 3): the Panels section places the selected panel by its rect.
+  It shows the panel's place (*psth_1 (PSTH): 10.2 x 6.0 cm at 0, 0*), **Position** and **Size** fields in the
+  **Units** picked (normalized, %, cm, in or px at the Export dpi; a preference), a value typed being one undo step
+  named after its field (*Undo Panel x*) and kept on the page; **Boxes mean** and **Padding** (the figure's
+  `layout`); **Snap** and its step (preferences, for the Arrange overlay to come); **Remove panel** (the others keep
+  their places), **Bring forward** and **Send back** (the drawing order, *Undo Reorder panel*). **New panel...**
+  places a panel in the largest empty space of the page or below, above, right or left of the selected panel,
+  which it halves (the first panel fills the page); a saved figure is placed the same way as one block, its page
+  mapped onto the place. The New panel window offers the *Legend* panel type (Orientation, Columns; one per
+  figure, a second refused) and the editor its Options rows. Ctrl+Alt+arrows step to the panel above, below, left
+  or right by the rects. The preview's template row has an **Arrange** button, and the Panels section **Set
+  corners**: both wait for the Arrange overlay. The Appearance section's legend place is *Auto*, *Inside* or
+  *None*. Preferences `FigureRectUnits`, `FigureSnap` and `FigureSnapStep`.
 - `EphysAnalysisApp` is renamed `EphysFigGenApp` (class folder `analysis/@EphysFigGenApp`, `test_EphysFigGenApp`,
   `documentation/EphysFigGenApp.md`, the wiki's `API-EphysFigGenApp` page). Its preferences group is
   `EphysFigGenApp`, so preferences saved under the old name (window position, recent configs, hidden tabs, ...)
@@ -389,6 +402,11 @@ says how to cut a release.
 
 ### Removed
 
+- Analysis app, Figures tab: the Panels section's schematic of the grid (with its drag and drop and the empty
+  cells' **+** and **−** menus), **Row span**, **Column span**, **Row height**, **Column width**, **Panel size**,
+  **Align in cell**, **Spacing** and the Spacing window, and **Move** (`drawFigureSchematic`, `onSchematicPress`,
+  `cancelSchematicDrag`, `schematicPixel`, `onRemoveCell`, `onMovePanel`, `private/figureSpacingDialog`, the
+  `FigureSchematic` property). New panel's empty-cell places go with them.
 - `EphysAnalysisConfig`'s grid editors `placePanels`, `removeCell`, `cellRemovals`, `movePanel` and
   `figureCells` (with their private helpers), and the constants `GridSpacings`, `GridSpacingPx`, `GridGapUnits`,
   `PanelAligns` and `PanelVAligns`.

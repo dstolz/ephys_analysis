@@ -51,7 +51,7 @@ set(M(1), 'Position', [x0, y0, W, w]);           % bottom
 set(M(2), 'Position', [x0, y0 + H - w, W, w]);   % top
 set(M(3), 'Position', [x0, y0, w, H]);           % left
 set(M(4), 'Position', [x0 + W - w, y0, w, H]);   % right
-set(M, 'Visible', 'on', 'Tooltip', "The selected panel, " + id + ": Ctrl+] and Ctrl+[ step through the panels, Ctrl+Alt+arrows go across the grid.");
+set(M, 'Visible', 'on', 'Tooltip', "The selected panel, " + id + ": Ctrl+] and Ctrl+[ step through the panels, Ctrl+Alt+arrows go to the one above, below, left or right.");
 end
 
 

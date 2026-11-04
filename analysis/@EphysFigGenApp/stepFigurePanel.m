@@ -1,13 +1,16 @@
 function stepFigurePanel(obj, how)
 %stepFigurePanel  Select another panel of the selected figure: the next or previous one, or the one above, below, left or right.
 %   HOW is "next" or "previous" (the figure's panel order, round at the
-%   ends: Ctrl+] and Ctrl+[) or "up", "down", "left" or "right" (the grid:
-%   Ctrl+Alt+arrows). A spatial step goes to the nearest panel wholly on
-%   that side whose rows (for left and right) or columns (for up and down)
-%   overlap the selected panel's, the one overlapping most when several
-%   are as near, then the one nearest in line with it; with none there the
-%   selection stays and the status bar says so. The panel is selected as a
-%   click on it in the schematic selects it (onPanelSelected): the editor
+%   ends: Ctrl+] and Ctrl+[) or "up", "down", "left" or "right" (the
+%   page: Ctrl+Alt+arrows). A spatial step goes by the panels' rects
+%   (figureNeighbors): to the nearest panel wholly on that side (touching
+%   or overlapping it by no more than RectTol) whose extent across that
+%   direction shares some of the selected panel's (its width for up and
+%   down, its height for left and right), the one sharing most when
+%   several are as near, then the one whose middle is most in line with
+%   the selected panel's; with none there the selection stays and the
+%   status bar says so. The panel is selected as Ctrl+Click on it in the
+%   preview selects it (onPanelSelected): the editor
 %   shows it and the preview outlines it (markFigurePanel), with nothing
 %   computed or drawn again.
 arguments
@@ -32,31 +35,30 @@ if ismember(how, ["next" "previous"])
     obj.setStatus(sprintf("Selected %s (panel %d of %d).", P(q).id, q, np));
     return
 end
-r = [P.row];
-c = [P.col];
-r2 = r + [P.rowSpan] - 1;
-c2 = c + [P.colSpan] - 1;
-switch how
-    case "up",    side = r2 < r(j);  gap = r(j) - r2;  over = overlap(c, c2, c(j), c2(j));  line = abs((c + c2) - (c(j) + c2(j)));
-    case "down",  side = r > r2(j);  gap = r - r2(j);  over = overlap(c, c2, c(j), c2(j));  line = abs((c + c2) - (c(j) + c2(j)));
-    case "left",  side = c2 < c(j);  gap = c(j) - c2;  over = overlap(r, r2, r(j), r2(j));  line = abs((r + r2) - (r(j) + r2(j)));
-    otherwise,    side = c > c2(j);  gap = c - c2(j);  over = overlap(r, r2, r(j), r2(j));  line = abs((r + r2) - (r(j) + r2(j)));
+R = NaN(np, 4);   % the rects, a row each (one that is not 4 finite numbers is nobody's neighbor)
+for q = 1:np
+    v = double(P(q).rect);
+    if numel(v) == 4 && all(isfinite(v)); R(q, :) = reshape(v, 1, 4); end
 end
-cand = find(side & over > 0);
+tol = EphysAnalysisConfig.RectTol;
+N = figureNeighbors(R, tol);
+x0 = R(:, 1); x1 = x0 + R(:, 3); y0 = R(:, 2); y1 = y0 + R(:, 4);
+cx = (x0 + x1) / 2; cy = (y0 + y1) / 2;
+switch how
+    case "up",    side = y0 >= y1(j) - tol;  gap = N.gapY(j, :).';  over = N.xShare(j, :).';  line = abs(cx - cx(j));
+    case "down",  side = y1 <= y0(j) + tol;  gap = N.gapY(j, :).';  over = N.xShare(j, :).';  line = abs(cx - cx(j));
+    case "left",  side = x1 <= x0(j) + tol;  gap = N.gapX(j, :).';  over = N.yShare(j, :).';  line = abs(cy - cy(j));
+    otherwise,    side = x0 >= x1(j) - tol;  gap = N.gapX(j, :).';  over = N.yShare(j, :).';  line = abs(cy - cy(j));
+end
+cand = find(side & gap > -tol & over > 0).';
 if isempty(cand)
     obj.setStatus("No panel " + ternary(ismember(how, ["up" "down"]), ternary(how == "up", "above", "below"), ...
         "to the " + how + " of") + " " + P(j).id + ".");
     return
 end
-[~, best] = sortrows([gap(cand).' -over(cand).' line(cand).' cand.']);
+[~, best] = sortrows([gap(cand) -over(cand) line(cand) cand.']);
 q = cand(best(1));
 obj.onPanelSelected(q);
-end
-
-
-function n = overlap(a1, a2, b1, b2)
-%overlap  How many rows (columns) each span [A1, A2] shares with [B1, B2].
-n = max(0, min(a2, b2) - max(a1, b1) + 1);
 end
 
 

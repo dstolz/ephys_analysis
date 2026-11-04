@@ -1,17 +1,16 @@
 function applyFigureEditor(obj)
 %applyFigureEditor  Show the selected figure, its selected panel and that panel's selected layer in the editor.
 %   The figure's own rows (id, title, observations, across sessions, on
-%   the probe, spacing, alignment, first-spike latency, appearance,
-%   looks), then the panel's (SelectedPanel: type, title, spans,
-%   its row's height and column's width, its size in its cell and its
-%   alignment there, its own event and window or the
-%   figure's, its type's options, its unit waveform, its layers) and the layer's
+%   the probe, alignment, first-spike latency, appearance, looks), then
+%   the panel's (SelectedPanel: type, title, its own event and window or
+%   the figure's, its type's options, its unit waveform, its layers) and the layer's
 %   (SelectedLayer), and the panel's text note and overlays (the first
 %   picked). The line and parameter lists come from the active
 %   dataset, and so does the Observe list's order: what the dataset
 %   holds first, a type it lacks after the dataset, marked "(not in
-%   <dataset>)". syncFigureEditor then shows the rows they use;
-%   drawFigureSchematic draws the arrangement.
+%   <dataset>)". syncFigureEditor then shows the rows they use, and the
+%   Panels section's place rows in the units picked (showPanelPlace: the
+%   panel's rect, Boxes mean, Padding, Snap).
 E = obj.FigureEditor;
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures)
@@ -117,8 +116,7 @@ E.latCusumSustain.Value = max(0, 1000 * L.cusumSustainSec);
 E.latCusumSD.Value = max(eps, L.cusumThreshold);
 E.latCusumDrift.Value = max(0, L.cusumDrift);
 
-% arrangement, appearance, looks
-E.spacing.Value = char(pickFrom(fig.grid.spacing, string(E.spacing.ItemsData), "tight"));
+% appearance, looks (the Panels section's place rows: showPanelPlace, from syncFigureEditor)
 s = fig.style;
 E.fontSize.Value = min(E.fontSize.Limits(2), max(E.fontSize.Limits(1), s.FontSize));
 E.lineWidth.Value = min(E.lineWidth.Limits(2), max(E.lineWidth.Limits(1), s.LineWidth));
@@ -176,32 +174,16 @@ obj.syncFigureEditor();
 end
 
 
-function applyPanel(obj, E, fig, p, ref, win, sel, lines, params)
-%applyPanel  The selected panel P's rows: type, title, place and size, alignment, options, layers.
+function applyPanel(obj, E, ~, p, ref, win, sel, lines, params)
+%applyPanel  The selected panel P's rows: type, title, alignment, options, layers (its place: showPanelPlace).
 PT = EphysAnalysisConfig.panelTypes();
-row = PT.Type == p.type;
-label = p.type;
-if any(row)
-    E.panelType.Value = char(p.type);
-    label = PT.Label(row);
-end
+if any(PT.Type == p.type); E.panelType.Value = char(p.type); end
 E.panelTitle.Value = char(p.title);
 E.panelBox.Value = char(pickFrom(p.box, string(E.panelBox.ItemsData), "auto"));
 E.panelXLabel.Value = char(p.xLabel);
 E.panelYLabel.Value = char(p.yLabel);
 E.panelXSide.Value = char(pickFrom(p.xSide, EphysAnalysisConfig.PanelXSides, "bottom"));
 E.panelYSide.Value = char(pickFrom(p.ySide, EphysAnalysisConfig.PanelYSides, "left"));
-E.selPanel.Text = sprintf("%s  (%s; row %d, column %d)", p.id, label, p.row, p.col);
-E.rowSpan.Value = min(E.rowSpan.Limits(2), max(1, round(p.rowSpan)));
-E.colSpan.Value = min(E.colSpan.Limits(2), max(1, round(p.colSpan)));
-E.rowHeight.Value = sizeOf(fig.grid.rowHeights, p.row);   % as stored: gatherFigureEditor writes it back only when edited
-E.colWidth.Value = sizeOf(fig.grid.colWidths, p.col);
-share = [100 100];   % its own size in its cell, %
-if numel(p.size) == 2 && all(isfinite(p.size)); share = min(100, max(1, 100 * reshape(p.size, 1, 2))); end
-E.panelWidth.Value = share(1);
-E.panelHeight.Value = share(2);
-E.panelAlign.Value = char(pickFrom(p.align, EphysAnalysisConfig.PanelAligns, "center"));
-E.panelVAlign.Value = char(pickFrom(p.valign, EphysAnalysisConfig.PanelVAligns, "middle"));
 own = [isstruct(p.ref) isstruct(p.window)];
 E.panelSame.Value = ~any(own);
 E.panelSame.UserData = own;   % which part the panel has of its own (onPanelAlignEdited, gatherFigureEditor)
@@ -237,6 +219,12 @@ if isfield(op, 'param')   % a tuning curve's parameters
     offerItems(E.seriesParam, ["" params], op.seriesParam);
 end
 if p.type == "rate"; E.rateDisplay.Value = char(pickFrom(op.display, string(E.rateDisplay.ItemsData), "bar")); end
+if p.type == "legend"   % where the figure's legend goes: its entries and its place in the panel
+    E.legOrient.Value = char(pickFrom(op.orientation, string(E.legOrient.ItemsData), "auto"));
+    E.legColumns.Value = min(E.legColumns.Limits(2), max(0, round(op.columns)));
+    E.legAlign.Value = char(pickFrom(op.align, string(E.legAlign.Items), "center"));
+    E.legVAlign.Value = char(pickFrom(op.valign, string(E.legVAlign.Items), "middle"));
+end
 if isfield(op, 'layout'); E.waveLayout.Value = char(pickFrom(op.layout, string(E.waveLayout.ItemsData), "grid")); end
 if isfield(op, 'rasterSort')
     sorts = ["" "stop" "event" "latency" params];
@@ -532,13 +520,6 @@ try
 catch
 end
 lines = unique(lines, 'stable');
-end
-
-
-function v = sizeOf(sizes, i)
-%sizeOf  The relative size of row (column) I: 1 while the sizes are [] (equal), or not a positive number (Validate says so).
-v = 1;
-if numel(sizes) >= i && isfinite(sizes(i)) && sizes(i) > 0; v = sizes(i); end
 end
 
 

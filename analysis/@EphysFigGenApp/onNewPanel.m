@@ -3,10 +3,12 @@ function onNewPanel(obj, opts)
 %   The Panels section's New panel... button (and Add, after it makes a
 %   blank figure) calls it with no options: the New panel window
 %   (private/newPanelDialog) offers every panel type with a small
-%   representative plot, the panel's name and title, where it goes
-%   (above, below, left or right of the selected panel, or any empty
-%   cell of the grid; the first panel of a figure goes to row 1, column 1)
-%   and the type's key parameters.
+%   representative plot (a legend panel too: where the figure's legend
+%   goes, one per figure), the panel's name and title, where it goes (the
+%   largest empty space of the page; below, above, right or left of the
+%   selected panel, which is halved for it; or drawn on the preview with
+%   two clicks, which comes with the Arrange overlay; the first panel of
+%   a figure fills the page) and the type's key parameters.
 %   OK adds the panel and selects it; Cancel adds nothing. The window
 %   and the panel start from the options last set on a panel of the type
 %   (rememberedPanelOptions: a preference, rememberPanelOptions), over the
@@ -16,48 +18,53 @@ function onNewPanel(obj, opts)
 %   types (FigureTemplate.panelTypes: the built-in Raster over PSTH, then
 %   yours, Save as panel type...): one picked places all its panels as
 %   one block, arranged as saved, at the place chosen
-%   (EphysAnalysisConfig.placePanels), its panels' ids made free in the
-%   figure; the first of them is selected. They take the figure's event
-%   reference, window and trial selection, or the saved figure's own
-%   (Alignment). Set=KEY (a panelTypes Key: "builtin:rasterPsth", or
-%   your template's name) does that without the window, with Where and
-%   Alignment ("figure" | "own").
+%   (EphysAnalysisConfig.placeBlock: the saved page mapped onto that
+%   place), its panels' ids made free in the figure; the first of them is
+%   selected. They take the figure's event reference, window and trial
+%   selection, or the saved figure's own (Alignment). Set=KEY (a
+%   panelTypes Key: "builtin:rasterPsth", or your template's name) does
+%   that without the window, with Where, Rect and Alignment ("figure" |
+%   "own").
 %
 %   Type=TYPE skips the window, for scripts and tests, with the same
-%   choices as name-value pairs: Where ("below"; "cell": the empty cell
-%   Cell=[ROW COLUMN]), Id ("" = "<type>_<n>"),
-%   Title, Source (the first layer's source, "" = the type's default
-%   layer's), Partner (a coherence panel's second layer, "" = LFP),
-%   Binding ("" = the type's DefaultBinding; "fixed" wherever the layer
-%   cannot follow the observation), Lines (an event-trace panel: one
-%   events layer per line) and Options (a partial options struct of the
-%   type, merged into its defaults: struct('bins', struct('BinSec',
-%   0.02))) and Remembered (false: the type's defaults; true: the options
-%   remembered for the type over them, as the window starts from, under
-%   Options).
+%   choices as name-value pairs: Where ("free", the default: the largest
+%   empty space of the page, else below the selected panel; "below",
+%   "above", "left", "right": beside the selected panel, which keeps the
+%   half next to the new one; "rect": at Rect=[x y w h], 0-1 of the page;
+%   "draw": two clicks on the preview, which comes with the Arrange
+%   overlay: for now the status bar says so and nothing is added), Id (""
+%   = "<type>_<n>"), Title, Source (the first layer's source, "" = the
+%   type's default layer's), Partner (a coherence panel's second layer,
+%   "" = LFP), Binding ("" = the type's DefaultBinding; "fixed" wherever
+%   the layer cannot follow the observation), Lines (an event-trace
+%   panel: one events layer per line) and Options (a partial options
+%   struct of the type, merged into its defaults: struct('bins',
+%   struct('BinSec', 0.02))) and Remembered (false: the type's defaults;
+%   true: the options remembered for the type over them, as the window
+%   starts from, under Options).
+%   onNewPanel(Where=W) without a Type opens the window with Place at W.
 %
-%   onNewPanel(Where="cell", Cell=[R C]) without a Type opens the window
-%   with that empty cell as the place (a click on an empty cell of the
-%   schematic, drawFigureSchematic).
+%   The panel is placed by EphysAnalysisConfig.placePanel and holds the
+%   type's default layer, so it draws at once (a coherence panel two: its
+%   seed, the observed unit, and its partner, that unit's channel's LFP; a
+%   legend panel none). A second legend panel is refused: "The figure
+%   already has a legend panel (legend_1)." The status bar says where it
+%   went, in the Panels section's units: "Added psth_1 (PSTH) in the free
+%   space, 9.0 x 6.0 cm at 0, 0." The edit ends as every structural one
+%   does (commitFigureEdit, "Add panel"): a figure that observed the
+%   dataset observes what a following layer reads, and an automatic
+%   figure id follows the new panel.
 %
-%   The panel is placed by EphysAnalysisConfig.placePanel (next to the
-%   selected panel: the empty cells there, else a new row or column; or
-%   the empty cell picked) and holds the type's default
-%   layer, so it draws at once (a coherence panel two: its seed, the
-%   observed unit, and its partner, that unit's channel's LFP). The edit
-%   ends as every structural one does (commitFigureEdit): a figure that
-%   observed the dataset observes what a following layer reads, and an
-%   automatic figure id follows the new panel.
-%
-%   See also EphysAnalysisConfig.placePanel, EphysAnalysisConfig.defaultLayer,
-%   EphysAnalysisConfig.panelTypes, EphysAnalysisConfig.placePanels.
+%   See also EphysAnalysisConfig.placePanel, EphysAnalysisConfig.placeBlock,
+%   EphysAnalysisConfig.freeRect, EphysAnalysisConfig.defaultLayer,
+%   EphysAnalysisConfig.panelTypes.
 arguments
     obj (1,1) EphysFigGenApp
     opts.Type (1,1) string = ""
     opts.Set (1,1) string = ""
     opts.Alignment (1,1) string {mustBeMember(opts.Alignment, ["figure" "own"])} = "figure"
-    opts.Where (1,1) string {mustBeMember(opts.Where, ["above" "below" "left" "right" "cell"])} = "below"
-    opts.Cell double = []
+    opts.Where (1,1) string {mustBeMember(opts.Where, ["free" "below" "above" "left" "right" "rect" "draw"])} = "free"
+    opts.Rect double = []
     opts.Id (1,1) string = ""
     opts.Title (1,1) string = ""
     opts.Source (1,1) string = ""
@@ -86,10 +93,8 @@ if opts.Type == "" && opts.Set == ""
     for i = 1:height(PT)
         start.(PT.Type(i)) = mergeOptions(PT.DefaultOptions{i}, rememberedPanelOptions(obj, PT.Type(i), params));
     end
-    at = [];
-    if opts.Where == "cell"; at = opts.Cell; end
     sets = savedPanelTypes(obj);
-    c = newPanelDialog(obj.Fig, fig, anchor, lines, params, start, sets, at);
+    c = newPanelDialog(obj.Fig, fig, anchor, lines, params, start, sets, opts.Where);
     if isvalid(obj.Fig); figure(obj.Fig); end
     if isempty(c)
         obj.setStatus("New panel canceled: " + fig.id + " is unchanged.");
@@ -100,8 +105,12 @@ if opts.Type == "" && opts.Set == ""
 elseif remembered
     [~, params] = datasetItems(obj);
 end
+if opts.Where == "draw"   % two clicks on the preview: the Arrange overlay's (Set corners)
+    obj.setStatus("Draw on the preview comes with the Arrange overlay: pick another place for now.");
+    return
+end
 if opts.Set ~= ""   % a saved figure's panels, as one block
-    placeSet(obj, cfg, k, opts.Set, opts.Where, anchor, opts.Alignment);
+    placeSet(obj, cfg, k, opts.Set, opts.Where, anchor, opts.Rect, opts.Alignment);
     return
 end
 row = PT.Type == opts.Type;
@@ -110,13 +119,18 @@ if ~any(row)
     return
 end
 t = opts.Type;
-L = EphysAnalysisConfig.defaultLayer(t);
+if t == "legend" && ~isempty(fig.panels) && any([fig.panels.type] == "legend")
+    other = fig.panels(find([fig.panels.type] == "legend", 1)).id;
+    obj.setStatus("The figure already has a legend panel (" + other + ").");
+    return
+end
+L = EphysAnalysisConfig.defaultLayer(t);   % a legend panel: none
 if t == "coherence"   % the seed and its partner: the observed unit with its channel's LFP (figureTemplates' coherence)
     L2 = L;
     L2.source = "LFP";
     L = [L L2];
 end
-if opts.Source ~= "" && t ~= "eventTrace"; L(1).source = opts.Source; end
+if opts.Source ~= "" && t ~= "eventTrace" && ~isempty(L); L(1).source = opts.Source; end
 if t == "coherence" && opts.Partner ~= ""; L(2).source = opts.Partner; end
 if t == "eventTrace" && ~isempty(opts.Lines)   % a row per line
     L = repmat(L(1), 1, numel(opts.Lines));
@@ -132,57 +146,62 @@ mem = struct();
 if remembered; mem = rememberedPanelOptions(obj, t, params); end
 panel = struct('id', opts.Id, 'type', t, 'title', opts.Title, 'layers', L, ...
     'options', mergeOptions(mergeOptions(PT.DefaultOptions{row}, mem), opts.Options));
-grid0 = [fig.grid.rows fig.grid.cols];
+fig0 = fig;
 try
-    fig = EphysAnalysisConfig.placePanel(fig, panel, opts.Where, anchor, opts.Cell);
+    fig = EphysAnalysisConfig.placePanel(fig, panel, opts.Where, anchor, opts.Rect);
 catch ME
-    obj.setStatus("Config: " + string(ME.message));
+    obj.setStatus("New panel: " + string(ME.message));
     return
 end
 cfg.Figures(k) = fig;
 obj.SelectedPanel = numel(fig.panels);
 obj.SelectedLayer = 1;
 p = fig.panels(end);
-if isscalar(fig.panels)
-    at = "at row 1, column 1";
-elseif opts.Where == "cell"
-    at = sprintf("in the empty cell at row %d, column %d", p.row, p.col);
-elseif isequal([fig.grid.rows fig.grid.cols], grid0)   % placePanel filled the empty cells there
-    at = opts.Where + " " + anchor + " (" + emptyCellsText(p) + ")";
-else
-    at = opts.Where + " " + anchor;
-end
-how = "";
+[pageCm, dpi] = figurePage(obj, fig);
+msg = "Added " + p.id + " (" + PT.Label(row) + ") " + placeWords(fig0, opts.Where, anchor) + ", " + ...
+    rectText(p.rect, obj.FigureRectUnits, pageCm, dpi) + ".";
+if ~isempty(p.layers); msg = msg + " Its layer: " + layerLabel(p.layers(1)) + "."; end
 if ~isempty(fieldnames(mem))
-    how = " Its options start from those last set on a " + PT.Label(row) + " panel (" + strjoin(string(fieldnames(mem)).', ", ") + ...
-        "; Edit > Reset panel options to defaults).";
+    msg = msg + " Its options start from those last set on a " + PT.Label(row) + " panel (" + ...
+        strjoin(string(fieldnames(mem)).', ", ") + "; Edit > Reset panel options to defaults).";
 end
-commitFigureEdit(obj, cfg, "Added " + p.id + " (" + PT.Label(row) + ") " + at + " with " + layerLabel(p.layers(1)) + "." + how, Action="Add panel");
-end
-
-
-function s = emptyCellsText(p)
-%emptyCellsText  "the empty cell at row 4, column 2" (or the cells' rows or columns) that panel P filled.
-if p.rowSpan > 1
-    s = sprintf("the empty cells at rows %d-%d, column %d", p.row, p.row + p.rowSpan - 1, p.col);
-elseif p.colSpan > 1
-    s = sprintf("the empty cells at row %d, columns %d-%d", p.row, p.col, p.col + p.colSpan - 1);
-else
-    s = sprintf("the empty cell at row %d, column %d", p.row, p.col);
-end
+commitFigureEdit(obj, cfg, msg, Action="Add panel");
 end
 
 
-function placeSet(obj, cfg, k, key, where, anchor, alignment)
-%placeSet  The saved figure KEY's panels into figure K of CFG at WHERE of ANCHOR, as one block; the first of them selected.
-fig = cfg.Figures(k);
-if where == "cell"
-    obj.setStatus("New panel: a saved figure goes above, below, left or right of a panel, not into one empty cell.");
+function s = placeWords(fig0, where, anchor)
+%placeWords  Where placePanel (placeBlock) put something new in figure FIG0, in words: "in the free space", "below raster_1 (raster_1 halved)".
+%   FIG0 is the figure before; a "free" with no free space and an anchor
+%   went below it (placeTarget).
+if isempty(fig0.panels)
+    s = "filling the page";
     return
 end
+if where == "free"
+    if ~isempty(EphysAnalysisConfig.freeRect(fig0))
+        s = "in the free space";
+        return
+    end
+    where = "below";   % no free space: below the anchor
+end
+switch where
+    case "rect"
+        s = "at the place given";
+    case {"below" "above"}
+        s = where + " " + anchor + " (" + anchor + " halved)";
+    otherwise
+        s = where + " of " + anchor + " (" + anchor + " halved)";
+end
+end
+
+
+function placeSet(obj, cfg, k, key, where, anchor, rect, alignment)
+%placeSet  The saved figure KEY's panels into figure K of CFG at WHERE (of ANCHOR, or RECT), as one block; the first of them selected.
+fig = cfg.Figures(k);
+fig0 = fig;
 try
     [block, label] = FigureTemplate.panelFigure(key);
-    [fig, ids] = EphysAnalysisConfig.placePanels(fig, block, where, anchor, Alignment=alignment);
+    [fig, ids] = EphysAnalysisConfig.placeBlock(fig, block, where, anchor, rect, Alignment=alignment);
 catch ME
     obj.setStatus("New panel: " + string(ME.message));
     return
@@ -190,14 +209,10 @@ end
 cfg.Figures(k) = fig;
 obj.SelectedPanel = numel(fig.panels) - numel(ids) + 1;
 obj.SelectedLayer = 1;
-if anchor == ""
-    at = "filling the figure";
-else
-    at = where + " " + anchor;
-end
 how = "";
 if alignment == "own"; how = " with its own event reference, window and trial selection"; end
-commitFigureEdit(obj, cfg, "Added " + label + " (" + strjoin(ids, ", ") + ") " + at + how + ".", Action="Add " + label);
+commitFigureEdit(obj, cfg, "Added " + label + " (" + strjoin(ids, ", ") + ") " + placeWords(fig0, where, anchor) + how + ".", ...
+    Action="Add " + label);
 end
 
 

@@ -3,12 +3,14 @@ function onConfigChanged(obj, what, src)
 %   WHAT says which part changed: "name", "source", "ticks", "defaults"
 %   (the Alignment tab), "figure" (the Figures tab's editor), "figuresize"
 %   (its Size rows: a "figure" edit that changes how the figure is drawn,
-%   not what it is computed from) or "export".
+%   not what it is computed from) or "export" (the Panels section's
+%   lengths shown again on the new page: showPanelPlace).
 %   The runner gets the new config. "defaults": the Alignment count, the
 %   figure editor's rows that show the defaults (applyFigureEditorDefaults),
 %   the observation picker, the epoch diagram (when open) and the figure
-%   preview (autoFigurePreview) follow. "figure": its list, editor and
-%   schematic, the observation picker (made again when the observe block,
+%   preview (autoFigurePreview) follow. "figure": its list and editor
+%   (the Panels section's values kept on the page: showPanelPlace), the
+%   observation picker (made again when the observe block,
 %   the figure's alignment or its sorting changed), the epoch diagram and
 %   the figure preview follow, and the Id row shows the figure's id (an
 %   automatic one follows the edit: trackFigureIds, showFigureId). A
@@ -85,6 +87,7 @@ switch what
     case "export"
         obj.fitFigureViews();   % the page the figures are exported on is the Export tab's
         obj.showFigureSize();
+        showPanelPlace(obj);   % a rect in cm, in or px is a length on that page
     case "ticks"
         k = obj.SelectedFigure;
         if k >= 1 && k <= numel(cfg.Figures) && cfg.Figures(k).sessions.enabled && cfg.Figures(k).sessions.datasets == "ticked"

@@ -937,6 +937,16 @@ if S.sec("3", "scan, selection, plan")
     check(isscalar(mv) && contains(app.StatusBar.Text, "Opened the manifest of recA_260101_120000"), ...
         'Tools > Manifest viewer opens the ticked dataset''s manifest');
     close(mv);
+    % Copy manifests, with a stand-in for the clipboard: a run leaves the user's alone.
+    mf = string(app.currentDataset().manifestFile());
+    [cp, cpMsg] = app.onCopyManifests(app.toolTargets(), Clipboard=@(f) f);   % "holds" what it is handed
+    check(app.ToolsCopyManifestsButton.Enable == "on" && isequal(cp, mf) ...
+        && contains(cpMsg, "1 manifest file copied") && contains(cpMsg, mf) && ~contains(cpMsg, "Not copied") ...
+        && contains(app.StatusBar.Text, "to the clipboard"), ...
+        'Tools > Copy manifests hands the ticked dataset''s manifest to the clipboard and names it');
+    [cp, cpMsg] = app.onCopyManifests(app.toolTargets(), Clipboard=@(f) strings(0, 1));
+    check(isempty(cp) && contains(cpMsg, "No manifest file was copied") && contains(cpMsg, "the clipboard did not take it"), ...
+        'Copy manifests says so when the clipboard holds none of them');
     if exist('EphysFigGenApp', 'class')
         an = app.onOpenAnalysisApp(app.toolTargets());
         anS = an.Config.Source;

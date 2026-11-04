@@ -422,6 +422,9 @@ says how to cut a release.
 
 ### Added
 
+- Pipeline app, Project tab: **Copy manifests** in the Tools panel puts the manifest files of its datasets (the active
+  one, or the ticked ones) on the clipboard as files, to paste into a folder, an e-mail or a chat, and lists in a
+  message the files the clipboard holds and any not copied (`copyFilesToClipboard`, Windows).
 - Figures: free panel placement, Arrange. The preview's **Arrange** button on the Figures tab puts a box over the preview
   for each panel at its rect (`syncArrangeOverlay`; `images.roi.Rectangle`, so it needs the Image Processing
   Toolbox). Drag a box to move its panel, a handle to resize it: it snaps, within 6 px, to the other panels' edges

@@ -207,6 +207,7 @@ analysis app and the dataset browser show them and filter by them.
 | label datasets (a brain area, a condition) to find them later | [tag them](#tag-your-datasets): Project tab, select rows, **Tags...** |
 | make figures of every processed recording | make them in the [analysis app](analysis-app-guide.md), then choose that config on the Analysis tab |
 | analyze on another computer | **File → Copy files for the analysis app...** copies just what the analysis app reads |
+| send a colleague the record of how datasets were processed | Project tab, Tools panel: **Copy manifests** puts each dataset's manifest file on the clipboard; paste them into a folder, an e-mail or a chat. A message lists the files copied |
 | repeat this processing without the app | **File → Generate script**, or the script every run saves in the project folder |
 | free disk space | [Clean up](EphysPipelineApp.md#clean-up) tab: **Preview**, then remove |
 

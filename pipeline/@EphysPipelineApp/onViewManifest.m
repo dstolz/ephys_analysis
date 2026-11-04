@@ -25,14 +25,10 @@ opened = strings(1, 0);
 failed = strings(0, 1);
 for i = idx
     d = obj.Project.Datasets(i);
-    if ~isfile(d.manifestFile())
-        lastwarn("");
-        if ~d.writeManifest()
-            why = string(lastwarn());
-            if why == ""; why = "its folder is not there: " + d.Folder; end
-            failed(end + 1) = "No manifest for " + d.Name + ", and none could be written: " + why; %#ok<AGROW>
-            continue
-        end
+    [ok, why] = ensureManifest(d);
+    if ~ok
+        failed(end + 1) = "No manifest for " + d.Name + ", and none could be written: " + why; %#ok<AGROW>
+        continue
     end
     v = ManifestViewerApp(d, DefaultProbeFile=obj.Config.Probe.DefaultProbeFile);
     step = 24 * mod(numel(opened), 6);   % each window down and right of the last

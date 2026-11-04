@@ -303,6 +303,7 @@ classdef EphysPipelineApp < handle
         ToolsScopeDropDown  matlab.ui.control.DropDown   % ItemsData "active" | "ticked" (toolTargets)
         ToolsTargetLabel    matlab.ui.control.Label      % names what the buttons open (syncToolsPanel)
         ToolsManifestButton matlab.ui.control.Button
+        ToolsCopyManifestsButton matlab.ui.control.Button   % the manifests onto the clipboard as files (onCopyManifests)
         ToolsAnalysisButton matlab.ui.control.Button
         ToolsPhyButton      matlab.ui.control.Button
         ToolsFolderButton   matlab.ui.control.Button
@@ -1230,6 +1231,7 @@ classdef EphysPipelineApp < handle
         syncToolsPanel(obj)
         syncSourcePanel(obj)
         onOpenTool(obj, tool)
+        [copied, msg] = onCopyManifests(obj, idx, opts)
         onOpenOutputFolder(obj, idx)
 
         % --- Trials tab ---

@@ -38,6 +38,7 @@ obj.ToolsTargetLabel.Tooltip = txt;   % a long name is clipped in the label
 
 on = matlab.lang.OnOffSwitchState(n > 0);
 obj.ToolsManifestButton.Enable = on;
+obj.ToolsCopyManifestsButton.Enable = on;
 obj.ToolsAnalysisButton.Enable = on;
 obj.ToolsFolderButton.Enable = on;
 obj.ToolsPhyButton.Enable = matlab.lang.OnOffSwitchState(nPhy > 0);

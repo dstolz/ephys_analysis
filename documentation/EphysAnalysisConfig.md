@@ -1071,7 +1071,7 @@ give the fields below; every field exists on every entry.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `source` | `"export"` | `"export"`: the Export section's `FigureSizeCm`, made taller by 3.5 cm for each row of the grid plus 2 cm for the title and x label, never below `FigureSizeCm(2)`; `"own"`: `width` x `height` in `units` as they are |
+| `source` | `"export"` | `"export"`: the Export section's `FigureSizeCm` as it is, however many panels the page holds (their rects are parts of it); `"own"`: `width` x `height` in `units` as they are |
 | `width`, `height` | 18, 12 | `source "own"`: the page, in `units` (> 0); kept, unused, while `source` is `"export"` |
 | `units` | `"cm"` | `"px"` (pixels of the exported PNG, so inches at the Export `Dpi`), `"in"` or `"cm"` (`FigureSizeUnits`); also the units the app shows the Export size in |
 | `lock` | `false` | the app keeps the aspect ratio when one side is edited (a setting of the editor; the page is `width` x `height`) |
@@ -1246,7 +1246,15 @@ What each draws:
 - `legend`: the figure's legend in a panel of its own, where
   `Style.LegendLocation` `"auto"` puts it: the figure's one legend, its
   entries at their natural size, aligned in the panel's `rect` (never scaled
-  to fill it). It draws no data and takes no layers (validate warns of any),
+  to fill it) by `align` and `valign`; `orientation` `"auto"` lays it out
+  horizontally when the rect is wider than tall, and `columns` `0` puts every
+  entry in one row (horizontal) or column (vertical), with more columns
+  (vertical) or fewer (horizontal) when that would run out of the rect. The
+  panel's axes are hidden (Tag `legendHost`: no tile of the aesthetics editor;
+  the legend is the figure's own component), it has no labels, and no panel is
+  moved for it (a neighbor's labels are kept clear of it). Without a legend to
+  hold (no entries, `LegendLocation` `"inside"` or `"none"`) it shows why in
+  small light gray text in a preview, nothing in an export. It draws no data and takes no layers (validate warns of any),
   and a figure holds one at most (validate: an error at the second one's
   `type`). There is no `"legend"` figure template.
 
@@ -1812,15 +1820,19 @@ A panel shares the figure's time axis when its type does (`SharesTime`) and its
 
 - Such a panel shows the figure's `[window.pre window.post]` (set on each axes;
   there is no `linkaxes`).
-- Time panels stacked in a column are labeled once. A time panel's x tick labels
-  and label are hidden when the panel directly below it, in every column it
-  covers, is a time panel with the same limits. Otherwise (nothing below it, a
-  panel with another kind of x axis such as waveforms, or other limits) it keeps its ticks and is labeled `Time (s)` (its `xLabel`, when set): the bottom of a stack is
+- Time panels stacked flush, one on the other, are labeled once; the stacks
+  are read from the rects (`figureNeighbors` at `RectTol`). A time panel's x
+  tick labels and label are hidden when the panels that touch its bottom edge
+  (an edge within `RectTol` of it, sharing at least half the narrower one's
+  width) are all time panels with the same limits. Otherwise (nothing touching
+  it there -- two time panels with a gap between them both keep their labels
+  --, a panel with another kind of x axis such as waveforms or a legend panel,
+  or other limits) it keeps its ticks and is labeled `Time (s)` (its `xLabel`, when set): the bottom of a stack is
   always labeled. A raster also drops its y ticks in its bottom tenth where it
   meets the panel below, unless its ticks name its blocks.
 - A time panel whose x axis is on top (`xSide "top"`) looks up instead: it
-  hides its tick labels and label when the panel directly above it, in every
-  column, is a time panel with the same limits whose x axis is on top too. So a
+  hides its tick labels and label when the panels touching its top edge are
+  all time panels with the same limits whose x axis is on top too. So a
   stack with every x axis on top is labeled once, at its top (a raster then
   drops its y ticks in its top tenth). A panel with its x axis at the bottom
   over one with its x axis on top hides its own: the lower one tells the time,
@@ -1828,8 +1840,8 @@ A panel shares the figure's time axis when its type does (`SharesTime`) and its
   lower one's at the bottom) both keep theirs.
 - A time panel with a `ref` or `window` of its own keeps its own x axis and
   label, and the stack above it is labeled at its own bottom.
-- A panel narrower than its column (a note band left or right of it, or a
-  `size` below 1) keeps its time tick labels, and so does the panel above it.
+- A panel narrower than its rect (a note band left or right of it) keeps its
+  time tick labels, and so does the panel it sits on.
 - Events layers go only on the panels of these types, since marks need a time
   axis. A spectrogram shares it (it is always on the aligned base). A coherogram
   (a coherence panel with `overTime`) is drawn on the figure's time axis too,
@@ -2030,7 +2042,7 @@ are `computeFigure`'s.
 draws `F` as `spec` says (the spec `F` was computed with; its `aesthetics` may
 differ, as when the aesthetics editor redraws). `target` is an axes (which draws
 panel 1 only), uiaxes, figure, uifigure, panel, tab or grid layout;
-renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)). `OnSelect` is called with a panel's id and whether Ctrl was down when a drawn panel (its axes, labels and what is drawn in them) is clicked with Ctrl or the right button; the app selects that panel in its editor on a Ctrl+Click. `DataTips` (`"auto"`: in a visible figure, as `Editable`; `true` or `false`) gives every part drawn data tips that name what the point is (`FigureDataTips.attach`, below). `Reuse=true` (the app's preview) keeps the panels of the target's last drawing that would be drawn alike and draws only the others, the figure the same as a whole drawing ([Render](EphysAnalysis.md#render) says when a panel is kept); an edit of text alone (a panel's `xLabel`, `yLabel` or `title`, the figure's `title`) draws nothing: the text is set on what is drawn. `InPlaceOnly=true` makes only such an edit and draws nothing otherwise. `how` says what was done: `"drawn"`, `"inplace"`, or `""` (`InPlaceOnly` and nothing done; `h` is then `[]`). `Scale=S` draws a figure shown `S` times as wide as its export page at 96 dpi (the app's preview and *Open in window*): it is drawn as the export is (on the export page's size first, so the automatic ticks and limits are the export's), then every font size, line width, marker size, error bar cap and legend token is multiplied by `S` (a scatter's marker area by `S`²; `PlotAesthetics.scaleSizes`), whatever set it -- the style, the panel type's own markers, the design, the remembered looks, the figure's own -- and so are the layout's margin and gaps, so the drawing has the proportions of the exported file (and of the report, which shows the exported pages). The target keeps `S` (`PlotAesthetics.drawScale`): `PlotAesthetics.getValue` and `setValue`, and so the aesthetics editor and `PlotDesign.capture`, read and set the sizes as exported.
+renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#plot-designs) for this drawing (default: the user's chosen one), `UserAesthetics=false` leaves the user's remembered rules out, `Editable` (`"auto"`: in a visible figure) turns the right-click editing on or off, and `OnRemember` is called with a figure's new rules ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)). `OnSelect` is called with a panel's id and whether Ctrl was down when a drawn panel (its axes, labels and what is drawn in them) is clicked with Ctrl or the right button; the app selects that panel in its editor on a Ctrl+Click. `DataTips` (`"auto"`: in a visible figure, as `Editable`; `true` or `false`) gives every part drawn data tips that name what the point is (`FigureDataTips.attach`, below). `Reuse=true` (the app's preview) keeps the panels of the target's last drawing that would be drawn alike and draws only the others, the figure the same as a whole drawing ([Render](EphysAnalysis.md#render) says when a panel is kept); an edit of text alone (a panel's `xLabel`, `yLabel` or `title`, the figure's `title`) draws nothing: the text is set on what is drawn; nor does an edit of the panels' `rect`s or the figure's `layout` alone (with or without such text): what is drawn is laid out again at the new places, unless the edit changes which panels touch which (a time stack's labels) or the top-left panel, which draws as above. `InPlaceOnly=true` makes only such an edit and draws nothing otherwise. `how` says what was done: `"drawn"`, `"inplace"`, or `""` (`InPlaceOnly` and nothing done; `h` is then `[]`). `Scale=S` draws a figure shown `S` times as wide as its export page at 96 dpi (the app's preview and *Open in window*): it is drawn as the export is (on the export page's size first, so the automatic ticks and limits are the export's), then every font size, line width, marker size, error bar cap and legend token is multiplied by `S` (a scatter's marker area by `S`²; `PlotAesthetics.scaleSizes`), whatever set it -- the style, the panel type's own markers, the design, the remembered looks, the figure's own -- and so are the layout's margin and padding, so the drawing has the proportions of the exported file (and of the report, which shows the exported pages). The target keeps `S` (`PlotAesthetics.drawScale`): `PlotAesthetics.getValue` and `setValue`, and so the aesthetics editor and `PlotDesign.capture`, read and set the sizes as exported.
 
 - **Layout.** renderFigure lays its panels out itself (not with MATLAB's tiled
   layout): `target`, emptied (a grid layout gets a borderless panel; `h.layout`),
@@ -2039,27 +2051,40 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   panel's labels take (its axes' `TightInset`, on the sides where tick labels,
   an axis label, a title or a color bar outside sit: a tick label that only
   reaches past a corner keeps no neighbor away) and places every axes in pixels
-  (`figureArrange`, pure):
-  - the plot areas of the rows and columns line up across the grid, in the exact
-    proportions of `rowHeights` and `colWidths` (no rounding; `[]` = equal);
-  - between two rows goes the room the tallest labels there take (the bottom
-    labels of the panels ending in the row above, the titles of those starting in
-    the row below) and the **gap**, the clear space between neighboring panels'
-    labels; columns the same with the left and right labels. A gap of 0 makes the
-    plot areas flush where no label sits between them: a time stack whose inner
-    tick labels are dropped. The gaps are `grid.spacing`'s: a preset (`"loose"`
-    24 px, `"compact"` 12, `"tight"` 6, `"none"` 0) or `"custom"` (`rowGap`,
-    `colGap`, or each gap of `rowGaps` / `colGaps`, in px or in % of the mean
-    row's plot height / the mean column's plot width);
-  - a panel whose `size` is below 1 takes that share of its cell's plot area,
-    at its `align` and `valign`; its note's band (below) comes off its area, and
-    a coherence panel's phase strip takes the bottom third of what is left;
-  - the title and dataset subtitle sit in a band over the grid (a hidden axes,
-    Tag `titleHost`, holds them: the editor's `plotTitle` and `plotSubtitle`),
-    the figure's legend in a band beside it (below), and a margin of 6 px goes
-    round it all;
+  (`figureArea` and `figurePlace`, both pure):
+  - the page is the target inside a margin of 6 px; the title and dataset
+    subtitle sit in a band at its top (a hidden axes, Tag `titleHost`, holds
+    them: the editor's `plotTitle` and `plotSubtitle`), and the area under it
+    is where the panels go. Each panel's `rect` is read in the page, so its
+    place in cm never moves when the title changes;
+  - with `layout.boxesMean` `"plot"` (the default) a rect is the panel's plot
+    area, moved in only as far as its labels need: a side with labels at the
+    area's edge (the margin, the title band) moves in by its labels' room and
+    `layout.padding` (cm, at 96 dpi); two panels apart (their extents across
+    sharing more than 2 px) get between their plot areas the room their facing
+    labels take and the padding, the shortfall split between them in
+    proportion to their labels' room; edges that line up (within 2 px) all
+    move as far as the furthest of them, so plot edges that lined up still do
+    (a panel can move in for a neighbor it merely lines up with). Boxes only
+    shrink, never shift or grow, and never below 12 px a side (the labels may
+    then overlap). Two panels put **flush** (facing edges within 2 px) stay
+    flush: their shared edge is snapped and nothing moves there, whatever
+    labels face each other (a time stack has none there; a panel that keeps
+    labels on that side draws them over its neighbor). Overlapping rects are
+    left alone, the later panel on top. With `"outer"` a rect holds the panel
+    with its labels: the plot area is the rect, kept in the area, less the
+    labels' room and the padding on each side with labels;
+  - a panel's note's band (below) comes off its plot area, and a coherence
+    panel's phase strip takes the bottom third of what is left; a legend panel
+    has no labels and is never moved for any;
   - it measures again at the new sizes (an axes' size can change its tick
-    labels) and arranges again when the room changed;
+    labels) and places again when the room changed; then the legend (below)
+    and the notes;
+  - the target keeps where everything went (appdata `FigureLayoutResult`: the
+    page, area and title band, each panel's rect in px (`outer`), plot area
+    (`box`), axes, band, how far each side moved in (`nudged`) and whether
+    the 12 px floor stopped it (`clipped`), `figureNeighbors` of the rects in
+    px, and the legend's box and mode), for the app's overlay;
   - `target` is laid out again whenever it changes size (a listener of its
     `SizeChanged` event; its `SizeChangedFcn` stays its owner's), so a figure in
     a panel or window that is resized follows it (the app's preview), and an
@@ -2083,10 +2108,10 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   the text, fitted to the text as drawn (its looks final) and to the axes' tick
   labels and label on that side, which sit in the band next to the axes, never
   more than half the panel's area. A band below or above leaves the axes' left
-  edge and width equal to those of a plain panel in the column; a panel with a
-  band left or right is narrower than its column, so it keeps its own time tick
-  labels, and so does the panel above it (the shared time axis is not hidden for
-  that pair). A
+  edge and width equal to those of a plain panel of that rect; a panel with a
+  band left or right is narrower than its rect, so it keeps its own time tick
+  labels, and so does the panel it sits on (the shared time axis is not hidden
+  for that pair). A
   band note turned a quarter (`|sin(rotation)| > 0.7`) reads along y, and its
   alignment comes from `valign`: bottom, middle or top is left, center or right
   at +90, mirrored at -90 (below and above, `align` still places it along the
@@ -2108,12 +2133,17 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   dataset as the subtitle. The title of a per-group observation names its group:
   the observation's label ends with it already, and a title of your own gets
   `" · <group>"` appended.
-- **Legend.** One, in a band east of the panels (`Style.LegendLocation` `"auto"`
-  or `"east"`; `"north"`, `"south"` or `"west"` put the band on that side,
-  `"inside"` puts the legend in a panel): the trial groups
+- **Legend.** One (none with `Style.LegendLocation` `"none"`): the trial groups
   once, then the layers', units', channels' and marks' entries, each label
-  once; no panel keeps a legend of its own but one with a trial selection of its
-  own, which lists its own groups and entries in a legend inside it.
+  once. It never shrinks a plot area. `"auto"`: in the figure's
+  [legend panel](#panel-types) when it has one (at its natural size, aligned
+  in the panel's box by its options); else floating, centered in the page's
+  largest free space (`freeRect` over the panels' rects and their plot areas
+  with their labels) when it fits there with the padding round it; else inside
+  the first panel (Location `"best"`). Laid out again with the panels, so a
+  floating legend follows them. `"inside"`: inside the first panel. No panel
+  keeps a legend of its own but one with a trial selection of its own, which
+  lists its own groups and entries in a legend inside it.
 - **Look.** The design's common rules everywhere, then on each panel's axes the
   design's rules for its panel type and the user's remembered rules for that type
   (a look remembered for PSTH panels dresses every PSTH panel), then on the
@@ -2496,8 +2526,10 @@ RAT1_260918; panels: raster, PSTH; aligned to Stim onset; ...; each panel's y
 shared across the tiles* (`figureCaption` with `spec.probe.enabled`), its
 `Results` message *23 tile(s)*. With the Export section's size
 (`size.source "export"`) the page is `FigureSizeCm(1)` wide and
-`max(FigureSizeCm(2), min(80, 2 + nRows * grid.rows * 1.5))` cm tall, `nRows`
-the rows of tiles `probeTileLayout` lays out (`figureExportSize`,
+`max(FigureSizeCm(2), min(80, 2 + nRows * nLevels * 1.5))` cm tall, `nRows`
+the rows of tiles `probeTileLayout` lays out and `nLevels` the levels of
+panels in a tile (the distinct top edges of their rects, to 0.01 of the page:
+2 for a raster over a PSTH) (`figureExportSize`,
 `newExportFigure`). A probe figure takes no `"batch"` y range (`batchYLimits`
 skips it: `sharedY` shares y across its tiles) and ignores `observe.perGroup`.
 `Observation=` of a run draws the probe whatever is picked, as a figure of the
@@ -2949,7 +2981,7 @@ and layout), apart from what the plot itself held that was invalid.
 | `Folder` | `{OutputFolder}\analysis` | a [folder pattern](#file-name-tokens) |
 | `FilenamePattern` | `{Name}_{Plot}` | a [file-name pattern](#file-name-tokens): `{Name}` (dataset) `{Plot}` (the figure's id) `{Kind}` (`figure`) `{Group}` `{Unit}` `{Index}` `{Date}`. A [figure](#figures) writes a file set per observation: [below](#figures-in-an-export) |
 | `Dpi` | 150 | PNG resolution |
-| `FigureSizeCm` | `[18 12]` | figure size `[width height]`; a figure's page is made taller when its rows need it: 3.5 cm for each row of its arrangement plus 2 cm |
+| `FigureSizeCm` | `[18 12]` | figure size `[width height]`: a figure's page (its panels' rects are parts of it), unless the figure has a size of its own; a probe figure's page is made taller for its rows of tiles |
 | `Overwrite` | `true` | `false`: an observation (a figure's page) whose files all exist is not written again, nor drawn unless the report needs its image (HTML) or page (PDF); a session figure's data file is not replaced either (a note in the row's message) |
 | `SessionsFolder` | `{OutputRoot}\analysis\sessions` | where the [session figures'](#session-figures) pages go: a [folder pattern](#file-name-tokens) whose tokens are the first session's (`{OutputFolder}` is one dataset's folder, so a warning there). Named with `FilenamePattern`, `{Name}` being the facet (`all`, or the subject) and `{Plot}` the figure's id, then `_<trial group>` for `trialGroups "each"`; a session figure adds `_<Unit>` per observation (`site_ch7`, a mapping cell, `ch7`) as a figure does |
 | `Data.Enabled` | `false` | write each session figure's data as a `.mat` file in a run ([format](file-formats.md#session-figure-data-mat)); the only data export: there are no per-session data or epoch tables |
@@ -2991,9 +3023,8 @@ token values (the folder pattern is the plots'):
   every character outside `A-Z a-z 0-9 _ - .` replaced by `_`, as in every
   token). A pattern that names `{Group}` but not `{Unit}` or `{Index}` gets
   `_<Unit>` after it, as any figure with several observations.
-- A figure's page is `FigureSizeCm(1)` wide and 3.5 cm tall for each row of its
-  arrangement (`grid.rows`) plus 2 cm for the title and x label, never below
-  `FigureSizeCm(2)`.
+- A figure's page is `FigureSizeCm` (or the figure's own `size`), however
+  many panels it holds.
 - With `Overwrite` off an observation whose files all exist is neither computed
   nor drawn again, unless the report needs its image or page.
 - A layer or panel that cannot be computed for one observation (no sorted unit
@@ -3263,10 +3294,15 @@ kept in the cache, so an edit of the method takes the latencies again and no pan
 and an onset line the onset alone; the caption naming the marks, the box plot and the onset with the
 block's rule and window).
 Render (8):
-`figureArrange` (exact gaps in px, % and per gap, the presets, rows and columns in exact proportion, spans, a panel's size and
-alignment in its cell, a note band, a phase strip, the title's and legend's bands), the layout drawn (flush with `"none"`, a
-custom gap exact in px and %, rows 1 : 2, a panel half its cell's width keeping its tick labels, the legend east of the
-panels, the title over them, laid out again on a resize), a compute and a draw function for every panel type, every type
+`figureArea` (the page, the title band, the area) and `figurePlace` (a labeled side at the page's edge moved in by its
+inset and the padding; two panels apart given the room their facing labels need, split by their insets; a flush pair kept
+flush and edges within 2 px snapped; edges in line taking the largest move; `"outer"` boxes; overlapping rects left alone;
+the 12 px floor; a note band and a phase strip under the title band; the panels' order not mattering; a legend panel never
+moved), the layout drawn (a flush raster over a PSTH, a gap keeping the raster's labels clear, outer boxes, the legend
+inside the first panel, floating in free space with every plot area as without it, in a legend panel vertical and
+centered or horizontal at its left, its note in a preview only; the title over the panels, laid out again on a resize),
+new rects and a new padding or `boxesMean` laid out in place with `Reuse` (the lines kept) and a move that breaks a stack
+drawn, a compute and a draw function for every panel type (the legend panel's too), every type
 drawn into an axes, uiaxes, figure, panel and grid layout with every component
 tagged, the titles, one time axis down a stack, one legend, skipped layers'
 notes, events as marks, latency lines and a rug, a stacked PSTH (a row and a

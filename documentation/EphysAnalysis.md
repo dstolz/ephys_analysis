@@ -886,15 +886,18 @@ fields of `S` as the variables of the `.mat` file through
 `h = renderFigure(F, spec, target)` draws a [figure](#figures) computed by
 `figureCompute` into `target`: an axes or uiaxes (the first panel only), or a
 figure, uifigure, panel, tab or grid layout, on which renderFigure lays out the
-figure's grid itself: exact gaps between the panels' labels, rows and columns
-in exact proportion, a panel's own size in its cell, laid out again when the
-target is resized. Renderers never
+panels itself: each at its `rect` on the page, its plot area moved in only as
+far as its labels need to stay `layout.padding` clear of its neighbors and the
+page's edge (panels put flush stay flush, plot edges that line up stay lined
+up), laid out again when the target is resized. Renderers never
 create figures, so the app previews into a panel and the runner exports from an
 invisible figure with the same code. Its panels share the time axis where
-they can, each type is drawn by its own private function (`drawPsthPanel`,
-`drawRasterPanel`, ...), the figure has one legend east of its panels
-(`Style.LegendLocation` says otherwise) and one title above them, and a panel's
-text note and overlays are drawn with it. A PSTH panel draws its trial groups
+they can (a stack of time panels put flush is labeled once), each type is drawn
+by its own private function (`drawPsthPanel`, `drawRasterPanel`, ...), the
+figure has one legend, which never shrinks a plot area (in its legend panel,
+else floating in the page's free space, else inside the first panel;
+`Style.LegendLocation`), and one title above the panels, and a panel's text
+note and overlays are drawn with it. A PSTH panel draws its trial groups
 as bars or lines, or with `options.display "heatmap"` as an image of the
 unit's PSTH, a row per trial group, colored on that unit's own range (never
 across units; `colormap`, `cLim`: [Panel options](EphysAnalysisConfig.md#panel-options)).
@@ -904,8 +907,10 @@ The options are `Design`,
 target keeps what was drawn, and the next drawing with `Reuse` keeps every panel
 that would come out the same (the same result, panel spec, group colors and
 batch range, and nothing every panel depends on changed: `F` but its panels, the
-spec but its panels' contents, every panel's place, sides, time axis and note,
-the style, design and remembered looks, the target's size). Only the other
+spec but its panels' contents and its layout, every panel's sides, time axis and
+note, which panels touch which and the top-left one, the style, design and
+remembered looks, the target's size; not the rects themselves, so a moved panel
+keeps its automatic ticks until it is drawn again). Only the other
 panels are drawn again; the time stack, tick sizes, legend, title, looks and
 layout are done over all of them, so the figure is the one a whole drawing
 makes (a kept color bar may sit within a pixel of a new one's place). A time
@@ -919,7 +924,12 @@ whose labels changed (they name their quantities after the labels) and the
 right-click editor following. A text that shows nothing before or after (an
 empty label, a first title of the panel's own, a title back to none: an empty
 text has no looks set and no menu), or a time panel with further axes, is
-drawn as above; so is any edit of more than text, such as a side.
+drawn as above; so is any edit of more than text, such as a side. An edit of
+the panels' rects or the figure's `layout` alone (with or without such text)
+draws nothing either: what is drawn is laid out again at the new places (a drag
+in the app re-lays out without a redraw), unless it changes which panels touch
+which (a time stack's labels change) or the top-left panel, which is drawn as
+above.
 `InPlaceOnly=true` makes only such an edit and draws nothing otherwise (the
 second output, `how`, says `"inplace"`, `"drawn"` or `""`), so the app can
 skip its compute and busy card for it. [`renderFigure`](EphysAnalysisConfig.md#renderfigure)
@@ -932,7 +942,7 @@ result (see [Chronux analyses](#chronux-analyses)):
 
 | Renderer | Draws |
 | --- | --- |
-| `renderFigure(F, spec, target)` | a computed figure: every panel of the arrangement, laid out on its grid (see the [config page](EphysAnalysisConfig.md#renderfigure)) |
+| `renderFigure(F, spec, target)` | a computed figure: every panel at its place on the page (see the [config page](EphysAnalysisConfig.md#renderfigure)) |
 | `renderProbeFigure(PF, spec, target)` | a probe figure (`figureProbeCompute`'s `PF`; `renderFigure` hands one over): the figure's panels drawn once per unit or channel, each copy a small tile at its site on the probe, on one page (a figure, panel, tab or grid layout). `probeTileLayout` places the tiles (pure, normalized): `layout` `"schematic"` (each shank a column band, the sites clustered into rows by y within half the median pitch, rows equally spaced, depth in µm at each row; nothing overlaps) or `"physical"` (y in proportion to the µm, bands by the shanks' µm, tiles `tileHeight` x `tileScale` of the median pitch tall) with an `overlap` strategy: `"nudge"` (tiles slide apart along the shank, keeping their order), `"lanes"` (alternate tiles in `lanes` lanes beside the shank, then nudged), `"shrink"` (every tile shrunk to the largest size that clears), `"allow"`; a leader from each moved tile to its site. Behind the tiles the probe axes (role `probeAxes`: the depth ticks on the right) with each shank's pale body (`probeBody`), the sites (`probeSites`, included ones darker) and *Shank k* over each column (`shankLabels`); leaders `tileLeaders`; each tile's label (`labels` `"short"`, `"full"`, `"none"`) `tileLabels`. Each panel is drawn by its type's draw function into a tile's axes placed by arithmetic (no label measuring), then left without tick labels, axis labels, titles, color bars, notes and overlays; one legend and one title (the dataset under it, and how many observations were left out) serve the page. With `sharedY` each panel with a value axis (not a raster, heat map, event trace, waveforms, map, spectrogram, stack or a fixed `yLim`) has one y range on every tile (a run's `BatchYLim`, else the union of the tiles'), so the **scale tile** (bottom left, `scaleTile`) that keeps its ticks and axis labels reads for all. A tile whose compute was skipped says why. Aesthetics are applied once per panel over all its tiles; a resize places everything again without redrawing |
 | `renderHeatmap` | units (psth) or channels (evoked) × time, a tile per group, one color scale; `Order="probe"` (the style's sort options), `"peak"` (by the time of each row's maximum over the groups' mean) or, for an auROC result, `"modulation"` (the first group's mean auROC in the call window, highest first; the other tiles keep that order). An auROC result is colored on `[0 1]` (`CLim` overrides); with a cutoff and `auroc.marks`, a bar over the call window and a red up or blue down triangle by each modulated row |
 | `renderProbeMap(values, probe, target)` | a value per unit or per site, every site at its own place on the probe (`xc`, `yc`: no shank is moved) and one color scale (`CLim`, else the values' range; `HeatColormap`, default parula). The probe is drawn behind its sites: each shank a pale body with a pointed tip, named *Shank k* under the tip (by the `kcoords` group holding most of its sites) and given an x tick. A shank is the sites a wide gap in x apart (`probeColumns`), so a site that a Kilosort map parks on a `kcoords` group of its own, above a shank, is drawn on that shank. Sites with a value are filled circles in the color scale, sites without one open circles; units per site (`nUnits`) draw a site with no unit as one without a value and a few counts get a color step each. Channel numbers sit on the outer side of each site when no shank has more than 64 (`SiteLabels=`). The color bar names the value (*Firing rate (Hz)*, *Spikes*, *Units*). `values` is per recording channel (the sites colored), or a `probeMapValues` result (then `probe` may be `[]`): a rate or spike count colors each unit, a filled circle at its own position (open where it has no value) over open sites; units per site color the sites, each unit's position a dark dot ringed in the ground's color. `Waveforms=` (`unitWaveforms` of the result's units) with `Waveform=` settings whose `mode` is not `"off"` draws each unit as its waveform instead, a glyph centered on its position (`waveformGlyphs`, as `renderWaveforms`' probe layout: the mean with its `band`, the spikes, both or the template; no color bar unless the sites carry the values). `UnitLabels=true` writes each unit's name in a column beside its shank, a leader and an arrowhead from each to its unit, stopping short of its dot or glyph (one shank: both sides, by which side of the middle the unit is; several: the first shank's left, the others' right), spread apart in points where they would overlap; the x limits widen to hold them and the channel numbers are left off. `H.glyph` is a glyph's `[width height]` (µm; `[0 0]` for dots) |
@@ -1008,9 +1018,9 @@ legends, color bars and the figure's title and subtitle are components too.
 A grid's x and y labels (its tiled layout's) are the figure's own components
 (tile 0), with the roles `xlabel` and `ylabel` as a single axes' labels, so
 a rule or a design reaches both; so are a figure's title and subtitle, which
-`renderFigure` puts on a hidden axes tagged `titleHost` (no tile). A legend north, south, east or west of
-the grid (Style `LegendLocation`) is the figure's own component (tile 0); where the grid's axes are nested, a
-hidden axes tagged `legendHost` carries it, and is no tile.
+`renderFigure` puts on a hidden axes tagged `titleHost` (no tile). A legend outside a grid of plots (another
+renderer's) or in a figure's legend panel is the figure's own component (tile 0): a hidden axes tagged
+`legendHost` carries it (a legend panel's own axes), and is no tile.
 `PlotAesthetics.roles()` lists the roles, `PlotAesthetics.components(target)`
 what one drawing holds, and `analysis/private/tagPart.m` does the naming.
 
@@ -1295,7 +1305,7 @@ app's preview and the standalone scripts share:
 | `figureObservations(src, spec, Observation=)` | the observations the dataset offers the figure `spec` (`cfg.figureFor(id)`), one row each: its units in probe order, the extract's channels, or the dataset. `[T, why] = ...(Observation=obs)` keeps the rows matching one observation picked on another figure (the unit of the same id on the same data, else the rows on its recording channel; none for a figure of the dataset) and says why when none match |
 | `figureSkipReason(src, spec)` | `[reason, layerReasons]`: why the figure, or one of its panels or layers, cannot be computed on `src` (`""` = it can) |
 | `figureCompute(src, spec, Observation=, Check=, Reuse=)` | the data of one observation, with no graphics and no runner: each panel's layers, reading only the observed unit's spikes or channel's column. `EphysAnalysisRunner.computeFigure` calls it, adding the preview's checkpoint. `[F, K] = figureCompute(..., Reuse=K0)` also returns what it found or made (`K`: the skip reasons, the epochs, each panel's layers, each with the key of its inputs) and takes from `K0` (earlier `K`s) every step whose inputs are the same. The keys leave out what only the drawing reads (`figureDataSpec`: titles, places, labels, notes, overlays, the grid, the aesthetics, a layer's color and line style, the style but its error settings, and the panel options only the draw functions read, such as `tickColor`, `histStyle`, `stack`, `yLim` and `cLim`), so an edit of the looks computes nothing and an edit of one panel's data computes that panel. Once the panels are computed it takes the figure's first-spike latencies and response onsets (its `latency` block, [First-spike latency](EphysAnalysisConfig.md#first-spike-latency)) once per unit and alignment for every panel that reads them (`R.latency`, `R.onset`, `F.latency`), kept as their own steps keyed by the raster rows and the settings each rule reads: an edit of the block computes them again and no panel. `Latency=false` leaves them out (a session figure takes them on the merged rows) |
-| `renderFigure(F, spec, target)` | draws that data into a target, its panels laid out on the figure's grid ([Render](#render)) |
+| `renderFigure(F, spec, target)` | draws that data into a target, each panel at its rect on the page ([Render](#render)) |
 | `figureProbeTiles(src, spec)` | a [probe figure's](EphysAnalysisConfig.md#probe-figures) tiles: `[T, left, sites]`, the figure's units or channels (`figureObservations`, `perGroup` off) that have a site on the probe, kept by `probe.shanks`, `channels` and `depthRange`, at most `maxPerSite` per recording channel and `maxTiles` in all (every k-th in probe order); `T` gains `x` and `y` (µm), `left` counts what was left out (`noPosition`, `filtered`, `overSite`, `overMax`) and `sites` lists every site of the probe map with `included`. Pure |
 | `figureProbeCompute(src, spec, Check=, Reuse=, ProgressFcn=)` | `[PF, K]`: a probe figure on one dataset, the whole figure computed for every tile (`figureCompute` per row of `figureProbeTiles`, the steps the tiles share computed once), no graphics: `PF.kind` `"probeFigure"`, `tiles` (each tile's `F`, position and `skip`), `sites`, `left`, `epochs` and `groups`. `renderFigure` draws it on one page (`renderProbeFigure`); `EphysAnalysisRunner.computeProbeFigure` wraps it ([Probe figures](EphysAnalysisConfig.md#probe-figures)) |
 | `figureOutputName(pattern, name, spec, obs, i, n)` | the file name (no extension) of observation `i` of `n`: `Export.FilenamePattern` with `{Plot}` the figure's id, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`) and `{Index}` its number, and `_<Unit>` added when the pattern names neither |

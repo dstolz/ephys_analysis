@@ -27,6 +27,24 @@ says how to cut a release.
 - `Style.LegendLocation` is `"auto"` (the figure's legend panel, else floating in free space, else inside the first
   panel), `"inside"` or `"none"`; `"north"`, `"south"`, `"east"` and `"west"` are gone (a legend never shrinks a
   plot area).
+- Figures are laid out at their panels' rects (layout engine, part 2 of the free placement work). Each panel sits at
+  its rect on the page (inside a 6 px margin; the title band at the top is kept clear); with `layout.boxesMean`
+  `"plot"` its plot area moves in only as far as its labels need to stay `layout.padding` clear of the neighbors'
+  labels and the page's edge, the shortfall between two panels split by their labels' room, and plot edges that
+  line up stay lined up; with `"outer"` the rect holds the panel with its labels. Panels put flush stay flush.
+  Time stacks are read from the rects: a time panel drops its x tick labels only where time panels with the same
+  limits touch it, so two panels with a gap between them both keep theirs. The legend never shrinks a plot area:
+  in the figure's legend panel, at its natural size and aligned in it (`orientation` `"auto"`: horizontal in a
+  wide panel; `columns` 0: as many as fit), else floating, centered in the page's largest free space when it fits
+  there, else inside the first panel; a legend panel with nothing to hold says why in light gray in a preview,
+  nothing in an export. `renderFigure` with `Reuse` lays an edit of the panels' rects or the figure's `layout` out
+  again on what is drawn (`how` `"inplace"`, nothing drawn), unless it changes which panels touch which or the
+  top-left panel. The canvas keeps where everything went (appdata `FigureLayoutResult`: page, area, each panel's
+  rect and plot area in px, how far each side moved in, the panels' neighbors, the legend's box). A figure's export
+  page is the Export section's `FigureSizeCm` as it is (no longer 3.5 cm taller per grid row); a probe figure's page
+  is 1.5 cm per level of panels (their rects' distinct top edges) per row of tiles, and each tile's panels sit at
+  their rects in it. The title of a figure of the user's own names the observation on the top-left panel in reading
+  order (`panelOrder`).
 - `EphysAnalysisApp` is renamed `EphysFigGenApp` (class folder `analysis/@EphysFigGenApp`, `test_EphysFigGenApp`,
   `documentation/EphysFigGenApp.md`, the wiki's `API-EphysFigGenApp` page). Its preferences group is
   `EphysFigGenApp`, so preferences saved under the old name (window position, recent configs, hidden tabs, ...)
@@ -374,6 +392,8 @@ says how to cut a release.
 - `EphysAnalysisConfig`'s grid editors `placePanels`, `removeCell`, `cellRemovals`, `movePanel` and
   `figureCells` (with their private helpers), and the constants `GridSpacings`, `GridSpacingPx`, `GridGapUnits`,
   `PanelAligns` and `PanelVAligns`.
+- The grid layout engine (`figureArrange`, `figurePanelCells`), the legend bands beside the panels
+  (`figureLegendSide`), and the draw functions' `isTop` / `isBottom` (read by none).
 - The back-compatibility shims: `EphysPipelineConfig`'s `movedWCARFields` and `retiredExports` (a config of an old
   shape loads with its unknown fields dropped and named in `LoadWarnings`, and `validate` refuses a retired export
   format), manifest schema `intan-dataset-manifest/1` (`ManifestSchemasAccepted` is the current schema only) and
@@ -389,7 +409,8 @@ says how to cut a release.
   `figureRectConvert` (places between normalized, %, cm, in and px) and `figureNeighbors` (shared extents, gaps,
   and which rects touch which).
 - Panel type `legend` ("The figure's legend in a panel of its own"): no layers, options `orientation`, `align`,
-  `valign` and `columns`; at most one per figure. Its drawing comes with the layout engine.
+  `valign` and `columns`; at most one per figure. `renderFigure` hides its axes (`legendHost`) and lays the figure's
+  legend out in it.
 - Analysis app: an empty cell of the Panels sketch shows a gray **−** beside its **+**. A click on it (or a
   right click on the cell) opens a menu of the ways to remove the cell: stretch its column's or row's panels over it
   (with the other empty cells of that run), shift the cells up or left, grow a panel next to it over it, or delete

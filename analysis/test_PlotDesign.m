@@ -302,7 +302,7 @@ check(isfield(Dx.kinds, "heatmap") && any(roles(Dx.kinds.heatmap) == "axes") && 
     'a heat map over a PSTH: the heat map''s axes rules go under kinds.heatmap only, the PSTH''s into the common rules');
 two = mixed;
 two.id = "two_heatmaps";
-hm2 = hmPanel; hm2.id = hmPanel.id + "_b"; hm2.row = 2;
+hm2 = hmPanel; hm2.id = hmPanel.id + "_b"; hm2.rect = [0 0 1 0.5];   % under the first heat map
 two.panels = [hmPanel hm2];
 cfgD = fx.cfg.addFigure(two);
 twoSpec = cfgD.figureFor("two_heatmaps");

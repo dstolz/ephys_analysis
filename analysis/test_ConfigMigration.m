@@ -463,10 +463,13 @@ check(isempty(notes) && height(T) >= 1 && F1.observation.unitId == T.unitId(1) &
     sprintf('computeFigure: the raster with Stim offset marks, the PSTH and the aux of one unit (%s), nothing skipped', T.label(1)));
 fg = figure('Visible', 'off', 'Position', [100 100 600 800]);
 closeFig = onCleanup(@() delete(fg));
-h = renderFigure(F1, spec, fg);   % P2: renderFigure lays the panels out by their rects (until then it reads the old grid and errors)
+h = renderFigure(F1, spec, fg);
 drawnow;
-check(numel(h.panels) == 3 && all(arrayfun(@(s) ~isempty(s.axes) && isvalid(s.axes), h.panels)) && contains(h.title, T.label(1)), ...
-    'renderFigure draws its three panels, the title naming the unit');
+bx = arrayfun(@(s) s.axes.InnerPosition, h.panels, 'UniformOutput', false);
+bx = vertcat(bx{:});
+check(numel(h.panels) == 3 && all(arrayfun(@(s) ~isempty(s.axes) && isvalid(s.axes), h.panels)) && contains(h.title, T.label(1)) ...
+    && all(abs(bx(1:2, 2) - bx(2:3, 2) - bx(2:3, 4)) < 0.5), ...
+    'renderFigure draws its three panels at their stacked rects, flush top to bottom, the title naming the unit');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

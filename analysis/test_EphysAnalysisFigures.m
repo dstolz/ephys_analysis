@@ -55,14 +55,22 @@ function test_EphysAnalysisFigures(opts)
 %   edit: nothing computed; the PSTH's bins: that panel only, as from
 %   scratch; another observation: its panels) and the runner's
 %   FigureCache (computeFigure Reuse=true; clearSources forgets it).
-%   Render (8): figureArrange (the labels' room and exact gaps between
-%   rows and columns, px, % and per-gap lists, the presets, rows and
-%   columns in exact proportion, spans, a panel's size and alignment in
-%   its cell, a note band, a phase strip, the title's and legend's bands);
-%   renderFigure's layout (flush with "none", an exact custom gap in px
-%   and %, rows 1 : 2, a panel half its cell's width keeping its tick
-%   labels, the legend east of the panels, the title over them, laid out
-%   again when the figure is resized); a compute and a draw function for every panel type;
+%   Render (8): figureArea (the page in its margin, the title band, the
+%   area under it) and figurePlace (a labeled side at the page's edge
+%   moved in by its inset and the padding, an unlabeled one not; two
+%   panels apart given the room their facing labels need, split by their
+%   insets; a flush pair kept flush, edges within Tol snapped together;
+%   edges in line taking the largest move; "outer" boxes; overlapping
+%   rects left alone; MinSize; a note band and a phase strip under the
+%   title band; the panels' order not mattering; a legend panel never
+%   moved); renderFigure's layout (a flush raster over a PSTH with the
+%   raster's tick labels dropped, a gap keeping its labels clear, outer
+%   boxes, FigureLayoutResult; the legend inside the first panel without
+%   free space, floating in free space with every plot area as without
+%   it, in a legend panel: vertical and centered, horizontal at its left,
+%   a note in a preview only when it holds none; the title over the
+%   panels, laid out again when the figure is resized); a compute and a
+%   draw function for every panel type, the legend panel's too;
 %   every panel type drawn by renderFigure into an axes, a uiaxes, a
 %   figure, a uipanel and a grid layout, every component tagged with a
 %   known role and the tiles named by panel; the title (automatic, and the
@@ -87,7 +95,9 @@ function test_EphysAnalysisFigures(opts)
 %   figure's own draws every panel; an edit of text alone -- labels, a
 %   panel title, the figure title -- set on the axes drawn, the drawing
 %   a whole one's, the data tips and editor context following; InPlaceOnly
-%   drawing nothing for a side, a title back to none drawn);
+%   drawing nothing for a side, a title back to none drawn; new rects, a
+%   new padding or boxesMean laid out in place, the lines kept; a move
+%   that breaks a stack drawn);
 %   one observation drawn in under a second; data tips (FigureDataTips:
 %   a PSTH line's rows, a raster tick's trial and group, a heat map cell's
 %   and a heat map of trials' tips, a bar's rows, the chosen fields a
@@ -162,7 +172,8 @@ function test_EphysAnalysisFigures(opts)
 %   below, an overlay) and a tuning curve drawn at Scale 1.5 into a panel
 %   1.5 times the export page: every size of every part (fonts, lines,
 %   markers, caps, the labels' fonts) 1.5 times the export's, the plot
-%   areas in the same proportion to the page; the scale kept on the root
+%   areas in the same proportion to the page, the layout's padding and
+%   margin in px times the scale; the scale kept on the root
 %   (PlotAesthetics.drawScale), getValue and setValue speaking of the
 %   exported sizes; Reuse at a scale the same as a whole drawing.
 %   Probe figures (15): defaults("FigureProbe") and the Figure's probe
@@ -189,7 +200,8 @@ function test_EphysAnalysisFigures(opts)
 %   fixture a raster + PSTH probe figure (figureProbeCompute, its tiles
 %   repeated over the 8 sites) drawn by renderProbeFigure: the tiles' axes
 %   (ProbeTile, FigurePanel), inside the canvas and apart, the probe axes
-%   under them, one legend and title, the scale tile's ticks, sharedY, the
+%   under them, one legend and title, the scale tile's ticks, each tile's
+%   panels at their rects in it, sharedY, the
 %   tile labels, a skipped tile's note, renderFigure's dispatch, a resize,
 %   every component a known role, a uipanel and a grid layout, Scale 0.5,
 %   the time it takes.
@@ -2458,55 +2470,78 @@ end
 
 %% ============================================================================ render
 if S.sec("8", "render: renderFigure, its layout, the draw functions")
-    % figureArrange: the layout's arithmetic (pure)
-    gd = EphysAnalysisConfig.defaults("Figure").grid;
-    gd.rows = 2; gd.rowHeights = [1 2]; gd.spacing = "custom"; gd.rowGap = 10;
-    ca = [arrangeCell(1, 1, 1, 1, [40 30 0 0]) arrangeCell(2, 2, 1, 1, [40 30 0 15])];
-    La = figureArrange([600 400], gd, ca, Margin=6);
-    hA = La.rows(:, 2) - La.rows(:, 1);
-    check(abs(La.rows(1, 1) - La.rows(2, 2) - (30 + 10 + 15)) < 1e-9 && abs(hA(2) / hA(1) - 2) < 1e-9 && abs(La.rows(1, 2) - 394) < 1e-9 ...
-        && abs(La.rows(2, 1) - 36) < 1e-9 && abs(La.cols(1, 1) - 46) < 1e-9 && abs(La.cols(1, 2) - 594) < 1e-9, ...
-        'figureArrange: between two rows the labels'' room and the gap exactly (30 + 10 + 15 px); the plot heights exactly 1 : 2');
-    gd.gapUnits = "%";
-    Lp = figureArrange([600 400], gd, ca, Margin=6);
-    gp = Lp.rows(1, 1) - Lp.rows(2, 2) - 45;
-    check(abs(gp - 0.1 * mean(Lp.rows(:, 2) - Lp.rows(:, 1))) < 1e-9 && abs(Lp.gaps.rows - gp) < 1e-9, ...
-        sprintf('figureArrange: a gap of 10 %% is a tenth of the mean row''s plot height (%.1f px)', gp));
-    g3 = gd; g3.rows = 3; g3.rowHeights = []; g3.gapUnits = "px"; g3.rowGaps = [5 20];
-    c3 = [arrangeCell(1, 1, 1, 1, [0 0 0 0]) arrangeCell(2, 2, 1, 1, [0 0 0 0]) arrangeCell(3, 3, 1, 1, [0 0 0 0])];
-    L3 = figureArrange([300 300], g3, c3, Margin=0);
-    g3.spacing = "none";
-    Ln = figureArrange([300 300], g3, c3, Margin=0);
-    g3.spacing = "loose";
-    Ll = figureArrange([300 300], g3, c3, Margin=0);
-    check(all(abs(L3.rows(1:2, 1) - L3.rows(2:3, 2) - [5; 20]) < 1e-9) && all(abs(Ln.rows(1:2, 1) - Ln.rows(2:3, 2)) < 1e-9) ...
-        && all(abs(Ll.rows(1:2, 1) - Ll.rows(2:3, 2) - 24) < 1e-9), ...
-        'figureArrange: rowGaps set each gap apart (5, 20 px); "none" is flush and "loose" 24 px (the lists unused)');
-    g2 = EphysAnalysisConfig.defaults("Figure").grid;
-    g2.rows = 2; g2.cols = 2; g2.colWidths = [1 3]; g2.spacing = "custom"; g2.colGap = 12; g2.rowGap = 0;
-    c2 = [arrangeCell(1, 1, 1, 2, [30 0 0 0]) arrangeCell(2, 2, 1, 1, [30 20 0 0]) arrangeCell(2, 2, 2, 2, [25 20 5 0])];
-    L2 = figureArrange([500 300], g2, c2, Margin=0);
-    w2 = L2.cols(:, 2) - L2.cols(:, 1);
-    check(abs(w2(2) / w2(1) - 3) < 1e-9 && abs(L2.cols(2, 1) - L2.cols(1, 2) - 37) < 1e-9 && abs(L2.panels(1).box(1) - L2.cols(1, 1)) < 1e-9 ...
-        && abs(sum(L2.panels(1).box([1 3])) - L2.cols(2, 2)) < 1e-9, ...
-        'figureArrange: columns exactly 1 : 3, the left labels'' room and the gap between them (12 + 25 px); a panel over both spans them');
-    g1 = EphysAnalysisConfig.defaults("Figure").grid;
-    cs = arrangeCell(1, 1, 1, 1, [0 0 0 0]);
-    cs.size = [0.5 0.25]; cs.align = "right"; cs.valign = "top";
-    Ls = figureArrange([400 400], g1, cs, Margin=0);
-    cb = arrangeCell(1, 1, 1, 1, [0 0 0 0]);
+    % figureArea and figurePlace: the layout's arithmetic (pure)
+    Am = figureArea([600 400], Top=30, Margin=6, Scale=2);
+    An = figureArea([600 400]);
+    check(isequal(Am.page, [12 12 576 376]) && isequal(Am.title, [12 358 576 30]) && isequal(Am.area, [12 12 576 346]) ...
+        && isequal(An.page, [6 6 588 388]) && isequal(An.area, An.page) && isempty(An.title), ...
+        'figureArea: the page inside the margin (6 px times the scale), the title band at its top, the area under it; no title, no band');
+    A0 = figureArea([400 300], Margin=0);
+    L1 = figurePlace(A0, placeCell([0 0 1 1], [30 20 0 0]), Padding=6);
+    check(isequal(L1.panels(1).box, [36 26 364 274]) && isequal(L1.panels(1).nudged, [36 26 0 0]) && isequal(L1.panels(1).outer, [0 0 400 300]) ...
+        && ~L1.panels(1).clipped && isequal(L1.page, A0.page) && isequal(L1.area, A0.area), ...
+        'figurePlace: at the page''s edge a side with labels moves in by its inset and the padding (36, 26 px), a side without stays at the rect');
+    cSep = [placeCell([0 0.55 1 0.45], [30 20 0 0]) placeCell([0 0 1 0.5], [40 20 0 10])];
+    Lg = figurePlace(A0, cSep, Padding=6);
+    gapG = Lg.panels(1).box(2) - sum(Lg.panels(2).box([2 4]));
+    check(abs(gapG - 36) < 1e-9 && abs(Lg.panels(1).nudged(2) - 21 * 23 / 36) < 1e-9 && abs(Lg.panels(2).nudged(4) - 21 * 13 / 36) < 1e-9 ...
+        && Lg.panels(1).box(1) == 46 && Lg.panels(2).box(1) == 46 && ~Lg.neighbors.below(1, 2), ...
+        sprintf(['figurePlace: two panels 15 px apart get the room their facing labels need (20 + 10 + 6 px: %.1f between the plot ' ...
+        'areas), the 21 px split 23 : 13 by their insets and half the padding each; their left edges in line at the larger (46 px)'], gapG));
+    cFl = [placeCell([0 0.5 1 0.5], [30 20 0 0]) placeCell([0 0 1 0.5], [40 20 0 10])];
+    Lf = figurePlace(A0, cFl, Padding=6);
+    Ls = figurePlace(A0, [placeCell([0 0.501 1 0.499], [0 20 0 0]) placeCell([0 0 1 0.5], [0 20 0 10])], Padding=6);
+    check(Lf.panels(1).box(2) == 150 && sum(Lf.panels(2).box([2 4])) == 150 && Lf.panels(1).nudged(2) == 0 && Lf.panels(2).nudged(4) == 0 ...
+        && Lf.neighbors.below(1, 2) && Lf.neighbors.above(2, 1) && abs(Ls.panels(1).box(2) - 150.15) < 1e-9 ...
+        && abs(sum(Ls.panels(2).box([2 4])) - 150.15) < 1e-9 && abs(Ls.panels(1).outer(2) - 150.15) < 1e-9, ...
+        ['figurePlace: panels put flush stay flush, whatever labels face each other (nothing moves at 150 px); edges within Tol ' ...
+        '(0.3 px apart) are snapped to their mean and held flush']);
+    La = figurePlace(A0, [placeCell([0 0.5 0.5 0.5], [30 0 0 0]) placeCell([0 0 0.5 0.4], [50 20 0 0]) placeCell([0.6 0 0.4 1], [20 20 0 0])], ...
+        Padding=6);
+    near = @(a, b) isequal(size(a), size(b)) && max(abs(double(a(:)) - double(b(:)))) < 1e-9;
+    check(La.panels(1).box(1) == 56 && La.panels(2).box(1) == 56 && near(La.panels(3).box(1), 240) && La.panels(3).box(2) == 26 ...
+        && La.panels(2).box(2) == 26, ...
+        ['figurePlace: left edges in line take the largest inset of them (50 + 6 px for both), bottoms in line too; a panel 40 px ' ...
+        'clear of its neighbors'' unlabeled sides stays at its rect on that side']);
+    Lo = figurePlace(A0, cSep, Padding=6, Mode="outer");
+    Lof = figurePlace(A0, cFl, Padding=6, Mode="outer");
+    check(near(Lo.panels(1).box, [46 191 354 109]) && near(Lo.panels(2).box, [46 26 354 108]) ...
+        && Lof.panels(1).box(2) == 150 && sum(Lof.panels(2).box([2 4])) == 150, ...
+        ['figurePlace "outer": the rect less inset and padding on each side with labels (left edges in line: the larger), the ' ...
+        'unlabeled sides at the rect; a flush pair stays flush']);
+    Lv = figurePlace(A0, [placeCell([0 0 0.6 0.6], [10 10 10 10]) placeCell([0.4 0.4 0.6 0.6], [10 10 10 10])], Padding=6);
+    check(isequal(Lv.panels(1).nudged, [16 16 0 0]) && isequal(Lv.panels(2).nudged, [0 0 16 16]), ...
+        'figurePlace: two overlapping rects are left alone (only the page''s edges move them in)');
+    Lm = figurePlace(figureArea([100 100], Margin=0), placeCell([0 0 1 1], [60 0 50 0]), MinSize=12);
+    check(Lm.panels(1).clipped && abs(Lm.panels(1).box(3) - 12) < 1e-9 && abs(Lm.panels(1).nudged(1) - 48) < 1e-9 ...
+        && abs(Lm.panels(1).nudged(3) - 40) < 1e-9, ...
+        'figurePlace: labels wider than the panel leave its plot area MinSize (12 px) wide, the moves cut back in proportion, clipped');
+    Ab = figureArea([400 400], Top=20, Margin=0);
+    cb = placeCell([0 0 1 1], [0 0 0 0]);
     cb.band = "below"; cb.need = 50; cb.shares = [2 1];
-    Lb = figureArrange([400 400], g1, cb, Margin=0, Top=20, Legend=struct('side', "east", 'size', [60 40]));
-    Ab = Lb.panels(1).axes;
-    check(isequal(Ls.panels(1).box, [200 300 200 100]) && isequal(Lb.panels(1).band, [0 0 332 50]) && isequal(Lb.panels(1).box, [0 50 332 330]) ...
-        && abs(Ab(1, 4) - 220) < 1e-9 && abs(Ab(2, 4) - 110) < 1e-9 && abs(Ab(1, 2) - Ab(2, 2) - Ab(2, 4)) < 1e-9 ...
-        && isequal(Lb.title, [0 380 400 20]) && isequal(Lb.legend, [340 170 60 40]), ...
-        'figureArrange: a panel half as wide, a quarter as high, at its cell''s top right; a band below; a phase strip a third under its axes; the title''s and the legend''s bands');
+    Lb = figurePlace(Ab, cb);
+    Xb = Lb.panels(1).axes;
+    check(isequal(Lb.panels(1).band, [0 0 400 50]) && isequal(Lb.panels(1).box, [0 50 400 330]) && isequal(Lb.panels(1).outer, [0 0 400 400]) ...
+        && abs(Xb(1, 4) - 220) < 1e-9 && abs(Xb(2, 4) - 110) < 1e-9 && abs(Xb(1, 2) - Xb(2, 2) - Xb(2, 4)) < 1e-9 && isequal(Lb.title, [0 380 400 20]), ...
+        'figurePlace: a panel over the whole page kept under the title band; a note band below; a phase strip a third under its axes');
+    cO = [cSep placeCell([0.6 0.6 0.4 0.4], [12 8 4 6]) placeCell([0 0.5 0.3 0.05], [5 5 5 5])];
+    Lp1 = figurePlace(A0, cO, Padding=6);
+    Lp2 = figurePlace(A0, cO([3 1 4 2]), Padding=6);
+    B1 = vertcat(Lp1.panels.box);
+    B2 = vertcat(Lp2.panels.box);
+    check(max(abs(B1([3 1 4 2], :) - B2), [], 'all') < 1e-9, 'figurePlace does not depend on the order of the panels');
+    cLg = [placeCell([0 0 0.75 1], [30 20 10 0]) placeCell([0.75 0 0.25 1], [5 5 5 5])];
+    cLg(2).fixed = true;
+    Ll = figurePlace(A0, cLg, Padding=6);
+    check(isequal(Ll.panels(2).nudged, [0 0 0 0]) && near(Ll.panels(2).box, [300 0 100 300]) && abs(Ll.panels(1).nudged(3) - 16) < 1e-9, ...
+        ['figurePlace: a legend panel (fixed) has no labels and is never moved for any; a panel flush with it keeps its own ' ...
+        'labels clear of it (10 + 6 px)']);
 
     % the registry
     reg = figurePanelRegistry();
     okReg = all(arrayfun(@(t) isfield(reg, t) && isa(reg.(t).compute, 'function_handle') && isa(reg.(t).draw, 'function_handle'), T.Type));
-    check(okReg && isequal(sort(string(fieldnames(reg))), sort(T.Type)), 'figurePanelRegistry: a compute and a draw function for every panel type');
+    check(okReg && isequal(sort(string(fieldnames(reg))), sort(T.Type)) && isfield(reg, 'legend'), ...
+        'figurePanelRegistry: a compute and a draw function for every panel type, the legend panel''s too');
 
     % two more figures: a heat map, and a PSTH with latency marks
     cfg = cfg.addFigure("heatmap", Id="hm");
@@ -2928,51 +2963,126 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         sprintf('excludeArtifacts off: "%s" under the dataset; "%s" when a panel''s count differs; none with ShowArtifactNote off or clear epochs', ...
         wantA, wantB));
 
-    % the layout: flush, exact gaps in px and %, rows in proportion, a panel's own size, the legend's band, a resize
+    % the layout: a flush stack, a gap that keeps the labels clear, outer boxes, the legend (inside, floating, in a legend
+    % panel), the title, a resize
     sL = F1.spec;
+    pad = sL.layout.padding * 96 / 2.54;   % px at Scale 1
     hL = renderFigure(F1, sL, fig);
     drawnow;
     rA = figureBox(hL.panels(1).axes, fig);
     rB = figureBox(hL.panels(2).axes, fig);
-    check(sL.grid.spacing == "none" && abs(rA(2) - rB(2) - rB(4)) < 0.5 && abs(rA(1) - rB(1)) < 0.5 && abs(rA(3) - rB(3)) < 0.5, ...
-        sprintf('spacing "none": the raster sits flush on the PSTH (%.2f px apart), with its left edge and width', rA(2) - rB(2) - rB(4)));
-    sL.grid.spacing = "custom"; sL.grid.rowGap = 20; sL.grid.rowHeights = [1 2];
-    hL = renderFigure(F1, sL, fig);
-    drawnow;
-    rA = figureBox(hL.panels(1).axes, fig);
-    rB = figureBox(hL.panels(2).axes, fig);
-    check(abs(rA(2) - rB(2) - rB(4) - 20) < 0.5 && abs(rB(4) / rA(4) - 2) < 0.01, ...
-        sprintf('a custom 20 px gap between the rows (no label between them: %.2f px between the plot areas); the rows exactly 1 : 2 (%.3f)', ...
-        rA(2) - rB(2) - rB(4), rB(4) / rA(4)));
-    sL.grid.gapUnits = "%"; sL.grid.rowGap = 10;
-    hL = renderFigure(F1, sL, fig);
-    drawnow;
-    rA = figureBox(hL.panels(1).axes, fig);
-    rB = figureBox(hL.panels(2).axes, fig);
-    gL = rA(2) - rB(2) - rB(4);
-    check(abs(gL - 0.1 * (rA(4) + rB(4)) / 2) < 0.5, sprintf('a gap of 10 %% is a tenth of the mean row''s plot height (%.1f px)', gL));
-    sL.grid.gapUnits = "px"; sL.grid.rowGap = 20; sL.grid.rowHeights = [];
-    sL.panels(1).size = [0.5 1]; sL.panels(1).align = "right";
-    hL = renderFigure(F1, sL, fig);
-    drawnow;
-    rA = figureBox(hL.panels(1).axes, fig);
-    rB = figureBox(hL.panels(2).axes, fig);
-    check(abs(rA(3) - rB(3) / 2) < 0.5 && abs(rA(1) + rA(3) - rB(1) - rB(3)) < 0.5 && ~isempty(hL.panels(1).axes.XTickLabel) ...
-        && string(hL.panels(1).axes.XLabel.String) == "Time (s)", ...
-        'a raster half its cell''s width at its right: that panel only (the PSTH keeps the column''s width), its time tick labels kept');
-    sL.panels(1).size = [1 1];
-    hL = renderFigure(F1, sL, fig);
-    drawnow;
-    rA = figureBox(hL.panels(1).axes, fig);
-    rB = figureBox(hL.panels(2).axes, fig);
+    check(isequal(sL.panels(1).rect, [0 0.5 1 0.5]) && isequal(sL.panels(2).rect, [0 0 1 0.5]) && abs(rA(2) - rB(2) - rB(4)) < 0.5 ...
+        && abs(rA(1) - rB(1)) < 0.5 && abs(rA(3) - rB(3)) < 0.5 && isempty(hL.panels(1).axes.XTickLabel) && ~isempty(hL.panels(2).axes.XTickLabel), ...
+        sprintf(['rects put flush: the raster sits flush on the PSTH (%.2f px apart), with its left edge and width, its time ' ...
+        'tick labels dropped'], rA(2) - rB(2) - rB(4)));
     lgL = findall(fig, 'Type', 'legend');
-    lgL(1).Units = 'pixels';
-    pg = lgL(1).Position;
+    RL = getappdata(fig, 'FigureLayoutResult');
+    check(isscalar(lgL) && RL.legendMode == "inside" && string(lgL.Location) == "best" && isempty(RL.legend) ...
+        && isequal(hL.panels(1).axes.Legend, lgL) && isequal(RL.ids, ["raster_1" "psth_1"]) && numel(RL.panels) == 2 ...
+        && RL.page(1) == 6 && RL.area(4) < RL.page(4) && isequal(RL.area(1:3), RL.page(1:3)), ...
+        ['panels over the whole page: no free space for the legend, inside the first panel (Location best); FigureLayoutResult ' ...
+        'keeps the page, the area under the title and each panel''s place']);
+    sL.panels(1).rect = [0 0.53 1 0.47];   % a gap under the raster: its own time axis, its labels kept clear of the PSTH
+    hL = renderFigure(F1, sL, fig);
+    drawnow;
+    rA = figureBox(hL.panels(1).axes, fig);
+    rB = figureBox(hL.panels(2).axes, fig);
+    tiA = hL.panels(1).axes.TightInset;
+    RL = getappdata(fig, 'FigureLayoutResult');
+    check(~isempty(hL.panels(1).axes.XTickLabel) && string(hL.panels(1).axes.XLabel.String) == "Time (s)" ...
+        && rA(2) - rB(2) - rB(4) >= tiA(2) + pad - 0.5 && RL.panels(1).nudged(2) > 0 && RL.panels(2).nudged(4) == 0, ...
+        sprintf(['a gap under the raster: it keeps its time axis, and its labels %.1f px clear of the PSTH (labels %.1f px, ' ...
+        'padding %.1f px; the raster moved up, the PSTH, unlabeled on top, not)'], rA(2) - rB(2) - rB(4) - tiA(2), tiA(2), pad));
+    sL.panels(1).rect = [0 0.5 1 0.5];
+    sL.layout.boxesMean = "outer";
+    hL = renderFigure(F1, sL, fig);
+    drawnow;
+    RL = getappdata(fig, 'FigureLayoutResult');
+    rB = figureBox(hL.panels(2).axes, fig);
+    tiB = hL.panels(2).axes.TightInset;
+    check(rB(1) >= RL.panels(2).outer(1) + tiB(1) + pad - 1 && abs(rB(2) - RL.panels(2).outer(2) - tiB(2) - pad) < 1 ...
+        && abs(RL.panels(1).box(2) - sum(RL.panels(2).box([2 4]))) < 1e-9 && isempty(hL.panels(1).axes.XTickLabel), ...
+        ['boxesMean "outer": a rect holds its panel with its labels (the plot area the labels and the padding in from the ' ...
+        'rect''s edge); a flush stack stays flush']);
+    sL.layout.boxesMean = "plot";
+    sF = F1.spec;   % room beside the panels: the legend floats there
+    sF.panels(1).rect = [0 0.5 0.7 0.5];
+    sF.panels(2).rect = [0 0 0.7 0.5];
+    sF0 = sF;
+    sF0.style.Legend = false;
+    hF0 = renderFigure(F1, sF0, fig);
+    drawnow;
+    b0 = [figureBox(hF0.panels(1).axes, fig); figureBox(hF0.panels(2).axes, fig)];
+    hF = renderFigure(F1, sF, fig);
+    drawnow;
+    bF = [figureBox(hF.panels(1).axes, fig); figureBox(hF.panels(2).axes, fig)];
+    RF = getappdata(fig, 'FigureLayoutResult');
+    lgF = findall(fig, 'Type', 'legend');
+    lgF.Units = 'pixels';
+    pF = lgF.Position;
+    check(isscalar(lgF) && RF.legendMode == "float" && string(lgF.Location) == "none" && near(RF.legend, pF) ...
+        && pF(1) >= RF.panels(1).outer(1) + RF.panels(1).outer(3) && abs(pF(1) + pF(3) / 2 - (RF.area(1) + 0.85 * RF.area(3))) < 1 ...
+        && abs(pF(2) + pF(4) / 2 - (RF.area(2) + RF.area(4) / 2)) < 1 && max(abs(bF - b0), [], 'all') < 0.5, ...
+        ['room beside the panels: the legend floats in the middle of it (FigureLayoutResult''s legend), every plot area where ' ...
+        'it is without a legend']);
+    fl = cfg.Figures(cfg.figureIndex("rp"));   % a legend panel right of the stack
+    fl.id = "rpLegend";
+    fl.panels(1).rect = [0 0.5 0.75 0.5];
+    fl.panels(2).rect = [0 0 0.75 0.5];
+    fl = EphysAnalysisConfig.placePanel(fl, struct('type', "legend"), "rect", "", [0.75 0 0.25 1]);
+    cfg = cfg.addFigure(fl);
+    Fl = rn.computeFigure(src, cfg.figureFor("rpLegend"), Observation=Tu(1, :));
+    hP = renderFigure(Fl, Fl.spec, fig);
+    drawnow;
+    RP = getappdata(fig, 'FigureLayoutResult');
+    lgP = findall(fig, 'Type', 'legend');
+    lgP.Units = 'pixels';
+    pP = lgP.Position;
+    bx = RP.panels(3).box;
+    axL = hP.panels(3).axes;
+    CP = PlotAesthetics.components(hP.layout);
+    check(isscalar(lgP) && RP.legendMode == "panel" && isequal(axL.Legend, lgP) && axL.Visible == "off" && string(axL.Tag) == "legendHost" ...
+        && abs(pP(1) + pP(3) / 2 - (bx(1) + bx(3) / 2)) < 1 && abs(pP(2) + pP(4) / 2 - (bx(2) + bx(4) / 2)) < 1 ...
+        && string(lgP.Orientation) == "vertical" && near(RP.legend, pP) && all(RP.panels(3).nudged(1:3) == 0) ...
+        && abs(bx(2) + bx(4) - RP.area(2) - RP.area(4)) < 1e-9 && RP.panels(1).nudged(3) == 0 && RP.panels(2).nudged(3) == 0 ...
+        && any(CP.Role == "legend") && ~any(CP.TileName == "legend_1") && ~any(CP.Role == "" | ~ismember(CP.Role, roles)), ...
+        ['a legend panel: the legend on its hidden axes (legendHost, no tile of its own), centered in its box at its natural ' ...
+        'size, vertical in a tall box; the box kept under the title band, else at its rect; no panel moved for it']);
+    sW = Fl.spec;   % a wide legend panel under the stack, its legend at the left
+    sW.panels(1).rect = [0 0.55 1 0.45];
+    sW.panels(2).rect = [0 0.1 1 0.45];
+    sW.panels(3).rect = [0 0 1 0.1];
+    sW.panels(3).options.align = "left";
+    hW = renderFigure(Fl, sW, fig);
+    drawnow;
+    RW = getappdata(fig, 'FigureLayoutResult');
+    lgW = findall(fig, 'Type', 'legend');
+    lgW.Units = 'pixels';
+    pW = lgW.Position;
+    check(string(lgW.Orientation) == "horizontal" && abs(pW(1) - RW.panels(3).box(1)) < 1 && all(RW.panels(3).nudged == 0) ...
+        && RW.panels(2).nudged(2) > 0 && ~isempty(hW.panels(2).axes.XTickLabel), ...
+        ['a wide legend panel: the legend laid out horizontally, at its left (align); the PSTH flush on it keeps its time ' ...
+        'axis, moved up clear of it']);
+    sI = Fl.spec;
+    sI.style.LegendLocation = "inside";
+    hI = renderFigure(Fl, sI, fig, Editable=true);
+    nI = findobj(hI.panels(3).axes, '-depth', 1, 'Type', 'text');   % (its title and labels have no visible handles)
+    okI = isscalar(nI) && contains(string(nI.String), "inside") && isequal(nI.Color, [0.65 0.65 0.65]) ...
+        && isscalar(findall(fig, 'Type', 'legend')) && ~isempty(hI.panels(1).axes.Legend);
+    hE0 = renderFigure(Fl, sI, fig);   % an export (an invisible figure, not editable): no note
+    check(okI && isempty(findobj(hE0.panels(3).axes, '-depth', 1, 'Type', 'text')), ...
+        'a legend panel holding no legend (Legend location inside) says so in light gray in a preview, nothing in an export');
+
+    % the title, and a resize
+    hL = renderFigure(F1, F1.spec, fig);
+    drawnow;
+    rA = figureBox(hL.panels(1).axes, fig);
+    rB = figureBox(hL.panels(2).axes, fig);
     [~, sTitle] = figTitle(hL);
     thL = findall(hL.layout, 'Type', 'axes', 'Tag', 'titleHost');
-    check(isscalar(lgL) && pg(1) > max(rA(1) + rA(3), rB(1) + rB(3)) && sTitle == src.name && figureBox(thL, fig) * [0 1 0 0].' >= rA(2) + rA(4) - 0.5 ...
+    check(sTitle == src.name && figureBox(thL, fig) * [0 1 0 0].' >= rA(2) + rA(4) - 0.5 ...
         && all(ismember(["plotTitle" "plotSubtitle"], PlotAesthetics.components(hL.layout).Role)), ...
-        'the legend in its band east of the panels; the title and subtitle over them (the editor''s plotTitle and plotSubtitle)');
+        'the title and subtitle over the panels (the editor''s plotTitle and plotSubtitle)');
     wB = rB(3);
     fig.Position(3) = fig.Position(3) + 200;
     fig.SizeChangedFcn(fig, []);   % MATLAB runs it for a visible figure only
@@ -2980,8 +3090,8 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     rB = figureBox(hL.panels(2).axes, fig);
     fig.Position(3) = fig.Position(3) - 200;
     fig.SizeChangedFcn(fig, []);
-    check(abs(rB(3) - wB - 200) < 1 && abs(rA(2) - rB(2) - rB(4) - 20) < 0.5, ...
-        sprintf('the figure 200 px wider is laid out again (its SizeChangedFcn): the PSTH %.1f px wider, the gap still 20 px', rB(3) - wB));
+    check(abs(rB(3) - wB - 200) < 1 && abs(rA(2) - rB(2) - rB(4)) < 0.5, ...
+        sprintf('the figure 200 px wider is laid out again (its SizeChangedFcn): the PSTH %.1f px wider, still flush', rB(3) - wB));
 
     % one time axis down a stack
     h3 = renderFigure(F3, F3.spec, fig);
@@ -3230,9 +3340,9 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     h6 = renderFigure(Fw3, Fw3.spec, fig);
     axOf = @(id) h6.panels([h6.panels.id] == id).axes;
     r6 = axOf("raster_1");
-    check(Fw3.spec.panels([Fw3.spec.panels.id] == "wave").row == 2 && ~isempty(r6.XTickLabel) && string(r6.XLabel.String) == "Time (s)" ...
-        && ~isempty(axOf("psth_1").XTickLabel) && string(axOf("psth_1").XLabel.String) == "Time (s)", ...
-        'a raster over a waveforms panel keeps its tick labels and "Time (s)": the next time panel down is not what sits under it');
+    check(isequal(Fw3.spec.panels([Fw3.spec.panels.id] == "wave").rect, [0 0.5 1 0.25]) && ~isempty(r6.XTickLabel) ...
+        && string(r6.XLabel.String) == "Time (s)" && ~isempty(axOf("psth_1").XTickLabel) && string(axOf("psth_1").XLabel.String) == "Time (s)", ...
+        'a raster flush over a waveforms panel keeps its tick labels and "Time (s)": the panel it sits on has no time axis');
 
     % a stacked PSTH, an auROC PSTH, rate and tuning panels, the waveforms' probe layout
     hs = renderFigure(Fst, Fst.spec, fig);
@@ -3820,6 +3930,45 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         && isequal(drawnSizes(pA), drawnSizes(pB)), ...
         sprintf('drawn at Scale 0.7, a text edit is set in place too: the drawing, its texts and every size a whole one''s at that scale (%s; texts: %s)', ...
         whyS, whyTS));
+    % Reuse, places alone: new rects or a new layout laid out again on what is drawn (inPlace); a move that changes which
+    % panels touch which is drawn
+    renderFigure(F3, s3, pA, Reuse=true);
+    DP = getappdata(pA, 'FigureDrawing');
+    lnP = allchild(DP.axes(2));   % what the PSTH drew (bars, band, lines)
+    s3g = s3;
+    s3g.panels(1).rect = [0 0.4 1 0.6];
+    s3g.panels(2).rect = [0 0.25 1 0.15];   % the raster taller, the PSTH thinner: still a flush stack
+    [~, howG] = renderFigure(F3, s3g, pA, Reuse=true);
+    DG = getappdata(pA, 'FigureDrawing');
+    RG = getappdata(pA, 'FigureLayoutResult');
+    rG = figureBox(DG.axes(1), ufig);
+    qG = figureBox(DG.axes(2), ufig);
+    check(howG == "inplace" && isequal(DG.axes, DP.axes) && ~isempty(lnP) && all(isvalid(lnP)) && isequaln(DG.spec, s3g) ...
+        && abs(rG(2) - qG(2) - qG(4)) < 0.5 && rG(4) > 3 * qG(4) && isempty(DG.axes(1).XTickLabel) ...
+        && abs(RG.panels(1).outer(4) / RG.page(4) - 0.6) < 1e-9, ...
+        sprintf(['renderFigure Reuse, new rects alone: laid out again on the axes drawn (inPlace: "%s"), the PSTH''s %d parts ' ...
+        'kept, the stack flush (a raster %.0f px high over a PSTH of %.0f)'], howG, numel(lnP), rG(4), qG(4)));
+    s3h = s3g;
+    s3h.layout.padding = 0.6;
+    [~, howH] = renderFigure(F3, s3h, pA, Reuse=true);
+    RH = getappdata(pA, 'FigureLayoutResult');
+    s3k = s3h;
+    s3k.layout.boxesMean = "outer";
+    [~, howK] = renderFigure(F3, s3k, pA, Reuse=true);
+    check(howH == "inplace" && howK == "inplace" && isequal(getappdata(pA, 'FigureDrawing').axes, DP.axes) ...
+        && RH.panels(2).nudged(1) - RG.panels(2).nudged(1) > 10, ...
+        sprintf(['a new padding, then boxesMean "outer", laid out in place too: the labeled sides move in by the extra ' ...
+        'padding (%.1f px more)'], RH.panels(2).nudged(1) - RG.panels(2).nudged(1)));
+    s3j = s3g;
+    s3j.panels(1).rect = [0 0.45 1 0.55];   % the raster lifted off the PSTH: a gap, so it tells its own time
+    [~, howJ] = renderFigure(F3, s3j, pA, Reuse=true);
+    DJ = getappdata(pA, 'FigureDrawing');
+    rJ = figureBox(DJ.axes(1), ufig);
+    qJ = figureBox(DJ.axes(2), ufig);
+    tiJ = DJ.axes(1).TightInset;
+    check(howJ == "drawn" && DJ.axes(1) ~= DP.axes(1) && ~isempty(DJ.axes(1).XTickLabel) && string(DJ.axes(1).XLabel.String) == "Time (s)" ...
+        && rJ(2) - qJ(2) - qJ(4) >= tiJ(2) + s3j.layout.padding * 96 / 2.54 - 0.5, ...
+        'a move that breaks the stack (a gap under the raster) is drawn: the raster tells its own time, its labels clear of the PSTH');
     delete([pA pB]);
 
     % one observation draws fast
@@ -3985,13 +4134,13 @@ if S.sec("9", "spectral panels (Chronux)")
         lfpA = lfpU; lfpA.binding = "fixed"; lfpA.channels = 1;
         lfpB = lfpA; lfpB.channels = [2 3];
         lfpF = lfpA; lfpF.channels = 2;
-        figS = struct('id', "spectral", 'observe', struct('data', "units"), 'grid', struct('rows', 3, 'cols', 2), 'panels', {{ ...
-            struct('id', "ras", 'type', "raster", 'row', 1, 'col', 1, 'layers', unitU), ...
-            struct('id', "spec_lfp", 'type', "spectrum", 'row', 1, 'col', 2, 'layers', lfpU), ...
-            struct('id', "sgram", 'type', "spectrogram", 'row', 2, 'col', 1, 'layers', lfpU), ...
-            struct('id', "spec_unit", 'type', "spectrum", 'row', 2, 'col', 2, 'layers', unitU), ...
-            struct('id', "coh_lfp", 'type', "coherence", 'row', 3, 'col', 1, 'layers', [lfpA lfpB]), ...
-            struct('id', "coh_sf", 'type', "coherence", 'row', 3, 'col', 2, 'layers', [unitU lfpF])}});
+        figS = struct('id', "spectral", 'observe', struct('data', "units"), 'panels', {{ ...
+            struct('id', "ras", 'type', "raster", 'rect', cellRect(1, 1, 3, 2), 'layers', unitU), ...
+            struct('id', "spec_lfp", 'type', "spectrum", 'rect', cellRect(1, 2, 3, 2), 'layers', lfpU), ...
+            struct('id', "sgram", 'type', "spectrogram", 'rect', cellRect(2, 1, 3, 2), 'layers', lfpU), ...
+            struct('id', "spec_unit", 'type', "spectrum", 'rect', cellRect(2, 2, 3, 2), 'layers', unitU), ...
+            struct('id', "coh_lfp", 'type', "coherence", 'rect', cellRect(3, 1, 3, 2), 'layers', [lfpA lfpB]), ...
+            struct('id', "coh_sf", 'type', "coherence", 'rect', cellRect(3, 2, 3, 2), 'layers', [unitU lfpF])}});
         cs = cs.addFigure(figS);
         Is = figIssues(cs);
         check(~any(Is.Severity == "error"), sprintf('a figure of every spectral kind validates (%d issue(s))', height(Is)));
@@ -4040,12 +4189,12 @@ if S.sec("9", "spectral panels (Chronux)")
         % AUX is at a quarter of the amplifier rate, the LFP at its own), as a seed with the axes themselves, and its spectrum
         auxM = lfpA; auxM.source = "AUX"; auxM.channels = 1:3; auxM.aggregate = "magnitude";
         auxE = auxM; auxE.aggregate = "each";
-        cs = cs.addFigure(struct('id', "auxmag", 'observe', struct('data', "units"), 'grid', struct('rows', 3, 'cols', 2), 'panels', {{ ...
-            struct('id', "uxm", 'type', "coherence", 'row', 1, 'col', 1, 'layers', [unitU auxM]), ...
-            struct('id', "lxm", 'type', "coherence", 'row', 1, 'col', 2, 'layers', [lfpA auxM]), ...
-            struct('id', "mxa", 'type', "coherence", 'row', 2, 'col', 1, 'layers', [auxM auxE]), ...
-            struct('id', "mxm", 'type', "coherence", 'row', 2, 'col', 2, 'layers', [auxM auxM]), ...
-            struct('id', "sm", 'type', "spectrum", 'row', 3, 'col', 1, 'layers', auxM)}}));
+        cs = cs.addFigure(struct('id', "auxmag", 'observe', struct('data', "units"), 'panels', {{ ...
+            struct('id', "uxm", 'type', "coherence", 'rect', cellRect(1, 1, 3, 2), 'layers', [unitU auxM]), ...
+            struct('id', "lxm", 'type', "coherence", 'rect', cellRect(1, 2, 3, 2), 'layers', [lfpA auxM]), ...
+            struct('id', "mxa", 'type', "coherence", 'rect', cellRect(2, 1, 3, 2), 'layers', [auxM auxE]), ...
+            struct('id', "mxm", 'type', "coherence", 'rect', cellRect(2, 2, 3, 2), 'layers', [auxM auxM]), ...
+            struct('id', "sm", 'type', "spectrum", 'rect', cellRect(3, 1, 3, 2), 'layers', auxM)}}));
         Im = figIssues(cs);
         specM = cs.figureFor("auxmag");
         FmA = rs.computeFigure(srcS, specM, Observation=Ts(1, :));
@@ -4082,11 +4231,11 @@ if S.sec("9", "spectral panels (Chronux)")
         check(isequaln(Lsm.R.S, Rm0.S) && isequal(size(Lsm.R.S), [numel(Lsm.R.f) 1 nG]) && isequal(Lsm.R.names, mag) && Lsm.name == mag, ...
             'a power spectrum of the magnitude: chronuxSpectrum of sqrt of the sum of the axes'' squares, each less its 2 s running mean');
         % sorted units in every spectral panel: a spike spectrogram, spike-field and unit-unit coherograms
-        cs = cs.addFigure(struct('id', "spikegrams", 'observe', struct('data', "units"), 'grid', struct('rows', 3, 'cols', 1), 'panels', {{ ...
-            struct('id', "sgu", 'type', "spectrogram", 'row', 1, 'col', 1, 'layers', unitU, ...
+        cs = cs.addFigure(struct('id', "spikegrams", 'observe', struct('data', "units"), 'panels', {{ ...
+            struct('id', "sgu", 'type', "spectrogram", 'rect', cellRect(1, 1, 3, 1), 'layers', unitU, ...
                 'options', struct('baseline', struct('Mode', "db", 'Window', [-0.2 0.1]), 'movingwin', [0.25 0.05])), ...
-            struct('id', "cgf", 'type', "coherence", 'row', 2, 'col', 1, 'layers', [unitU lfpF], 'options', struct('overTime', true)), ...
-            struct('id', "cgu", 'type', "coherence", 'row', 3, 'col', 1, 'layers', [unitU fixU], 'options', struct('overTime', true))}}));
+            struct('id', "cgf", 'type', "coherence", 'rect', cellRect(2, 1, 3, 1), 'layers', [unitU lfpF], 'options', struct('overTime', true)), ...
+            struct('id', "cgu", 'type', "coherence", 'rect', cellRect(3, 1, 3, 1), 'layers', [unitU fixU], 'options', struct('overTime', true))}}));
         Ig = figIssues(cs);
         Ig = Ig(startsWith(Ig.Field, "spikegrams."), :);
         specG = cs.figureFor("spikegrams");
@@ -4118,11 +4267,11 @@ if S.sec("9", "spectral panels (Chronux)")
             sprintf('the range time base: %d one-second segments of the recording, one group, no epochs (the figure''s missing line not needed)', Rr.nTrials(1)));
         % what validate cannot see skips the layer, not the figure: a baseline with no window centered in it, fpass above Nyquist
         [~, fsL] = selectChannels(srcS, "LFP", Channels=1);
-        cs = cs.addFigure(struct('id', "edges", 'observe', struct('data', "units"), 'grid', struct('rows', 3, 'cols', 1), 'panels', {{ ...
-            struct('id', "sgb", 'type', "spectrogram", 'row', 1, 'col', 1, 'layers', lfpU, ...
+        cs = cs.addFigure(struct('id', "edges", 'observe', struct('data', "units"), 'panels', {{ ...
+            struct('id', "sgb", 'type', "spectrogram", 'rect', cellRect(1, 1, 3, 1), 'layers', lfpU, ...
                 'options', struct('baseline', struct('Mode', "db", 'Window', [-0.2 -0.1]), 'movingwin', [0.5 0.05])), ...
-            struct('id', "spu", 'type', "spectrum", 'row', 2, 'col', 1, 'layers', unitU, 'options', struct('spikeFs', 100, 'fpass', [60 100])), ...
-            struct('id', "spl", 'type', "spectrum", 'row', 3, 'col', 1, 'layers', lfpU, 'options', struct('fpass', [fsL 2 * fsL]))}}));
+            struct('id', "spu", 'type', "spectrum", 'rect', cellRect(2, 1, 3, 1), 'layers', unitU, 'options', struct('spikeFs', 100, 'fpass', [60 100])), ...
+            struct('id', "spl", 'type', "spectrum", 'rect', cellRect(3, 1, 3, 1), 'layers', lfpU, 'options', struct('fpass', [fsL 2 * fsL]))}}));
         Ie = figIssues(cs);
         Ie = Ie(startsWith(Ie.Field, "edges."), :);
         Fe2 = rs.computeFigure(srcS, cs.figureFor("edges"), Observation=Ts(1, :));
@@ -4134,9 +4283,8 @@ if S.sec("9", "spectral panels (Chronux)")
         % a range panel ignores the panel's window: a "between" window of pre = post = 0 does not matter
         cs = cs.addFigure(struct('id', "rangedBetween", 'observe', struct('data', "units"), ...
             'window', struct('mode', "between", 'pre', 0, 'post', 0, 'stop', struct('line', "Stim", 'edge', "offset")), 'panels', {{ ...
-            struct('id', "srb", 'type', "spectrum", 'layers', lfpU, 'options', struct('timeBase', "range", 'segmentSec', 1)), ...
-            struct('id', "crb", 'type', "coherence", 'row', 1, 'col', 2, 'layers', [lfpA lfpF], 'options', struct('timeBase', "range", 'segmentSec', 1))}}, ...
-            'grid', struct('rows', 1, 'cols', 2)));
+            struct('id', "srb", 'type', "spectrum", 'rect', cellRect(1, 1, 1, 2), 'layers', lfpU, 'options', struct('timeBase', "range", 'segmentSec', 1)), ...
+            struct('id', "crb", 'type', "coherence", 'rect', cellRect(1, 2, 1, 2), 'layers', [lfpA lfpF], 'options', struct('timeBase', "range", 'segmentSec', 1))}}));
         Ib = figIssues(cs);
         Ib = Ib(startsWith(Ib.Field, "rangedBetween."), :);
         Fb = rs.computeFigure(srcS, cs.figureFor("rangedBetween"), Observation=Ts(1, :));
@@ -4470,10 +4618,10 @@ if S.sec("11", "stacks and y limits: every panel type that stacks, one vocabular
     check(has(v1, "p.psth_1.options.stack", "error") && has(v2, "h.heatmap_1.options.stack", "warning") ...
         && has(v3, "s.spectrum_1.options.stackSpacing", "error") && ~any(startsWith(figIssues(v4).Field, "s.")), ...
         'validate: a stack the type does not take (items on a PSTH), a heat map of trials'' stack (a warning: not used), a positive stackSpacing (below 1 overlaps: fine)');
-    ap = EphysAnalysisConfig.normalizeFigure(struct('grid', struct('rows', 3, 'cols', 1), 'panels', {{ ...
-        struct('id', "p1", 'type', "psth", 'row', 1, 'options', struct('stack', "groups", 'stackSpacing', 1.4)), ...
-        struct('id', "c1", 'type', "continuous", 'row', 2, 'options', struct('stack', "items")), ...
-        struct('id', "r1", 'type', "rate", 'row', 3)}}));
+    ap = EphysAnalysisConfig.normalizeFigure(struct('panels', {{ ...
+        struct('id', "p1", 'type', "psth", 'rect', cellRect(1, 1, 3, 1), 'options', struct('stack', "groups", 'stackSpacing', 1.4)), ...
+        struct('id', "c1", 'type', "continuous", 'rect', cellRect(2, 1, 3, 1), 'options', struct('stack', "items")), ...
+        struct('id', "r1", 'type', "rate", 'rect', cellRect(3, 1, 3, 1))}}));
     [ad, chg] = EphysAnalysisConfig.adoptPanelOptions(ap, "p1");
     [ad2, chg2] = EphysAnalysisConfig.adoptPanelOptions(ap, "c1");
     check(ad.panels(2).options.stack == "groups" && ad.panels(2).options.stackSpacing == 1.4 && ~isfield(ad.panels(3).options, 'stack') ...
@@ -4624,9 +4772,9 @@ FkC = rk.computeFigure(srcK, spC, Observation=TkC(1, :));
     check(has(y1, "p.psth_1.options.yLimMode", "error") && has(y2, "p.psth_1.options.yLim", "error") ...
         && ~any(startsWith(figIssues(y3).Field, "p.")) && ~any(startsWith(figIssues(y4).Field, "s.")), ...
         'validate: yLimMode one of YLimModes; "fixed" needs its yLim; "batch" on a spectrum is fine');
-    ay = EphysAnalysisConfig.normalizeFigure(struct('grid', struct('rows', 2, 'cols', 1), 'panels', {{ ...
-        struct('id', "p1", 'type', "psth", 'row', 1, 'options', struct('yLimMode', "fixed", 'yLim', [0 30])), ...
-        struct('id', "c1", 'type', "continuous", 'row', 2)}}));
+    ay = EphysAnalysisConfig.normalizeFigure(struct('panels', {{ ...
+        struct('id', "p1", 'type', "psth", 'rect', cellRect(1, 1, 2, 1), 'options', struct('yLimMode', "fixed", 'yLim', [0 30])), ...
+        struct('id', "c1", 'type', "continuous", 'rect', cellRect(2, 1, 2, 1))}}));
     [ady, chy] = EphysAnalysisConfig.adoptPanelOptions(ay, "p1");
     ay2 = ay; ay2.panels(1).options.yLimMode = "batch";
     ady2 = EphysAnalysisConfig.adoptPanelOptions(ay2, "p1");
@@ -4795,7 +4943,6 @@ if S.sec("13", "figure size: the page a figure is exported on (figureExportSize,
     fp = cz.figureFor(1);
     check(all(abs(figureExportSize(X, [], fp) - [18 12]) < 1e-12) && all(abs(figureExportSize(X) - [18 12]) < 1e-12), ...
         'source export: the Export size (a 2-row figure fits in 12 cm)');
-    % P2: figureExportSize drops figureRows; this holds already as the spec has no grid to read rows from
     fp5 = fp;
     for k5 = 1:3
         fp5.panels(end+1) = fp5.panels(end);
@@ -4931,6 +5078,14 @@ if S.sec("14", "render at a scale: the preview in proportion to the export page 
             'markers, caps, labels), the first plot area %.3f of the page''s width vs %.3f exported'], ...
             id, sc, height(E), sc, dev, worst, wP, wE));
         if id == "z_rp"
+            Se = getappdata(fz, 'FigureLayout');
+            Sp = getappdata(pz, 'FigureLayout');
+            Re = getappdata(fz, 'FigureLayoutResult');
+            Rp = getappdata(pz, 'FigureLayoutResult');
+            check(abs(Se.layout.paddingPx - spZ.layout.padding * 96 / 2.54) < 1e-9 && abs(Sp.layout.paddingPx / Se.layout.paddingPx - sc) < 1e-9 ...
+                && abs(Rp.page(1) / Re.page(1) - sc) < 1e-9, ...
+                sprintf(['the layout''s padding (%g cm: %.2f px at 96 dpi exported) and margin scale with the drawing (%g times ' ...
+                'the export''s px)'], spZ.layout.padding, Se.layout.paddingPx, sc));
             ax = hP.panels(2).axes;
             lw = ax.LineWidth;
             v0 = PlotAesthetics.getValue(ax, "LineWidth");
@@ -5218,9 +5373,11 @@ if S.sec("15", "probe figures: config, tiles, compute, run")
     close(pbFg);
     pbSz0 = figureExportSize(pbX, pbPF0, pbSp);
     pbSz2 = figureExportSize(pbX, pbPF);
-    check(all(abs(pbSz - [pbX.FigureSizeCm(1) max(pbX.FigureSizeCm(2), min(80, 2 + pbLay.nRows * pbSp.grid.rows * 1.5))]) < 1e-12), ...
-        sprintf(['figureExportSize of a probe figure: the Export width, 1.5 cm a panel row of each of its %d rows of tiles and ' ...
-        '2 cm (%.1f x %.1f cm)'], pbLay.nRows, pbSz));
+    pbR4 = reshape([pbSp.panels.rect], 4, []);
+    pbLevels = numel(unique(round(pbR4(2, :) + pbR4(4, :), 2)));   % the panels' top edges: raster over PSTH, 2
+    check(pbLevels == 2 && all(abs(pbSz - [pbX.FigureSizeCm(1) max(pbX.FigureSizeCm(2), min(80, 2 + pbLay.nRows * pbLevels * 1.5))]) < 1e-12), ...
+        sprintf(['figureExportSize of a probe figure: the Export width, 1.5 cm a level of panels (%d, their rects'' top ' ...
+        'edges) of each of its %d rows of tiles and 2 cm (%.1f x %.1f cm)'], pbLevels, pbLay.nRows, pbSz));
     check(all(abs(pbSz0 - pbX.FigureSizeCm) < 1e-12), sprintf('figureExportSize of a probe figure without a tile: FigureSizeCm (%.1f x %.1f cm)', pbSz0));
     check(all(abs(pbSz2 - pbSz) < 1e-12), sprintf('figureExportSize of a probe figure without a spec: its own (%.1f x %.1f cm)', pbSz2));
     % the page is drawn at that size (exportFigure writes the figure's own size, and sets the PDF's paper from it); MATLAB
@@ -5378,9 +5535,21 @@ if S.sec("16", "probe figures: layout and render (probeTileLayout, renderProbeFi
     bare = all(arrayfun(@(i) all(arrayfun(@(a) isempty(a.XTick) && isempty(a.YTick) && strjoin(string(a.XLabel.String), "") == "" ...
         && isempty(a.Colorbar), hP.tiles(i).axes)), others));
     sa = hP.tiles(iS).axes;
-    [~, iBot] = max([spP.panels.row]);
+    rP4 = reshape([spP.panels.rect], 4, []);
+    [~, iBot] = min(rP4(2, :));   % the bottom panel
     check(bare && ~isempty(sa(iPsth).YTick) && ~isempty(sa(iBot).XTickLabel) && strjoin(string(sa(iBot).XLabel.String), "") ~= "", ...
         sprintf('the scale tile (tile %d, bottom left) keeps its ticks and the bottom panel''s x label; every other tile has none', iS));
+    tbS = hP.tiles(iS).box;
+    dR = 0;
+    for k = 1:np
+        aR = sa(k);
+        uR = aR.Units;
+        aR.Units = 'pixels';
+        rk = spP.panels(k).rect;
+        dR = max(dR, max(abs(aR.Position - [tbS(1:2) + rk(1:2) .* tbS(3:4), rk(3:4) .* tbS(3:4)])));
+        aR.Units = uR;
+    end
+    check(dR < 0.5, sprintf('a tile''s panels at their rects scaled into the tile''s box, flush (largest difference %.2g px)', dR));
     YL = cell2mat(arrayfun(@(t) t.axes(iPsth).YLim, hP.tiles, 'UniformOutput', false).');
     sF = spP;
     sF.probe.sharedY = false;
@@ -5712,10 +5881,15 @@ s = strjoin(string(th.Subtitle.String), " ");
 end
 
 
-function c = arrangeCell(r1, r2, c1, c2, inset)
-%arrangeCell  A panel's cell for figureArrange: its rows and columns and its labels' room, at its full size, no band, one axes.
-c = struct('r1', r1, 'r2', r2, 'c1', c1, 'c2', c2, 'size', [1 1], 'align', "center", 'valign', "middle", ...
-    'inset', inset, 'band', "", 'need', 0, 'shares', 1);
+function c = placeCell(rect, inset)
+%placeCell  A panel for figurePlace: its rect and its labels' room, no band, one axes, not a legend panel.
+c = struct('rect', rect, 'inset', inset, 'band', "", 'need', 0, 'shares', 1, 'fixed', false);
+end
+
+
+function r = cellRect(row, col, nRows, nCols)
+%cellRect  The rect of a cell of an even grid of NROWS x NCOLS on the page, row 1 at the top: [x y width height].
+r = [(col - 1) / nCols, (nRows - row) / nRows, 1 / nCols, 1 / nRows];
 end
 
 

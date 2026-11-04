@@ -74,6 +74,7 @@ cfg.Defaults.EventRef.line = "Stim";
 cfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
 cfg.Defaults.Selection.groupBy = "TrialType";
 types = intersect(reshape(EphysAnalysisConfig.panelTypes().Type, 1, []), EphysAnalysisConfig.figureTemplates().Template, 'stable');
+types = reshape(types, 1, []);   % (intersect gives a column when either input is one)
 for t = types
     cfg = cfg.addFigure(t, Id=t);
 end

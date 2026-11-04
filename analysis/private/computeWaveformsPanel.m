@@ -21,7 +21,7 @@ function P = computeWaveformsPanel(src, panel, E, G, ctx) %#ok<INUSL>
 
 o = panel.options;
 P = struct('layers', figurePanelLayers(panel, ctx.skips));
-[ctx.errorType, ctx.nBoot] = figureErrorType(ctx.spec, panel);   % the band this panel draws ("sem" where none)
+[ctx.errorType, ctx.nBoot] = figureErrorType(panel);   % the band this panel draws ("sem" where none)
 probe = isfield(o, 'layout') && o.layout == "probe";
 if probe   % every enabled layer: the first is drawn, the others ringed
     on = find(arrayfun(@(l) l.skip ~= "disabled", P.layers));

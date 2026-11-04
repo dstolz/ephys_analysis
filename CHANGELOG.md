@@ -10,6 +10,17 @@ says how to cut a release.
 
 ### Changed
 
+- Figures: the error is each panel's own. A PSTH's, firing rate panel's and tuning curve's error is its own
+  `options.errorType` (`"off"` | `"sem"` | `"std"` | `"ci95"`, `EphysAnalysisConfig.PanelErrorTypes`) with
+  `options.errorResamples` (a continuous panel takes `errorResamples` beside its `errorType`), and the bands' look is the
+  `options.band` (`faceColor`, `faceAlpha`, `edgeColor`, `edgeStyle`, `edgeWidth`; `defaults("ErrorBand")`) of each
+  PSTH, continuous, spectrum, coherence, unit waveforms and probe map panel. `Style.ShowSEM`, `ErrorType`,
+  `ErrorResamples` and the `ErrorFace*` / `ErrorEdge*` fields are gone (`EphysAnalysisConfig.ErrorTypes` too).
+  In the analysis app the PSTH options (and the continuous, rate and tuning options) hold **Error** with its
+  resamples, and the panels that draw bands **Band fill** and **Band edge**; Appearance no longer has **Show: Error**,
+  **Error**, **Band fill** or **Band edge**. `renderWaveforms`, `renderProbeMap`, `renderChronux` and
+  `renderPopulation` take `Band=` (and `renderPopulation` `ShowError=`); `errorPatch` takes the band's look. A
+  version-1 plot's style error goes to its figure's panels.
 - Figures: free panel placement. Figures place their panels freely on the page instead of on a grid (config). A panel has `rect`, `[x y width height]` in 0-1 of the page from its bottom-left corner, in place of
   `row`, `col`, `rowSpan`, `colSpan`, `size`, `align` and `valign`; a figure has `layout` (`boxesMean` `"plot"` |
   `"outer"`: a rect is the panel's plot area or encloses its labels; `padding`, 0.15 cm) in place of `grid`.

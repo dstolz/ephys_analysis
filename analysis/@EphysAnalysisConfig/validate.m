@@ -91,7 +91,12 @@ function issues = validate(obj, opts)
 %               warning for a probe layout whose first layer follows the
 %               observation), probemap value, corrmap metric /
 %               correlation, the rate display, the tuning param /
-%               seriesParam (names, not the same one), the waveform
+%               seriesParam (names, not the same one), a PSTH's,
+%               rate's or tuning panel's errorType (PanelErrorTypes; ci95
+%               with the Statistics and Machine Learning Toolbox), every
+%               panel's errorResamples (whole, >= 1) and band (faceAlpha
+%               0-1 or NaN, edgeStyle, edgeWidth > 0; a faceColor or
+%               edgeColor that is not a color is a warning), the waveform
 %               settings (a raster's, PSTH's, rate's or tuning panel's
 %               inset, a waveforms panel's own: mode; while drawn its
 %               location, width and height, maxSpikes, time span, and
@@ -121,11 +126,7 @@ function issues = validate(obj, opts)
 %               differ), layer, line style and width, opacities (0-1),
 %               colors (one that is not a color is a warning); two
 %               overlays of one name anywhere in the figure warn); the
-%               style (the error: ErrorType sem / std / ci95, ci95 with
-%               the Statistics and Machine Learning Toolbox where a PSTH,
-%               rate or tuning panel draws it, whole ErrorResamples >= 1,
-%               the bands' opacity (0-1 or NaN), edge style and width; a
-%               face or edge color that is not one is a warning); sessions
+%               style; sessions
 %               (a session figure, "<figure>.sessions.<field>"): datasets,
 %               facet, series, colorOrder, error, match (site / mapping)
 %               and trialGroups known values, minSessions a whole number
@@ -706,11 +707,11 @@ for k = 1:numel(obj.Figures)
         end
         if isfield(op, 'stack'); checkStack(pj.type, op, o0); end
         if isfield(op, 'yLimMode'); checkYLimMode(op, o0); end
+        checkPanelError(pj.type, op, o0);
     end
 
-    % the style (its error drawn as a bootstrap CI by a PSTH's bands, a rate panel's bars, a tuning curve's error bars)
-    drawsCi95 = ~isempty(fg.panels) && any(ismember([fg.panels.type], ["psth" "rate" "tuning"]));
-    checkStyle(fg.style, "Figures", f0, drawsCi95 && fg.style.ErrorType == "ci95");
+    % the style
+    checkStyle(fg.style, "Figures", f0);
 end
 
 % --- Export -----------------------------------------------------------------------------
@@ -1196,8 +1197,44 @@ issues = table(Section, Field, Severity, Message);
         end
     end
 
-    function checkStyle(st, sec, id, drawsCi95)
-        %checkStyle  A figure's Style; DRAWSCI95: it draws the style's error (figureErrorType) as a bootstrap CI.
+    function checkPanelError(hType, hO, hO0)
+        %checkPanelError  A panel's own error: its errorType (a continuous panel's is checked with its other options), errorResamples and band.
+        if isfield(hO, 'errorType') && hType ~= "continuous"
+            if ~ismember(hO.errorType, EphysAnalysisConfig.PanelErrorTypes)
+                add("Figures", hO0 + ".errorType", "error", "The errorType is one of " + strjoin(EphysAnalysisConfig.PanelErrorTypes, ", ") + ...
+                    " (off: none; sem: +/- SEM; std: +/- SD; ci95: bootstrap 95% CI).");
+            elseif hO.errorType == "ci95" && ~(license('test', 'Statistics_Toolbox') && exist('bootci', 'file'))
+                add("Figures", hO0 + ".errorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
+            end
+        end
+        if isfield(hO, 'errorResamples')
+            hR = hO.errorResamples;
+            if ~(isscalar(hR) && isfinite(hR) && hR >= 1 && hR == round(hR))
+                add("Figures", hO0 + ".errorResamples", "error", "errorResamples is a whole number of bootstrap resamples, at least 1.");
+            end
+        end
+        if ~isfield(hO, 'band'); return; end
+        hB = hO.band;
+        hB0 = hO0 + ".band";
+        if ~(isnan(hB.faceAlpha) || (hB.faceAlpha >= 0 && hB.faceAlpha <= 1))
+            add("Figures", hB0 + ".faceAlpha", "error", "The band's faceAlpha is an opacity from 0 to 1 (NaN = opaque, the trace's color paled).");
+        end
+        if hB.faceColor ~= "" && ~isColor(hB.faceColor)
+            add("Figures", hB0 + ".faceColor", "warning", "No color """ + hB.faceColor + """; the bands take their trace's color.");
+        end
+        if ~ismember(lower(strtrim(hB.edgeColor)), ["none" "auto"]) && ~isColor(hB.edgeColor)
+            add("Figures", hB0 + ".edgeColor", "warning", "No color """ + hB.edgeColor + """; the bands have no edge.");
+        end
+        if ~ismember(hB.edgeStyle, EphysAnalysisConfig.OverlayLineStyles)
+            add("Figures", hB0 + ".edgeStyle", "error", "The band's edgeStyle is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+        end
+        if ~(isfinite(hB.edgeWidth) && hB.edgeWidth > 0)
+            add("Figures", hB0 + ".edgeWidth", "error", "The band's edgeWidth must be positive (points).");
+        end
+    end
+
+    function checkStyle(st, sec, id)
+        %checkStyle  A figure's Style.
         if ~(st.MaxTiles >= 1); add(sec, id + ".style.MaxTiles", "error", "MaxTiles must be >= 1."); end
         if ~ismember(st.TileSpacing, ["loose" "compact" "tight" "none"])
             add(sec, id + ".style.TileSpacing", "error", "TileSpacing is loose, compact, tight or none.");
@@ -1208,30 +1245,6 @@ issues = table(Section, Field, Severity, Message);
         end
         if ~ismember(st.LegendOrientation, ["auto" "vertical" "horizontal"])
             add(sec, id + ".style.LegendOrientation", "error", "LegendOrientation is auto, vertical or horizontal.");
-        end
-        if ~ismember(st.ErrorType, EphysAnalysisConfig.ErrorTypes)
-            add(sec, id + ".style.ErrorType", "error", "ErrorType is sem (mean +/- SEM), std (mean +/- SD) or ci95 (bootstrap 95% CI).");
-        elseif st.ShowSEM && st.ErrorType == "ci95" && drawsCi95 ...
-                && ~(license('test', 'Statistics_Toolbox') && exist('bootci', 'file'))
-            add(sec, id + ".style.ErrorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
-        end
-        if ~(isfinite(st.ErrorResamples) && st.ErrorResamples >= 1 && st.ErrorResamples == round(st.ErrorResamples))
-            add(sec, id + ".style.ErrorResamples", "error", "ErrorResamples is a whole number of bootstrap resamples, at least 1.");
-        end
-        if ~(isnan(st.ErrorFaceAlpha) || (st.ErrorFaceAlpha >= 0 && st.ErrorFaceAlpha <= 1))
-            add(sec, id + ".style.ErrorFaceAlpha", "error", "ErrorFaceAlpha is an opacity from 0 to 1 (NaN = opaque, the trace's color paled).");
-        end
-        if st.ErrorFaceColor ~= "" && ~isColor(st.ErrorFaceColor)
-            add(sec, id + ".style.ErrorFaceColor", "warning", "No color """ + st.ErrorFaceColor + """; the bands take their trace's color.");
-        end
-        if ~ismember(lower(strtrim(st.ErrorEdgeColor)), ["none" "auto"]) && ~isColor(st.ErrorEdgeColor)
-            add(sec, id + ".style.ErrorEdgeColor", "warning", "No color """ + st.ErrorEdgeColor + """; the bands have no edge.");
-        end
-        if ~ismember(st.ErrorEdgeStyle, EphysAnalysisConfig.OverlayLineStyles)
-            add(sec, id + ".style.ErrorEdgeStyle", "error", "ErrorEdgeStyle is one of " + strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
-        end
-        if ~(isfinite(st.ErrorEdgeWidth) && st.ErrorEdgeWidth > 0)
-            add(sec, id + ".style.ErrorEdgeWidth", "error", "ErrorEdgeWidth must be positive (points).");
         end
         if ~(st.FontSize > 0);  add(sec, id + ".style.FontSize", "error", "FontSize must be positive."); end
         if ~(st.LineWidth > 0); add(sec, id + ".style.LineWidth", "error", "LineWidth must be positive."); end

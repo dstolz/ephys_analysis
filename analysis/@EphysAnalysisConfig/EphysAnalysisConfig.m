@@ -157,8 +157,9 @@ classdef EphysAnalysisConfig
         % unit's template; and the mean's error band (options.waveform.band): none, mean +/- SD, mean +/- SEM.
         WaveformModes = ["off" "mean" "subsample" "both" "template"]
         WaveformBands = ["off" "std" "sem"]
-        % The error a figure draws as bands or bars (Style.ErrorType): mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
-        ErrorTypes    = ["sem" "std" "ci95"]
+        % The error a PSTH draws as its band, a rate or tuning panel as its error bars (options.errorType): none,
+        % mean +/- SEM, mean +/- SD, bootstrap 95% CI of the mean.
+        PanelErrorTypes = ["off" "sem" "std" "ci95"]
         % What a continuous panel shows at each sample over the epochs (options.statistic), and of what
         % (options.transform): the signal as recorded, rectified (its absolute value, taken in each epoch before
         % the statistic), or the vector magnitude of each layer's channels (sqrt of their sum of squares at every

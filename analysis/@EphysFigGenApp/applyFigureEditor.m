@@ -127,7 +127,6 @@ E.sortDepth.Value = s.SortDepth;
 E.sortShank.Value = s.SortShank;
 E.labelDepth.Value = s.LabelDepth;
 E.labelShank.Value = s.LabelShank;
-E.showSEM.Value = s.ShowSEM;
 E.showStop.Value = s.ShowStop;
 E.showArtifactNote.Value = s.ShowArtifactNote;
 E.legend.Value = s.Legend;
@@ -135,17 +134,6 @@ E.grid.Value = s.Grid;
 E.legendLoc.Value = char(pickFrom(s.LegendLocation, string(E.legendLoc.ItemsData), "auto"));
 E.legendOrient.Value = char(pickFrom(s.LegendOrientation, string(E.legendOrient.ItemsData), "auto"));
 E.legendBox.Value = s.LegendBox;
-E.errType.Value = char(pickFrom(s.ErrorType, string(E.errType.ItemsData), "sem"));
-E.errResamples.Value = min(E.errResamples.Limits(2), max(E.errResamples.Limits(1), round(s.ErrorResamples)));
-offerItems(E.errFace, string(E.errFace.Items), pick(s.ErrorFaceColor, "auto"));
-if isnan(s.ErrorFaceAlpha)
-    E.errAlpha.Value = [];
-else
-    E.errAlpha.Value = min(1, max(0, s.ErrorFaceAlpha));
-end
-offerItems(E.errEdge, string(E.errEdge.Items), pick(s.ErrorEdgeColor, "none"));
-E.errEdgeStyle.Value = char(pickFrom(s.ErrorEdgeStyle, string(E.errEdgeStyle.ItemsData), "-"));
-E.errEdgeWidth.Value = min(E.errEdgeWidth.Limits(2), max(E.errEdgeWidth.Limits(1), s.ErrorEdgeWidth));
 
 n = numel(fig.aesthetics);
 E.looksText.Text = sprintf("%d remembered look(s); right-click the preview to edit.", n);
@@ -263,9 +251,23 @@ end
 if p.type == "continuous"
     E.statistic.Value = char(pickFrom(op.statistic, string(E.statistic.ItemsData), "mean"));
     E.transform.Value = char(pickFrom(op.transform, string(E.transform.ItemsData), "none"));
-    E.errorType.Value = char(pickFrom(op.errorType, string(E.errorType.ItemsData), "sem"));
     E.contTrials.Value = char(pickFrom(op.trials, string(E.contTrials.ItemsData), "off"));
     E.maxTrials.Value = max(1, op.maxTrials);
+end
+if isfield(op, 'errorType')   % the panel's own error (a PSTH's or continuous signal's band, a rate's or tuning curve's bars)
+    errorTypeItems(E.errorType, p.type);
+    E.errorType.Value = char(pickFrom(op.errorType, string(E.errorType.ItemsData), "sem"));
+end
+if isfield(op, 'errorResamples')
+    E.errResamples.Value = min(E.errResamples.Limits(2), max(E.errResamples.Limits(1), round(op.errorResamples)));
+end
+if isfield(op, 'band')   % its bands' look
+    b = op.band;
+    offerItems(E.errFace, string(E.errFace.Items), pick(b.faceColor, "auto"));
+    if isnan(b.faceAlpha); E.errAlpha.Value = []; else; E.errAlpha.Value = min(1, max(0, b.faceAlpha)); end
+    offerItems(E.errEdge, string(E.errEdge.Items), pick(b.edgeColor, "none"));
+    E.errEdgeStyle.Value = char(pickFrom(b.edgeStyle, string(E.errEdgeStyle.ItemsData), "-"));
+    E.errEdgeWidth.Value = min(E.errEdgeWidth.Limits(2), max(E.errEdgeWidth.Limits(1), b.edgeWidth));
 end
 if isfield(op, 'rows'); E.heatRows.Value = char(pickFrom(op.rows, string(E.heatRows.ItemsData), "items")); end
 if isfield(op, 'order'); offerItems(E.order, ["probe" "peak" "modulation"], op.order); end

@@ -35,7 +35,7 @@ w = panel.window;
 b = [];
 if o.baseline.Mode ~= "none"; b = o.baseline.Window; end
 P = struct('layers', figurePanelLayers(panel, ctx.skips));
-[ctx.errorType, ctx.nBoot] = figureErrorType(ctx.spec, panel);   % the band this panel draws ("sem" where none)
+[ctx.errorType, ctx.nBoot] = figureErrorType(panel);   % the band this panel draws ("sem" where none)
 trials = isfield(o, 'rows') && o.rows == "trials";   % one unit's epochs as the rows
 mapped = false;
 for j = 1:numel(P.layers)

@@ -167,6 +167,12 @@ q = F.panels([F.panels.type] == "psth");
 check(q.options.baseline.Mode == "auroc" && q.options.auroc.windowSec == 0.05 && q.options.auroc.cutoff == "fixed" ...
     && q.options.stack == "groups" && q.options.stackSpacing == 1.4 && isscalar(notes) && contains(notes, "stackRaster") && validates(cfg), ...
     'the auROC baseline and its settings, stack and stackSpacing are carried; stackRaster alone is a note');
+[F, ~, cfg] = convert(struct('kind', "psth", 'style', struct('ShowSEM', false, 'ErrorResamples', 500, 'ErrorFaceAlpha', 0.3)));
+q = F.panels([F.panels.type] == "psth");
+r = F.panels([F.panels.type] == "raster");
+check(q.options.errorType == "off" && q.options.errorResamples == 500 && q.options.band.faceAlpha == 0.3 ...
+    && isscalar(r) && ~isfield(r.options, 'band') && ~any(isfield(F.style, {'ShowSEM' 'ErrorType' 'ErrorFaceAlpha'})) && validates(cfg), ...
+    'the plot''s error (ShowSEM off, its resamples) and band look go to its PSTH panel, not to the figure''s style');
 [F, notes, cfg] = convert(struct('kind', "psth", 'aux', struct('mode', "channels", 'placement', "over", 'display', "heatmap", ...
     'colorBy', "channel", 'byGroup', false)));
 x = F.panels(end);
@@ -258,6 +264,8 @@ for lay = ["bar" "points"]
     [F, ~, cfg] = convert(struct('kind', "rate", 'layout', lay));
     check(F.panels.options.display == lay && validates(cfg), sprintf('a rate plot''s %s layout is the panel''s display', lay));
 end
+[F, ~, cfg] = convert(struct('kind', "rate", 'style', struct('ErrorType', "std")));
+check(F.panels.options.errorType == "std" && validates(cfg), 'a rate plot''s ErrorType is its panel''s errorType');
 [F, notes, cfg] = convert(struct('kind', "tuning", 'param', "Depth", 'seriesParam', "Level", ...
     'baseline', struct('Mode', "zscore"), 'waveform', struct('mode', "mean")));
 o = F.panels.options;

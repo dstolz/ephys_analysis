@@ -1335,17 +1335,17 @@ end
 if S.sec("5d.goto", "right-click Go to setting: the part's setting, in the panel the part is in")
     fid = app.Config.Figures(app.SelectedFigure).id;
     panel0 = app.SelectedPanel;
-    styleOpen = secOf("style").Expanded;
-    if styleOpen; app.onFigureSectionToggled("style"); end
+    optOpen = secOf("options").Expanded;
+    if optOpen; app.onFigureSectionToggled("options"); end
     okSem = app.gotoFigureSetting(fid, "sem", "psth_1");
-    check(okSem && app.SelectedPanel == 2 && secOf("style").Expanded && shown(FE.showSEM), ...
-        'Go to setting on a PSTH''s error band: psth_1 is picked and the Show row of Appearance is open');
+    check(okSem && app.SelectedPanel == 2 && secOf("options").Expanded && shown(FE.errorType) && shown(FE.errFace), ...
+        'Go to setting on a PSTH''s error band: psth_1 is picked and the Error row of its PSTH options is open, with the band''s look');
     okTitle = app.gotoFigureSetting(fid, "tileTitle", "raster_1");
     okFig = app.gotoFigureSetting(fid, "zeroLine", "");
     check(okTitle && app.SelectedPanel == 1 && okFig, ...
         'a tile title goes to its panel''s Title row; the event line (t = 0) to the Event reference section');
     app.onPanelSelected(panel0);
-    if secOf("style").Expanded ~= styleOpen; app.onFigureSectionToggled("style"); end
+    if secOf("options").Expanded ~= optOpen; app.onFigureSectionToggled("options"); end
 end
 
 if S.wants("5d.search")   % the search, continued: a shown row gone to (its supersection and section open, its label highlighted), Down and Escape, a section by its title, the keys window

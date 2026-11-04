@@ -397,7 +397,7 @@ if one && isfield(R, 'meta') && istable(R.meta) && height(R.meta) == 1
     end
 end
 if L.aggregate == "mean" && isfield(R1, 'layerMean')
-    R.layerMean = layerMeanOf(R, R1.layerMean, spec);
+    R.layerMean = layerMeanOf(R, R1.layerMean, p);
 end
 if ~one; name = ""; end
 end
@@ -444,9 +444,9 @@ end
 end
 
 
-function M = layerMeanOf(R, M0, spec)
+function M = layerMeanOf(R, M0, panel)
 %layerMeanOf  A layer's mean over its merged tiles, the band across them (figureLayerMean, the type it had).
-nB = spec.style.ErrorResamples;
+[~, nB] = figureErrorType(panel);   % the panel's bootstrap resamples
 if isfield(R, 'rate') && isfield(R, 't')
     M = figureLayerMean(R.rate, R.t, M0.type, nB, M0.over);
 elseif isfield(R, 'mean') && isfield(R, 't')

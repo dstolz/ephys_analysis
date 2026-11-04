@@ -53,14 +53,14 @@ st.XLim = [];
 [~, st.YLim] = panelYLimits(look);
 if isfield(o, 'layout') && o.layout == "probe"   % its y axis is the probe's (um): options.yLim is the grid's
     st.YLim = [];
-    h = renderWaveforms(R, ax, Layout="probe", Waveform=o.waveform, Style=st, Highlight=ringRows(R, P.layers, P.layers(j).source));
+    h = renderWaveforms(R, ax, Layout="probe", Waveform=o.waveform, Style=st, Band=o.band, Highlight=ringRows(R, P.layers, P.layers(j).source));
     hk.axes = h.axes(1);
     tagPart(hk.axes, "axes", "", look.panelId);
     figLayerNotes(hk.axes, P, look, true);
     return
 end
 if nU == 1
-    h = renderWaveforms(R, ax, Layout="grid", Waveform=o.waveform, Style=st);
+    h = renderWaveforms(R, ax, Layout="grid", Waveform=o.waveform, Style=st, Band=o.band);
     hk.axes = h.axes(1);
     tagPart(hk.axes, "axes", "", look.panelId);
     figLayerNotes(hk.axes, P, look, true);
@@ -86,7 +86,7 @@ for u = reshape(order, 1, [])   % the bands first, behind every mean
     if ~p.band; continue; end
     g = names(u);
     if ~isempty(ser); g = serLabel(ser(u)); end
-    errorPatch(ax, p.t, p.bandLo, p.bandHi, C(u, :), g, st, "waveBand");
+    errorPatch(ax, p.t, p.bandLo, p.bandHi, C(u, :), g, st, "waveBand", o.band);
 end
 for u = reshape(order, 1, [])
     if ~parts{u}.has; continue; end

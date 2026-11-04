@@ -24,7 +24,7 @@ w = panel.window;
 b = [];
 if o.baseline.Mode ~= "none"; b = o.baseline.Window; end
 P = struct('layers', figurePanelLayers(panel, ctx.skips));
-[ctx.errorType, ctx.nBoot] = figureErrorType(ctx.spec, panel);   % the band this panel draws ("sem" where none)
+[ctx.errorType, ctx.nBoot] = figureErrorType(panel);   % the band this panel draws ("sem" where none)
 on = arrayfun(@(l) l.skip == "", P.layers);
 marks = any(on & arrayfun(@(L) L.source == "events" && L.eventsAs == "marks", panel.layers));
 box = isfield(o, 'latencyBox') && o.latencyBox.enabled && o.display ~= "heatmap";   % the box plot's latencies come from the raster's rows

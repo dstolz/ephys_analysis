@@ -1,7 +1,7 @@
 function h = renderWaveforms(R, target, opts)
 %renderWaveforms  Draw each unit's waveform: a tile per unit, or at its place on the probe.
 %   H = renderWaveforms(R, TARGET, Layout=, Page=, Waveform=, Style=,
-%   Highlight=) draws
+%   Band=, Highlight=) draws
 %   the waveforms of R.waveforms (unitWaveforms) for the units R.meta
 %   (selectUnits' table) as the waveform settings say
 %   (EphysAnalysisConfig.defaults("Waveform")):
@@ -10,7 +10,8 @@ function h = renderWaveforms(R, target, opts)
 %                template: unitWaveforms Template=true); "off" is read as
 %                "both". A template (no spikes read) is drawn as the mean
 %                whatever the mode, and says so
-%     band       the mean's error band (role "waveBand", errorPatch's look):
+%     band       the mean's error band (role "waveBand", in the look of the
+%                Band option: errorPatch, defaults("ErrorBand")):
 %                "off", "std" (the SD of the spikes the mean is over) or
 %                "sem"; none on a template
 %     timeMs     the x scale: the span drawn, [from to] ms from the spike
@@ -59,6 +60,7 @@ arguments
     opts.Page (1,1) double {mustBePositive, mustBeInteger} = 1
     opts.Waveform = struct()
     opts.Style = struct()
+    opts.Band = struct()
     opts.Highlight (1,:) double = []
 end
 
@@ -75,14 +77,14 @@ for u = 1:nU
     P{u} = waveformParts(W, u, wave);
 end
 if opts.Layout == "probe"
-    h = probeLayout(R, W, P, target, wave, style, opts.Highlight);
+    h = probeLayout(R, W, P, target, wave, style, opts.Highlight, opts.Band);
 else
-    h = gridLayout(R, W, P, target, wave, style, opts.Page);
+    h = gridLayout(R, W, P, target, wave, style, opts.Page, opts.Band);
 end
 end
 
 
-function h = gridLayout(R, W, P, target, wave, style, page)
+function h = gridLayout(R, W, P, target, wave, style, page, band)
 %gridLayout  One tile per unit of the page.
 nU = numel(P);
 S = sessionLooks(R, style);
@@ -112,7 +114,7 @@ for j = 1:numel(idx)
         if ~(pad > 0); pad = 1; end
         [spikeColor, meanColor, meanRole, group] = looks(S, u);
         if p.band
-            errorPatch(ax, p.t, p.bandLo, p.bandHi, meanColor, group, style, "waveBand");
+            errorPatch(ax, p.t, p.bandLo, p.bandHi, meanColor, group, style, "waveBand", band);
         end
         if p.spikes
             tagPart(line(ax, repmat([p.t; NaN], size(p.S, 2), 1), reshape([p.S; NaN(1, size(p.S, 2))], [], 1), ...
@@ -143,7 +145,7 @@ h = struct('layout', tl, 'axes', axs);
 end
 
 
-function h = probeLayout(R, W, P, target, wave, style, ring)
+function h = probeLayout(R, W, P, target, wave, style, ring, band)
 %probeLayout  Every unit's waveform as a glyph at its position on the probe; the units RING (rows of R.meta) framed.
 meta = R.meta;
 nU = numel(P);
@@ -212,7 +214,7 @@ for s = 1:nL
     mine = Gl.placed & of == s;
     for u = find(mine & ~cellfun(@isempty, Gl.band)).'
         B = Gl.band{u};
-        errorPatch(ax, B(:, 1), B(:, 2), B(:, 3), meanColor, group, style, "waveBand");
+        errorPatch(ax, B(:, 1), B(:, 2), B(:, 3), meanColor, group, style, "waveBand", band);
     end
     Sx = vertcat(Gl.spikes{mine});
     if ~isempty(Sx)

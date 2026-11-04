@@ -21,9 +21,10 @@ function h = renderPopulation(P, S, kind, target, opts)
 %   with their unit counts. H: layout ([] when TARGET is an axes), axes.
 %
 %   Options: Style (an EphysAnalysisConfig Style: FontSize, Grid,
-%   LineWidth, ShowSEM, the bands' look (ErrorFaceColor, ErrorFaceAlpha,
-%   ErrorEdgeColor, ErrorEdgeStyle, ErrorEdgeWidth: errorPatch), Legend,
-%   LegendLocation, LegendOrientation, LegendBox). The error type is S's
+%   LineWidth, Legend, LegendLocation, LegendOrientation, LegendBox),
+%   ShowError (default true: draw the error bands) and Band (the bands'
+%   look: errorPatch, EphysAnalysisConfig.defaults("ErrorBand"); default
+%   struct(): the defaults). The error type is S's
 %   (what populationSummary computed); a summary without lo / hi has its
 %   mean +/- SEM.
 %
@@ -35,6 +36,8 @@ arguments
     kind (1,1) string {mustBeMember(kind, ["psth" "fractions" "tuning" "depth"])}
     target
     opts.Style = struct()
+    opts.ShowError (1,1) logical = true
+    opts.Band = struct()
 end
 
 style = EphysAnalysisConfig.normalizeSection("Style", opts.Style);
@@ -49,9 +52,9 @@ switch kind
     case "psth"
         t = S.psth.t;
         [blo, bhi, et] = popBounds(S.psth);
-        if style.ShowSEM
+        if opts.ShowError
             for g = 1:nG
-                errorPatch(ax, t, blo(:, g), bhi(:, g), C(g, :), "", style);
+                errorPatch(ax, t, blo(:, g), bhi(:, g), C(g, :), "", style, "sem", opts.Band);
             end
         end
         hl = gobjects(1, nG);
@@ -107,9 +110,9 @@ switch kind
                 x = (1:numel(lev)).';
             end
             [blo, bhi, et] = popBounds(S.tuning);
-            if style.ShowSEM
+            if opts.ShowError
                 for g = 1:nG
-                    errorPatch(ax, x, blo(:, g), bhi(:, g), C(g, :), "", style);
+                    errorPatch(ax, x, blo(:, g), bhi(:, g), C(g, :), "", style, "sem", opts.Band);
                 end
             end
             hl = gobjects(1, nG);

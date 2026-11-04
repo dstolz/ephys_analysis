@@ -91,14 +91,15 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            groups) and lists its entries in a legend of its own inside
 %            it (placeLegend, "inside"); its title then says its grouping
 %            ("by <parameter>", "all trials") when it is not the figure's.
-%   Style    SPEC.style: FontSize, LineWidth, ShowSEM, the Error* band
-%            look, ShowZeroLine, ShowStop, ShowArtifactNote, Grid, Legend*, Colormap,
-%            HeatColormap, SortShank / SortDepth, LabelShank / LabelDepth,
-%            SiteSize. Its XLim, YLim and CLim are not used: the time
-%            panels show the window, and each panel has its own
-%            options.yLimMode / yLim / cLim (panelYLimits: a panel with
-%            yLimMode "batch" takes the range BatchYLim gives it, else
-%            its own).
+%   Style    SPEC.style: FontSize, LineWidth, ShowZeroLine, ShowStop,
+%            ShowArtifactNote, Grid, Legend*, Colormap, HeatColormap,
+%            SortShank / SortDepth, LabelShank / LabelDepth, SiteSize
+%            (the error a panel draws and its bands' look are the
+%            panel's: options.errorType, errorResamples, band). Its
+%            XLim, YLim and CLim are not used: the time panels show the
+%            window, and each panel has its own options.yLimMode /
+%            yLim / cLim (panelYLimits: a panel with yLimMode "batch"
+%            takes the range BatchYLim gives it, else its own).
 %   Aesthetics  by panel type: the design's (PlotDesign)
 %            common rules on everything; on each panel's axes the design's
 %            rules for its type and the user's remembered rules for that

@@ -8,7 +8,8 @@ function [step, base] = drawStack(ax, P, R, colors, style, look, show)
 %     P      m / lo / hi [nBins x nGroups] (the means and their error
 %            bands' edges), peak [nGroups x 1] (the right axis' labels),
 %            peakLabel (its name)
-%     LOOK   hist, fill, alpha (histTrace's) and layout: the stackLayout
+%     LOOK   hist, fill, alpha (histTrace's), error (draw the bands) and
+%            band (their look: errorPatch) and layout: the stackLayout
 %            (Zero) of the rows (drawPsthPanel's drawRows takes it from
 %            every item's reach and options.stackSpacing): row g's values
 %            are drawn at layout.offset(g) + layout.scale(g) x v, its bars
@@ -43,8 +44,8 @@ for g = 1:nG   % top down
     setappdata(hb, 'StackMap', [b k]);
     m = k * P.m(:, g);
     elo = m; ehi = m;   % how far the row reaches: its band, where it has one
-    if style.ShowSEM
-        errorPatch(ax, R.t, k * P.lo(:, g) + b, k * P.hi(:, g) + b, colors(g, :), R.groups.label(g), style);
+    if look.error
+        errorPatch(ax, R.t, k * P.lo(:, g) + b, k * P.hi(:, g) + b, colors(g, :), R.groups.label(g), style, "sem", look.band);
         f = isfinite(P.lo(:, g)); elo(f) = k * P.lo(f, g);
         f = isfinite(P.hi(:, g)); ehi(f) = k * P.hi(f, g);
     end

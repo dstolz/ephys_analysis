@@ -375,7 +375,7 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   (`UnitSelection.merge`), and in `firstSpikeLatency`'s Poisson surprise and
   Poisson count rules (a figure's first-spike latency, `Figure.latency.method`
   `"surprise"` / `"poisson"`); `bootci` for the analysis figures' bootstrap 95%
-  CI error bands and bars, `Style.ErrorType "ci95"`, `errorBounds`; `tinv`
+  CI error bands and bars, a panel's `errorType "ci95"`, `errorBounds`; `tinv`
   for the *t* interval across sessions of a session figure's `error "ci95"`,
   `combineSessions`, which falls back to 1.96 × SEM without the toolbox;
   `glmfit` for the neuroGLM connector's Poisson fit, `NeuroGLMExport.fit`).

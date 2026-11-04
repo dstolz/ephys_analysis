@@ -153,7 +153,6 @@ s.SortDepth = E.sortDepth.Value;
 s.SortShank = E.sortShank.Value;
 s.LabelDepth = E.labelDepth.Value;
 s.LabelShank = E.labelShank.Value;
-s.ShowSEM = E.showSEM.Value;
 s.ShowStop = E.showStop.Value;
 s.ShowArtifactNote = E.showArtifactNote.Value;
 s.Legend = E.legend.Value;
@@ -161,16 +160,6 @@ s.Grid = E.grid.Value;
 s.LegendLocation = string(E.legendLoc.Value);
 s.LegendOrientation = string(E.legendOrient.Value);
 s.LegendBox = logical(E.legendBox.Value);
-s.ErrorType = string(E.errType.Value);
-s.ErrorResamples = E.errResamples.Value;
-s.ErrorFaceColor = strtrim(string(E.errFace.Value));
-if lower(s.ErrorFaceColor) == "auto"; s.ErrorFaceColor = ""; end
-s.ErrorFaceAlpha = E.errAlpha.Value;
-if isempty(s.ErrorFaceAlpha); s.ErrorFaceAlpha = NaN; end
-s.ErrorEdgeColor = strtrim(string(E.errEdge.Value));
-if s.ErrorEdgeColor == ""; s.ErrorEdgeColor = "none"; end
-s.ErrorEdgeStyle = string(E.errEdgeStyle.Value);
-s.ErrorEdgeWidth = E.errEdgeWidth.Value;
 fig.style = s;
 
 % the figure's alignment
@@ -313,9 +302,22 @@ end
 if p.type == "continuous"
     op.statistic = string(E.statistic.Value);
     op.transform = string(E.transform.Value);
-    op.errorType = string(E.errorType.Value);
     op.trials = string(E.contTrials.Value);
     op.maxTrials = E.maxTrials.Value;
+end
+if isfield(op, 'errorType'); op.errorType = string(E.errorType.Value); end   % the panel's own error
+if isfield(op, 'errorResamples'); op.errorResamples = E.errResamples.Value; end
+if isfield(op, 'band')   % its bands' look
+    b = op.band;
+    b.faceColor = strtrim(string(E.errFace.Value));
+    if lower(b.faceColor) == "auto"; b.faceColor = ""; end
+    b.faceAlpha = E.errAlpha.Value;
+    if isempty(b.faceAlpha); b.faceAlpha = NaN; end
+    b.edgeColor = strtrim(string(E.errEdge.Value));
+    if b.edgeColor == ""; b.edgeColor = "none"; end
+    b.edgeStyle = string(E.errEdgeStyle.Value);
+    b.edgeWidth = E.errEdgeWidth.Value;
+    op.band = b;
 end
 if isfield(op, 'rows'); op.rows = string(E.heatRows.Value); end
 if isfield(op, 'order'); op.order = string(E.order.Value); end

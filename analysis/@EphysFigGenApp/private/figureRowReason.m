@@ -167,7 +167,11 @@ T.latencyBox = o("psth", "with Display: trace");
 T.onsetLine = o(["raster" "psth"], "");
 T.trialCount = o("psth", "");
 T.heatRows = o("heatmap", "");
-for f = ["contTrials" "statistic" "errorType"]; T.(f) = o("continuous", ""); end
+for f = ["contTrials" "statistic"]; T.(f) = o("continuous", ""); end
+T.errorType = o(["psth" "continuous" "rate" "tuning"], "on a PSTH with Display: trace");
+T.errFace = o(["psth" "continuous" "spectrum" "coherence" "waveforms" "probemap"], ...
+    "on a PSTH with Display: trace, on a coherence panel unless drawn over time");
+T.errEdge = T.errFace;
 T.maskAfterStop = o(["raster" "psth" "heatmap"], spikesHeat);
 T.order = o("heatmap", "with Rows: the layer's units or channels");
 for f = ["etDisplay" "etTrials" "etColorBy" "etHeight" "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing"]

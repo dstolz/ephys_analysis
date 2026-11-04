@@ -135,7 +135,7 @@ fig.latency = L;
 
 % what a rect means and the padding (in the units shown: cm when edited); appearance
 fig.layout.boxesMean = string(E.boxesMean.Value);
-[page, dpi, units] = shownOn(obj, E);
+[page, dpi, units, shownPanel] = shownOn(obj, E);
 [~, d] = unitsShown([], "", units);
 tol = 0.5 * 10^-d + 1e-9;
 if abs(E.padding.Value - unitsShown(double(fig.layout.padding), "cm", units, page, dpi, "x")) > tol
@@ -194,9 +194,10 @@ if j >= 1 && j <= numel(fig.panels)
     p.yLabel = strtrim(string(E.panelYLabel.Value));
     p.xSide = string(E.panelXSide.Value);
     p.ySide = string(E.panelYSide.Value);
-    % its rect only where a field was edited: the fields round what they show (Validate reports a bad rect)
+    % its rect only where a field was edited: the fields round what they show (Validate reports a bad rect); only
+    % when they show this panel's rect (showPanelPlace)
     r = double(p.rect);
-    if numel(r) == 4 && all(isfinite(r))
+    if numel(r) == 4 && all(isfinite(r)) && shownPanel == p.id
         typed = [E.rectX.Value E.rectY.Value E.rectW.Value E.rectH.Value];
         edited = abs(typed - unitsShown(r, "normalized", units, page, dpi, "rect")) > tol & isfinite(typed);
         if any(edited)
@@ -475,17 +476,19 @@ if L.lineStyle == "auto"; L.lineStyle = ""; end
 end
 
 
-function [page, dpi, units] = shownOn(obj, E)
-%shownOn  The page ([w h] cm), dpi and units the Panels section's fields were shown on (showPanelPlace), else the figure's now.
+function [page, dpi, units, panel] = shownOn(obj, E)
+%shownOn  The page ([w h] cm), dpi and units the Panels section's fields were shown on, and the panel whose rect they show (showPanelPlace).
 S = E.rectUnits.UserData;
-if isstruct(S) && isscalar(S) && all(isfield(S, {'page', 'dpi', 'units'}))
+if isstruct(S) && isscalar(S) && all(isfield(S, {'page', 'dpi', 'units', 'panel'}))
     page = S.page;
     dpi = S.dpi;
     units = S.units;
+    panel = string(S.panel);
     return
 end
-[page, dpi] = figurePage(obj);
+[page, dpi] = figurePage(obj);   % not shown yet: the figure's page now, no panel's rect
 units = obj.FigureRectUnits;
+panel = "";
 end
 
 

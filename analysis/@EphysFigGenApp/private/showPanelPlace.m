@@ -7,9 +7,10 @@ function showPanelPlace(obj)
 %   FigureSnapStep, in the units picked: snapStepIn), each value converted
 %   to the units on the figure's export page (figurePage) and rounded as
 %   the fields show it (unitsShown). The page, dpi and units it showed
-%   them on are kept in the Units drop-down's UserData, so that
-%   gatherFigureEditor reads the fields back on the same page (a value is
-%   written only where the field no longer shows what was shown here).
+%   them on, and the panel whose rect they show, are kept in the Units
+%   drop-down's UserData, so that gatherFigureEditor reads the fields back
+%   on the same page, into that panel only (a value is written only where
+%   the field no longer shows what was shown here).
 %   No callback runs meanwhile (Applying). Called by applyFigureEditor,
 %   syncFigureEditor (an edit, the page resized), onRectUnitsChanged and
 %   onSnapChanged.
@@ -24,7 +25,7 @@ u = obj.FigureRectUnits;
 if ~ismember(u, EphysAnalysisConfig.RectUnits); u = "cm"; obj.FigureRectUnits = u; end
 [pageCm, dpi] = figurePage(obj);
 E.rectUnits.Value = u;
-E.rectUnits.UserData = struct('page', pageCm, 'dpi', dpi, 'units', u);
+E.rectUnits.UserData = struct('page', pageCm, 'dpi', dpi, 'units', u, 'panel', "");
 word = u;
 if u == "normalized"; word = "0-1"; end
 set([E.rectXYUnits E.rectWHUnits E.paddingUnits E.snapUnits], "Text", word);
@@ -43,6 +44,7 @@ E.padding.Value = max(0, unitsShown(double(L.padding), "cm", u, pageCm, dpi, "x"
 j = obj.SelectedPanel;
 if j < 1 || j > numel(fig.panels); return; end
 p = fig.panels(j);
+E.rectUnits.UserData.panel = p.id;   % the fields hold this panel's rect
 r = double(p.rect);
 if numel(r) ~= 4 || ~all(isfinite(r)); r = [0 0 1 1]; end   % (Validate reports a bad one)
 v = unitsShown(r, "normalized", u, pageCm, dpi, "rect");

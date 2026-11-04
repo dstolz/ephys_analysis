@@ -3184,28 +3184,55 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     px2 = 2 ./ O.axes.Position(3:4);   % 2 px of the preview: inside the 6 px Arrange snaps within
     r2 = rectOf5("psth_2");
     raw = [0.45 + px2(1), 0, 0.45, 0.5];
+    ax2 = findPanelAxes(P, "psth_2");
+    p2 = ax2.Position;
     app.onArrangeMoving("psth_2", roiMove(r2, raw));
     w2 = arrangeBox(app, "psth_2");
     G = visibleGuides(app);
     vline = any(arrayfun(@(l) all(abs(l.XData - 0.45) < 1e-9) && abs(diff(l.YData)) > 0.1, G.lines));
+    live = abs(ax2.Position(1) - (p2(1) - 0.1 * O.axes.Position(3))) < 1e-6 && all(abs(ax2.Position([2 3 4]) - p2([2 3 4])) < 1e-6);
     check(rectIs(w2.Position, [0.45 0 0.45 0.5]) && vline && any(startsWith(G.texts, "x ") & endsWith(G.texts, " cm")) ...
-        && rectIs(rectOf5("psth_2"), r2) && FE.rectX.Value == round(0.45 * pageCm5(1), 2) && app.SelectedPanel == 3, ...
-        sprintf(['a move snaps psth_2 flush to psth_1 (2 px off): its box there, a magenta line at the shared edge, the readout ' ...
-        'in cm (%s), its fields; the figure unchanged'], strjoin(G.texts, " | ")));
+        && rectIs(rectOf5("psth_2"), r2) && FE.rectX.Value == round(0.45 * pageCm5(1), 2) && app.SelectedPanel == 3 && live, ...
+        sprintf(['a move snaps psth_2 flush to psth_1 (2 px off): its box there and its plot with it (live), a magenta line ' ...
+        'at the shared edge, the readout in cm (%s), its fields; the figure unchanged'], strjoin(G.texts, " | ")));
     app.onKeyPress(pressed('escape', {}));
     esc = app.FigureArrangeMode == "canceled" && rectIs(w2.Position, r2) && isempty(visibleGuides(app).lines) ...
-        && FE.rectX.Value == round(0.55 * pageCm5(1), 2);
+        && FE.rectX.Value == round(0.55 * pageCm5(1), 2) && isequal(ax2.Position, p2);
     app.onArrangeMoving("psth_2", roiMove(r2, raw));   % the pointer still drags it
     stays = rectIs(w2.Position, r2);
     nUndo = numel(app.FigureHistory.Undo);
     app.onArrangeMoved("psth_2", roiMove(r2, raw));
     check(esc && stays && app.FigureArrangeMode == "" && numel(app.FigureHistory.Undo) == nUndo && rectIs(rectOf5("psth_2"), r2), ...
-        'Escape during the drag: the box goes back, the guides go, the fields show the rect again; the box stays put until the release, which changes nothing');
+        'Escape during the drag: the box and the plot go back, the guides go, the fields show the rect again; the box stays put until the release, which changes nothing');
     app.onArrangeMoving("psth_2", roiMove(r2, raw), true);
     altFree = rectIs(w2.Position, raw);
     app.onKeyPress(pressed('escape', {}));
     app.onArrangeMoved("psth_2", roiMove(r2, raw));
     check(altFree && rectIs(rectOf5("psth_2"), r2), 'Alt held: no snapping, the box exactly where the pointer puts it');
+    tStep = zeros(3, 20);   % a step of a drag: the box, the plot, the guides, the fields (1) and the window drawn (2); the plot alone moved and drawn (3)
+    for i = 1:20
+        t0 = tic;
+        app.onArrangeMoving("psth_2", roiMove(r2, [0.3 + 0.01 * mod(i, 5), 0, 0.45, 0.5]));
+        tStep(1, i) = toc(t0);
+        drawnow;
+        tStep(2, i) = toc(t0);
+    end
+    app.onKeyPress(pressed('escape', {}));
+    app.onArrangeMoved("psth_2", roiMove(r2, r2));
+    drawnow;
+    ax2 = findPanelAxes(P, "psth_2");
+    for i = 1:20
+        t0 = tic;
+        ax2.Position = p2 + [mod(i, 5) - 2, 0, 0, 0];
+        drawnow;
+        tStep(3, i) = toc(t0);
+    end
+    ax2.Position = p2;
+    msStep = 1000 * median(tStep, 2);
+    check(msStep(2) < 100 && isequal(findPanelAxes(P, "psth_2").Position, p2) && rectIs(rectOf5("psth_2"), r2), ...
+        sprintf(['a step of a drag takes %.1f ms in the app (box, plot moved along, guides, fields) and %.1f ms drawn ' ...
+        '(medians of 20; the first step %.1f ms; moving the PSTH''s axes alone and drawing them %.1f ms); Escape puts the plot back'], ...
+        msStep(1), msStep(2), 1000 * tStep(2, 1), msStep(3)));
 
     % equal spacing and equal size: three panels in a row (the rects only, not drawn again)
     cfgA = app.gatherConfig();
@@ -3245,6 +3272,46 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         'psth_1 resized off the raster (no longer flush): the preview is drawn again, the boxes kept');
     app.onUndoRedo("undo");
     check(rectIs(rectOf5("psth_1"), r1) && rectIs(arrangeBox(app, "psth_1").Position, r1), 'Undo: the rect and its box back');
+
+    % a slow preview (the time gate exceeded): a release lays the drawing out at the new rect all the same; one that parts
+    % the stack leaves it out of date (laid out, saying so); out of date, a release still lays it out
+    app.FigureAutoPreviewSeconds = 0;
+    app.FigureSnap = false;
+    nUndo = numel(app.FigureHistory.Undo);
+    lines0 = findall(figAxes(), 'Type', 'line');
+    r1 = rectOf5("psth_1");
+    app.onArrangeMoving("psth_1", roiMove(r1, [0 0 0.45 0.4]));
+    app.onArrangeMoved("psth_1", roiMove(r1, [0 0 0.45 0.4]));
+    R = getappdata(P, 'FigureLayoutResult');
+    out1 = R.panels(R.ids == "psth_1").outer;
+    gated = app.FigurePreviewState == "stale" && contains(app.StatusBar.Text, "Laid out") && all(isvalid(lines0)) ...
+        && abs(out1(4) - 0.4 * R.page(4)) < 2.5;
+    r2 = rectOf5("psth_2");
+    app.onArrangeMoving("psth_2", roiMove(r2, [0.5 0 0.45 0.5]));
+    app.onArrangeMoved("psth_2", roiMove(r2, [0.5 0 0.45 0.5]));
+    R = getappdata(P, 'FigureLayoutResult');
+    out2 = R.panels(R.ids == "psth_2").outer;
+    staleLaid = app.FigurePreviewState == "stale" && abs(out2(1) - (R.page(1) + 0.5 * R.page(3))) < 2.5 && all(isvalid(lines0)) ...
+        && rectIs(arrangeBox(app, "psth_2").Position, [0.5 0 0.45 0.5]) && numel(app.FigureHistory.Undo) == nUndo + 2;
+    check(gated && staleLaid, ...
+        sprintf(['with the time gate exceeded: psth_1 parted from the raster is laid out at its new rect (its plot %.0f px of %.0f), ' ...
+        'nothing drawn, the preview out of date and the status bar saying "Laid out ..."; then psth_2 moved over the out-of-date ' ...
+        'preview is laid out there too (x %.0f px)'], out1(4), R.page(4), out2(1)));
+    % Arrange off: with Auto off the preview stays as laid out; with Auto on it is drawn again, whatever the time gate
+    app.FigureAutoCheckBox.Value = false;
+    arrangeToggle(app, false);
+    offNoAuto = app.FigurePreviewState == "stale" && all(isvalid(lines0));
+    arrangeToggle(app, true);
+    app.FigureAutoCheckBox.Value = true;
+    arrangeToggle(app, false);
+    offAuto = app.FigurePreviewState == "drawn" && ~all(isvalid(lines0)) && contains(app.StatusBar.Text, "drawn again");
+    check(offNoAuto && offAuto, ...
+        'Arrange off with Auto off: the preview stays laid out and out of date; with Auto on it is drawn again (the time gate exceeded), labels and stacks caught up');
+    arrangeToggle(app, true);
+    app.FigureAutoPreviewSeconds = Inf;
+    app.onUndoRedo("undo");
+    app.onUndoRedo("undo");
+    app.refreshFigurePreview(Force=true);
 
     % the unit cases of the snapping (private/snapRect)
     snapC = @EphysFigGenApp.snapRectFor;

@@ -5,8 +5,9 @@ function cancelArrange(obj, msg)
 %   oldDown, oldUp) come back as they were, the pointer is an arrow again,
 %   the boxes are free again (arrangeWidgetLock) and the dashed rectangle
 %   from the first corner goes. A drag of a box (FigureArrangeMode "drag")
-%   is canceled: the box goes back to the panel's rect, the Position and
-%   Size fields show it again (showPanelPlace), and the box stays there
+%   is canceled: the box goes back to the panel's rect, the panel's plots
+%   it moved along go back where they were drawn (arrangePartsAt), the
+%   Position and Size fields show it again (showPanelPlace), and the box stays there
 %   until the mouse button is let go (FigureArrangeMode "canceled", which
 %   onArrangeMoving and onArrangeMoved honor). The smart guides are
 %   hidden; FigureCorners goes back to []. The status bar says MSG unless
@@ -45,6 +46,7 @@ if isstruct(O) && ~isempty(O.axes) && isvalid(O.axes)
             C = arrangeContext(obj, D.id);
             if ~isempty(C) && ~isempty(C.w) && isvalid(C.w); arrangeWidgetSet(C.w, C.rect0); end
         end
+        if isstruct(D) && isfield(D, 'parts') && ~isempty(D.parts); arrangePartsAt(D.parts, D.parts.box0); end   % the plots back too
         showPanelPlace(obj);
     end
     arrangeCues(obj, [], []);

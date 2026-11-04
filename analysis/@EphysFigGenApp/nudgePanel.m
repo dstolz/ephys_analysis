@@ -55,11 +55,11 @@ if all(abs(r - C.rect0) < 1e-12)
     obj.setStatus(id + " is at the page's edge" + ternary(resize, " (or its smallest)", "") + ": it goes no further.");
     return
 end
-cfg = obj.gatherConfig();
+cfg = obj.Config;   % the rect alone changed
 cfg.Figures(k).panels(j).rect = r;
 verb = ternary(resize, "Resized ", "Moved ");
 commitFigureEdit(obj, cfg, verb + id + ": " + rectText(r, obj.FigureRectUnits, C.pageCm, C.dpi) + ".", ...
-    Action=action, Key="arrangeKeys:" + ternary(resize, "resize", "move"));
+    Action=action, Key="arrangeKeys:" + ternary(resize, "resize", "move"), Arrange=true);
 % the smart guides at the nudged place, gone a second after the last press
 [~, g] = snapRect(r, C.rect0, C.others, [0 0], [0 0], Names=C.names);
 arrangeCues(obj, r, g);

@@ -6,15 +6,18 @@ function onArrangeMoved(obj, id, evt)
 %   where the pointer left it rather than where it was snapped to), kept
 %   on the page with a width and height of at least 0.01, and set as the
 %   panel's rect (commitFigureEdit, "Move panel" or "Resize panel": one
-%   undo step per drag). The preview follows as after any edit: with Auto
-%   on the drawing is laid out again at the new rects, nothing drawn
-%   (renderFigure's in-place path); a move that changes which panels touch
-%   which (a time stack's labels) or the top-left panel draws the panels
-%   again. The status bar says where the panel is now ("Moved psth_1:
+%   undo step per drag). The status bar says where the panel is now ("Moved psth_1:
 %   9.0 x 6.0 cm at 0, 6."). A drag that leaves the rect as it was changes
 %   nothing (a release with no step of a drag before it, where it started,
 %   is not snapped either); one Escape canceled (cancelArrange) puts the
 %   box back.
+%   The panel's plots, moved along during the drag (onArrangeMoving),
+%   are laid out exactly at the new rect then: commitFigureEdit with
+%   Arrange (arrangedPreview) lays the preview out whatever Auto and the
+%   time a preview takes, and draws it again only when the move changes
+%   which panels touch which and Auto may (else it is marked out of
+%   date: "Laid out; press Preview ..."). A drag that ends where it
+%   began puts them back.
 %   ID ":legend", the floating legend's box (dragged or resized, or its
 %   menu's Make it a legend panel here, EVT []): a legend panel is added
 %   at the box (onNewPanel, Type "legend", Where "rect": "Add panel"), so
@@ -29,7 +32,10 @@ end
 mode = obj.FigureArrangeMode;
 if mode == "corners"; return; end
 obj.FigureArrangeMode = "";
+D = obj.FigureDrag;
 obj.FigureDrag = [];
+parts = [];   % the panel's drawn parts the drag moved (onArrangeMoving)
+if isstruct(D) && isfield(D, 'parts'); parts = D.parts; end
 arrangeCues(obj, [], []);
 C = arrangeContext(obj, id);
 if isempty(C) || isempty(C.w) || ~isvalid(C.w); return; end
@@ -61,17 +67,18 @@ if id == ":legend"
 end
 if all(abs(rect - C.rect0) < 1e-12)
     arrangeWidgetSet(C.w, C.rect0);
+    if ~isempty(parts); arrangePartsAt(parts, parts.box0); end   % back where they were drawn
     showPanelPlace(obj);
     obj.setStatus(id + " is where it was.");
     return
 end
 resize = any(abs(rect(3:4) - C.rect0(3:4)) > 1e-9);
-cfg = obj.gatherConfig();
+cfg = obj.Config;   % the config as it is, the rect alone changed (the editor's fields showed the drag, not an edit)
 cfg.Figures(C.k).panels(C.j).rect = rect;
 if resize
     [action, verb] = deal("Resize panel", "Resized ");
 else
     [action, verb] = deal("Move panel", "Moved ");
 end
-commitFigureEdit(obj, cfg, verb + id + ": " + rectText(rect, u, C.pageCm, C.dpi) + ".", Action=action);
+commitFigureEdit(obj, cfg, verb + id + ": " + rectText(rect, u, C.pageCm, C.dpi) + ".", Action=action, Arrange=true);
 end

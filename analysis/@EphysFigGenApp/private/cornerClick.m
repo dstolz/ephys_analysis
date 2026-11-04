@@ -55,7 +55,7 @@ switch what
     case "set"
         k = obj.SelectedFigure;
         if k < 1 || k > numel(obj.Config.Figures); return; end
-        cfg = obj.gatherConfig();
+        cfg = obj.Config;   % the rect alone changes
         j = find([cfg.Figures(k).panels.id] == id, 1);
         if isempty(j)
             obj.setStatus("Set corners: " + id + " is gone.");
@@ -63,7 +63,7 @@ switch what
         end
         cfg.Figures(k).panels(j).rect = rect;
         [pageCm, dpi] = figurePage(obj);
-        commitFigureEdit(obj, cfg, id + ": " + rectText(rect, obj.FigureRectUnits, pageCm, dpi) + ".", Action="Set corners");
+        commitFigureEdit(obj, cfg, id + ": " + rectText(rect, obj.FigureRectUnits, pageCm, dpi) + ".", Action="Set corners", Arrange=true);
     otherwise   % a new panel, or a saved figure's block, at the rect
         o = payload;
         if ~isstruct(o); o = struct(); end

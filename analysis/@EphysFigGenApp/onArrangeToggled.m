@@ -17,7 +17,12 @@ function onArrangeToggled(obj)
 %   images.roi.Rectangle): without a license the button goes back off and
 %   the status bar says so.
 %   Off, any drag or Set corners under way ends (cancelArrange), the
-%   boxes go and the preview is as usual again.
+%   boxes go and the preview is as usual again. With Auto ticked, the
+%   preview of the figure (drawn, or out of date: laid out by the drags)
+%   is then drawn again, whatever the time a preview takes
+%   (refreshFigurePreview, Force), so the time stacks' labels and the
+%   ticks catch up with the new places; nothing kept is computed again.
+%   With Auto unticked it stays as laid out (out of date if it was).
 %
 %   See also EphysFigGenApp.syncArrangeOverlay, EphysFigGenApp.cancelArrange, EphysFigGenApp.onSnapChanged.
 b = obj.FigureArrangeButton;
@@ -30,9 +35,13 @@ if on && ~license('test', 'Image_Toolbox')
 end
 obj.FigureArrange = on;
 if ~isempty(b) && isvalid(b); styleButton(b, ternary(on, "active", "secondary")); end
+redraw = false;
 if ~on
     obj.cancelArrange("");
     obj.FigureArrangeFocus = false;
+    k = obj.SelectedFigure;
+    redraw = ~noLicense && obj.FigureAutoCheckBox.Value && k >= 1 && k <= numel(obj.Config.Figures) ...
+        && ~obj.Config.Figures(k).sessions.enabled && previewShowsFigure(obj);   % (a session figure waits for Preview)
 end
 [shown, why] = obj.syncArrangeOverlay();
 obj.markFigurePanel();   % its outline waits while Arrange is on
@@ -52,6 +61,9 @@ elseif on && shown
         "Set corners places the selected panel by two clicks.");
 elseif on
     obj.setStatus(why);
+elseif redraw
+    obj.refreshFigurePreview(Force=true);   % the labels and the time stacks after the places changed
+    obj.setStatus("Arrange off: the preview drawn again at the panels' places.");
 else
     obj.setStatus("Arrange off: the preview as usual.");
 end

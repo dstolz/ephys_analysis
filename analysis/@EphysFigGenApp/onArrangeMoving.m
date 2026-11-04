@@ -9,11 +9,15 @@ function onArrangeMoving(obj, id, evt, alt)
 %   panels' edges (aligned or abutting), their centers and the page's,
 %   the page's edges, an equal spacing, else the snap step's grid; resized,
 %   only the dragged edges, to edges, an equal size, else the grid. The
-%   box is set there, the smart guides drawn for it (private/arrangeCues:
-%   alignment lines, distances, equal spacing and size, a readout by the
-%   corner), and the Position and Size fields show it (when it is the
-%   selected panel's). Nothing else changes and nothing is drawn: the
-%   figure takes the rect when the drag ends (onArrangeMoved).
+%   box is set there and the panel's drawn parts go with it (its axes,
+%   note band, color bars, the legend in a legend panel; the floating
+%   legend with its box: arrangeParts, arrangePartsAt, their places
+%   shifted or scaled with the box, nothing measured or laid out), the
+%   smart guides are drawn for it (private/arrangeCues: alignment lines,
+%   distances, equal spacing and size, a readout by the corner), and the
+%   Position and Size fields show it (when it is the selected panel's).
+%   The figure takes the rect when the drag ends (onArrangeMoved), and
+%   the preview is laid out exactly then.
 %   The first step of a drag selects the panel (when the click did not)
 %   and notes the drag (FigureArrangeMode "drag"); after Escape
 %   (cancelArrange) the box stays where it was until the drag ends.
@@ -37,13 +41,13 @@ if mode == "canceled"   % Escape: the box stays put until the drag ends
 end
 if mode ~= "drag"
     obj.FigureArrangeMode = "drag";
-    obj.FigureDrag = struct('id', id);
     obj.FigureArrangeFocus = true;
     if C.j > 0 && C.j ~= obj.SelectedPanel
         obj.onPanelSelected(C.j);   % (its fields then show this panel)
         C = arrangeContext(obj, id);
         if isempty(C) || isempty(C.w) || ~isvalid(C.w); return; end
     end
+    obj.FigureDrag = struct('id', id, 'parts', {arrangeParts(obj, id, C.rect0)});   % what moves with the box
 end
 if ~isempty(alt); C.alt = logical(alt); end
 raw = double(reshape(evt.CurrentPosition, 1, 4));
@@ -53,6 +57,11 @@ else
     [rect, g] = snapRect(raw, C.rect0, C.others, [0 0], [0 0], Names=C.names);   % only the cues
 end
 arrangeWidgetSet(C.w, rect);
+D = obj.FigureDrag;
+if isstruct(D) && isfield(D, 'parts') && ~isempty(D.parts)   % the panel's plots go with it (exact once released)
+    pg = obj.FigureArrangeOverlay.axes.Position;
+    arrangePartsAt(D.parts, [pg(1:2) + rect(1:2) .* pg(3:4), rect(3:4) .* pg(3:4)]);
+end
 arrangeCues(obj, rect, g);
 if C.j > 0 && C.j == obj.SelectedPanel; showRect(obj, rect, C); end
 end

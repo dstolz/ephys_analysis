@@ -2016,7 +2016,7 @@ says how to cut a release.
   px or %, the one gap between rows and between columns, a table of every gap, Apply / OK / Cancel. The
   schematic draws each panel at its size and alignment and the gaps in proportion. Validate checks the
   new fields; `EphysAnalysisConfig.GridSpacings`, `GridSpacingPx`, `GridGapUnits`, `PanelAligns` and
-  `PanelVAligns` list their values. See [grid](documentation/EphysAnalysisConfig.md#figure-grid-and-observe-fields)
+  `PanelVAligns` list their values. See [grid](documentation/EphysAnalysisConfig.md#figure-layout-and-observe-fields)
   and [the Spacing window](documentation/EphysFigGenApp.md#figures-tab).
 - The analysis app's Dataset drop-downs (Alignment and Figures tabs) name each dataset with
   what it holds of spikes: *subj1_day1  (14 units)* once its sorted units have been counted (the first
@@ -2270,7 +2270,7 @@ says how to cut a release.
   the app observes its template's data when the active dataset holds it, else the first type it holds,
   and a figure observing the dataset that gets its first following layer (a panel added to a blank
   figure) observes what that layer reads.
-  See [Figure, grid and observe fields](documentation/EphysAnalysisConfig.md#figure-grid-and-observe-fields).
+  See [Figure, layout and observe fields](documentation/EphysAnalysisConfig.md#figure-layout-and-observe-fields).
 
 - The analysis config is version 2: it holds `Figures` only. A version 1 file is migrated once when it
   is loaded (`load`, and `fromStruct` for a struct whose version is 1): every plot becomes a figure of

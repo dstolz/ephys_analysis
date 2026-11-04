@@ -16,7 +16,11 @@ function files = wikiToolScreenshots(outFolder, opts)
 %                           Data tab, first dataset active
 %     analysis-alignment-tab.png  Alignment tab: Stim onset, grouped by Depth
 %     analysis-figures-tab.png    Figures tab: the unit card (a raster
-%                           over a PSTH) and its preview of the first unit
+%                           over a PSTH) and its preview of the first unit,
+%                           the Panels section (each panel's Position and
+%                           Size) in view and Arrange on, a box over each
+%                           panel (without the Image Processing Toolbox,
+%                           the preview as it is)
 %     analysis-export-tab.png     Export tab after Plan and a run of every
 %                           figure on the first dataset
 %     analysis-example-unit-card.png  the PNGs that run wrote: the first
@@ -145,7 +149,17 @@ if any(ismember(analysisShots, opts.Shots))
     a.onFigureSelected(1);
     a.refreshFigureObservations();
     a.refreshFigurePreview(Force=true);
+    a.gotoFigureSection("arrangement");   % the Panels section: Position, Size, Boxes mean, Padding
+    if license('test', 'Image_Toolbox')   % Arrange needs it
+        a.FigureArrangeButton.Value = true;
+        a.onArrangeToggled();             % a box over each panel
+    end
+    drawnow;
     shot(a.Fig, "analysis-figures-tab.png");
+    if a.FigureArrange
+        a.FigureArrangeButton.Value = false;
+        a.onArrangeToggled();
+    end
     if any(ismember(analysisShots(4:end), opts.Shots))
         a.selectTab(a.TabExport);
         a.onPlan();

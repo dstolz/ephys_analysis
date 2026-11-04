@@ -1051,6 +1051,7 @@ ANALYSIS_GROUPS = [
     ("Figures", ["figureObservations", "figureSkipReason", "figureSkipRemedy", "figureEpochs", "figurePanelRegistry",
                  "figurePanelLayers", "figureCompute", "figureChronuxSettings", "figureAurocCalls",
                  "renderFigure", "figureCaption", "figureOutputName"]),
+    ("Panel places (free placement)", ["figureNeighbors", "figureRectConvert"]),
     ("Probe figures", ["figureProbeTiles", "figureProbeCompute", "renderProbeFigure"]),
     ("Y ranges shared across a run", ["figureBatchPanels", "figureYExtents", "figureBatchYLim"]),
     ("Session figures (across datasets)", ["sessionTable", "figureSessionObservations", "figureSessionSkipReason",

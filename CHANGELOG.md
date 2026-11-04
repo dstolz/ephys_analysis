@@ -10,6 +10,23 @@ says how to cut a release.
 
 ### Changed
 
+- Figures place their panels freely on the page instead of on a grid (config, part 1 of the free placement
+  work). A panel has `rect`, `[x y width height]` in 0-1 of the page from its bottom-left corner, in place of
+  `row`, `col`, `rowSpan`, `colSpan`, `size`, `align` and `valign`; a figure has `layout` (`boxesMean` `"plot"` |
+  `"outer"`: a rect is the panel's plot area or encloses its labels; `padding`, 0.15 cm) in place of `grid`.
+  The `"rasterPsth"` template is the raster on the page's top half flush over the PSTH on its bottom half; a panel
+  type's template is one panel over the whole page; `"blank"` has no panels. Validate checks each rect (4 finite
+  numbers inside the page, a positive width and height), `layout.boxesMean` and `layout.padding`, and warns when
+  two rects overlap by more than `RectTol` (the later panel is drawn on top). Automatic figure ids name the panel
+  types in reading order (`panelOrder`). `layout.boxesMean` and `layout.padding` are settings Apply to figures and
+  Copy figure settings give other figures (the panels' rects are not); Copy figure settings has *Panels*
+  (`arrangement.panels`) and *Boxes mean and padding* (`arrangement.layout`). A version-1 config's plots migrate
+  to panels stacked flush over the page. Old grid-shaped configs are not converted: `grid` and the panels' cell
+  fields are unknown fields (load warnings) and the panels all fill the page; an old figure template whose
+  figure has a `grid` is not read (`FigureTemplate:Bad`, named in the template list's Problem).
+- `Style.LegendLocation` is `"auto"` (the figure's legend panel, else floating in free space, else inside the first
+  panel), `"inside"` or `"none"`; `"north"`, `"south"`, `"east"` and `"west"` are gone (a legend never shrinks a
+  plot area).
 - `EphysAnalysisApp` is renamed `EphysFigGenApp` (class folder `analysis/@EphysFigGenApp`, `test_EphysFigGenApp`,
   `documentation/EphysFigGenApp.md`, the wiki's `API-EphysFigGenApp` page). Its preferences group is
   `EphysFigGenApp`, so preferences saved under the old name (window position, recent configs, hidden tabs, ...)
@@ -354,6 +371,9 @@ says how to cut a release.
 
 ### Removed
 
+- `EphysAnalysisConfig`'s grid editors `placePanels`, `removeCell`, `cellRemovals`, `movePanel` and
+  `figureCells` (with their private helpers), and the constants `GridSpacings`, `GridSpacingPx`, `GridGapUnits`,
+  `PanelAligns` and `PanelVAligns`.
 - The back-compatibility shims: `EphysPipelineConfig`'s `movedWCARFields` and `retiredExports` (a config of an old
   shape loads with its unknown fields dropped and named in `LoadWarnings`, and `validate` refuses a retired export
   format), manifest schema `intan-dataset-manifest/1` (`ManifestSchemasAccepted` is the current schema only) and
@@ -361,6 +381,15 @@ says how to cut a release.
 
 ### Added
 
+- `EphysAnalysisConfig.placePanel(fig, panel, where, anchorId, rect)` places a panel in the page's largest free
+  space (`"free"`, the default), in the far half of an anchor panel's rect (`"below"`, `"above"`, `"left"`,
+  `"right"`) or at a rect; `placeBlock` places a figure's panels as one block the same ways, mapped into the target
+  rect; `orderPanel` brings a panel forward or sends it back; `freeRect`, `rectOverlaps` and `panelOrder` read the
+  rects; `removePanel` moves nothing else. Constants `BoxesMeans`, `RectUnits`, `RectTol`. New helpers
+  `figureRectConvert` (places between normalized, %, cm, in and px) and `figureNeighbors` (shared extents, gaps,
+  and which rects touch which).
+- Panel type `legend` ("The figure's legend in a panel of its own"): no layers, options `orientation`, `align`,
+  `valign` and `columns`; at most one per figure. Its drawing comes with the layout engine.
 - Analysis app: an empty cell of the Panels sketch shows a gray **−** beside its **+**. A click on it (or a
   right click on the cell) opens a menu of the ways to remove the cell: stretch its column's or row's panels over it
   (with the other empty cells of that run), shift the cells up or left, grow a panel next to it over it, or delete

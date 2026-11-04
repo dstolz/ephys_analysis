@@ -1272,7 +1272,7 @@ A template saved with `Panel=true` (the app's **Save as panel type...**) is a
 *panel type* too: `panelTypes()` lists it after the built-in *Raster over PSTH*
 (`"builtin:rasterPsth"`), and `EphysAnalysisConfig.placePanels` puts all its
 panels next to a panel of another figure, keeping their arrangement and gaps
-([Editing the grid](EphysAnalysisConfig.md#editing-the-grid)). Like applying a
+([Placing panels](EphysAnalysisConfig.md#placing-panels)). Like applying a
 template, it copies: the panels are that figure's own afterwards.
 
 A template is normalized through the current code when it is read
@@ -1435,7 +1435,7 @@ close(fig)
   `newExportFigure(exportSection, F, spec)` sizes it for a
   [figure's](#figures) page (`F` from `figureCompute`, `spec` from
   `figureFor`; `figureExportSize` gives the page): the figure's own
-  [`size`](EphysAnalysisConfig.md#figure-grid-and-observe-fields) when `spec.size.source` is
+  [`size`](EphysAnalysisConfig.md#figure-layout-and-observe-fields) when `spec.size.source` is
   `"own"` (px at the Export `Dpi`, in or cm), else 3.5 cm for each row of the
   arrangement plus 2 cm for the title and x label, never below
   `FigureSizeCm(2)`. The runner, both reports and the generated scripts call

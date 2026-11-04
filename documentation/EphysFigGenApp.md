@@ -618,7 +618,7 @@ cannot (it only swaps with a same-shaped neighbor).
 
 | Control | Effect |
 | --- | --- |
-| **New panel...** | opens the [New panel window](#the-new-panel-window): the new panel's type, name, title, place (next to the selected panel, or any empty cell) and key parameters. When the cells on that side of the selected panel, across its columns (*Above*, *Below*) or rows (*Left*, *Right*), are empty, the new panel fills them and nothing else moves. Otherwise *Above* and *Below* make a new row of the grid, as high as the selected panel's row, and the new panel takes the selected panel's columns; *Left* and *Right* make a new column, as wide as its column, and the new panel takes its rows. Panels past the new row (column) move down (right) by one, and those whose span crosses it grow by one. An empty cell picked as the place is filled, one row by one column. The first panel of a figure goes to row 1, column 1. The new panel holds the type's default layer, so it draws at once (a *Coherence* panel two, the observed unit and its channel's LFP, a spike-field coherence), and is selected ([Editing the grid](EphysAnalysisConfig.md#editing-the-grid)) |
+| **New panel...** | opens the [New panel window](#the-new-panel-window): the new panel's type, name, title, place (next to the selected panel, or any empty cell) and key parameters. When the cells on that side of the selected panel, across its columns (*Above*, *Below*) or rows (*Left*, *Right*), are empty, the new panel fills them and nothing else moves. Otherwise *Above* and *Below* make a new row of the grid, as high as the selected panel's row, and the new panel takes the selected panel's columns; *Left* and *Right* make a new column, as wide as its column, and the new panel takes its rows. Panels past the new row (column) move down (right) by one, and those whose span crosses it grow by one. An empty cell picked as the place is filled, one row by one column. The first panel of a figure goes to row 1, column 1. The new panel holds the type's default layer, so it draws at once (a *Coherence* panel two, the observed unit and its channel's LFP, a spike-field coherence), and is selected ([Placing panels](EphysAnalysisConfig.md#placing-panels)) |
 | **Row span**, **Column span** | how many rows and columns the panel covers, from its own cell; refused, with the reason in the status bar, past the grid's edge or over another panel (`rowSpan`, `colSpan`) |
 | **Row height**, **Column width** | the relative height of the panel's first row and width of its first column against the others (1 = equal; steps of 0.25), for every panel of that row or column: the rows' plot areas take exactly these shares (`grid.rowHeights`, `grid.colWidths`) |
 | **Panel size** | the selected panel's own width and height, % of its cell (1 to 100; `size`): this panel only, not the others of its row or column. A panel narrower than its column keeps its own time tick labels |
@@ -631,7 +631,7 @@ cannot (it only swaps with a same-shaped neighbor).
 
 **Removing an empty cell.** The menu of an empty cell's **−** (or a right click
 on the cell) lists the ways the panels around it can close the gap
-(`onRemoveCell`, [`EphysAnalysisConfig.removeCell`](EphysAnalysisConfig.md#editing-the-grid)).
+(`onRemoveCell`, [`EphysAnalysisConfig.removeCell`](EphysAnalysisConfig.md#placing-panels)).
 A way that cannot is grayed, with the reason after it (*Delete row 1 (row 1
 holds events_1)*). The menu is made each time it opens, from the figure as it
 is then.
@@ -736,7 +736,7 @@ inner tick labels are dropped are flush ([the layout](EphysAnalysisConfig.md#ren
 
 Adding a panel in a new row or column gives a gap list the gap where the new
 row or column goes, on both sides of it; removing a panel takes its row's (or
-column's) gap away ([Editing the grid](EphysAnalysisConfig.md#editing-the-grid)).
+column's) gap away ([Placing panels](EphysAnalysisConfig.md#placing-panels)).
 
 **Changing a panel's type** (Selected panel → **Type**) starts its options afresh from
 the new type's ([Panel options](EphysAnalysisConfig.md#panel-options)),

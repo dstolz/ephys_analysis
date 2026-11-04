@@ -3919,6 +3919,7 @@ end
 
 if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like it, redrawn without computing; Ctrl+Click on a panel selects it")
     noFigures();
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5k), let go: edits stay with their figure
     app.selectTab(app.TabFigures);
     app.FigureAutoCheckBox.Value = true;
     app.FigureAutoPreviewSeconds = Inf;   % Auto draws every figure shown here, however loaded the machine

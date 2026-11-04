@@ -150,7 +150,8 @@ function test_EphysFigGenApp(opts)
 %   fields, the figure untouched; its release one undo step, laid out in
 %   place, or drawn again when the time stack changes; Escape and Alt;
 %   equal spacing and size; snapRect's unit cases; the arrow keys and their
-%   one undo step; Set corners and New panel drawn by two clicks, Escape,
+%   one undo step; several panels selected with Shift+click (moved, resized,
+%   nudged and removed together, Escape, a plain click); Set corners and New panel drawn by two clicks, Escape,
 %   a click off the page; the floating legend made a legend panel; out of
 %   date, another figure, a probe figure; off again with Ctrl+Click);
 %   closing (no plot or session preference written). The app's preferences live in a
@@ -3377,6 +3378,89 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         'the guides go a second after the last press; an edit in the editor takes the arrows back; Ctrl+Alt+arrows still select a panel');
     app.FigureHistory.CoalesceSeconds = coalesce5ha;
 
+    % several panels at once: Shift+click builds the selection; a drag moves them all (one step), a resize widens each
+    % alike, Escape puts them back, the arrows nudge them all, Remove panel removes them all; a plain click selects one
+    app.FigureSnap = false;
+    cfgM = app.gatherConfig();
+    pM = cfgM.Figures(k5).panels;
+    iA = find([pM.id] == "psth_1"); iB = find([pM.id] == "psth_2");
+    pM(iA).rect = [0 0 0.4 0.4]; pM(iB).rect = [0.5 0 0.4 0.4];
+    cfgM.Figures(k5).panels = pM;
+    app.applyConfig(cfgM);
+    app.refreshFigurePreview(Force=true);
+    blue = [0.05 0.45 0.95];
+    app.onArrangeClicked("psth_1", struct('SelectionType', "left"));
+    app.onArrangeClicked("psth_2", struct('SelectionType', "shift"));
+    wA = arrangeBox(app, "psth_1"); wB = arrangeBox(app, "psth_2"); wC = arrangeBox(app, "raster_1");
+    primaryB = app.Config.Figures(k5).panels(app.SelectedPanel).id == "psth_2" && isequal(app.FigureArrangeExtra, "psth_1");
+    check(primaryB && isequal(wA.Color, blue) && wA.LineWidth == 1 && isequal(wB.Color, blue) && wB.LineWidth == 2 && ~isequal(wC.Color, blue), ...
+        'Shift+click adds psth_2 to psth_1: both boxes blue, the last clicked (the editor''s panel) thicker, the raster not');
+    rA = rectOf5("psth_1"); rB = rectOf5("psth_2");
+    pg = app.FigureArrangeOverlay.axes.Position;
+    axA = findPanelAxes(P, "psth_1");
+    pA = axA.Position;
+    nUndo = numel(app.FigureHistory.Undo);
+    app.onArrangeMoving("psth_2", roiMove(rB, rB + [0.05 0.05 0 0]));
+    liveA = all(abs(axA.Position(1:2) - (pA(1:2) + [0.05 0.05] .* pg(3:4))) < 1e-6) && rectIs(wA.Position, rA + [0.05 0.05 0 0]);
+    app.onArrangeMoved("psth_2", roiMove(rB, rB + [0.05 0.05 0 0]));
+    movedAll = rectIs(rectOf5("psth_1"), rA + [0.05 0.05 0 0]) && rectIs(rectOf5("psth_2"), rB + [0.05 0.05 0 0]) ...
+        && numel(app.FigureHistory.Undo) == nUndo + 1 && app.FigureHistory.undoLabel() == "Move panels";
+    app.onUndoRedo("undo");
+    back = rectIs(rectOf5("psth_1"), rA) && rectIs(rectOf5("psth_2"), rB);
+    check(liveA && movedAll && back, ...
+        'a drag of psth_2 moves psth_1 too, by the same shift (its box and its plot along the way); one undo step "Move panels", undone as one');
+    app.onArrangeMoving("psth_2", roiMove(rB, rB + [0 0 0.05 0]));
+    app.onArrangeMoved("psth_2", roiMove(rB, rB + [0 0 0.05 0]));
+    widened = rectIs(rectOf5("psth_1"), rA + [0 0 0.05 0]) && rectIs(rectOf5("psth_2"), rB + [0 0 0.05 0]) ...
+        && app.FigureHistory.undoLabel() == "Resize panels";
+    app.onUndoRedo("undo");
+    pA2 = findPanelAxes(P, "psth_1").Position;
+    app.onArrangeMoving("psth_2", roiMove(rB, rB + [0.1 0 0 0]));
+    app.onKeyPress(pressed('escape', {}));
+    escAll = rectIs(arrangeBox(app, "psth_1").Position, rA) && rectIs(arrangeBox(app, "psth_2").Position, rB) ...
+        && isequal(findPanelAxes(P, "psth_1").Position, pA2);
+    nUndo = numel(app.FigureHistory.Undo);
+    app.onArrangeMoved("psth_2", roiMove(rB, rB + [0.1 0 0 0]));
+    escAll = escAll && numel(app.FigureHistory.Undo) == nUndo && rectIs(rectOf5("psth_1"), rA);
+    check(widened && escAll, ...
+        'a resize of psth_2''s right edge widens psth_1 by as much ("Resize panels"); Escape during a drag puts both boxes and the plots back, the release changes nothing');
+    app.onArrangeClicked("", []);   % (a click on the page: the arrows are Arrange's; the selection stays with Shift)
+    app.onArrangeClicked("psth_1", struct('SelectionType', "shift"));
+    app.onKeyPress(pressed('rightarrow', {}));
+    nudgedAll = rectIs(rectOf5("psth_1"), rA + [stepX 0 0 0]) && rectIs(rectOf5("psth_2"), rB + [stepX 0 0 0]) ...
+        && app.FigureHistory.undoLabel() == "Move panels";
+    app.onUndoRedo("undo");
+    app.onArrangeClicked("psth_2", struct('SelectionType', "left"));   % a plain click on one of several: kept for a drag, then alone at the release
+    kept = numel(app.FigureArrangeExtra) == 1 && ~isempty(app.Fig.WindowButtonUpFcn);
+    app.Fig.WindowButtonUpFcn(app.Fig, []);
+    alone = isempty(app.FigureArrangeExtra) && app.Config.Figures(k5).panels(app.SelectedPanel).id == "psth_2" ...
+        && arrangeBox(app, "psth_1").LineWidth == 1 && ~isequal(arrangeBox(app, "psth_1").Color, blue) && isempty(app.Fig.WindowButtonUpFcn);
+    check(nudgedAll && kept && alone, ...
+        'with both selected the arrow nudges both ("Move panels"); a plain click on one keeps them for a drag, and without one it alone is selected at the release');
+    app.onArrangeClicked("psth_1", struct('SelectionType', "shift"));
+    nP = numel(app.Config.Figures(k5).panels);
+    cms = findall(app.Fig, 'Type', 'uicontextmenu', 'Tag', 'arrangeMenu');
+    cmA = cms(arrayfun(@(c) isequal(c.UserData, "psth_1"), cms));
+    mi = findall(cmA, 'Tag', 'removePanel');
+    onBox = isscalar(cmA) && isequal(arrangeBox(app, "psth_1").ContextMenu, cmA);
+    removedAll = false;
+    if isscalar(mi)
+        mi.MenuSelectedFcn(mi, []);
+        removedAll = numel(app.Config.Figures(k5).panels) == nP - 2 && ~any(ismember([app.Config.Figures(k5).panels.id], ["psth_1" "psth_2"])) ...
+            && app.FigureHistory.undoLabel() == "Remove panels" && isempty(app.FigureArrangeExtra);
+        app.onUndoRedo("undo");
+    end
+    cmB = arrangeBox(app, "psth_1").ContextMenu;
+    boxMenu = "none";
+    if ~isempty(cmB) && isvalid(cmB)
+        boxMenu = sprintf("%s Tag=%s UserData=%s items=[%s]", class(cmB), string(cmB.Tag), strjoin(string(cmB.UserData), ","), ...
+            strjoin(string(get(cmB.Children, 'Text')), "|"));
+    end
+    check(onBox && removedAll && numel(app.Config.Figures(k5).panels) == nP, ...
+        sprintf(['with two selected, a box''s Remove panel removes both, one undo step "Remove panels"; Undo brings them back ' ...
+        '(menus found %d, psth_1''s on its box %d, its Remove item %d; the box''s menu: %s)'], numel(cms), onBox, numel(mi), boxMenu));
+    app.onArrangeClicked("psth_1", struct('SelectionType', "left"));
+
     % Set corners: two clicks on the page; Escape and a click off the page cancel
     app.FigureSnap = false;
     app.onPanelSelected(2);
@@ -3488,7 +3572,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.onFigurePanelClicked(app.Config.Figures(k5).id, "psth_1", true, false);
     app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));
     check(~app.FigureArrange && isempty(app.FigureArrangeOverlay) && isempty(findall(app.FigurePreviewPanel, 'Tag', 'arrangeOverlay')) ...
-        && nmOff == 4 && app.SelectedPanel == 2 && ~contains(app.FigurePreviewHint.Text, "Arrange"), ...
+        && nmOff == 4 && app.SelectedPanel == 2 && ~contains(app.FigurePreviewHint.Text, "Arrange") && isempty(app.FigureArrangeExtra), ...
         'Arrange off: the overlay and its boxes gone, the selected panel outlined again, Ctrl+Click selects as before');
 
     noFigures();

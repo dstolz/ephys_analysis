@@ -11,7 +11,10 @@ function nudgePanel(obj, dx, dy, how)
 %                  out (positive) or in: Alt+Arrows
 %     "resizeTen"  ten steps: Alt+Shift+Arrows
 %   The panel stays on the page (a resize keeps a width and height of at
-%   least 0.01). Each press is an edit of the figure (commitFigureEdit,
+%   least 0.01). The others selected with Shift+click (arrangeSelection)
+%   go along: the same shift, the group kept on the page, or the same
+%   change of size (arrangeGroup), in the same step ("Move panels",
+%   "Resize panels"). Each press is an edit of the figure (commitFigureEdit,
 %   "Move panel" or "Resize panel"), but the presses of one burst, under a
 %   second apart, are one step of the undo history (Key "arrangeKeys:move"
 %   or "arrangeKeys:resize"); the preview is laid out again in place after
@@ -51,15 +54,33 @@ else
     r(1:2) = min(max(r(1:2) + [dx dy] .* s, 0), 1 - r(3:4));
     action = "Move panel";
 end
-if all(abs(r - C.rect0) < 1e-12)
+sel = arrangeSelection(obj);   % the others selected with Shift+click go along
+pids = [obj.Config.Figures(k).panels.id];
+qs = zeros(1, 0);
+for o = sel(2:end); qs(end+1) = find(pids == o, 1); end %#ok<AGROW>
+R0 = zeros(numel(qs), 4);
+for i = 1:numel(qs); R0(i, :) = reshape(double(obj.Config.Figures(k).panels(qs(i)).rect), 1, 4); end
+R = R0;
+if ~isempty(qs)
+    [r, R] = arrangeGroup(C.rect0, r, R0);
+    keep = ~ismember(C.names, pids(qs));   % (the guides: not to the panels going along)
+    C.others = C.others(keep, :);
+    C.names = C.names(keep);
+end
+if all(abs(r - C.rect0) < 1e-12) && all(abs(R - R0) < 1e-12, 'all')
     obj.setStatus(id + " is at the page's edge" + ternary(resize, " (or its smallest)", "") + ": it goes no further.");
     return
 end
-cfg = obj.Config;   % the rect alone changed
+cfg = obj.Config;   % the rects alone changed
 cfg.Figures(k).panels(j).rect = r;
+for i = 1:numel(qs); cfg.Figures(k).panels(qs(i)).rect = R(i, :); end
 verb = ternary(resize, "Resized ", "Moved ");
-commitFigureEdit(obj, cfg, verb + id + ": " + rectText(r, obj.FigureRectUnits, C.pageCm, C.dpi) + ".", ...
-    Action=action, Key="arrangeKeys:" + ternary(resize, "resize", "move"), Arrange=true);
+msg = verb + id + ": " + rectText(r, obj.FigureRectUnits, C.pageCm, C.dpi) + ".";
+if ~isempty(qs)
+    action = action + "s";
+    msg = verb + strjoin(sel, ", ") + " (" + numel(sel) + " panels); " + id + ": " + rectText(r, obj.FigureRectUnits, C.pageCm, C.dpi) + ".";
+end
+commitFigureEdit(obj, cfg, msg, Action=action, Key="arrangeKeys:" + ternary(resize, "resize", "move"), Arrange=true);
 % the smart guides at the nudged place, gone a second after the last press
 [~, g] = snapRect(r, C.rect0, C.others, [0 0], [0 0], Names=C.names);
 arrangeCues(obj, r, g);

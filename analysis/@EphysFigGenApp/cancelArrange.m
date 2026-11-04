@@ -6,7 +6,8 @@ function cancelArrange(obj, msg)
 %   the boxes are free again (arrangeWidgetLock) and the dashed rectangle
 %   from the first corner goes. A drag of a box (FigureArrangeMode "drag")
 %   is canceled: the box goes back to the panel's rect, the panel's plots
-%   it moved along go back where they were drawn (arrangePartsAt), the
+%   it moved along go back where they were drawn (arrangePartsAt; every
+%   panel selected with it too), the
 %   Position and Size fields show it again (showPanelPlace), and the box stays there
 %   until the mouse button is let go (FigureArrangeMode "canceled", which
 %   onArrangeMoving and onArrangeMoved honor). The smart guides are
@@ -47,6 +48,12 @@ if isstruct(O) && ~isempty(O.axes) && isvalid(O.axes)
             if ~isempty(C) && ~isempty(C.w) && isvalid(C.w); arrangeWidgetSet(C.w, C.rect0); end
         end
         if isstruct(D) && isfield(D, 'parts') && ~isempty(D.parts); arrangePartsAt(D.parts, D.parts.box0); end   % the plots back too
+        if isstruct(D) && isfield(D, 'group')   % the others selected, moved along: back too
+            for i = 1:numel(D.group)
+                arrangeWidgetSet(D.group(i).w, D.group(i).rect0);
+                if ~isempty(D.group(i).parts); arrangePartsAt(D.group(i).parts, D.group(i).parts.box0); end
+            end
+        end
         showPanelPlace(obj);
     end
     arrangeCues(obj, [], []);

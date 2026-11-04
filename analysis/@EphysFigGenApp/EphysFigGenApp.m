@@ -408,6 +408,8 @@ classdef EphysFigGenApp < handle
         FigureArrangeMode (1,1) string = "" % what Arrange is doing: "" | "drag" | "canceled" (a drag Escape canceled, until its release) | "corners" (Set corners: two clicks); cancelArrange ends it
         FigureCorners = []                  % Set corners: struct what ("set", "new", "block"), payload (the panel's id, or onNewPanel's options) and first (the first corner, [] until clicked), else []
         FigureArrangeFocus (1,1) logical = false   % the overlay was clicked last: the arrow keys nudge the selected panel (cleared by an editor edit)
+        FigureArrangeExtra (1,:) string = strings(1, 0)   % Arrange: the panels selected with Shift+click besides SelectedPanel (the primary); moved, resized, nudged and removed with it (arrangeSelection); cleared with Arrange off, another figure, a panel added or removed
+        FigureArrangeClick = []             % Arrange: a click on one of several selected boxes waiting for its release (id, the window's oldUp): no drag, and that one alone is selected (onArrangeClicked)
         FigureRectUnits (1,1) string = "cm"  % the Panels section's units for a rect, padding and snap step (EphysAnalysisConfig.RectUnits; pref FigureRectUnits)
         FigureSnap (1,1) logical = true     % Arrange snaps the panels to edges, centers and the step (pref FigureSnap)
         FigureSnapStep = struct('value', 0.5, 'units', "cm")   % the snap step and the arrow keys' nudge: a value in its units (pref FigureSnapStep)

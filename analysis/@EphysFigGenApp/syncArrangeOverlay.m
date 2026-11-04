@@ -10,7 +10,8 @@ function [shown, why] = syncArrangeOverlay(obj, opts)
 %   of date), its x and y limits [0 1], so a box's Position is its panel's
 %   rect; it is put over the drawing again (uistack). It holds a widget per
 %   panel (private/arrangeWidget: Tag "arrangeBox:<id>", at the panel's
-%   rect as the config holds it, the selected panel's blue), and a dashed
+%   rect as the config holds it; the selected panels' blue, the primary's
+%   line thicker: arrangeSelection), and a dashed
 %   one for a legend floating in free space (legendMode "float", no
 %   legend panel: Tag "arrangeBox:legend"), which a drag makes a legend
 %   panel (onArrangeMoved). The widgets are kept by id and moved, made
@@ -20,6 +21,10 @@ function [shown, why] = syncArrangeOverlay(obj, opts)
 %   or on a box, calls onArrangeClicked; a box's drag onArrangeMoving and
 %   onArrangeMoved; its right-click menu is private/arrangeMenu's. The
 %   smart guides (private/arrangeCues) live in the overlay too.
+%   The panels selected with Shift+click besides the primary
+%   (FigureArrangeExtra) are forgotten when the figure's panels change (one
+%   added, removed or renamed) and when the overlay goes (Arrange off,
+%   another figure).
 %   Arrange off, or the preview showing anything else, takes the overlay
 %   away (with Set corners or a drag under way: cancelArrange); when it
 %   was there with Arrange on, the status bar says why (WHY, from
@@ -86,8 +91,8 @@ uistack(ax, 'top');   % over the drawing (a drawing kept in part reorders the ca
 fig = obj.Config.Figures(k);
 ids = strings(1, 0);
 if ~isempty(fig.panels); ids = [fig.panels.id]; end
-sel = "";
-if obj.SelectedPanel >= 1 && obj.SelectedPanel <= numel(ids); sel = ids(obj.SelectedPanel); end
+if ~isequal(O.ids, ids); obj.FigureArrangeExtra = strings(1, 0); end   % another figure, a panel added or removed: the primary alone
+sel = arrangeSelection(obj);   % the primary first, then the others selected with Shift+click
 locked = obj.FigureArrangeMode == "corners";
 W = O.widgets;
 for key = string(W.keys)
@@ -105,9 +110,9 @@ for i = 1:numel(ids)
     if isKey(W, char(id))
         w = W(char(id));
         arrangeWidgetSet(w, r);
-        arrangeWidgetSelect(w, id == sel);
+        arrangeWidgetSelect(w, levelOf(id, sel));
     else
-        w = arrangeWidget(ax, r, id, id == sel, callbacks(obj, id));
+        w = arrangeWidget(ax, r, id, levelOf(id, sel), callbacks(obj, id));
         W(char(id)) = w;
     end
     arrangeWidgetLock(w, locked);
@@ -134,9 +139,22 @@ else
     arrangeWidgetLock(O.legend, locked);
 end
 O.legendRect = lr;
+O.ids = ids;
 O.widgets = W;
 obj.FigureArrangeOverlay = O;
 shown = true;
+end
+
+
+function v = levelOf(id, sel)
+%levelOf  How a box shows the selection: 2 the primary (the editor's panel), 1 another selected panel, 0 none.
+v = 0;
+if isempty(sel); return; end
+if id == sel(1)
+    v = 2;
+elseif any(sel == id)
+    v = 1;
+end
 end
 
 
@@ -148,7 +166,7 @@ ax = axes(P, 'Units', 'pixels', 'Position', [1 1 10 10], 'XLim', [0 1], 'YLim', 
 disableDefaultInteractivity(ax);
 ax.Toolbar.Visible = 'off';
 O = struct('axes', ax, 'panel', P, 'widgets', containers.Map('KeyType', 'char', 'ValueType', 'any'), 'legend', [], ...
-    'legendRect', [], 'guides', [], 'band', [], 'timer', []);
+    'legendRect', [], 'guides', [], 'band', [], 'timer', [], 'ids', []);
 end
 
 
@@ -167,6 +185,8 @@ if obj.FigureArrangeMode ~= ""
 end
 O = obj.FigureArrangeOverlay;
 obj.FigureArrangeOverlay = [];
+obj.FigureArrangeExtra = strings(1, 0);   % (the selection is the editor's panel alone again)
+arrangeClickDone(obj);
 if ~isstruct(O); return; end
 if ~isempty(O.timer) && isvalid(O.timer); stop(O.timer); end   % (it deletes itself when stopped)
 if ~isempty(O.axes) && isvalid(O.axes); delete(O.axes); end   % its widgets, their menus and the guides with it

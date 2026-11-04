@@ -153,6 +153,10 @@ switch cfg.Reference.Mode
     case "wcar"; ref = "common reference: weighted CAR";   % fits one line of the box
     otherwise;  ref = "no common reference";
 end
+L = channelsLeftOut(cfg, d);
+if L.on   % Leave out bad channels: out of every step, so said on what they all read
+    ref(end+1) = "bad channels left out: " + L.text;
+end
 raw = node("rec", "rec", "src", 0, 2, "Raw recording", ...
     [rec, "+ manifest: probe, exclusions, manual artifact periods", ref], "RootPathField,DatasetsTable");
 

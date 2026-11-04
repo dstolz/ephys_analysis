@@ -8,8 +8,11 @@ function [html, summary] = detail(cfg, d, opts)
 %   (EphysPipelineApp.flowChartHTML), and works without the app.
 %
 %   The detail view draws one tree from the raw
-%   recording. The common reference (the Reference section) comes right under
-%   it, drawn once: every step subtracts it once from its own read of the
+%   recording. Under it, Leave out channels: the channels every step leaves
+%   out (the dataset's bad channels while Artifacts.ExcludeBadChannels is
+%   on, and its Probe-tab exclusions; EphysDataset.excludedChannels). The
+%   common reference (the Reference section) comes next,
+%   drawn once: every step subtracts it once from its own read of the
 %   recording (the Signals it leaves out, such as the LFP, say so on their
 %   own branch). The tree then branches into Artifacts, Signals (LFP / MUA /
 %   SPIKE / AUX / digital events) and Spikes (threshold detection), and runs
@@ -75,8 +78,10 @@ if cfg.Signals.BlankArtifacts; hung{end+1} = signals; else; steps{end+1} = signa
 if cfg.Spikes.ArtifactMode == "erase"; hung{end+1} = spikes; else; steps{end+1} = spikes; end
 artifacts = artifactsTree(cfg, hung);
 steps = [{artifacts}, steps];
-% The recording and, once, the common reference every step's read takes.
-raw = chain({rawNode(d), referenceNode(cfg)});
+% The recording, the channels every step leaves out and, once, the common
+% reference every step's read takes.
+L = channelsLeftOut(cfg, d);
+raw = chain({rawNode(d), leftOutNode(L, d), referenceNode(cfg, d, L)});
 if opts.HideUnused
     kept = pruneUnused(raw);
     raw = kept{1};
@@ -202,18 +207,50 @@ n = hangFromEnd(n, {periods});
 end
 
 
-function n = referenceNode(cfg)
+function n = leftOutNode(L, d)
+%leftOutNode  The channels left out before any step reads the recording
+%   (EphysDataset.excludedChannels; L from channelsLeftOut): the dataset's
+%   bad channels while Leave out bad channels is ticked, out of every step,
+%   and the Probe tab's exclusions, out of the reference, artifact detection
+%   and sorting (Signals and Spikes as their channel settings say). Drawn
+%   once, above the common reference, which none of them takes part in.
+target = "ArtBadCheckBox,ArtBadField,ArtBadSuggestButton,ExcludeChannelsField";
+settled = ~isempty(d) && L.source ~= "";
+lines = strings(1, 0);
+if L.on && settled && isempty(L.bad)
+    lines(end+1) = "bad: " + L.text;
+elseif L.on
+    lines(end+1) = "bad: " + L.text + ", out of every step";
+elseif ~isempty(L.marked)
+    lines(end+1) = "bad: " + EphysDataset.formatChannelList(L.marked) + " still read (Leave out bad channels is off)";
+else
+    lines(end+1) = "bad channels: Leave out bad channels is off";
+end
+if ~isempty(L.probe)
+    lines(end+1) = "Probe tab: " + EphysDataset.formatChannelList(L.probe) + ", out of reference / artifacts / sorting";
+end
+if ~isempty(L.all) || (L.on && ~settled)
+    n = node("op", "Leave out channels", lines, target);
+else
+    n = node("off", "Leave out channels", [lines, "every channel is read"], target);
+end
+end
+
+
+function n = referenceNode(cfg, d, L)
 %referenceNode  The common reference (the Reference section), drawn once
 %   between the recording and the steps: each step subtracts it once,
 %   sample by sample, from its own read of the recording - artifact
 %   detection, the sorting .bin (the sorter's own reference then kept out), spike
 %   detection and the Signals ticked for it (EphysDataset.applyReference /
 %   referenceTrace; for the adaptive weighted CAR, Mode "wcar", the state
-%   prepareWCAR works out). What leaves it out is listed.
+%   prepareWCAR works out). What leaves it out is listed: the channels left
+%   out above (L, channelsLeftOut) and the dataset D's own Left out list
+%   (ReferenceExclude), with the count it is taken over once both are known.
 A = cfg.Artifacts;
 G = cfg.Signals;
 R = cfg.Reference;
-target = "ArtRefDropDown,ArtRefLowField,ArtRefHighField";
+target = "ArtRefDropDown,ArtRefLowField,ArtRefHighField,ArtRefExcludeField";
 switch R.Mode
     case "car"; n = node("op", "Common average reference", "mean of the good channels, subtracted once from each", target);
     case "cmr"; n = node("op", "Common median reference", "median of the good channels, subtracted once from each", target);
@@ -234,6 +271,21 @@ if ~isempty(off)
 end
 if A.Method == "commonmode"
     n.detail(end+1) = "not the common-mode artifact detector";
+end
+if ~isempty(L.all) || L.on
+    n.detail(end+1) = "not the channels left out above";
+end
+if isempty(d)
+    return
+end
+if d.ReferenceExcludeSource == ""
+    n.detail(end+1) = "its own Left out: suggested at the first read";
+elseif ~isempty(d.ReferenceExclude)
+    n.detail(end+1) = "its own Left out: " + EphysDataset.formatChannelList(d.ReferenceExclude);
+end
+if isfinite(d.NumChannels) && d.ReferenceExcludeSource ~= "" && ~(L.on && L.source == "")
+    n.detail(end+1) = sprintf("over %d of %d channels", ...
+        numel(setdiff(1:d.NumChannels, [L.all, d.ReferenceExclude])), d.NumChannels);
 end
 end
 
@@ -270,8 +322,9 @@ elseif cfg.Probe.DefaultProbeFile ~= ""
 else
     probe = "per-dataset probe (none set)";
 end
-if ~isempty(d) && ~isempty(d.ExcludeChannels)
-    probe(end+1) = "excluding " + compactList(d.ExcludeChannels);
+left = channelsLeftOut(cfg, d).all;   % the Probe tab's and, while left out, the bad channels
+if ~isempty(left)
+    probe(end+1) = "excluding " + compactList(left);
 end
 
 blank = node("link", "Blank artifact periods", ...

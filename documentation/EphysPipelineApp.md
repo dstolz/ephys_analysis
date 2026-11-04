@@ -2412,17 +2412,28 @@ of Every parameter and each direction keeps its own.
 <!-- wiki: ![The Diagram tab, Every parameter view](images/app-diagram-tab.png) -->
 
 **Every parameter** is one tree: the raw
-recording at the top, then the common reference, drawn once, and under it
-the steps that read the recording, each drawn top-down from its own colored
-step box to the files it writes:
+recording at the top, then the channels left out, then the common reference,
+drawn once, and under it the steps that read the recording, each drawn
+top-down from its own colored step box to the files it writes:
 
+- **Leave out channels**: the channels no step reads, drawn once above the
+  reference since none of them takes part in it. With **Leave out bad
+  channels** ticked (`Artifacts.ExcludeBadChannels`), the active dataset's
+  bad channels and where they came from (*bad: 3 (set by hand), out of every
+  step*; *worked out at the first read* while the list was never set); with
+  it off, the bad channels that are still read. Then the Probe tab's
+  exclusions, which the reference, artifact detection and sorting leave out.
+  Dashed *every channel is read* when there are none. The box opens the
+  Artifacts tab's bad-channel controls.
 - **Common reference** (`Reference.Mode`, set on the Artifacts tab): the one box for the
   whole pipeline, since every step subtracts it once from its own read of the
   recording; for `"wcar"` an *Adaptive weighted CAR* box with its order,
   alpha, drift, Q, estimate and high-pass, which opens the WCAR controls. It
   lists what leaves it out: the Signals not ticked for it (*not Signals' LFP*
-  by default) and the common-mode artifact detector, which looks for the very
-  mean it subtracts. Dashed *none (as recorded)* when it is off.
+  by default), the common-mode artifact detector, which looks for the very
+  mean it subtracts, the channels left out above, and the active dataset's own
+  **Left out** list, with the number of channels it is taken over (*over 61
+  of 64 channels*). Dashed *none (as recorded)* when it is off.
 - **Artifacts**: chunked reading, the detection
   filter, the detector (method, window, threshold), channel coincidence,
   merge / pad, the automatic intervals, and the artifact periods
@@ -2479,7 +2490,8 @@ summary line (`N of 4 raw-data step(s) enabled`) counts Artifacts, Sorting,
 Signals and Spikes, wherever they hang.
 
 With an active dataset the recording node shows its name, rate and channel
-count, and the Sorting branch shows its probe and exclusions.
+count, and the Sorting branch shows its probe and the channels dropped from
+its `chanMap` (the Probe tab's exclusions and the bad channels left out).
 
 **Click a box to open the setting it draws**: the app switches to the tab that
 holds it, scrolls it into view, focuses it and colors it blue and bold until
@@ -2503,7 +2515,8 @@ sessions (their search folders and how they are matched, or, with
 `Behavior.Search` off, the active dataset's associated session) and the probe map
 (the active dataset's own, else the default). The recording box also stands
 for the dataset's manifest (probe, channel exclusions, manual artifact
-periods) and names the common reference. An arrow runs from each input or
+periods), names the common reference and, with **Leave out bad channels**
+ticked, lists the bad channels every step leaves out. An arrow runs from each input or
 written file to every step that reads it, in the color of whatever wrote
 it:
 

@@ -12,7 +12,8 @@ function fig = removePanel(fig, id)
 %
 %   Error: EphysAnalysisConfig:NoPanel.
 %
-%   See also EphysAnalysisConfig.placePanel, EphysAnalysisConfig.figureCells.
+%   See also EphysAnalysisConfig.placePanel, EphysAnalysisConfig.removeCell,
+%   EphysAnalysisConfig.figureCells.
 
 arguments
     fig (1,1) struct
@@ -37,40 +38,11 @@ if isempty(fig.panels)
     return
 end
 for i = G.rows:-1:1
-    if any([fig.panels.row] == i); continue; end
-    for q = 1:numel(fig.panels)
-        P = fig.panels(q);
-        if P.row > i
-            fig.panels(q).row = P.row - 1;
-        elseif P.row + P.rowSpan - 1 >= i
-            fig.panels(q).rowSpan = P.rowSpan - 1;
-        end
-    end
-    if numel(G.rowHeights) >= i; G.rowHeights(i) = []; end
-    G.rowGaps = dropGap(G.rowGaps, i, G.rows);
-    G.rows = G.rows - 1;
+    if ~any([fig.panels.row] == i); fig = dropGridRow(fig, i); end
 end
-for j = G.cols:-1:1
-    if any([fig.panels.col] == j); continue; end
-    for q = 1:numel(fig.panels)
-        P = fig.panels(q);
-        if P.col > j
-            fig.panels(q).col = P.col - 1;
-        elseif P.col + P.colSpan - 1 >= j
-            fig.panels(q).colSpan = P.colSpan - 1;
-        end
-    end
-    if numel(G.colWidths) >= j; G.colWidths(j) = []; end
-    G.colGaps = dropGap(G.colGaps, j, G.cols);
-    G.cols = G.cols - 1;
+fig = gridTransposed(fig);   % the columns: the rows of the grid turned a quarter
+for j = fig.grid.rows:-1:1
+    if ~any([fig.panels.row] == j); fig = dropGridRow(fig, j); end
 end
-fig.grid = G;
-end
-
-
-function g = dropGap(g, i, n)
-%dropGap  The gaps G between N rows (columns) with row I dropped: the gap under it goes (the last row's: the one over it).
-%   G not sized to the grid (N - 1 gaps) is left as it is.
-if isempty(g) || numel(g) ~= n - 1; return; end
-g(min(i, numel(g))) = [];
+fig = gridTransposed(fig);
 end

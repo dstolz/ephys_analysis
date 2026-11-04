@@ -97,11 +97,11 @@ end
 % columns are rows turned a quarter: place them as rows of the transposed grids
 across = ismember(where, ["left" "right"]);
 if across
-    fig = transposed(fig);
-    B = transposed(B);
+    fig = gridTransposed(fig);
+    B = gridTransposed(B);
 end
 fig = placeRows(fig, B, a, ismember(where, ["below" "right"]));
-if across; fig = transposed(fig); end
+if across; fig = gridTransposed(fig); end
 end
 
 
@@ -117,12 +117,12 @@ gcB = inUnits(gcB, unitsB, unitsH, G.colGap, preset);
 
 % the anchor's columns, split where the block has a boundary inside one of them
 A = H.panels(a);
-w = sizesOf(G.colWidths, nc);
+w = gridSizes(G.colWidths, nc);
 span = A.col:min(A.col + A.colSpan - 1, nc);
 W = sum(w(span));
 hb = [0 cumsum(w(span))] / W;
 nb = rowsOf(B.grid.cols);
-bw = sizesOf(B.grid.colWidths, nb);
+bw = gridSizes(B.grid.colWidths, nb);
 bb = [0 cumsum(bw)] / sum(bw);
 tol = 1e-9;
 for i = numel(span):-1:1
@@ -153,7 +153,7 @@ for q = 1:nb + 1
 end
 
 % the new rows: the block's heights in proportion, their mean the height of the row they copy
-h = sizesOf(G.rowHeights, nr);
+h = gridSizes(G.rowHeights, nr);
 if after
     ins = A.row + A.rowSpan;
     from = ins - 1;
@@ -163,7 +163,7 @@ else
 end
 from = min(max(from, 1), nr);
 R = rowsOf(B.grid.rows);
-bh = sizesOf(B.grid.rowHeights, R);
+bh = gridSizes(B.grid.rowHeights, R);
 h = [h(1:ins-1), bh / mean(bh) * h(from), h(ins:end)];
 for k = 1:numel(H.panels)
     p = H.panels(k);
@@ -205,24 +205,9 @@ H.panels = [H.panels, P];
 
 G.rows = nr;
 G.cols = nc;
-G.rowHeights = keptSizes(h, G.rowHeights);
-G.colWidths = keptSizes(w, G.colWidths);
+G.rowHeights = gridKeptSizes(h, G.rowHeights);
+G.colWidths = gridKeptSizes(w, G.colWidths);
 H.grid = setGaps(G, grH, gcH, unitsH, preset);
-end
-
-
-function F = transposed(F)
-%transposed  Figure F's grid and panels turned a quarter: rows for columns (heights for widths, row gaps for column gaps).
-G = F.grid;
-F.grid.rows = G.cols;          F.grid.cols = G.rows;
-F.grid.rowHeights = G.colWidths; F.grid.colWidths = G.rowHeights;
-F.grid.rowGap = G.colGap;      F.grid.colGap = G.rowGap;
-F.grid.rowGaps = G.colGaps;    F.grid.colGaps = G.rowGaps;
-for k = 1:numel(F.panels)
-    p = F.panels(k);
-    F.panels(k).row = p.col;   F.panels(k).col = p.row;
-    F.panels(k).rowSpan = p.colSpan;   F.panels(k).colSpan = p.rowSpan;
-end
 end
 
 
@@ -294,20 +279,6 @@ if numel(g) ~= n
     g = repmat(v, 1, n);
 end
 g(~(isfinite(g) & g >= 0)) = 0;
-end
-
-
-function s = sizesOf(sizes, n)
-%sizesOf  N relative sizes: SIZES when they are N positive numbers, else equal ones.
-s = ones(1, n);
-v = reshape(double(sizes), 1, []);
-if numel(v) == n && all(isfinite(v) & v > 0); s = v; end
-end
-
-
-function s = keptSizes(s, was)
-%keptSizes  The relative sizes S, [] (equal) when they are all equal and the grid had none of its own (WAS []).
-if isempty(was) && all(abs(s - s(1)) <= 1e-12 * max(abs(s(1)), 1)); s = []; end
 end
 
 

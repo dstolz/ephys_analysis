@@ -32,6 +32,7 @@ steps = uipanel(g, "Title", "Steps (same switches as on each tab)");
 steps.Layout.Row = 1; steps.Layout.Column = 1;
 sg = uigridlayout(steps, [19 1]);
 sg.RowHeight = [repmat({'fit'}, 1, 18), {'1x'}];
+sg.Scrollable = "on";   % a short window scrolls the checklist instead of squeezing it
 % A red banner while the Sorting tab's "Dry run" box is ticked (syncRunBanner): that box stays on between runs,
 % and a run that only writes the sorting run files looks like one that sorted.
 obj.RunBanner = uilabel(sg, "Text", "Sorting is in dry-run mode: a run writes the Sorting step's run files and does not sort. Untick Dry run on the Sorting tab to sort.", ...

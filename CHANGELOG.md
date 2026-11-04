@@ -10,6 +10,7 @@ says how to cut a release.
 
 ### Changed
 
+- Pipeline app: the Run tab's **Steps** panel scrolls when the window is too short to show the whole checklist.
 - `tools\Run-Tests.ps1` runs MATLAB on a Windows desktop of its own that is never shown, so the apps and figures
   the tests open no longer come over your windows or take the focus; `-Visible` runs it on your desktop, as before. `-TimeoutMin` is 45 by default (was 120).
 - Analysis app: a new panel put above, below, left or right of the selected one fills the empty cells on that side

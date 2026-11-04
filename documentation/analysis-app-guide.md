@@ -19,8 +19,8 @@ programming beyond the line that opens it. The
   each trial ends").
 - **Chooses and groups trials** by the behavior: only hits, say, grouped by
   the stimulus `Depth`.
-- **Draws figures** made of panels you stack on a grid: a raster flush above
-  its PSTH above the LFP of the same unit's channel is one figure. A figure
+- **Draws figures** made of panels you place anywhere on the page: a raster
+  flush above its PSTH above the LFP of the same unit's channel is one figure. A figure
   is drawn for each sorted unit, each channel, or once for the whole
   recording, or across several recordings (one color per session, or a mean
   with an error band).
@@ -71,11 +71,10 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 3. **Figures.** Press **Add** under the figure list. A window asks for the
    first panel: pick *Raster over PSTH* under **Saved figures** for a unit's
    raster above its PSTH. Or pick *Raster*, then **New panel...** puts
-   another panel next to it: a *PSTH* **Below** the raster. A new panel fills
-   an empty cell on that side when there is one; to put it in any other empty
-   cell, click that cell (dotted, with a **+**) in the sketch of the grid
-   in the **Panels** section. To get rid of an empty cell, click the
-   **−** beside its **+** and pick how the panels around it close the gap.
+   another panel on the page: a *PSTH* **Below** the raster takes the
+   raster's lower half, flush under it; **Largest empty space** puts it where
+   no panel is yet. To move or size a panel exactly, type its **Position**
+   and **Size** in the **Panels** section, in cm or the units you pick.
    The preview on
    the right draws the figure for the unit picked above it; step through the
    units to look at them one by one. Right-click the plot to change colors,
@@ -95,11 +94,12 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | draw a small figure at every unit's place on the probe | tick **On the probe** in the figure's Probe layout section |
 | check one unit's figures before a long run | Export tab: **Test report** |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
-| close an empty cell in a figure | in the sketch of the grid (Panels section), click the **−** in the cell and pick a way: stretch the column's or row's panels over it, shift the cells up or left, grow the panel next to it, or delete its row or column. The ways that cannot are grayed, with why (see [Removing an empty cell](EphysFigGenApp.md#removing-an-empty-cell)) |
+| move or resize a panel | pick it (Ctrl+Click it in the preview), then type its **Position** and **Size** in the Panels section; **Units** picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [the arrangement](EphysFigGenApp.md#removing-an-empty-cell)) |
+| put the legend where you want it | **New panel...** → *Legend*: a panel of its own that holds the figure's legend; place and size it as any panel |
 | copy a change to the other figures | **Edit → Apply last change to figures...** |
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysFigGenApp.md#notes)) |
-| reuse a figure's panels in other figures | select it and press **Save as panel type...** under the figure list. In any figure, **New panel...** then lists it under **Saved figures**: pick it, and all its panels go next to the selected panel, arranged as they were (see [Saved figures as panel types](EphysFigGenApp.md#figures-as-panel-types)) |
+| reuse a figure's panels in other figures | select it and press **Save as panel type...** under the figure list. In any figure, **New panel...** then lists it under **Saved figures**: pick it, and all its panels go into the free space or beside the selected panel, arranged as they were (see [Saved figures as panel types](EphysFigGenApp.md#figures-as-panel-types)) |
 | draw the same figures every time the pipeline runs | save the config, then choose it on the pipeline app's Analysis tab |
 | draw the same figures from a script | **File → Generate script** |
 

@@ -32,14 +32,23 @@ function P = pairEpsychTrials(trials, events, Fs, opts)
 %   Pairing by order alone cannot tell a glitch pulse plus a missing last
 %   pulse (the counts still agree, and every trial after the glitch is paired
 %   with the wrong interval) from a good pairing. When TRIALS has the
-%   Epsych2 computerTimestamp (datetime at trial end), the time between the
-%   ends of consecutive paired trials by that clock is compared with the time
-%   between the TrialOffsets of their intervals. The first pair that differs
-%   by more than max(0.5 s, 5% of the median interval between trial ends) is
-%   reported as timingMismatch (the row of the later trial; 0: none), with
-%   a pairEpsychTrials:TimingMismatch warning (unless Warn=false) when the
+%   Epsych2 computerTimestamp, it is checked against the intervals. Epsych2
+%   logs that time once it sees the trial is over, and starts the next trial
+%   only after that, so on the recording's clock a trial's timestamp lies
+%   after the end of its own interval and before the onset of the next
+%   trial's. It is not the trial's end: on real sessions it comes a few tens
+%   of ms after the TrialOffset on most trials but 1-3 s after it on a hit
+%   (the reward) and up to 20 s on the odd trial, so only these two bounds
+%   are tested, never the lag itself. Each paired trial bounds the offset
+%   between the computer clock and the recording's, [ts - next onset,
+%   ts - offset], widened by timingTolerance (0.5 s, for the drift between
+%   the two clocks); the first trial whose bounds miss those of every trial
+%   before it is reported as timingMismatch (its row; 0: none), with a
+%   pairEpsychTrials:TimingMismatch warning (unless Warn=false) when the
 %   counts agree: with a count mismatch the pairing is not trusted anyway and
-%   the check runs again on whatever the cuts leave. A session without
+%   the check runs again on whatever the cuts leave. A trial paired one
+%   interval too early ends after the next onset it was given, one paired
+%   too late ends before its interval does. A session without
 %   computerTimestamp is not checked (timingChecked 0).
 %
 %   Intervals at the recording edges
@@ -96,9 +105,10 @@ function P = pairEpsychTrials(trials, events, Fs, opts)
 %     partialIntervals   intervals touching the recording start or end
 %     unpairedTrials, unpairedIntervals   kept, but left without a partner
 %     nPaired, countMismatch
-%     timingMismatch  row of the first trial whose end disagrees with the
-%                     Epsych2 clock (0: none), timingChecked (how many
-%                     consecutive pairs were compared), timingTolerance (s)
+%     timingMismatch  row of the first trial whose Epsych2 timestamp its
+%                     interval cannot have (0: none), timingChecked (how many
+%                     paired trials with a timestamp were checked),
+%                     timingTolerance (s; NaN when none was)
 %     warnings        string list: the count-mismatch message and/or the
 %                     timing-mismatch message, or empty
 %     lines           struct: <line> -> {nTrials x 1} [n x 2] seconds of that
@@ -254,16 +264,18 @@ if P.countMismatch
 end
 
 % --- timing cross-check against the Epsych2 clock -----------------------------
-[P.timingMismatch, P.timingChecked, P.timingTolerance] = timingCheck(trials, P.offset);
+[P.timingMismatch, P.timingChecked, P.timingTolerance, side, by] = timingCheck(trials, P.onset, P.offset);
 if P.timingMismatch > 0 && ~P.countMismatch
-    i2 = P.timingMismatch;
-    prevTrial = i2 - 1;          % the pair compared is (i2 - 1, i2)
-    msgT = sprintf(['Trial %d does not agree with the Epsych2 timestamps: the computer clock puts its end ' ...
-        '%.1f s after trial %d, the %s line puts the end of its paired interval %.1f s after that of the ' ...
-        'previous one (more than %.1f s apart). The intervals from here on may be paired with the wrong ' ...
-        'trials: a glitch pulse on the line, or one missing. Drop the extra interval (DropIntervals) or cut ' ...
-        'trials / intervals, then review the pairing.'], i2, seconds(trials.computerTimestamp(i2) - trials.computerTimestamp(prevTrial)), ...
-        prevTrial, opts.TrialLine, P.offset(i2) - P.offset(prevTrial), P.timingTolerance);
+    if side == "early"
+        what = sprintf("at least %.1f s before its paired %s interval ended", by, opts.TrialLine);
+    else
+        what = sprintf("at least %.1f s after the next trial's %s interval began", by, opts.TrialLine);
+    end
+    msgT = sprintf(['Trial %d does not agree with the Epsych2 timestamps: by the computer clock, set by the ' ...
+        'trials before it, it ended %s. Epsych2 logs a trial''s end after the line goes off and starts the ' ...
+        'next trial after that. The intervals from here on may be paired with the wrong trials: a glitch ' ...
+        'pulse on the line, or one missing. Drop the extra interval (DropIntervals) or cut trials / ' ...
+        'intervals, then review the pairing.'], P.timingMismatch, what);
     P.warnings(end + 1) = string(msgT);
     if opts.Warn
         warning('pairEpsychTrials:TimingMismatch', '%s', msgT);
@@ -325,26 +337,48 @@ P.summary = s;
 end
 
 
-function [bad, nChecked, tol] = timingCheck(trials, offset)
-%timingCheck  First trial whose end disagrees with the Epsych2 clock (0: none).
-%   Compares the seconds between the ends of consecutive paired trials by
-%   computerTimestamp with the seconds between their intervals' offsets.
+function [bad, nChecked, tol, side, by] = timingCheck(trials, onset, offset)
+%timingCheck  First paired trial whose Epsych2 timestamp its interval cannot have (0: none).
+%   Trial i's computerTimestamp ts, on the recording's clock (ts - b for one
+%   clock offset b), lies after its interval's offset and before the next
+%   trial's onset: b is in [ts - onset(i+1), ts - offset(i)], widened by TOL.
+%   The first trial whose range misses the intersection of the ranges of
+%   the trials before it is BAD; SIDE says which bound it broke ("early":
+%   logged before its interval ended; "late": after the next one began) and
+%   BY by at least how many seconds. A trial without a timestamp or an
+%   interval is skipped, and without a paired next trial only the lower
+%   bound is known.
 bad = 0;
 nChecked = 0;
 tol = NaN;
+side = "";
+by = NaN;
 if ~ismember("computerTimestamp", string(trials.Properties.VariableNames)) || ~isdatetime(trials.computerTimestamp)
     return
 end
-dClock = seconds(diff(trials.computerTimestamp(:)));    % NaN across a NaT
-dTtl = diff(offset(:));                                  % NaN across a trial without an interval
-ok = isfinite(dClock) & isfinite(dTtl);
+ts = trials.computerTimestamp(:);
+ok = ~isnat(ts) & isfinite(offset(:));
 nChecked = nnz(ok);
 if nChecked == 0
     return
 end
-tol = max(0.5, 0.05 * median(dTtl(ok)));
-first = find(ok & abs(dClock - dTtl) > tol, 1);
-if ~isempty(first)
-    bad = first + 1;                                      % the later trial of the pair
+tol = 0.5;
+c = seconds(ts - ts(find(ok, 1)));
+nextOn = [onset(2:end); NaN];
+lo = c - nextOn - tol;
+lo(isnan(lo)) = -Inf;
+hi = c - offset(:) + tol;
+L = -Inf;
+H = Inf;
+for i = find(ok).'
+    if hi(i) < L
+        bad = i; side = "early"; by = L - hi(i) + tol;
+        return
+    elseif lo(i) > H
+        bad = i; side = "late"; by = lo(i) - H + tol;
+        return
+    end
+    L = max(L, lo(i));
+    H = min(H, hi(i));
 end
 end

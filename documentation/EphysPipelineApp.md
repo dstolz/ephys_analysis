@@ -1084,12 +1084,15 @@ line you [name](#naming-digital-lines) `InTrial`). The rule
   flagged, and the warning names them, because they are usually what has to
   be cut.
 - **Timestamp check.** Equal counts do not prove the order right. When the
-  session has its computer timestamps, the time between the ends of
-  consecutive trials by the computer clock is compared with the time between
-  their paired intervals' ends, and the first trial where they disagree by
-  more than half a second (or 5% of the usual gap) is named in a warning: a
-  stray pulse on the line plus a missing last pulse give equal counts but
-  pair every later trial with the wrong interval. The tab's spinners cut only
+  session has its computer timestamps, each trial's must fall after the end
+  of its paired interval and before the next trial's interval begins, since
+  Epsych2 logs a trial once it is over and only then starts the next. The
+  timestamp can be seconds late (a hit's reward, a busy computer), which is
+  fine. The first trial whose timestamp cannot fit its interval, by the
+  clock offset the trials before it agree on (to within half a second), is
+  named in a warning: a stray pulse on the line plus a missing last pulse
+  give equal counts but pair every later trial with the wrong interval, and
+  a cut at the wrong end pairs every trial with its neighbor's. The tab's spinners cut only
   from the start or the end; to remove one pulse from the middle, drop it in
   a script, for example
   `P = ds.pairTrials(Cuts=struct('trials', [0 1], 'intervals', [0 0], 'drop', 41)); ds.setTrialPairing(P, "approved")`

@@ -1014,15 +1014,23 @@ universal events struct:
 - **Timing cross-check.** Pairing by order alone cannot tell a good pairing
   from one thrown off by a glitch pulse plus a missing last pulse (the counts
   still agree, and every trial after the glitch is paired with the next
-  trial's interval). When the trials have the Epsych2 `computerTimestamp`
-  (datetime at trial end), the seconds between the ends of consecutive
-  paired trials by that clock are compared with the seconds between their
-  intervals' offsets. The first pair that differs by more than
-  `max(0.5 s, 5% of the median interval between trial ends)` is reported as
-  `timingMismatch` (the later trial's row; 0 for none) with a
+  trial's interval). When the trials have the Epsych2 `computerTimestamp`,
+  it is checked against the intervals. Epsych2 logs that time once it sees
+  the trial is over and starts the next trial only after that, so on the
+  recording's clock a trial's timestamp falls after its own interval's
+  offset and before the next trial's onset. It is not the trial's end: on
+  real sessions it comes tens of ms after the offset on most trials, 1–3 s
+  after it on a hit (the reward) and up to 20 s on the odd trial, so only
+  those two bounds are tested. Each paired trial bounds the offset between
+  the computer's clock and the recording's (`ts − next onset` to
+  `ts − offset`, widened by `timingTolerance`, 0.5 s, for drift between the
+  clocks); the first trial whose bounds miss those of all the trials before
+  it is reported as `timingMismatch` (its row; 0 for none) with a
   `pairEpsychTrials:TimingMismatch` warning when the counts agree (with a
   count mismatch the pairing is not trusted anyway, and the check runs again
-  after the cuts). `timingChecked` counts the pairs compared (0 for a session
+  after the cuts). A trial paired one interval too early was logged after
+  the next onset it was given; one paired too late, before its interval
+  ended. `timingChecked` counts the paired trials checked (0 for a session
   without `computerTimestamp`, which is not checked).
 - **Intervals at the recording edges.** An interval that begins at the first
   sample or ends at the last sample (`NumSamples`) is partial: the line was

@@ -16,6 +16,11 @@ Every suite's row of the results table is appended to %LOCALAPPDATA%\ephys_analy
 "[suite section: N s]" line of the log to section_timings.csv, so the next run can say how long it will
 take (printed as "expected ~N s").
 
+Windows: MATLAB runs on a desktop of its own that is never shown (Win32 CreateDesktop, "ephys_analysis_tests"),
+so the apps and figures the tests open are drawn there and never come over your windows or take the focus.
+-Visible runs it on your desktop instead, to watch. A dialog MATLAB shows on the hidden desktop cannot be
+answered; the run then ends at -TimeoutMin.
+
 Slots: a run takes one of two slots (lock files under %LOCALAPPDATA%\ephys_analysis\locks, counted under
 a named mutex; a lock whose process is gone is stale). A third run waits for a free slot. Each slot has
 its own preferences folder, so two MATLABs never share matlabprefs.mat.
@@ -38,6 +43,13 @@ Split the suites over this many MATLABs (at most the two slots), longest first b
 Run every section of each named suite on its own (one MATLAB, one run_all_tests call per section),
 to check that each section can run alone after the fixture; prints the sections that failed alone.
 
+.PARAMETER Visible
+Run MATLAB on your desktop, so the windows the tests open can be watched (they come over your other windows).
+
+.PARAMETER TimeoutMin
+Minutes, from the start, after which every MATLAB still running is killed (exit 124); also the longest wait
+for a free slot. Default 45 (every suite takes about 25 minutes on a quiet machine).
+
 .PARAMETER DryRun
 Print the suites, the expected time and the MATLAB command, and run nothing.
 
@@ -57,8 +69,9 @@ param(
     [switch] $IncludeSlow,
     [switch] $Each,
     [switch] $DryRun,
+    [switch] $Visible,
     [ValidateRange(1, 2)] [int] $Parallel = 1,
-    [int] $TimeoutMin = 120,
+    [int] $TimeoutMin = 45,
     [string] $MatlabRoot = '',
     [string] $LogDir = '',
     [switch] $NoLedger
@@ -289,6 +302,72 @@ function Stop-MatlabTree($launcherId) {
     Stop-Process -Id $launcherId -Force -ErrorAction SilentlyContinue
 }
 
+$HiddenDesktopSource = @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+// A process started on a desktop that is never shown: its windows (and its children's, which inherit
+// the desktop) cannot come over the user's windows or take the focus. Id, HasExited and ExitCode
+// as on System.Diagnostics.Process.
+public class EphysHiddenDesktopProcess {
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct STARTUPINFO {
+        public int cb; public string lpReserved; public string lpDesktop; public string lpTitle;
+        public int dwX, dwY, dwXSize, dwYSize, dwXCountChars, dwYCountChars, dwFillAttribute, dwFlags;
+        public short wShowWindow, cbReserved2;
+        public IntPtr lpReserved2, hStdInput, hStdOutput, hStdError;
+    }
+    [StructLayout(LayoutKind.Sequential)]
+    struct PROCESS_INFORMATION { public IntPtr hProcess, hThread; public int dwProcessId, dwThreadId; }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern IntPtr CreateDesktop(string name, IntPtr device, IntPtr devmode, int flags, uint access, IntPtr sa);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool CreateProcess(string app, StringBuilder cmd, IntPtr pa, IntPtr ta, bool inherit,
+        uint flags, IntPtr env, string dir, ref STARTUPINFO si, out PROCESS_INFORMATION pi);
+    [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr h, uint ms);
+    [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr h, out uint code);
+    [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+
+    const uint GENERIC_ALL = 0x10000000, CREATE_NEW_CONSOLE = 0x10;
+    const int STARTF_USESHOWWINDOW = 1; const short SW_HIDE = 0;
+    static IntPtr desktop = IntPtr.Zero;   // held open for the life of this PowerShell
+
+    IntPtr handle;
+    public int Id { get; private set; }
+
+    public static EphysHiddenDesktopProcess Start(string desktopName, string commandLine) {
+        if (desktop == IntPtr.Zero) {
+            desktop = CreateDesktop(desktopName, IntPtr.Zero, IntPtr.Zero, 0, GENERIC_ALL, IntPtr.Zero);
+            if (desktop == IntPtr.Zero) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+        var si = new STARTUPINFO();
+        si.cb = Marshal.SizeOf(typeof(STARTUPINFO));
+        si.lpDesktop = @"WinSta0\" + desktopName;
+        si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
+        PROCESS_INFORMATION pi;
+        if (!CreateProcess(null, new StringBuilder(commandLine), IntPtr.Zero, IntPtr.Zero, false,
+                CREATE_NEW_CONSOLE, IntPtr.Zero, null, ref si, out pi))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        CloseHandle(pi.hThread);
+        var p = new EphysHiddenDesktopProcess();
+        p.handle = pi.hProcess; p.Id = pi.dwProcessId;
+        return p;
+    }
+    public bool HasExited { get { return WaitForSingleObject(handle, 0) == 0; } }
+    public int ExitCode { get { uint c; GetExitCodeProcess(handle, out c); return unchecked((int)c); } }
+}
+'@
+
+function Start-Matlab($argList) {
+    # MATLAB on the hidden desktop (default) or on the user's, hidden console either way; the environment
+    # (MATLAB_PREFDIR) is this process's
+    if ($Visible) { return Start-Process -FilePath $exe -ArgumentList $argList -PassThru -WindowStyle Hidden }
+    if (-not ('EphysHiddenDesktopProcess' -as [type])) { Add-Type -TypeDefinition $HiddenDesktopSource -Language CSharp }
+    return [EphysHiddenDesktopProcess]::Start('ephys_analysis_tests', "`"$exe`" " + ($argList -join ' '))
+}
+
 function Read-NewText($path, $run) {
     if (-not (Test-Path $path)) { return '' }
     $fs = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
@@ -327,7 +406,7 @@ try {
         if (-not (Test-Path $env:MATLAB_PREFDIR)) { New-Item -ItemType Directory -Force $env:MATLAB_PREFDIR | Out-Null }
         Write-Host "`n[slot $($r.Slot)] $($r.Cmd)"
         Write-Host "[slot $($r.Slot)] log: $($r.Log)"
-        $r.Proc = Start-Process -FilePath $exe -ArgumentList @('-wait', '-logfile', "`"$($r.Log)`"", '-batch', "`"$($r.Cmd)`"") -PassThru -WindowStyle Hidden
+        $r.Proc = Start-Matlab @('-wait', '-logfile', "`"$($r.Log)`"", '-batch', "`"$($r.Cmd)`"")
     }
     $deadline = $started.AddMinutes($TimeoutMin)
     while ($true) {

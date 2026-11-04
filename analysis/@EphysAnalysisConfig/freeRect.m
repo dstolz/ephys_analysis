@@ -11,7 +11,9 @@ function rect = freeRect(fig, opts)
 %   RECT = EphysAnalysisConfig.freeRect(FIG, MinSize=M) leaves out the
 %   rectangles narrower or lower than M (0-1 of the page; default 0.08):
 %   RECT is the largest of the others, [] when none is left. (A thin
-%   strip larger in area than a usable gap does not hide the gap.)
+%   strip larger in area than a usable gap does not hide the gap.) M as
+%   [width height] sets the two apart (renderFigure's floating legend: a
+%   space that holds it).
 %   Panel rects are clipped to the page first; one that is not 4 finite
 %   numbers is ignored.
 %
@@ -20,8 +22,10 @@ function rect = freeRect(fig, opts)
 
 arguments
     fig (1,1) struct
-    opts.MinSize (1,1) double {mustBeNonnegative} = 0.08
+    opts.MinSize (1,:) double {mustBeNonnegative} = 0.08
 end
+mn = opts.MinSize;
+if isscalar(mn); mn = [mn mn]; end
 
 R = zeros(0, 4);   % the panels' rects as [x0 y0 x1 y1], clipped to the page
 for k = 1:numel(fig.panels)
@@ -41,7 +45,7 @@ for i = 1:numel(xs) - 1
         x0 = xs(i);
         x1 = xs(j);
         w = x1 - x0;
-        if w < opts.MinSize - tol; continue; end
+        if w < mn(1) - tol; continue; end
         % the panels across this x band block their y ranges; the free y intervals lie between them
         in = R(:, 1) < x1 - tol & R(:, 3) > x0 + tol;
         B = sortrows(R(in, [2 4]));
@@ -54,7 +58,7 @@ for i = 1:numel(xs) - 1
         if y < 1 - tol; gaps(end+1, :) = [y 1]; end %#ok<AGROW>
         for g = 1:size(gaps, 1)
             h = gaps(g, 2) - gaps(g, 1);
-            if h < opts.MinSize - tol; continue; end
+            if h < mn(2) - tol; continue; end
             key = [round(w * h, 9), -gaps(g, 1), -x0];
             if isBetter(key, bestKey)
                 bestKey = key;

@@ -427,6 +427,8 @@ classdef EphysAnalysisConfig
         fig = placePanel(fig, panel, where, anchorId, at)
         [fig, ids] = placePanels(fig, block, where, anchorId, opts)
         fig = removePanel(fig, id)
+        [fig, what, removed] = removeCell(fig, rc, how)
+        T = cellRemovals(fig, rc)
         [fig, moved] = movePanel(fig, id, direction)
         [fig, changed] = adoptPanelOptions(fig, panelId)
         [tf, kept] = panelTakes(P, Q, path)

@@ -40,6 +40,8 @@ classdef EphysAnalysisApp < handle
     %                field that finds a setting by name: the observations (the
     %                unit filter), the panels (a schematic of the grid:
     %                drag a panel to an empty cell or beside another one;
+    %                an empty cell's minus sign: a menu of the ways to
+    %                remove it, onRemoveCell;
     %                New panel... (a window: the type, each shown as a small
     %                plot, or a saved figure placed as one block -- Raster
     %                over PSTH, or a figure of yours kept with Save as panel
@@ -584,6 +586,7 @@ classdef EphysAnalysisApp < handle
         onPanelSelected(obj, k)
         onNewPanel(obj, opts)
         onRemovePanel(obj)
+        onRemoveCell(obj, rc, how)
         onMovePanel(obj, direction)
         onPanelTypeChanged(obj)
         onResetPanelOptions(obj)

@@ -1831,7 +1831,7 @@ A panel shares the figure's time axis when its type does (`SharesTime`) and its
 
 ### Editing the grid
 
-Five static functions edit a figure entry (`fig = cfg.Figures(k)`) as a value,
+Seven static functions edit a figure entry (`fig = cfg.Figures(k)`) as a value,
 with no graphics; the app's arrangement editor calls the same ones.
 
 | Call | Does |
@@ -1839,6 +1839,8 @@ with no graphics; the app's arrangement editor calls the same ones.
 | `cells = EphysAnalysisConfig.figureCells(fig)` | a `rows` x `cols` matrix: 0 for an empty cell, k for a cell that panel k covers. `[cells, overlap] = ...` also lists each pair of overlapping panels once (`[first second]`, an n x 2 matrix); the parts of a panel outside the grid are left out |
 | `fig = EphysAnalysisConfig.placePanel(fig, panel, where, anchorId)` | adds `panel` (a partial panel struct, normalized; a blank id becomes `<type>_<n>`) next to the panel `anchorId`. When the cells next to the anchor on that side, across its columns (`"below"`, `"above"`) or rows (`"right"`, `"left"`), are in the grid and empty, the panel fills them and the grid is unchanged. Otherwise `where` `"below"`: a new row right after the anchor's last row, its `rowHeights` entry (when given) copied from that row; `"above"`: a new row before the anchor's first row, copying its height; `"right"` and `"left"`: a new column the same way, copying `colWidths`. A gap list (`rowGaps` / `colGaps`, when given) gets the gap where the new row (column) goes on both sides of it (at the grid's edge, the outermost gap again). The panels past the new row (column) move down (right) by one, those whose span crosses it grow by one, and the new panel takes the anchor's columns (rows) and one row (column). `placePanel(fig, panel, "cell", "", [r c])` puts the panel in the empty cell `r`, `c` (one row by one column), the grid unchanged. The first panel of a figure without panels goes to (1, 1), the grid unchanged, and needs no anchor. Errors: `EphysAnalysisConfig:NoPanel` (no anchor, or none by that id), `EphysAnalysisConfig:DuplicatePanelId`, `EphysAnalysisConfig:CellTaken` (`"cell"`: a cell outside the grid, or one a panel covers) |
 | `fig = EphysAnalysisConfig.removePanel(fig, id)` | removes the panel, then drops every row in which no remaining panel starts and every column likewise: the panels past a dropped row (column) move up (left), the spans that crossed it shrink by one, its `rowHeights` / `colWidths` entry goes, and so does a gap list's gap under it (under the last row, the one over it). Removing the last panel leaves a 1 x 1 grid without gap lists. `EphysAnalysisConfig:NoPanel` for an unknown id |
+| `[fig, what, removed] = EphysAnalysisConfig.removeCell(fig, [r c], how)` | takes the empty cell `r`, `c` out of the grid; `how` says how the panels around it close the gap. `"stretchColumn"`: the panels of column `c` grow over it and over the column's other empty cells, in proportion, between the nearest panels across the column that also span other columns (else the grid's edges); the other columns' panels keep their place and size, so the grid gets the row lines this needs (`rowHeights` for them, the smallest row 1) and loses those nothing needs; a gap list keeps each line's gap, a moved line the one over the panel under it. `"stretchRow"` likewise along row `r`. `"shiftUp"`: the panels below it in column `c` move up one row (each must lie in that column alone); `"shiftLeft"` likewise. `"growAbove"`, `"growBelow"`, `"growLeft"`, `"growRight"`: the panel on that side grows over it (it must not span past the cell's column, or row). `"deleteRow"`, `"deleteColumn"`: the row (column) goes as `removePanel` drops one, refused while a panel lies in it alone. Then every row and column without a panel goes. `what` says what happened (*"e2 grown up over it; the empty row 7 dropped"*); `removed` lists the empty cells the way took out, `[row col]` each. Errors: `EphysAnalysisConfig:CellTaken` (not an empty cell of the grid), `EphysAnalysisConfig:CannotRemoveCell` (the way cannot; the message says why, as a phrase: *"row 1 holds events_1"*) |
+| `T = EphysAnalysisConfig.cellRemovals(fig, [r c])` | the ways `removeCell` can take that cell out, in the order the app's menu lists them: a table with `How`, `Label` (*"Stretch column 2 over its 3 empty cells"*, *"Grow psth_2 up over it"*), `Group` (1 stretch, 2 shift, 3 grow, 4 delete), `Possible` and `Why` (the reason, `""` when it can). A grow way is listed only for a side a panel touches. `EphysAnalysisConfig:CellTaken` as `removeCell` |
 | `[fig, moved] = EphysAnalysisConfig.movePanel(fig, id, direction)` | swaps the cells (`row`, `col`) of the panel and its neighbor in `direction` (`"up"`, `"down"`, `"left"`, `"right"`) when that neighbor has the same spans and lines up with it (the same column for up and down, the same row for left and right); else `fig` is returned unchanged and `moved` is false |
 
 `[fig, ids] = EphysAnalysisConfig.placePanels(fig, block, where, anchorId)`
@@ -1871,6 +1873,12 @@ T = EphysAnalysisConfig.figureTemplates();
 block = EphysAnalysisConfig.normalizeFigure(T.Figure{T.Template == "rasterPsth"});
 [cfg.Figures(1), ids] = EphysAnalysisConfig.placePanels(cfg.Figures(1), block, "right", "lfp_1");
 % ids = ["raster_1" "psth_1"]: lfp_1's row split in two, the raster flush over the PSTH right of it
+```
+
+```matlab
+T = EphysAnalysisConfig.cellRemovals(cfg.Figures(1), [1 2]);
+T(T.Possible, ["How" "Label"])   % what can remove the empty cell at row 1, column 2
+[cfg.Figures(1), what] = EphysAnalysisConfig.removeCell(cfg.Figures(1), [1 2], "stretchColumn");
 ```
 
 **Remove undoes Add**: `removePanel(placePanel(fig, p, where, a), p.id)` gives

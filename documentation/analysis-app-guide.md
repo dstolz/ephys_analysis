@@ -74,7 +74,9 @@ pipeline's project). `EphysAnalysisApp` alone opens your last config.
    another panel next to it: a *PSTH* **Below** the raster. A new panel fills
    an empty cell on that side when there is one; to put it in any other empty
    cell, click that cell (dotted, with a **+**) in the sketch of the grid
-   in the **Panels** section. The preview on
+   in the **Panels** section. To get rid of an empty cell, click the
+   **−** beside its **+** and pick how the panels around it close the gap.
+   The preview on
    the right draws the figure for the unit picked above it; step through the
    units to look at them one by one. Right-click the plot to change colors,
    fonts and labels.
@@ -93,6 +95,7 @@ pipeline's project). `EphysAnalysisApp` alone opens your last config.
 | draw a small figure at every unit's place on the probe | tick **On the probe** in the figure's Probe layout section |
 | check one unit's figures before a long run | Export tab: **Test report** |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
+| close an empty cell in a figure | in the sketch of the grid (Panels section), click the **−** in the cell and pick a way: stretch the column's or row's panels over it, shift the cells up or left, grow the panel next to it, or delete its row or column. The ways that cannot are grayed, with why (see [Removing an empty cell](EphysAnalysisApp.md#removing-an-empty-cell)) |
 | copy a change to the other figures | **Edit → Apply last change to figures...** |
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysAnalysisApp.md#notes)) |

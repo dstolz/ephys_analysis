@@ -344,6 +344,13 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app: an empty cell of the Panels sketch shows a gray **−** beside its **+**. A click on it (or a
+  right click on the cell) opens a menu of the ways to remove the cell: stretch its column's or row's panels over it
+  (with the other empty cells of that run), shift the cells up or left, grow a panel next to it over it, or delete
+  its row or column; the ways that cannot are grayed with why. Rows and columns left without a panel go too; Undo
+  takes it back (*Remove cell*). `EphysAnalysisConfig.removeCell(fig, [r c], how)` does it in a script
+  (`EphysAnalysisConfig:CannotRemoveCell` when that way cannot), `EphysAnalysisConfig.cellRemovals` lists the ways,
+  `onRemoveCell(rc, how)` is the app's.
 - The unit correlation panel's `detrend` option (default `true`, as `unitCorrelation`'s `Detrend`) and its
   **Detrend over the session** box in the figures editor.
 - `S_DatasetBrowserToNeuroGLM.m` models the trial's response: a kernel per response word on `opts.responseEvents`

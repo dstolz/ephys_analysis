@@ -10,8 +10,11 @@ function drawFigureSchematic(obj)
 %   its middle; a press on a panel picks it, and dragging it moves it to
 %   an empty cell or beside another panel (onSchematicPress). Cells no
 %   panel covers are dotted, with a gray "+": a click on one opens the New
-%   panel window with that cell as the place (onNewPanel). An outline goes
-%   round the grid.
+%   panel window with that cell as the place (onNewPanel). Beside it a gray
+%   "−" (when the figure has panels) opens a menu of the ways to remove
+%   the cell, as a right click on the cell does (onRemoveCell: its items
+%   from EphysAnalysisConfig.cellRemovals, made each time it opens; those
+%   that cannot are grayed, with why). An outline goes round the grid.
 %   The axes is a uiaxes in the Arrangement section's first row. One made
 %   or kept while its row is 0 px high (no figure, the section or its
 %   supersection collapsed)
@@ -26,6 +29,7 @@ shown = k >= 1 && k <= numel(obj.Config.Figures) && ~isempty(i) && S(i).Visible 
 U = obj.FigureSupers;
 if shown && ~isempty(U); shown = U(arrayfun(@(u) ismember("arrangement", u.Sections), U)).Expanded; end   % its supersection open too
 holder = obj.FigureEditor.schematicPanel;
+delete(findall(obj.Fig, '-depth', 1, 'Type', 'uicontextmenu', 'Tag', 'schematicCellMenu'));   % the empty cells' menus, made again below
 if ~shown
     if ~isempty(ax) && isvalid(ax); cla(ax); end
     holder.UserData = false;
@@ -51,16 +55,31 @@ cx = edges(G.colWidths, nc);
 cells = EphysAnalysisConfig.figureCells(fig);
 [gy, gx] = schematicGaps(G, nr, nc, obj.Config.Export);
 gray = [0.72 0.72 0.72];
+removable = ~isempty(fig.panels);   % a cell of a figure without panels has nothing to close its gap
 for r = 1:size(cells, 1)
     for c = 1:size(cells, 2)
         if cells(r, c) ~= 0; continue; end
         b = inside(cx, cy, gx, gy, c, c, r, r);
         rc = [r c];
-        patch(ax, b([1 2 2 1]), b([3 3 4 4]), "w", "FaceColor", "none", "EdgeColor", gray, "LineStyle", ":", "LineWidth", 1, ...
+        e = patch(ax, b([1 2 2 1]), b([3 3 4 4]), "w", "FaceColor", "none", "EdgeColor", gray, "LineStyle", ":", "LineWidth", 1, ...
             "PickableParts", "all", "Tag", "schematicEmpty", "UserData", rc, ...
             "ButtonDownFcn", @(~, ~) onEmptyCellPress(obj, rc));   % its face takes the click, though unfilled
-        text(ax, (b(1) + b(2)) / 2, (b(3) + b(4)) / 2, "+", "HorizontalAlignment", "center", "VerticalAlignment", "middle", ...
+        x = (b(1) + b(2)) / 2;
+        y = (b(3) + b(4)) / 2;
+        if ~removable
+            text(ax, x, y, "+", "HorizontalAlignment", "center", "VerticalAlignment", "middle", ...
+                "FontSize", 14, "Color", gray, "HitTest", "off", "PickableParts", "none", "Clipping", "on");
+            continue
+        end
+        cm = uicontextmenu(obj.Fig, "Tag", "schematicCellMenu", "UserData", rc, ...
+            "ContextMenuOpeningFcn", @(m, ~) fillCellMenu(obj, m));
+        e.ContextMenu = cm;
+        dx = min(0.025, (b(2) - b(1)) / 5);
+        text(ax, x - dx, y, "+", "HorizontalAlignment", "center", "VerticalAlignment", "middle", ...
             "FontSize", 14, "Color", gray, "HitTest", "off", "PickableParts", "none", "Clipping", "on");
+        text(ax, x + dx, y, " " + char(8722) + " ", "HorizontalAlignment", "center", "VerticalAlignment", "middle", ...
+            "FontSize", 14, "Color", gray, "Clipping", "on", "Tag", "schematicRemoveCell", "UserData", rc, ...
+            "ContextMenu", cm, "ButtonDownFcn", @(~, ~) onRemoveCellPress(obj, cm));   % (padded: a wider target)
     end
 end
 PT = EphysAnalysisConfig.panelTypes();
@@ -105,6 +124,45 @@ function onEmptyCellPress(obj, rc)
 %   right or double click does nothing.
 if ~isempty(obj.FigureDrag) || ~strcmp(obj.Fig.SelectionType, 'normal'); return; end
 obj.onNewPanel(Where="cell", Cell=rc);
+end
+
+
+function onRemoveCellPress(obj, cm)
+%onRemoveCellPress  A left click on an empty cell's "−": the menu CM of the ways to remove it, at the pointer.
+%   Not while a panel is dragged; a right click opens the menu itself.
+if ~isempty(obj.FigureDrag) || ~strcmp(obj.Fig.SelectionType, 'normal') || ~isvalid(cm); return; end
+fillCellMenu(obj, cm);
+p = round(obj.Fig.CurrentPoint(1:2));
+open(cm, p(1), p(2));
+end
+
+
+function fillCellMenu(obj, cm)
+%fillCellMenu  The menu CM of the empty cell CM.UserData ([row column]): an item per way to remove it (EphysAnalysisConfig.cellRemovals).
+%   Made afresh each time it opens, from the figure as it is then. A way
+%   that cannot is grayed, why after its label; the sections (stretch,
+%   shift, grow, delete) are set apart. An item picked: onRemoveCell.
+delete(cm.Children);
+k = obj.SelectedFigure;
+if k < 1 || k > numel(obj.Config.Figures); return; end
+rc = cm.UserData;
+try
+    T = EphysAnalysisConfig.cellRemovals(obj.Config.Figures(k), rc);
+catch ME
+    uimenu(cm, "Text", "Cannot remove this cell: " + string(ME.message), "Enable", "off");
+    return
+end
+for i = 1:height(T)
+    label = T.Label(i);
+    tip = "";
+    if ~T.Possible(i)
+        label = label + "  (" + T.Why(i) + ")";
+        tip = T.Why(i);
+    end
+    how = T.How(i);
+    uimenu(cm, "Text", label, "Enable", T.Possible(i), "Separator", i > 1 && T.Group(i) ~= T.Group(i - 1), ...
+        "Tooltip", tip, "Tag", "schematicCellMenu:" + how, "MenuSelectedFcn", @(~, ~) obj.onRemoveCell(rc, how));
+end
 end
 
 

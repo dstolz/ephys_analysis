@@ -600,6 +600,8 @@ classdef EphysFigGenApp < handle
         focusFigurePane(obj, step)
         pressFigureButton(obj, key)
         w = onFigureKeys(obj)
+        w = onLabelVariables(obj)
+        T = labelVariableValues(obj)
         onFigureAlignEdited(obj, part)
         onFigureDefaultToggled(obj)
         onPanelAlignEdited(obj, part)

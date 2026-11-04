@@ -96,6 +96,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | ...do this | Do this |
 | --- | --- |
 | change how a figure looks (colors, line widths, fonts, axis labels) | right-click a part of the preview and edit it there, or pick a ready-made look in the **Design** menu (journal, talk, ...) |
+| write a label that follows the data, such as *Time (s) re Stim onset* or *Hit trials* | type a variable in braces in a title, an axis label, a layer's name or a note: **Time (s) re {Line} {Edge}**, **{Response} trials**. Each figure fills it in. The **{x}** button beside the field lists them, with what each means (see [Labels that follow the data](#labels-that-follow-the-data)) |
 | give one figure its own event or window | in the figure's panel settings, set its own event reference and epoch window; the Alignment tab is only the default |
 | draw a figure across several recordings | tick **Across datasets** in the figure's Sessions section |
 | draw a small figure at every unit's place on the probe | tick **On the probe** in the figure's Probe layout section |
@@ -110,6 +111,24 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | reuse a figure's panels in other figures | select it and press **Save as panel type...** under the figure list. In any figure, **New panel...** then lists it under **Saved figures**: pick it, and all its panels go into the free space or beside the selected panel, arranged as they were (see [Saved figures as panel types](EphysFigGenApp.md#figures-as-panel-types)) |
 | draw the same figures every time the pipeline runs | save the config, then choose it on the pipeline app's Analysis tab |
 | draw the same figures from a script | **File → Generate script** |
+
+## Labels that follow the data
+
+A label can say what the figure shows without being retyped for every
+unit or event. Type a variable in braces, and each figure fills it in:
+
+- **Time (s) re {Line} {Edge}** shows *Time (s) re Stim onset*.
+- **{Response} trials** shows *Hit trials* (*all trials* with no response
+  picked).
+- **{Unit}: {Response}** as a title shows *su12: Hit*, a different unit on
+  every page.
+- **n = {Epochs}** in a note shows how many trials were drawn.
+
+Click the **{x}** button at the right of a title, axis label, layer name or
+note to pick one from a menu; each item says what it means and what it shows
+for the figure in the preview now. **Help → Label variables** lists them all.
+Type the name exactly as listed (*{Line}*, not *{line}*): **Validate** on the
+Export tab points out a name it does not know.
 
 ## Use your tags
 

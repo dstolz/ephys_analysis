@@ -145,6 +145,11 @@ function test_EphysFigGenApp(opts)
 %   and On the probe excluding each other, Undo Probe layout, the
 %   picker's one entry and count line, the preview's tiles and status
 %   line, the tree's On the probe group, Generate writing one page);
+%   label variables (5w: the "{x}" button beside each text that labels
+%   the figure, its menu's items by topic with their values now, an item
+%   picked added to an X axis label and a note as one named edit and
+%   filled in on the preview; the list item and Help > Label variables
+%   opening the list, a row clicked copying its variable);
 %   Arrange over the preview (5h.arrange: the overlay and a box per panel,
 %   the outline hidden; a drag's step snapped with the guides and the
 %   fields, the figure untouched; its release one undo step, laid out in
@@ -4917,6 +4922,74 @@ if S.sec("5v", "a figure on the probe: the Probe layout section's rows wired to 
     clear restore5v
 end
 
+if S.sec("5w", "label variables: the {x} button beside each label's text, its menu adding one as a named edit, filled in on the preview; the list and Help > Label variables")
+    noFigures();
+    app.selectTab(app.TabFigures);
+    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoPreviewSeconds = Inf;   % Auto draws here, however loaded the machine
+    restore5w = onCleanup(@() resetAutoLimit(app));
+    app.onAddFigure("rasterPsth");
+    app.refreshFigurePreview(Force=true);
+    names5w = ["title" "panelTitle" "panelXLabel" "panelYLabel" "layerName" "annText"];
+    okB5w = all(arrayfun(@(n) isfield(FE.varButton, n) && isvalid(FE.varButton.(n)) && string(FE.varButton.(n).Tag) == "labelVariables" ...
+        && isequal(FE.varButton.(n).UserData, FE.(n)) && string(FE.varButton.(n).Text) == "{x}", names5w));
+    check(okB5w, 'a {x} button beside the figure''s Title, the panel''s Title, X axis, Y axis, a layer''s Name and the Text note');
+    % its menu: the variables by topic, each with its value on the preview; one picked is added to the X axis label
+    app.onPanelSelected(2);   % psth_1
+    T5w = app.labelVariableValues();
+    line5w = T5w.Value(T5w.Name == "Line");
+    edge5w = T5w.Value(T5w.Name == "Edge");
+    FE.panelXLabel.Value = 'Time (s) re';
+    app.onConfigChanged("figure", FE.panelXLabel);
+    bx = FE.varButton.panelXLabel;
+    bx.ButtonPushedFcn(bx, []);
+    cm5w = getappdata(bx, 'LabelVariableMenu');
+    tops5w = string(get(cm5w.Children, 'Text'));
+    itemL = findobj(cm5w, 'Tag', 'Line');
+    check(all(ismember(["Alignment" "Trials" "Observation" "Data" "Figure"], tops5w)) && isscalar(itemL) ...
+        && startsWith(string(itemL.Text), "{Line}") && contains(string(itemL.Text), "(now: " + line5w + ")") ...
+        && T5w.Value(T5w.Name == "Panel") == "psth_1" && line5w ~= "" && ~startsWith(line5w, "<"), ...
+        sprintf('the {x} menu lists the variables by topic, each with its value on the preview (now: %s), at the selected panel', line5w));
+    pickLabelVariable(bx, "Line");
+    bx.ButtonPushedFcn(bx, []);
+    pickLabelVariable(bx, "Edge");
+    axP5w = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    want5w = "Time (s) re " + line5w + " " + edge5w;
+    check(string(FE.panelXLabel.Value) == "Time (s) re {Line} {Edge}" && app.Config.Figures(1).panels(2).xLabel == "Time (s) re {Line} {Edge}" ...
+        && strjoin(string(axP5w.XLabel.String), " ") == want5w && app.FigureHistory.undoLabel() ~= "", ...
+        sprintf('an item picked is added to the label as an edit of its own ("%s"), the preview filling it in: "%s"', ...
+        app.FigureHistory.undoLabel(), strjoin(string(axP5w.XLabel.String), " ")));
+    % the note's text area: at the end of its last line
+    FE.annText.Value = {'first line'; 'n ='};
+    app.onConfigChanged("figure", FE.annText);
+    bn = FE.varButton.annText;
+    bn.ButtonPushedFcn(bn, []);
+    pickLabelVariable(bn, "Epochs");
+    check(isequal(string(FE.annText.Value), ["first line"; "n = {Epochs}"]) ...
+        && app.Config.Figures(1).panels(2).note.text == "first line" + newline + "n = {Epochs}", ...
+        'in the Text note the variable goes at the end of its last line');
+    % the list: the menu's last item, and Help > Label variables
+    bn.ButtonPushedFcn(bn, []);
+    pickLabelVariable(bn, "list");
+    w5w = findall(groot, 'Type', 'figure', 'Tag', 'EphysLabelVariables');
+    helpItems5w = string({app.HelpMenu.Children.Text});
+    w5w2 = app.onLabelVariables();
+    t5w = findobj(w5w2, 'Tag', 'variablesTable');
+    D5w = t5w.Data;
+    t5w.Selection = find(D5w.Variable == "{Response}");
+    t5w.SelectionChangedFcn(t5w, []);
+    cn5w = findobj(w5w2, 'Tag', 'copyNote');
+    note5w = string(cn5w.Text);
+    check(isscalar(w5w) && isequal(w5w, w5w2) && ismember("Label variables", helpItems5w) && height(D5w) == height(T5w) ...
+        && D5w.Now(D5w.Variable == "{Line}") == line5w && contains(note5w, "{Response}"), ...
+        sprintf('the menu''s last item and Help > Label variables open one list (%d variables, their values now); a row clicked: "%s"', ...
+        height(D5w), note5w));
+    delete(w5w2);
+    noFigures();
+    clear restore5w
+    app.Tabs.SelectedTab = app.TabData;
+end
+
 if S.sec("6", "close")
     savedConfig();
     app.savePreferences();
@@ -5294,6 +5367,14 @@ for i = 1:numel(A)
         end
     end
 end
+end
+
+
+function pickLabelVariable(b, name)
+%pickLabelVariable  The item NAME (a variable's name, or "list") of the menu the {x} button B opened last, as if clicked.
+cm = getappdata(b, 'LabelVariableMenu');
+m = findobj(cm, 'Tag', char(name));
+feval(m(1).MenuSelectedFcn, m(1), []);
 end
 
 

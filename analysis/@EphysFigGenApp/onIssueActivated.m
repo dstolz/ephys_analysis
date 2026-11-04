@@ -155,10 +155,15 @@ if inLayer
         case "channels", key = "layerChannels";
         case "units", key = "layerMaxUnits";
         case "eventsAs", key = "evDrawAs";
+        case "name", key = "layerName";
     end
 elseif inPanel
     switch head
         case "type", section = "panel"; key = "panelType";
+        case "title", section = "panel"; key = "panelTitle";
+        case "xLabel", section = "panel"; key = "panelXLabel";
+        case "yLabel", section = "panel"; key = "panelYLabel";
+        case "note", section = "note"; key = "annText";
         case {"align", "valign", "box", "ref", "window", "selection"}, section = "palign";
         case "layers", section = "layers";
         case "options", section = "options";

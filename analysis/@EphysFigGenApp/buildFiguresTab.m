@@ -124,7 +124,14 @@ function buildFiguresTab(obj)
 %           outline, the group colors, the error band's fill and edge) has
 %           a swatch at its right (colorSwatch, E.swatch by field name)
 %           that opens the color chooser (uisetcolor: ColorPicker); the
-%           color picked is one named edit, as if typed. syncFigureEditor
+%           color picked is one named edit, as if typed. Every text that
+%           labels the figure (its Title; the panel's Title, X axis and Y
+%           axis labels; a layer's Name; the Text note) has a "{x}" button
+%           at its right (labelVariableButton, E.varButton by field name):
+%           a menu of the label variables ({Line}, {Response}, ...:
+%           figureLabelVariables, with their values on the figure
+%           previewed: labelVariableValues) that adds the one picked to the
+%           text as one named edit, and opens their list (onLabelVariables). syncFigureEditor
 %           shows the rows the figure, panel and layer use;
 %           layoutFigureEditor packs them.
 %   Right   a column of buttons at the left -- Preview, Redraw All
@@ -302,7 +309,8 @@ E.idAuto = uicheckbox(ig, "Text", "auto", "Value", true, "ValueChangedFcn", @(b,
 [S, r] = formRow(S, "title", "Title:");
 E.title = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
     "Tooltip", "Blank: ""<id>: <observation> — <event> (<n> epochs)"". A title of your own names no " + ...
-    "observation, so the top-left panel names it.");
+    "observation, so the top-left panel names it (unless the title has {Unit} or {Observation}). Variables in braces, " + ...
+    "such as {Unit} or {Event}, are filled in for each figure: the {x} button lists them.");
 place(E.title, r, 2);
 [S, r] = formRow(S, "size", "Size:");
 E.sizePreset = uidropdown(S.Body, "Editable", "on", "Items", cellstr(figureSizePresets().Label), "Value", "Export tab size", ...
@@ -761,7 +769,8 @@ E.panelType = uidropdown(S.Body, "Items", PT.Label, "ItemsData", PT.Type, "Value
 place(E.panelType, r, 2);
 [S, r] = formRow(S, "panelTitle", "Title:");
 E.panelTitle = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
-    "Tooltip", "Blank: none (the top-left panel names the observation under a title of the figure's own).");
+    "Tooltip", "Blank: none (the top-left panel names the observation under a title of the figure's own). " + ...
+    "Variables in braces, such as {Response} or {Line}, are filled in for each figure: the {x} button lists them.");
 place(E.panelTitle, r, 2);
 [S, r] = formRow(S, "panelBox", "Box:");
 E.panelBox = uidropdown(S.Body, "Items", ["auto (the design's)" "on" "off"], "ItemsData", ["auto" "on" "off"], ...
@@ -772,14 +781,16 @@ place(E.panelBox, r, 2);
 xg = subgrid(S.Body, r, {'1x', 90});
 E.panelXLabel = uieditfield(xg, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
     "Tooltip", "The x axis' label. Blank: the panel type's (""Time (s)"" on a time axis). A stack of time panels " + ...
-    "is labeled once: this text shows where this panel tells the time. Right-click the label in the preview to edit it there.");
+    "is labeled once: this text shows where this panel tells the time. Right-click the label in the preview to edit it there. " + ...
+    "Variables in braces are filled in for each figure, e.g. ""Time (s) re {Line} {Edge}"": the {x} button lists them.");
 E.panelXSide = uidropdown(xg, "Items", ["bottom" "top"], "ItemsData", EphysAnalysisConfig.PanelXSides, ...
     "ValueChangedFcn", changed, "Tooltip", "Where the x axis' ticks and label go: below or above the panel. A stack " + ...
     "of time panels with their x axes on top tells the time once, at its top.");
 [S, r] = formRow(S, ["panelYLabel" "panelYSide"], "Y axis:");
 yg = subgrid(S.Body, r, {'1x', 90});
 E.panelYLabel = uieditfield(yg, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
-    "Tooltip", "The y axis' label. Blank: the panel type's. Right-click the label in the preview to edit it there.");
+    "Tooltip", "The y axis' label. Blank: the panel type's. Right-click the label in the preview to edit it there. " + ...
+    "Variables in braces are filled in for each figure, e.g. ""Rate (spikes/s, {Bin} ms bins)"": the {x} button lists them.");
 E.panelYSide = uidropdown(yg, "Items", ["left" "right"], "ItemsData", EphysAnalysisConfig.PanelYSides, ...
     "ValueChangedFcn", changed, "Tooltip", "Where the y axis' ticks and label go: left or right of the panel " + ...
     "(a color bar beside it moves to the other side).");
@@ -863,7 +874,8 @@ place(E.layerNote, r, [1 2]);
 [S, r] = formRow(S, ["layerName" "layerEnabled"], "Name:");
 ng = subgrid(S.Body, r, {'1x', 'fit'});
 E.layerName = uieditfield(ng, "text", "Placeholder", "automatic", "ValueChangedFcn", changed, ...
-    "Tooltip", "The layer's name in the legend and the aesthetics editor (blank: the unit's, channel's or event's label).");
+    "Tooltip", "The layer's name in the legend and the aesthetics editor (blank: the unit's, channel's or event's label). " + ...
+    "Variables in braces, such as ""{Unit} ({Response})"", are filled in for each figure: the {x} button lists them.");
 E.layerEnabled = uicheckbox(ng, "Text", "Enabled", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Unticked, the layer stays in the panel but is not drawn.");
 [S, r] = formRow(S, "layerSource", "Source:");
@@ -1408,7 +1420,8 @@ S = formSection(eg, 15, "note", "Text note", Color=tint("note"));
 [S, r] = formRow(S, "annText", "Text:", 78);
 E.annText = uitextarea(S.Body, "Value", "", "ValueChangedFcn", changed, ...
     "Tooltip", "Words to put on the selected panel -- a caption, a condition, a remark. Each new line is a line of " + ...
-    "text; blank draws nothing. Where it goes, and how it looks, are set below.");
+    "text; blank draws nothing. Where it goes, and how it looks, are set below. Variables in braces are filled in " + ...
+    "for each figure, e.g. ""n = {Epochs} {Response} trials"": the {x} button lists them.");
 place(E.annText, r, 2);
 [S, r] = formRow(S, "annPlace", "Place:");
 E.annPlace = uidropdown(S.Body, "Items", ["Below the panel" "Above the panel" "Right of the panel" "Left of the panel" ...
@@ -1638,6 +1651,12 @@ E.swatch = struct();
 for f = ["evColor" "layerColor" "tickColor" "backColor" "etEdge" "etBaseColor" "annColor" "annBackground" ...
         "ovColor" "ovFill" "ovEdge" "colormap" "errFace" "errEdge"]
     E.swatch.(f) = colorSwatch(E.(f), Picker=pickColor);
+end
+% a "{x}" button beside each text that labels the figure: inserts a label variable ({Line}, {Response}, ...), filled in
+% for each figure drawn (labelVariableButton, figureLabelVariables); its menu's last item lists them (onLabelVariables)
+E.varButton = struct();
+for f = ["title" "panelTitle" "panelXLabel" "panelYLabel" "layerName" "annText"]
+    E.varButton.(f) = labelVariableButton(E.(f), Values=@() obj.labelVariableValues(), List=@() obj.onLabelVariables());
 end
 obj.FigureEditor = E;
 obj.FigureSections = sec;

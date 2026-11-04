@@ -422,6 +422,21 @@ says how to cut a release.
 
 ### Added
 
+- Figures: label variables. A figure's title, a panel's title, X and Y axis labels and note, and a layer's name
+  (the legend) may name variables in braces, filled in for each figure drawn: `"Time (s) re {Line} {Edge}"`,
+  `"{Response} trials"`, `"{Unit}"`, `"n = {Epochs}"`. 22 variables, by topic: alignment (`Line`, `Edge`, `Event`,
+  `Window`), trials (`Response`, `Filter`, `GroupBy`, `Group`, `Epochs`), the observation (`Unit`, `Observation`,
+  `Channel`, `Shank`, `Depth`), the data (`Name`, `Subject`, `Sessions`) and the figure (`Figure`, `Panel`, `Bin`,
+  `Smooth`, `Date`); each panel takes its own alignment and trial selection's values. `figureLabelVariables` lists
+  them and gives their values, `figureFileName(text, V, Kind="label")` fills a text; `renderFigure` and
+  `renderProbeFigure` fill the texts (a TeX note's values escaped); a name in braces that is no variable is drawn
+  as typed and Validate warns of it (*did you mean {Line}?*). A title naming `{Unit}` or `{Observation}` keeps the
+  top-left panel from naming the observation; one naming `{Group}` gets no `· <group>`. The report's headings
+  and captions fill the figure's variables and leave the observation's as `<Unit>`. Figure results carry
+  `subject`. In the analysis app a **{x}** button beside each of these fields opens a menu of the variables by
+  topic with their values on the preview, adding the one picked as one undo step; **Help → Label variables**
+  lists them all with their values (a row clicked copies it); the right-click **Edit label text...** starts
+  from the text as typed and has an **Insert a variable...** list.
 - Figures: free panel placement, Arrange. The preview's **Arrange** button on the Figures tab puts a box over the preview
   for each panel at its rect (`syncArrangeOverlay`; `images.roi.Rectangle`, so it needs the Image Processing
   Toolbox). Drag a box to move its panel, a handle to resize it: it snaps, within 6 px, to the other panels' edges

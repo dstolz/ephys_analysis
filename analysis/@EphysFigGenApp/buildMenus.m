@@ -10,7 +10,8 @@ function buildMenus(obj)
 %   Reset panel options to defaults (onResetPanelOptions) and Forget
 %   remembered panel options (onForgetPanelOptions). Design: the plot designs and what to do with them (filled by
 %   refreshDesigns). Help: the wiki page of the tab shown, the keyboard
-%   shortcuts and right-click menus (onFigureKeys), the
+%   shortcuts and right-click menus (onFigureKeys), the label variables
+%   ({Line}, {Response}, ...: onLabelVariables), the
 %   documentation home and the analysis quick start (helpURL), Report an
 %   issue and Request a feature, which file against the repository itself
 %   (onReportIssue), and About (showAbout): the version of the code.
@@ -57,6 +58,9 @@ uimenu(obj.HelpMenu, "Text", "Help for this tab", "Tooltip", "The wiki page for 
     "MenuSelectedFcn", @(~,~) obj.onHelp("tab"));
 uimenu(obj.HelpMenu, "Text", "Keyboard shortcuts and right-click menus", "Tooltip", "Every key of the Figures tab, to work it with the keyboard alone, and what the right-click menus do.", ...
     "MenuSelectedFcn", @(~,~) obj.onFigureKeys());
+uimenu(obj.HelpMenu, "Text", "Label variables", "Tooltip", "The variables a figure's titles, axis labels, legend names " + ...
+    "and notes may use, such as {Line} or {Response}: what each means, and its value on the figure previewed.", ...
+    "MenuSelectedFcn", @(~,~) obj.onLabelVariables());
 uimenu(obj.HelpMenu, "Text", "Documentation home", "MenuSelectedFcn", @(~,~) obj.onHelp(""));
 uimenu(obj.HelpMenu, "Text", "Analysis quick start", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onHelp("Analysis-App#quick-start"));

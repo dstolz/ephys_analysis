@@ -421,7 +421,8 @@ is drawn.
 
 **The editor.** On top, always open: **Id** with **auto** beside it (unique among figures; it names the figure's files, `{Plot}`; `id`, `autoId`; below), **Title** (blank = automatic: the id, the
 observation, the event and the epoch count; a title of your own names no
-observation, so the top-left panel names it; `title`), **Size** (the page the figure
+observation, so the top-left panel names it, unless the title has `{Unit}` or
+`{Observation}`; `title`; it may use [label variables](#label-variables)), **Size** (the page the figure
 is exported on, below; `size`), **Enabled** (a
 disabled figure stays in the config and is still drawn by the preview and by
 **Generate selected figure**, but the Export tab's **Run** and **Redraw All** skip it; `enabled`) and a gray summary (*"2 panels; per unit"*).
@@ -460,12 +461,12 @@ with the key of each in brackets:
 | Probe layout | **On the probe**, and with it ticked the layout, the overlap strategy, which shanks, channels and depths are laid out, the most tiles and units per site, the tiles' size, scale and labels, shared y, the scale tile, the sites and the leaders: the figure drawn once per dataset, every unit or channel a tile at its site ([Probe layout in the Figures tab](#probe-layout-in-the-figures-tab)); no key; collapsed until opened. Below Sessions: it too decides what the figure is drawn over, and the two exclude each other |
 | Panels (5) | **New panel...** (the [New panel window](#the-new-panel-window)), the selected panel's place, **Units**, its **Position** and **Size**, **Boxes mean**, **Padding**, **Snap** and its step, **Set corners**, **Remove panel**, **Bring forward** and **Send back** (below) |
 | **PANEL** (Alt+2) | the sections below, down to Overlays: the selected panel's. Its header names the panel and its type |
-| Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`), **X axis** and **Y axis** (every type: the axis' label, blank = the type's own, and its side, *bottom* or *top*, *left* or *right*; `xLabel`, `yLabel`, `xSide`, `ySide`; the y side grayed out on a stacked line panel (PSTH, continuous, spectrum, coherence, tuning), which has a y axis on each side; a stack of time panels with its x axes on top tells the time once, at its top; the sides, not the label texts, go to every panel with Options' **Apply to all panels**, or from the right-click menu's **Move every panel's X axis to top** (*Axis labels*, below)) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials and a stacked panel draw every group, so the row hides) |
+| Selected panel (6) | **Type** (a change starts the panel afresh: below), **Title** (blank = none; it may use [label variables](#label-variables)), **Box** (*auto (the design's)*, *on* or *off*: the frame around the panel's axes; *on* and *off* win over the design, the remembered looks and the figure's own rules; `box`), **X axis** and **Y axis** (every type: the axis' label, blank = the type's own, with [label variables](#label-variables) filled in, and its side, *bottom* or *top*, *left* or *right*; `xLabel`, `yLabel`, `xSide`, `ySide`; the y side grayed out on a stacked line panel (PSTH, continuous, spectrum, coherence, tuning), which has a y axis on each side; a stack of time panels with its x axes on top tells the time once, at its top; the sides, not the label texts, go to every panel with Options' **Apply to all panels**, or from the right-click menu's **Move every panel's X axis to top** (*Axis labels*, below)) and **Group shown** (heat map, unit correlation and spectrogram panels, and a coherence panel drawn over time: which of the figure's trial groups they draw, 1 = the first; `options.group`; a heat map of trials and a stacked panel draw every group, so the row hides) |
 | Panel alignment (7) | the selected panel's own event reference and epoch window (an aligned type only), with **Same as the figure** in the header, and the panel's trial selection, the [Trial selection](#alignment-tab) rows under the **Trial selection as the figure** box (an aligned type only). **Apply to all panels** and **Re-link all panels** (below) |
 | Layers (8) | the selected panel's layers: the list with **Add** (a source the type draws), **Remove**, **Up** and **Down**, and the rows of the layer picked (below) |
 | Options (9) | all of the panel's own options: its type's rows, under the type's name (*Raster options*, *PSTH options*, ...; below), and **Apply to all panels** |
 | Waveform | the selected panel's unit waveform (`options.waveform`), titled *Waveform on psth_1*: the inset of a raster, PSTH, firing rate or tuning curve panel, or the drawing of a unit waveforms panel ([The Waveform section](#the-waveform-section), below). Shown for every panel type whose layers may be spikes; on a heat map, probe map, unit correlation or spectral panel it holds only a note saying why that type draws no waveform. No key |
-| Text note (0) | the selected panel's `note`, titled *Text note on psth_1*: a block of descriptive text on the panel ([Panel notes](EphysAnalysisConfig.md#panel-notes)). **Text** (a new line starts a new line; blank draws nothing), **Place** (*Below*, *Above*, *Right of* or *Left of the panel*, which give up a band of the panel's tile beside its axes; nine places *Over the panel*, in its axes; or *At x, y*), **At x, y** (0-1 across and up the panel's axes; on with *At x, y*), **Align** (across and up), **Rotation**, **Font** and its size, **Style** (*Bold*, *Italic*, *Outline*), **Colors** (text and ground) and **Interpreter** (*As typed* or *TeX*). Every row but the text is grayed out until the text has words. In the preview a note over the panel is a component the right-click editor lists; one in a band beside it is not (its looks still apply, and the figure's rules still reach it). Collapsed until opened |
+| Text note (0) | the selected panel's `note`, titled *Text note on psth_1*: a block of descriptive text on the panel ([Panel notes](EphysAnalysisConfig.md#panel-notes)). **Text** (a new line starts a new line; blank draws nothing; [label variables](#label-variables) are filled in), **Place** (*Below*, *Above*, *Right of* or *Left of the panel*, which give up a band of the panel's tile beside its axes; nine places *Over the panel*, in its axes; or *At x, y*), **At x, y** (0-1 across and up the panel's axes; on with *At x, y*), **Align** (across and up), **Rotation**, **Font** and its size, **Style** (*Bold*, *Italic*, *Outline*), **Colors** (text and ground) and **Interpreter** (*As typed* or *TeX*). Every row but the text is grayed out until the text has words. In the preview a note over the panel is a component the right-click editor lists; one in a band beside it is not (its looks still apply, and the figure's rules still reach it). Collapsed until opened |
 | Overlays | the selected panel's `overlays`, titled *Overlays (2) on psth_1* once it has some ([Panel overlays](EphysAnalysisConfig.md#panel-overlays)). A list of the panel's lines and semitransparent patches, with **Add line**, **Add patch**, **Duplicate** (the picked one, look and all, named *name copy*) and **Remove**. A new or duplicated overlay gets a name no overlay of the figure has, on this panel or any other (*Line 1*, *Line 2*, ...: a look remembered for a name reaches every overlay of that name). The rows of the one picked: **Name** and **Enabled**; **Draw** (a vertical or horizontal line, a patch between two x or two y values); **At** or **From / to**; the **Layer** (*Over* or *Under the data*); a line's **Color** and opacity, or a patch's **Fill** color and opacity and **Outline**; the **Line** style and width. There is no *Show on* row: a panel's overlays are all drawn on its own axes, in its axis' units. No key; collapsed until opened |
 | **LOOK** (Alt+3) | the two sections below: how the figure looks |
 | Appearance | the figure's `style` (below); no key; collapsed until opened |
@@ -1265,6 +1266,10 @@ the stack does not show it (the panel that tells the time is labeled with its ow
 text, *Time (s)* when that is blank). The axes' items work in a figure opened with
 **Open in window** as the labels' do.
 
+The dialog of **Edit label text...** starts from the label as you typed it, its
+[label variables](#label-variables) in braces (an automatic label: as shown), and
+its **Insert a variable...** list adds one at the end of the text.
+
 **Aesthetics.** Right-click any part of the preview (a line, band, bar, text,
 legend or axes) and pick **Edit aesthetics...** to change colors, line styles and
 widths, markers, opacity and fonts in a modal window, *Figure aesthetics*: it
@@ -1574,6 +1579,56 @@ remembered for its type, so the next new panel of the type starts from the
 defaults too. **Edit → Forget remembered panel options** forgets every
 type's at once; it changes no panel. A script's `onNewPanel(Type=...)` uses
 the type's defaults unless it passes `Remembered=true`.
+
+<a name="label-variables"></a>
+
+#### Label variables
+
+A text that labels a figure may name variables in braces, filled in for each
+figure drawn: **Time (s) re {Line} {Edge}** shows *Time (s) re Stim onset*,
+**{Response} trials** shows *Hit trials*, **{Unit} ({Response})** names each
+unit's line in the legend. So one label serves every unit, channel, trial group
+and dataset a figure is drawn for. They work in the figure's **Title**, a
+panel's **Title**, **X axis** and **Y axis** labels, a layer's **Name** (the
+legend) and the **Text note**, and in the right-click **Edit label text...**.
+
+| Variable | Is |
+| --- | --- |
+| `{Line}`, `{Edge}` | the event the epochs are aligned to (with a sequence, the step aligned to): *Stim*, *onset* |
+| `{Event}` | the whole event reference in words, with its sequence: *Stim onset then Lick onset within 1 s* |
+| `{Window}` | the epoch window: *-1 to 1 s* |
+| `{Response}` | the response words the trial selection keeps: *Hit*, *Hit or FA*; *all* when none is picked |
+| `{Filter}`, `{GroupBy}` | the trial filter expression and the grouping parameters (blank when there is none) |
+| `{Group}` | the trial group drawn, in a figure drawn once per trial group (*all* otherwise) |
+| `{Epochs}` | how many epochs (trials) the panel draws |
+| `{Unit}`, `{Observation}` | the unit's or channel's short label (*su12*, *ch7*, as in file names) and its full label |
+| `{Channel}`, `{Shank}`, `{Depth}` | its recording channel, shank and depth (µm) |
+| `{Name}`, `{Subject}`, `{Sessions}` | the dataset's name, the subject, how many sessions a figure across sessions merges (1 otherwise) |
+| `{Figure}`, `{Panel}` | the figure's and the panel's id |
+| `{Bin}`, `{Smooth}` | the panel's bin width and smoothing, ms (blank for a type without bins) |
+| `{Date}` | today, *2026-11-04* |
+
+Each panel's texts take its own values: a panel with an event, window or trial
+selection of its own names its own `{Line}` or `{Response}`; the figure's title
+takes the figure's. Names are case-sensitive, and a name not on the list is
+drawn as typed, so TeX braces in a note (`x^{2}`, `f{word}`) are safe; in a TeX
+note the values are escaped (an `_` stays an underscore). The Export tab's
+**Validate** warns of a name that is no variable (*{line} ... did you mean
+{Line}?*; a double-click on the issue goes to the field). A title that names `{Unit}` or `{Observation}` keeps the top-left
+panel from naming the observation again, and one that names `{Group}` gets no
+*· group* after it. In the report, where one heading serves every page of a
+figure, the observation's variables stay as *&lt;Unit&gt;*.
+
+**Finding them.** A **{x}** button sits at the right of each of these fields.
+It opens a menu of the variables by topic (Alignment, Trials, Observation,
+Data, Figure), each item saying what it means and its value on the figure
+previewed now (*{Line} ... (now: Stim)*), at the selected panel. An item picked
+is added at the end of the text (the note's: of its last line), one step of the
+undo history. The menu's last item, **What each one means, with its value
+now...**, and **Help → Label variables** open the full list in a window: each
+variable, what it means, an example and its value now; a click on a row copies
+the variable to the clipboard. The list is `figureLabelVariables`; the
+renderers fill the texts in with `figureLabelFill`.
 
 <a name="picking-a-color"></a>
 
@@ -2033,6 +2088,7 @@ that is a figure's setting, not a panel type.
 | | **Data tip fields...** | what the data tips of every figure show ([Data tips](#figures-tab)): a check box per field; your preference |
 | Help | **Help for this tab** | the wiki page of this app, at the section of the tab shown (`helpURL`) |
 | | **Keyboard shortcuts and right-click menus** | a window listing every key of the Figures tab, as the **?** button over its editor does ([Keyboard](#figures-tab)), and what the right-click menus do (the preview, the datasets table, the Template list) |
+| | **Label variables** | a window listing the variables a label may use (`{Line}`, `{Response}`, ...): what each means, an example and its value on the figure previewed ([Label variables](#label-variables)) |
 | | **Documentation home**, **Analysis quick start**, **Analysis configs** | the wiki's Home, [Quick start](#quick-start) on this page, the page made from [EphysAnalysisConfig.md](EphysAnalysisConfig.md) |
 | | **Report an issue on GitHub...**, **Request a feature on GitHub...** | compose a GitHub issue from this session and open it prefilled ([Reporting an issue](#reporting-an-issue)) |
 | | **Report a figure template issue...**, **Request a figure template feature...** | the same window about [figure templates](#figure-templates): titled *Figure templates:*, sending the system info, the template picked (its file) and the Log tab |
@@ -2211,6 +2267,7 @@ results, on the Log tab and in the report.
 | Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the panels' places `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`; its saved figures `FigureTemplate.panelTypes`, placed by `EphysAnalysisConfig.placeBlock`; Save as panel type... is `onFigureTemplate("panel")` with `private/askTemplateName`), `onRemovePanel`, `onPanelOrder` (Bring forward, Send back), `onPanelRectEdited` (the Position and Size fields, read back by `gatherFigureEditor`), `onRectUnitsChanged`, `onSnapChanged`, the rows shown by `private/showPanelPlace` (over `private/figurePage`, `private/unitsShown`, `private/rectText`, `private/snapStepIn` and `figureRectConvert`), `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `placeBlock`, `removePanel`, `orderPanel` and `freeRect`; a structural edit ends in `private/commitFigureEdit`), the Arrange button `onArrangeToggled` and `cancelArrange` (also `onKeyPress`'s Escape), its overlay `syncArrangeOverlay` (called by `markFigurePanel` and `setFigurePreviewState`; `private/previewShowsFigure`), the boxes `private/arrangeWidget`, `arrangeWidgetSet`, `arrangeWidgetSelect`, `arrangeWidgetLock` and their menu `private/arrangeMenu`, a drag `onArrangeMoving` / `onArrangeMoved` (over `private/arrangeContext`, the snapping `private/snapRect`, reached by the tests as `EphysFigGenApp.snapRectFor`, and the smart guides `private/arrangeCues`), a click `onArrangeClicked`, Set corners `onSetCorners`, `startCornerMode` and `private/cornerClick` (`private/pageAtPointer`), the arrow keys `nudgePanel`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewScale` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Probe layout section's rows (`gatherFigureEditor` / `applyFigureEditor`, `syncFigureEditor`) and its tile count `private/probeTileCount` (over `figureProbeTiles`; its picker is `refreshFigureObservations`' probe branch, its preview `refreshFigurePreview`'s over `EphysAnalysisRunner.computeProbeFigure` and `renderFigure`, which hands it to `renderProbeFigure`; the tree's *On the probe* group `private/figureGroups`; the edit's name `private/figureEditLabel`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy settings...**: `private/copySettingsDialog`, then `analysis/copyFigureSettings` over `analysis/figureSettingItems` and `analysis/figureSettingParts`, or `analysis/figureLookToDesign` into a design) |
 | remembered panel options, color swatches | `private/rememberPanelOptions` (called by `private/recordFigureEdit`), `private/rememberedPanelOptions` (read by `onNewPanel` and the New panel window), `onResetPanelOptions`, `onForgetPanelOptions`; `private/colorSwatch`, `private/syncColorSwatches` (`buildFiguresTab`, `syncFigureEditor`, `private/latencyDialog`) |
+| label variables | the **{x}** buttons `private/labelVariableButton` (`buildFiguresTab`), their values `labelVariableValues`, the list window `onLabelVariables` (Help → Label variables); the variables themselves are `analysis/figureLabelVariables`, filled in by `analysis/private/figureLabelFill` in `renderFigure` and `renderProbeFigure` |
 | one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change and the Apply last change button: the undo history, the button's state and tooltip set by `private/refreshEditMenu`), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
 | figure templates | `refreshTemplates` (the Template list), `onApplyTemplate` (its window `private/applyTemplateDialog`, then `analysis/copyFigureSettings` from the template's figure), `onFigureTemplate` (Save as, Update, Remove, Import, Export, the folder, the issue window; the name window `private/askTemplateName`); the templates themselves: `analysis/FigureTemplate.m` |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
@@ -2591,6 +2648,15 @@ on <dataset>: <n> tiles ..."*; the tree groups the figure under *On the
 probe*; and **Generate selected figure** writes one page for the dataset, a
 `<n> tile(s)` results row, the status bar reading *Generated <id>: 1 page (<n>
 tiles) on 1 dataset(s), 1 file(s) in ...*.
+
+Its section 5w drives the label variables on a raster over a PSTH, Auto on: a **{x}** button (Tag
+`labelVariables`, holding its field) sits beside the figure's Title, the panel's Title, X axis, Y axis, a
+layer's Name and the Text note; its menu lists the variables under Alignment, Trials, Observation, Data and
+Figure, each with its value on the preview at the selected panel (*{Line} ... (now: Stim)*); two items picked
+on the PSTH's X axis make *Time (s) re {Line} {Edge}* in the field and the config, an undo step, and the
+preview's x label shows it filled in; in the Text note the variable goes at the end of the last line. The menu's
+last item and **Help → Label variables** open one list window, its rows the variables with their values now, and
+a row clicked says it copied its variable.
 
 Its section 5h drives the figure tree and a panel's note and overlays, from no figure (it, too, sets `FigureAutoPreviewSeconds` to
 `Inf` for its length). Three figures (two rasters over PSTHs, one continuous

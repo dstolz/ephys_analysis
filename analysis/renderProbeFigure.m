@@ -11,11 +11,12 @@ function [h, how] = renderProbeFigure(PF, spec, target, opts)
 %
 %   Layout   probeTileLayout (pure): "schematic" rows of sites or
 %            "physical" µm, with the overlap strategy (nudge, lanes,
-%            shrink, allow), in normalized units over the drawing area,
-%            which figureArrange gives (a 1 x 1 grid: the title over it, the
-%            legend beside it, room for the scale tile's labels left of and
-%            under it and for the depth ticks right of it). Every position
-%            is arithmetic: no TightInset is read, no drawnow made.
+%            shrink, allow), in normalized units over the drawing area:
+%            the page under the title (figureArea), less a band east of it
+%            for the legend and room for the scale tile's labels left of
+%            and under it and for the depth ticks right of it. Every
+%            position is arithmetic: no TightInset is read, no drawnow
+%            made.
 %   Title    the figure's (figureAutoTitle: SPEC.title, else "<id>: <n>
 %            units at their sites — <event> (<n> epochs)") on a hidden
 %            titleHost axes; the dataset as its subtitle, and a line
@@ -32,9 +33,11 @@ function [h, how] = renderProbeFigure(PF, spec, target, opts)
 %            site (role "tileLeaders"). They take no clicks (HitTest off,
 %            PickableParts none); the tiles' axes are made after the probe
 %            axes, so they are on top.
-%   Tiles    tile i at L.box(i, :) of the area; its panels where
-%            figureArrange puts them in the tile (SPEC.grid, panels of zero
-%            inset, no margin). One axes per panel (appdata FigurePanel:
+%   Tiles    tile i at L.box(i, :) of the area; its panels at their
+%            rects scaled into the tile (figurePlace: no insets, no
+%            padding, no margin; flush panels stay flush). The tile's label
+%            goes on its top-left panel (EphysAnalysisConfig.panelOrder).
+%            One axes per panel (appdata FigurePanel:
 %            its id; ProbeTile: i; role "axes", or its type's axes role,
 %            named by panel id as renderFigure's), drawn by the type's draw
 %            function (figurePanelRegistry) with figureLookFor's LOOK; a
@@ -65,8 +68,9 @@ function [h, how] = renderProbeFigure(PF, spec, target, opts)
 %            panel of another x axis keeps its own), each panel's y name
 %            (the type's, or the panel's yLabel), in Style.FontSize - 1.
 %   Legend   one, from the first drawn tile's panels (figureLegendEntries),
-%            in a band beside the area (Style.LegendLocation; "inside" and
-%            "none" take the east band) on a hidden legendHost axes.
+%            in a band east of the area on a hidden legendHost axes
+%            (Style.LegendLocation "auto" or "inside": a probe page has no
+%            legend panel and no room inside a tile; "none": no legend).
 %   Aesthetics  the design's common rules once over the page; each panel's
 %            kind rules (figureKindRules, the user's PlotAesthetics.
 %            userRules of the type, a raster's tickWidth) applied once per
@@ -77,7 +81,7 @@ function [h, how] = renderProbeFigure(PF, spec, target, opts)
 %            page; the panels' own box; Scale through PlotAesthetics.
 %            scaleSizes, the root keeping it (drawScale).
 %   Resize   the canvas keeps what places everything (appdata
-%            ProbeFigureLayout: L, the grid, the parts) and figureLayout
+%            ProbeFigureLayout: L, the panels' rects, the parts) and figureLayout
 %            chains its SizeChangedFcn as for any figure (appdata
 %            FigureLayout's layoutFcn): a new size places the probe axes,
 %            the tiles' axes, the title and the legend again. Nothing is
@@ -112,8 +116,8 @@ function [h, how] = renderProbeFigure(PF, spec, target, opts)
 %   Errors: renderProbeFigure:BadTarget, renderProbeFigure:Mismatch (a
 %   tile's panels are not SPEC's).
 %
-%   See also renderFigure, probeTileLayout, figureProbeCompute, figureArrange,
-%   figureLayout, PlotAesthetics.
+%   See also renderFigure, probeTileLayout, figureProbeCompute, figurePlace,
+%   figureArea, figureLayout, PlotAesthetics.
 
 arguments
     PF (1,1) struct
@@ -231,16 +235,12 @@ if ~isempty(L.depthTicks.label)
     inset(3) = (max(strlength(L.depthTicks.label)) * 0.6 * max(6, style.FontSize - 2) + 1.6 * style.FontSize) * pt + 8;
 end
 if o.showSites && L.nCols > 0; inset(4) = 1.6 * style.FontSize * pt; end
-cells = struct('r1', {}, 'r2', {}, 'c1', {}, 'c2', {}, 'size', {}, 'align', {}, 'valign', {}, 'inset', {}, ...
-    'band', {}, 'need', {}, 'shares', {});
-C0 = figurePanelCells(spec.grid, panels);
+cells = struct('rect', {}, 'inset', {}, 'band', {}, 'need', {}, 'shares', {}, 'fixed', {});   % each panel in a tile: its rect, no labels
 for k = 1:np
-    c = C0(k);
-    cells(k) = struct('r1', c.r1, 'r2', c.r2, 'c1', c.c1, 'c2', c.c2, 'size', c.size, 'align', c.align, 'valign', c.valign, ...
-        'inset', [0 0 0 0], 'band', "", 'need', 0, 'shares', 1);
+    cells(k) = struct('rect', double(panels(k).rect), 'inset', [0 0 0 0], 'band', "", 'need', 0, 'shares', 1, 'fixed', false);
 end
-D = struct('L', L, 'grid', spec.grid, 'cells', {cells}, 'inset', inset, 'top', pt * 1.3 * ((style.FontSize + 1) + numel(lines) * style.FontSize) + 4, ...
-    'scale', 1, 'probeAxes', [], 'titleHost', [], 'legend', [], 'side', "", 'parts', {cell(n, np)}, 'notes', {cell(1, n)}, ...
+D = struct('L', L, 'cells', {cells}, 'inset', inset, 'top', pt * 1.3 * ((style.FontSize + 1) + numel(lines) * style.FontSize) + 4, ...
+    'scale', 1, 'probeAxes', [], 'titleHost', [], 'legend', [], 'parts', {cell(n, np)}, 'notes', {cell(1, n)}, ...
     'placed', placed, 'px', NaN(n, 4));
 area = pageArea(D, sz, 1);
 
@@ -253,9 +253,9 @@ D.probeAxes = pax;
 
 % the tiles: each panel drawn by its type, then stripped of its labels (the scale tile keeps them)
 k1 = 0;   % the top-left panel: it holds the tile's label
-if np > 0
-    [~, k1] = min([panels.row] * 1e6 + [panels.col]);
-end
+order = EphysAnalysisConfig.panelOrder(spec);
+order = order(types(order) ~= "legend");
+if ~isempty(order); k1 = order(1); end
 axsOf = repmat({gobjects(1, 0)}, 1, np);   % each panel's axes on every tile (and their further axes): its looks
 hks1 = {};   % the first drawn tile's draw results: the legend
 stacked = false(n, np);
@@ -277,7 +277,7 @@ for i = find(placed)
         continue
     end
     F = tiles(i).F;
-    A = figureArrange(max(tb(3:4), 1), spec.grid, cells, Margin=0, Scale=1);
+    A = tilePlace(tb, cells);
     for k = 1:np
         p = panels(k);
         P = F.panels(k);
@@ -370,20 +370,16 @@ if ~isempty(lines); subtitle(th, lines, 'FontSize', style.FontSize, 'Interpreter
 D.titleHost = th;
 lgd = [];
 lhost = gobjects(1, 0);
-if style.Legend && ~isempty(hks1)
+if style.Legend && string(style.LegendLocation) ~= "none" && ~isempty(hks1)
     [lh, ll] = figureLegendEntries(hks1, types, G);
-    if ~isempty(lh)
-        side = figureLegendSide(style);
-        if side == ""; side = "east"; end
+    if ~isempty(lh)   % in the band east of the area (pageArea places it)
         ls = style;
         ls.LegendLocation = "none";
-        if string(ls.LegendOrientation) == "auto" && ismember(side, ["north" "south"]); ls.LegendOrientation = "horizontal"; end
         host = axes(canvas, 'Units', 'pixels', 'Position', [1 1 1 1], 'Visible', 'off', 'HitTest', 'off', ...
             'PickableParts', 'none', 'Tag', 'legendHost');
-        lgd = placeLegend(host, lh, ll, ls, [], "east");
+        lgd = placeLegend(host, lh, ll, ls, [], "none");
         lhost = host;
         D.legend = lgd;
-        D.side = side;
     end
 end
 
@@ -471,7 +467,7 @@ function placeProbe(canvas)
 %placeProbe  Place a probe page on CANVAS at its size: the probe axes, every tile's axes, the title and the legend (appdata ProbeFigureLayout).
 %   figureLayout calls it (FigureLayout's layoutFcn), when drawn and
 %   whenever CANVAS changes size. Pure arithmetic: probeTileLayout's
-%   normalized boxes over the area, figureArrange inside each tile. The
+%   normalized boxes over the area, the panels' rects in each tile. The
 %   tiles' px boxes are kept (D.px). A canvas under 40 px a side, or a page
 %   drawn over since, is left as it is.
 if ~isvalid(canvas) || ~isappdata(canvas, 'ProbeFigureLayout'); return; end
@@ -498,7 +494,7 @@ for i = find(D.placed)
         if m > 1; cells(k).shares = [2 ones(1, m - 1)]; end
     end
     if ~any1; continue; end
-    C = figureArrange(max(tb(3:4), 1), D.grid, cells, Margin=0, Scale=D.scale);
+    C = tilePlace(tb, cells);
     for k = 1:np
         P = D.parts{i, k};
         Ak = C.panels(k).axes;
@@ -523,10 +519,12 @@ end
 
 
 function [area, A] = pageArea(D, sz, scale)
-%pageArea  The drawing area of a probe page of SZ px (figureArrange: one cell, the title's band over it, the legend's beside it).
+%pageArea  The drawing area of a probe page of SZ px: the page under the title's band (figureArea), less the legend's band east of it and the labels' room.
 %   The title's band from its fonts (no TightInset read: a line 1.3 times
-%   its font), the legend's from its size; SCALE multiplies the insets
-%   (the labels' room, at the export's sizes) as the fonts are.
+%   its font), the legend's from its size (8 px between it and the area,
+%   in the middle of the area's height: A.legend, [] without a legend);
+%   SCALE multiplies the margin, that gap and the insets (the labels'
+%   room, at the export's sizes) as the fonts are.
 top = D.top * scale;
 if ~isempty(D.titleHost) && isgraphics(D.titleHost)
     t = D.titleHost.Title;
@@ -536,18 +534,25 @@ if ~isempty(D.titleHost) && isgraphics(D.titleHost)
     top = 0;
     if nT + nS > 0; top = 96 / 72 * 1.3 * (nT * t.FontSize + nS * st.FontSize) + 4 * scale; end
 end
-leg = struct('side', "", 'size', [0 0]);
-if ~isempty(D.legend) && isgraphics(D.legend) && D.side ~= ""
+A = figureArea(sz, Top=top, Margin=6, Scale=scale);
+A.legend = [];
+x0 = A.area(1);
+x1 = A.area(1) + A.area(3);
+if ~isempty(D.legend) && isgraphics(D.legend)
     if ~strcmp(D.legend.Units, 'pixels'); D.legend.Units = 'pixels'; end
     p = D.legend.Position;
-    leg = struct('side', D.side, 'size', p(3:4));
+    x1 = x1 - p(3) - 8 * scale;
+    A.legend = [x1 + 8 * scale, 0, p(3:4)];
 end
-one = struct('r1', 1, 'r2', 1, 'c1', 1, 'c2', 1, 'size', [1 1], 'align', "center", 'valign', "middle", ...
-    'inset', D.inset * scale, 'band', "", 'need', 0, 'shares', 1);
-g1 = struct('rows', 1, 'cols', 1, 'rowHeights', [], 'colWidths', [], 'spacing', "none", 'gapUnits', "px", ...
-    'rowGap', 0, 'colGap', 0, 'rowGaps', [], 'colGaps', []);
-A = figureArrange(sz, g1, one, Top=top, Legend=leg, Margin=6, Scale=scale);
-area = A.panels(1).box;
+in = D.inset * scale;
+area = [x0 + in(1), A.area(2) + in(2), max(1, x1 - x0 - in(1) - in(3)), max(1, A.area(4) - in(2) - in(4))];
+if ~isempty(A.legend); A.legend(2) = area(2) + (area(4) - A.legend(4)) / 2; end
+end
+
+
+function C = tilePlace(tb, cells)
+%tilePlace  The panels of a tile of box TB (px) at their rects scaled into it (figurePlace: no labels, no padding, no margin), relative to the tile.
+C = figurePlace(figureArea(max(tb(3:4), 1), Margin=0), cells, Padding=0);
 end
 
 

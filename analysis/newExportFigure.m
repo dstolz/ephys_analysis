@@ -10,11 +10,9 @@ function fig = newExportFigure(exportSection, F, spec)
 %   Figures section (SPEC from figureFor, with panels; F from
 %   figureCompute, F.kind "figure"): figureExportSize's page -- the
 %   figure's own size when SPEC.size.source is "own" (px at the Export dpi,
-%   in or cm), else the FigureSizeCm above, taller by 3.5 cm for each row
-%   of the arrangement and 2 cm for the title and x label, never below
-%   FigureSizeCm(2) (the width stays FigureSizeCm(1)). A probe figure (F
-%   from figureProbeCompute, F.kind "probeFigure") gets a page as tall as
-%   its rows of tiles need (figureExportSize: 1.5 cm a panel row of each
+%   in or cm), else the FigureSizeCm above. A probe figure (F from
+%   figureProbeCompute, F.kind "probeFigure") gets a page as tall as its
+%   rows of tiles need (figureExportSize: 1.5 cm a level of panels of each
 %   row of tiles and 2 cm, at most 80 cm).
 %
 %   See also exportFigure, renderFigure, EphysAnalysisRunner.runDataset.

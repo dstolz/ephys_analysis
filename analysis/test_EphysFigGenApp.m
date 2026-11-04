@@ -145,6 +145,14 @@ function test_EphysFigGenApp(opts)
 %   and On the probe excluding each other, Undo Probe layout, the
 %   picker's one entry and count line, the preview's tiles and status
 %   line, the tree's On the probe group, Generate writing one page);
+%   Arrange over the preview (5h.arrange: the overlay and a box per panel,
+%   the outline hidden; a drag's step snapped with the guides and the
+%   fields, the figure untouched; its release one undo step, laid out in
+%   place, or drawn again when the time stack changes; Escape and Alt;
+%   equal spacing and size; snapRect's unit cases; the arrow keys and their
+%   one undo step; Set corners and New panel drawn by two clicks, Escape,
+%   a click off the page; the floating legend made a legend panel; out of
+%   date, another figure, a probe figure; off again with Ctrl+Click);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -1900,10 +1908,10 @@ if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where
     FE.snap.ValueChangedFcn(FE.snap, []);
     FE.snapStep.Value = 0.5;
     FE.snapStep.ValueChangedFcn(FE.snapStep, []);
-    % the preview's Arrange button and Escape (the overlay is the next package's)
+    % the preview's Arrange button and Escape (the overlay itself: 5h.arrange)
     app.FigureArrangeButton.Value = true;
     app.FigureArrangeButton.ValueChangedFcn(app.FigureArrangeButton, []);
-    arrOn = app.FigureArrange && contains(app.StatusBar.Text, "overlay");
+    arrOn = app.FigureArrange && contains(app.StatusBar.Text, "first (Ctrl+P)") && isempty(app.FigureArrangeOverlay);   % (no preview drawn here: Auto off)
     app.FigureArrangeMode = "corners";
     app.FigureCorners = struct('what', "panel");
     app.onKeyPress(pressed('escape', {}));
@@ -1911,7 +1919,7 @@ if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where
     app.FigureArrangeButton.Value = false;
     app.FigureArrangeButton.ValueChangedFcn(app.FigureArrangeButton, []);
     check(arrOn && escaped && ~app.FigureArrange && app.FigureArrangeButton.Parent == app.FigureTemplateDropDown.Parent, ...
-        'Arrange, on the template row, is noted on and off; Escape ends Set corners (cancelArrange)');
+        'Arrange, on the template row, is noted on and off (no preview drawn: the status bar says to preview first); Escape ends Set corners (cancelArrange)');
     app.onPanelSelected(find(ids2() == "raster_1"));
     FE.addSource.Value = "events";
     FE.addSource.ValueChangedFcn(FE.addSource, []);
@@ -3105,6 +3113,322 @@ if S.sec("5h", "the figure tree, a panel's note and overlays")
     app.onSaveConfig();
     app.Tabs.SelectedTab = app.TabData;
     clear restoreAutoLimit5h
+end
+
+if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and smart guides; a release as one undo step, laid out in place; Escape; Alt; the arrow keys; Set corners and New panel drawn by two clicks; the floating legend made a panel; out of date, another figure, a probe figure; off again")
+    noFigures();
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % (no Ctrl held from an earlier section)
+    app.selectTab(app.TabFigures);
+    groupedBy("Depth");   % trial groups: the figure has a legend, floating in free space when there is room
+    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoPreviewSeconds = Inf;   % Auto draws (and lays out in place) whatever the machine's load
+    restore5ha = onCleanup(@() resetAutoLimit(app));
+    units5ha = app.FigureRectUnits;
+    snap5ha = {app.FigureSnap, app.FigureSnapStep};
+    coalesce5ha = app.FigureHistory.CoalesceSeconds;
+    unitsTo("cm");
+    app.FigureSnap = true;
+    app.FigureSnapStep = struct('value', 0.5, 'units', "cm");
+    app.onAddFigure("rasterPsth");
+    app.onPanelSelected(1);
+    app.refreshFigurePreview(Force=true);
+    P = app.FigurePreviewPanel;
+    k5 = app.SelectedFigure;
+    rectOf5 = @(id) app.Config.Figures(k5).panels([app.Config.Figures(k5).panels.id] == id).rect;
+    pageCm5 = figureExportSize(app.Config.Export, [], app.Config.Figures(k5));
+    stepX = 0.5 / pageCm5(1);   % the snap step, 0-1 of the page's width
+    [~, nm0] = markBox(P);
+
+    % on: the overlay and a box per panel, the selected one blue; the outline hidden
+    arrangeToggle(app, true);
+    O = app.FigureArrangeOverlay;
+    R = getappdata(P, 'FigureLayoutResult');
+    wR = arrangeBox(app, "raster_1");
+    wP = arrangeBox(app, "psth_1");
+    [~, nm1] = markBox(P);
+    check(app.FigurePreviewState == "drawn" && isstruct(O) && isvalid(O.axes) && O.axes.Parent == P ...
+        && strcmp(O.axes.HandleVisibility, 'off') && ~any(P.Children == O.axes) && isequal(O.axes.Position, R.page) ...
+        && isequal(O.axes.XLim, [0 1]) && isequal(O.axes.YLim, [0 1]) && O.widgets.Count == 2 ...
+        && string(wR.Tag) == "arrangeBox:raster_1" && string(wP.Tag) == "arrangeBox:psth_1" ...
+        && rectIs(wR.Position, rectOf5("raster_1")) && rectIs(wP.Position, rectOf5("psth_1")) ...
+        && isequal(wR.Color, [0.05 0.45 0.95]) && wR.LineWidth == 2 && wP.LineWidth == 1 && nm0 == 4 && nm1 == 0 ...
+        && contains(app.FigurePreviewHint.Text, "Arrange") && contains(app.StatusBar.Text, "drag") && FE.setCorners.Enable == "on", ...
+        ['Arrange on: a hidden overlay axes over the page (0-1 both ways), a box per panel at its rect, the selected one blue ' ...
+        'and thicker, the outline hidden; the line under the preview and the status bar say how; Set corners on']);
+
+    % a resize of psth_1 (Snap off: exact): the box and its fields follow, the figure only on release, laid out in place
+    app.FigureSnap = false;
+    lines0 = findall(figAxes(), 'Type', 'line');
+    nUndo = numel(app.FigureHistory.Undo);
+    r0 = rectOf5("psth_1");
+    cur = [0 0 0.45 0.5];
+    app.onArrangeMoving("psth_1", roiMove(r0, cur));
+    during = app.SelectedPanel == 2 && app.FigureArrangeMode == "drag" && rectIs(wP.Position, cur) && rectIs(rectOf5("psth_1"), r0) ...
+        && FE.rectW.Value == round(0.45 * pageCm5(1), 2) && numel(app.FigureHistory.Undo) == nUndo;
+    app.onArrangeMoved("psth_1", roiMove(r0, cur));
+    lines1 = findall(figAxes(), 'Type', 'line');
+    check(during && rectIs(rectOf5("psth_1"), cur) && numel(app.FigureHistory.Undo) == nUndo + 1 && app.FigureHistory.undoLabel() == "Resize panel" ...
+        && app.FigurePreviewState == "drawn" && ~isempty(lines0) && all(isvalid(lines0)) && numel(lines1) == numel(lines0) ...
+        && all(ismember(lines1, lines0)) && rectIs(arrangeBox(app, "psth_1").Position, cur) && app.FigureArrangeMode == "" ...
+        && contains(app.StatusBar.Text, "Resized psth_1"), ...
+        ['a drag of psth_1''s right edge: its box and fields follow, the figure only on release (one undo step "Resize ' ...
+        'panel"), laid out again in place: the same lines, nothing drawn again']);
+    app.onNewPanel(Type="psth", Where="rect", Rect=[0.55 0 0.45 0.5]);   % psth_2, beside psth_1 under the raster
+    O = app.FigureArrangeOverlay;
+    check(app.FigurePreviewState == "drawn" && O.widgets.Count == 3 && rectIs(arrangeBox(app, "psth_2").Position, [0.55 0 0.45 0.5]), ...
+        'a panel added: its box comes with the drawing');
+
+    % a move with Snap on: flush against psth_1, an alignment line, the readout; the figure untouched
+    app.FigureSnap = true;
+    px2 = 2 ./ O.axes.Position(3:4);   % 2 px of the preview: inside the 6 px Arrange snaps within
+    r2 = rectOf5("psth_2");
+    raw = [0.45 + px2(1), 0, 0.45, 0.5];
+    app.onArrangeMoving("psth_2", roiMove(r2, raw));
+    w2 = arrangeBox(app, "psth_2");
+    G = visibleGuides(app);
+    vline = any(arrayfun(@(l) all(abs(l.XData - 0.45) < 1e-9) && abs(diff(l.YData)) > 0.1, G.lines));
+    check(rectIs(w2.Position, [0.45 0 0.45 0.5]) && vline && any(startsWith(G.texts, "x ") & endsWith(G.texts, " cm")) ...
+        && rectIs(rectOf5("psth_2"), r2) && FE.rectX.Value == round(0.45 * pageCm5(1), 2) && app.SelectedPanel == 3, ...
+        sprintf(['a move snaps psth_2 flush to psth_1 (2 px off): its box there, a magenta line at the shared edge, the readout ' ...
+        'in cm (%s), its fields; the figure unchanged'], strjoin(G.texts, " | ")));
+    app.onKeyPress(pressed('escape', {}));
+    esc = app.FigureArrangeMode == "canceled" && rectIs(w2.Position, r2) && isempty(visibleGuides(app).lines) ...
+        && FE.rectX.Value == round(0.55 * pageCm5(1), 2);
+    app.onArrangeMoving("psth_2", roiMove(r2, raw));   % the pointer still drags it
+    stays = rectIs(w2.Position, r2);
+    nUndo = numel(app.FigureHistory.Undo);
+    app.onArrangeMoved("psth_2", roiMove(r2, raw));
+    check(esc && stays && app.FigureArrangeMode == "" && numel(app.FigureHistory.Undo) == nUndo && rectIs(rectOf5("psth_2"), r2), ...
+        'Escape during the drag: the box goes back, the guides go, the fields show the rect again; the box stays put until the release, which changes nothing');
+    app.onArrangeMoving("psth_2", roiMove(r2, raw), true);
+    altFree = rectIs(w2.Position, raw);
+    app.onKeyPress(pressed('escape', {}));
+    app.onArrangeMoved("psth_2", roiMove(r2, raw));
+    check(altFree && rectIs(rectOf5("psth_2"), r2), 'Alt held: no snapping, the box exactly where the pointer puts it');
+
+    % equal spacing and equal size: three panels in a row (the rects only, not drawn again)
+    cfgA = app.gatherConfig();
+    cfgS = cfgA;
+    pS = cfgS.Figures(k5).panels;
+    pS(1).rect = [0 0.6 0.2 0.4]; pS(2).rect = [0.3 0.6 0.2 0.4]; pS(3).rect = [0.75 0.6 0.15 0.4];
+    cfgS.Figures(k5).panels = pS;
+    app.applyConfig(cfgS);
+    app.onPanelSelected(3);
+    r2 = rectOf5("psth_2");
+    app.onArrangeMoving("psth_2", roiMove(r2, [0.6 + px2(1), 0.6, 0.15, 0.4]));
+    G = visibleGuides(app);
+    eqTexts = G.texts(startsWith(G.texts, "= "));
+    spaced = rectIs(arrangeBox(app, "psth_2").Position, [0.6 0.6 0.15 0.4]) && numel(eqTexts) == 2 && all(eqTexts == eqTexts(1)) ...
+        && all(endsWith(eqTexts, " cm"));
+    app.onKeyPress(pressed('escape', {}));
+    app.onArrangeMoved("psth_2", roiMove(r2, r2));
+    app.onArrangeMoving("psth_2", roiMove(r2, [0.75, 0.6, 0.2 - px2(1), 0.4]));
+    G = visibleGuides(app);
+    sized = rectIs(arrangeBox(app, "psth_2").Position, [0.75 0.6 0.2 0.4]) && any(contains(G.texts, "= raster_1")) ...
+        && any(arrayfun(@(l) numel(l.XData) == 5, G.lines));
+    app.onKeyPress(pressed('escape', {}));
+    app.onArrangeMoved("psth_2", roiMove(r2, r2));
+    app.applyConfig(cfgA);
+    check(spaced && sized && rectIs(rectOf5("psth_2"), [0.55 0 0.45 0.5]), ...
+        sprintf(['psth_2 moved near an equal spacing snaps to it (both gaps read "%s"); its right edge near raster_1''s ' ...
+        'width snaps to it (the readout says "= raster_1", raster_1 outlined)'], strjoin(eqTexts, '", "')));
+
+    % a resize that parts psth_1 from the raster: the time stack changes, so the preview is drawn again
+    app.FigureSnap = false;
+    lines0 = findall(figAxes(), 'Type', 'line');
+    r1 = rectOf5("psth_1");
+    app.onArrangeMoving("psth_1", roiMove(r1, [0 0 0.45 0.4]));
+    app.onArrangeMoved("psth_1", roiMove(r1, [0 0 0.45 0.4]));
+    check(rectIs(rectOf5("psth_1"), [0 0 0.45 0.4]) && app.FigureHistory.undoLabel() == "Resize panel" && app.FigurePreviewState == "drawn" ...
+        && ~all(isvalid(lines0)) && rectIs(arrangeBox(app, "psth_1").Position, [0 0 0.45 0.4]), ...
+        'psth_1 resized off the raster (no longer flush): the preview is drawn again, the boxes kept');
+    app.onUndoRedo("undo");
+    check(rectIs(rectOf5("psth_1"), r1) && rectIs(arrangeBox(app, "psth_1").Position, r1), 'Undo: the rect and its box back');
+
+    % the unit cases of the snapping (private/snapRect)
+    snapC = @EphysFigGenApp.snapRectFor;
+    tl = [0.02 0.02];
+    oth = [0 0.5 0.5 0.5];
+    [a1, g1] = snapC([0.01 0.1 0.3 0.3], [0.2 0.1 0.3 0.3], oth, [0 0], tl);
+    [a2, g2] = snapC([0.1 0.19 0.3 0.3], [0.1 0 0.3 0.3], oth, [0 0], tl);
+    [a3, g3] = snapC([0.16 0.1 0.2 0.2], [0.3 0.1 0.2 0.2], oth, [0 0], [0.02 0.001]);
+    [a4, g4] = snapC([0.69 0.1 0.3 0.2], [0.6 0.1 0.3 0.2], oth, [0 0], tl);
+    [a5, g5] = snapC([0.61 0 0.2 0.3], [0.7 0 0.2 0.3], [0 0 0.2 0.3; 0.3 0 0.2 0.3], [0 0], tl);
+    [a6, g6] = snapC([0.39 0 0.2 0.3], [0.3 0 0.2 0.3], [0 0 0.2 0.3; 0.8 0 0.2 0.3], [0 0], [0.02 0.001]);
+    [a7, g7] = snapC([0.1 0.1 0.49 0.2], [0.1 0.1 0.3 0.2], oth, [0 0], tl, Names="raster_1");
+    [a8, g8] = snapC([0.01 0.1 0.59 0.2], [0.2 0.1 0.4 0.2], oth, [0 0], tl);
+    [a9, g9] = snapC([0.62 0.12 0.2 0.2], [0.7 0.12 0.2 0.2], zeros(0, 4), [0.05 0.05], [0.001 0.001]);
+    [a10, g10] = snapC([0.01 0.1 0.3 0.3], [0.2 0.1 0.3 0.3], oth, [0 0], [0 0]);
+    [a11, g11] = snapC([0.49 0.51 0 0], [], oth, [0.05 0.05], tl);
+    check(rectIs(a1, [0 0.1 0.3 0.3]) && g1.x.kind == "edge" && g1.mode == "move" && size(g1.lines, 1) >= 1 ...
+        && rectIs(a2, [0.1 0.2 0.3 0.3]) && g2.y.kind == "edge" ...
+        && rectIs(a3, [0.15 0.1 0.2 0.2]) && g3.x.kind == "center" ...
+        && rectIs(a4, [0.7 0.1 0.3 0.2]) && g4.x.kind == "page" ...
+        && rectIs(a5, [0.6 0 0.2 0.3]) && g5.x.kind == "spacing" && nnz([g5.gaps.equal]) == 2 ...
+        && rectIs(a6, [0.4 0 0.2 0.3]) && nnz([g6.gaps.equal]) == 2 ...
+        && rectIs(a7, [0.1 0.1 0.5 0.2]) && g7.mode == "resize" && isstruct(g7.size) && g7.size.name == "raster_1" ...
+        && rectIs(a8, [0 0.1 0.6 0.2]) && isequal(g8.moved, [true false; false false]) ...
+        && rectIs(a9, [0.6 0.1 0.2 0.2]) && g9.x.kind == "grid" && g9.y.kind == "grid" ...
+        && rectIs(a10, [0.01 0.1 0.3 0.3]) && g10.x.kind == "" ...
+        && rectIs(a11, [0.5 0.5 0 0]) && g11.mode == "point", ...
+        ['snapRect: a moved rect to another''s same edge, abutting it, centered on it, the page''s edge, an equal spacing ' ...
+        '(beyond a neighbor, and between two), a resized edge to an equal width (named), only the edge dragged, the step''s ' ...
+        'grid, nothing with no reach (Alt), a corner clicked']);
+
+    % the arrow keys, after a click on the page: a step, ten, a pixel; Alt resizes; three presses are one undo step
+    app.onPanelSelected(3);
+    app.onArrangeClicked("", []);
+    focus1 = app.FigureArrangeFocus;
+    app.FigureHistory.CoalesceSeconds = 30;   % a loaded machine: the presses stay one burst however long each takes
+    nUndo = numel(app.FigureHistory.Undo);
+    r2 = rectOf5("psth_2");
+    for i = 1:3; app.onKeyPress(pressed('leftarrow', {})); end
+    three = all(abs(rectOf5("psth_2") - (r2 - [3 * stepX 0 0 0])) < 1e-9) && numel(app.FigureHistory.Undo) == nUndo + 1 ...
+        && app.FigureHistory.undoLabel() == "Move panel" && ~isempty(visibleGuides(app).texts);
+    app.onKeyPress(pressed('leftarrow', {'shift'}));
+    ten = all(abs(rectOf5("psth_2") - (r2 - [13 * stepX 0 0 0])) < 1e-9);
+    pxW = app.FigureArrangeOverlay.axes.Position(3);
+    app.onKeyPress(pressed('rightarrow', {'control'}));
+    onePx = all(abs(rectOf5("psth_2") - (r2 - [13 * stepX - 1 / pxW 0 0 0])) < 1e-9) && numel(app.FigureHistory.Undo) == nUndo + 1;
+    r2b = rectOf5("psth_2");
+    app.onKeyPress(pressed('rightarrow', {'alt'}));
+    grown = all(abs(rectOf5("psth_2") - (r2b + [0 0 stepX 0])) < 1e-9) && app.FigureHistory.undoLabel() == "Resize panel" ...
+        && numel(app.FigureHistory.Undo) == nUndo + 2;
+    check(focus1 && three && ten && onePx && grown && rectIs(arrangeBox(app, "psth_2").Position, rectOf5("psth_2")), ...
+        'the arrows nudge psth_2 by the snap step (three presses one undo step "Move panel"), Shift by ten, Ctrl by a preview pixel; Alt+Right widens it ("Resize panel"); its box follows');
+    pause(1.5);   % the cues' timer
+    hidden = isempty(visibleGuides(app).lines) && isempty(visibleGuides(app).texts);
+    FE.panelTitle.Value = 'nudged';
+    FE.panelTitle.ValueChangedFcn(FE.panelTitle, []);
+    r2c = rectOf5("psth_2");
+    app.onKeyPress(pressed('leftarrow', {}));
+    notNudged = ~app.FigureArrangeFocus && isequal(rectOf5("psth_2"), r2c);
+    app.onArrangeClicked("", []);
+    app.onKeyPress(pressed('uparrow', {'control' 'alt'}));
+    check(hidden && notNudged && app.SelectedPanel == 1 && isequal(rectOf5("psth_2"), r2c), ...
+        'the guides go a second after the last press; an edit in the editor takes the arrows back; Ctrl+Alt+arrows still select a panel');
+    app.FigureHistory.CoalesceSeconds = coalesce5ha;
+
+    % Set corners: two clicks on the page; Escape and a click off the page cancel
+    app.FigureSnap = false;
+    app.onPanelSelected(2);
+    FE.setCorners.ButtonPushedFcn(FE.setCorners, []);
+    O = app.FigureArrangeOverlay;
+    started = app.FigureArrangeMode == "corners" && app.Fig.Pointer == "crosshair" && contains(app.StatusBar.Text, "first corner") ...
+        && strcmp(arrangeBox(app, "psth_1").InteractionsAllowed, 'none');
+    clickPage(app, [0.1 0.1]);
+    first = isstruct(app.FigureCorners) && numel(app.FigureCorners.first) == 2 && isvalid(app.FigureArrangeOverlay.band) ...
+        && contains(app.StatusBar.Text, "opposite corner");
+    clickPage(app, [0.4 0.45]);
+    rc = rectOf5("psth_1");
+    slack = 2 ./ O.axes.Position([3 4 3 4]);
+    check(started && first && all(abs(rc - [0.1 0.1 0.3 0.35]) <= slack) && app.FigureHistory.undoLabel() == "Set corners" ...
+        && app.FigureArrangeMode == "" && app.Fig.Pointer == "arrow" && strcmp(arrangeBox(app, "psth_1").InteractionsAllowed, 'all') ...
+        && rectIs(arrangeBox(app, "psth_1").Position, rc), ...
+        sprintf('Set corners: a crosshair and locked boxes; two clicks give psth_1 the rect between them (%s), one undo step; the boxes free again', mat2str(rc, 3)));
+    FE.setCorners.ButtonPushedFcn(FE.setCorners, []);
+    clickPage(app, [0.2 0.2]);
+    app.onKeyPress(pressed('escape', {}));
+    escC = app.FigureArrangeMode == "" && isempty(app.FigureCorners) && isempty(app.FigureArrangeOverlay.band) && app.Fig.Pointer == "arrow" ...
+        && isequal(rectOf5("psth_1"), rc);
+    FE.setCorners.ButtonPushedFcn(FE.setCorners, []);
+    box5 = getpixelposition(O.axes, true);
+    app.Fig.CurrentPoint = box5(1:2) - [8 8];
+    app.Fig.WindowButtonDownFcn(app.Fig, []);
+    check(escC && app.FigureArrangeMode == "" && contains(app.StatusBar.Text, "off the page") && isequal(rectOf5("psth_1"), rc), ...
+        'Escape after the first corner, or a click off the page, ends Set corners: nothing changes');
+    app.onUndoRedo("undo");
+
+    % New panel drawn on the preview: from a script, and from the window (its place offered now)
+    nP = numel(app.Config.Figures(k5).panels);
+    app.onNewPanel(Type="continuous", Where="draw");
+    drawStarted = app.FigureArrangeMode == "corners" && app.FigureCorners.what == "new";
+    clickPage(app, [0.6 0.05]);
+    clickPage(app, [0.95 0.3]);
+    f5 = app.Config.Figures(k5);
+    drawn5 = numel(f5.panels) == nP + 1 && f5.panels(end).type == "continuous" && all(abs(f5.panels(end).rect - [0.6 0.05 0.35 0.25]) <= slack) ...
+        && app.FigureHistory.undoLabel() == "Add panel" && isstruct(app.FigureArrangeOverlay) && app.FigureArrangeOverlay.widgets.Count == nP + 1;
+    app.onUndoRedo("undo");
+    answerDialog('New panel', @drawPanelAnswer);
+    app.onNewPanel();
+    seenDraw = getappdata(groot, 'drawPanelSeen');
+    if isappdata(groot, 'drawPanelSeen'); rmappdata(groot, 'drawPanelSeen'); end
+    fromWindow = app.FigureArrangeMode == "corners" && isstruct(app.FigureCorners) && app.FigureCorners.payload.Type == "psth";
+    app.onKeyPress(pressed('escape', {}));
+    check(drawStarted && drawn5 && isstruct(seenDraw) && any(seenDraw.items == "Draw it on the preview (two clicks)") && seenDraw.message == "" ...
+        && fromWindow && numel(app.Config.Figures(k5).panels) == nP, ...
+        'New panel, Where "draw": two clicks on the preview place it (one step "Add panel"); the window offers "Draw it on the preview" and OK starts the clicks');
+
+    % the floating legend: its dashed box, dragged, makes a legend panel there; no plot area changes size
+    cfgL = app.gatherConfig();
+    pL = cfgL.Figures(k5).panels([1 2]);
+    pL(1).rect = [0 0.5 0.6 0.5];
+    pL(2).rect = [0 0 0.6 0.5];
+    cfgL.Figures(k5).panels = pL;
+    app.applyConfig(cfgL);
+    app.onPanelSelected(1);
+    app.refreshFigurePreview(Force=true);
+    R = getappdata(P, 'FigureLayoutResult');
+    O = app.FigureArrangeOverlay;
+    if string(R.legendMode) == "float" && isstruct(O) && ~isempty(O.legend) && isvalid(O.legend)
+        wL = O.legend;
+        dashed = string(wL.Tag) == "arrangeBox:legend" && isequal(wL.StripeColor, [1 1 1]);
+        posP = findPanelAxes(P, "psth_1").Position;
+        lr = O.legendRect;
+        cur = [0.65 0.3 0.3 0.4];
+        app.onArrangeMoving(":legend", roiMove(lr, cur));
+        app.onArrangeMoved(":legend", roiMove(lr, cur));
+        f5 = app.Config.Figures(k5);
+        iL = find([f5.panels.type] == "legend", 1);
+        posP2 = findPanelAxes(P, "psth_1").Position;
+        check(dashed && ~isempty(iL) && f5.panels(iL).id == "legend_1" && rectIs(f5.panels(iL).rect, cur) ...
+            && app.FigureHistory.undoLabel() == "Add panel" && max(abs(posP2 - posP)) < 1.5 ...
+            && (isempty(app.FigureArrangeOverlay.legend) || ~isvalid(app.FigureArrangeOverlay.legend)) && ~isempty(arrangeBox(app, "legend_1")), ...
+            'the legend floating in free space has a dashed box; dragged, a legend panel (legend_1) takes its place there, one step "Add panel"; psth_1''s plot area keeps its size');
+        app.onUndoRedo("undo");
+    else
+        check(false, "the legend floats in the free space right of the panels: legendMode " + string(R.legendMode));
+    end
+
+    % out of date: the boxes stay, at the rects as edited
+    app.FigureAutoCheckBox.Value = false;
+    app.onPanelSelected(2);
+    FE.rectX.Value = 1;
+    FE.rectX.ValueChangedFcn(FE.rectX, []);
+    check(app.FigurePreviewState == "stale" && isstruct(app.FigureArrangeOverlay) && abs(arrangeBox(app, "psth_1").Position(1) - 1 / pageCm5(1)) < 1e-9, ...
+        'an edit with Auto off: the preview is out of date, the boxes stay, psth_1''s at the x typed');
+    % another figure not drawn, a probe figure: no overlay, and why
+    app.onAddFigure("psth");
+    [shownO, whyO] = app.syncArrangeOverlay();
+    cfgP = app.gatherConfig();
+    cfgP.Figures(end).probe.enabled = true;
+    app.applyConfig(cfgP);
+    [shownP, whyP] = app.syncArrangeOverlay();
+    app.onRemoveFigure();
+    app.onFigureSelected(k5);
+    app.FigureAutoCheckBox.Value = true;
+    app.refreshFigurePreview(Force=true);
+    back5 = isstruct(app.FigureArrangeOverlay) && app.FigureArrangeOverlay.panel == app.FigurePreviewPanel;
+    check(~shownO && contains(whyO, "first (Ctrl+P)") && ~shownP && contains(whyP, "probe figure") && back5, ...
+        sprintf('another figure not drawn: no overlay ("%s"); a probe figure: none ("%s"); the figure drawn again: the overlay back', whyO, whyP));
+
+    % off: the boxes go, the outline and Ctrl+Click are back
+    arrangeToggle(app, false);
+    app.onPanelSelected(1);
+    [~, nmOff] = markBox(app.FigurePreviewPanel);
+    app.onKeyPress(pressed('control', {'control'}));
+    app.onFigurePanelClicked(app.Config.Figures(k5).id, "psth_1", true, false);
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));
+    check(~app.FigureArrange && isempty(app.FigureArrangeOverlay) && isempty(findall(app.FigurePreviewPanel, 'Tag', 'arrangeOverlay')) ...
+        && nmOff == 4 && app.SelectedPanel == 2 && ~contains(app.FigurePreviewHint.Text, "Arrange"), ...
+        'Arrange off: the overlay and its boxes gone, the selected panel outlined again, Ctrl+Click selects as before');
+
+    noFigures();
+    app.FigureSnap = snap5ha{1};
+    app.FigureSnapStep = snap5ha{2};
+    unitsTo(units5ha);
+    app.Tabs.SelectedTab = app.TabData;
+    clear restore5ha
 end
 
 if S.sec("5i", "favorites: stars on datasets, units and channels; the Favorites lists")
@@ -4992,4 +5316,62 @@ end
 
 function tf = boxNear(a, b)
 tf = all(isfinite(a)) && max(abs(a - b)) < 1.5;
+end
+
+
+function arrangeToggle(app, tf)
+%arrangeToggle  The preview's Arrange button pressed on (TF true) or off, as a click does.
+app.FigureArrangeButton.Value = tf;
+app.FigureArrangeButton.ValueChangedFcn(app.FigureArrangeButton, []);
+end
+
+
+function w = arrangeBox(app, id)
+%arrangeBox  Arrange's box of panel ID over the preview (an images.roi.Rectangle), [] when there is none.
+w = [];
+O = app.FigureArrangeOverlay;
+if isstruct(O) && isKey(O.widgets, char(id)); w = O.widgets(char(id)); end
+end
+
+
+function e = roiMove(prev, cur)
+%roiMove  The event data of a box's MovingROI or ROIMoved, as a drag from PREV to CUR gives it.
+e = images.roi.ROIMovingEventData(prev, cur);
+end
+
+
+function G = visibleGuides(app)
+%visibleGuides  Arrange's smart guides showing over the preview: their lines (handles) and texts (strings).
+G = struct('lines', gobjects(0), 'texts', strings(0, 1));
+O = app.FigureArrangeOverlay;
+if ~isstruct(O) || ~isvalid(O.axes); return; end
+h = findall(O.axes, 'Tag', 'arrangeGuide', 'Visible', 'on');
+if isempty(h); return; end
+types = string(get(h, 'Type'));
+G.lines = h(types == "line");
+t = h(types == "text");
+if ~isempty(t); G.texts = reshape(string(get(t, 'String')), [], 1); end
+end
+
+
+function clickPage(app, p)
+%clickPage  A click on the preview's page at P (0-1 from its bottom-left corner) in Arrange's overlay: the window's pointer there, then its ButtonDownFcn.
+O = app.FigureArrangeOverlay;
+box = getpixelposition(O.axes, true);
+app.Fig.CurrentPoint = box(1:2) + p .* box(3:4);
+O.axes.ButtonDownFcn(O.axes, []);
+end
+
+
+function drawPanelAnswer(D)
+%drawPanelAnswer  In the New panel window: note the places offered (appdata drawPanelSeen), pick PSTH and "Draw it on the preview (two clicks)", OK (Cancel when refused, noting why).
+D.Pick("psth");
+seen = struct('items', string(D.Where.Items), 'message', "");
+D.Where.Value = "draw";
+press(D, "Ok");
+if isequal(D.Message.FontColor, [0.75 0.1 0.1])   % refused: the window stays open
+    seen.message = string(D.Message.Text);
+    press(D, "Cancel");
+end
+setappdata(groot, 'drawPanelSeen', seen);
 end

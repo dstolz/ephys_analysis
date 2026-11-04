@@ -684,7 +684,10 @@ groups the units.
 `renderPopulation(P, S, kind, target)` draws `"psth"`, `"fractions"`
 (excited, suppressed and tuned shares of the units tested, and the shares
 the auROC called up and down, with its pooled cutoff in the subtitle),
-`"tuning"` or `"depth"` (each unit's response against its probe y).
+`"tuning"` or `"depth"` (each unit's response against its probe y);
+its `Style=`, `ShowError=` (default true: the error bands) and `Band=` (the
+bands' look, as a figure panel's `band`: [Error bands](EphysAnalysisConfig.md#error-bands))
+set how.
 `writePopulation(P, S, folder)` writes the following into a folder:
 
 - `population_units.csv` (with each unit's auROC call and peak),

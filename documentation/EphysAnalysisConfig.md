@@ -45,7 +45,7 @@ keep the result (`cfg = cfg.addFigure(...)`, `cfg = cfg.save(...)`).
 | `Source`, `Defaults`, `Export`, `Report` | sections (structs), coerced on assignment |
 | `Figures` | struct array, one entry per [figure](#figures): one observation's panels (a unit, a channel or the dataset), each placed freely on the page. Its ids are unique among figures (`EphysAnalysisConfig:DuplicateFigureId`; a figure's panel ids `EphysAnalysisConfig:DuplicatePanelId`); a cell array (what `jsondecode` gives for figures whose fields differ) is accepted too. A run draws the enabled figures, a page per observation ([Export](#export), [Report](#report)); one with `sessions.enabled` is a [session figure](#session-figures), drawn once across the datasets instead |
 | `File`, `LoadWarnings` | transient: where it was loaded from / saved to; the unknown fields `load` dropped |
-| `Schema`, `Version`, `Sections`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveData`, `WaveformLocations`, `ErrorTypes`, `ListFields` | constants. `Version` is 2 (a version 1 file is [migrated](#loading-a-version-1-config) on load); `FigureSources`: what a figure's layer reads, `ObserveData`: what a figure is drawn for (`observe.data`: `units`, `detected`, `LFP`, `MUA`, `SPIKE`, `AUX`, `dataset`); `Figures` is a list, not one of the four `Sections`. The continuous panels' and notes' choices: `AuxStatistics`, `AuxTransforms`, `AuxErrorTypes`, `NotePlacements`, `OverlayLayers`, `OverlayLineStyles`. The [session figures'](#session-figures): `SessionSeries`, `SessionErrors`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders`, `FigureSessionMatches` (`"site"`, `"mapping"`: a figure observes one matched unit, so no pooling) and `FigureSessionUnmerged` (the panel types that cannot be merged across sessions: `probemap`, `corrmap`, `spectrum`, `spectrogram`, `coherence`). The [probe figures'](#probe-figures): `ProbeLayouts` (`schematic`, `physical`), `ProbeOverlaps` (`nudge`, `lanes`, `shrink`, `allow`) and `ProbeTileLabels` (`short`, `full`, `none`). There are no plot constants (`Kinds`, `AuxModes`, `AuxPlacements`, `AuxDisplays`, `AuxColorBy`, `OverlayPanels`, `SessionKinds`, `SessionMatches`, `SessionData`): the plots are gone |
+| `Schema`, `Version`, `Sections`, `SpikeSources`, `SignalSources`, `FigureSources`, `ObserveData`, `WaveformLocations`, `PanelErrorTypes`, `ListFields` | constants. `Version` is 2 (a version 1 file is [migrated](#loading-a-version-1-config) on load); `FigureSources`: what a figure's layer reads, `ObserveData`: what a figure is drawn for (`observe.data`: `units`, `detected`, `LFP`, `MUA`, `SPIKE`, `AUX`, `dataset`); `Figures` is a list, not one of the four `Sections`. A PSTH's, rate and tuning panel's error (`PanelErrorTypes`: `off`, `sem`, `std`, `ci95`). The continuous panels' and notes' choices: `AuxStatistics`, `AuxTransforms`, `AuxErrorTypes`, `NotePlacements`, `OverlayLayers`, `OverlayLineStyles`. The [session figures'](#session-figures): `SessionSeries`, `SessionErrors`, `SessionTrialGroups`, `SessionFacets`, `SessionColorOrders`, `FigureSessionMatches` (`"site"`, `"mapping"`: a figure observes one matched unit, so no pooling) and `FigureSessionUnmerged` (the panel types that cannot be merged across sessions: `probemap`, `corrmap`, `spectrum`, `spectrogram`, `coherence`). The [probe figures'](#probe-figures): `ProbeLayouts` (`schematic`, `physical`), `ProbeOverlaps` (`nudge`, `lanes`, `shrink`, `allow`) and `ProbeTileLabels` (`short`, `full`, `none`). There are no plot constants (`Kinds`, `AuxModes`, `AuxPlacements`, `AuxDisplays`, `AuxColorBy`, `OverlayPanels`, `SessionKinds`, `SessionMatches`, `SessionData`): the plots are gone |
 | `toStruct()`, `toJson()`, `save(file)` | plain struct; the JSON `save` writes (`Inf` / `-Inf` / `NaN` as `"Inf"` / `"-Inf"` / `"NaN"`) |
 | `EphysAnalysisConfig.load(file)`, `fromStruct(s)` | version 2; a version 1 file (or struct) is [migrated](#loading-a-version-1-config) first. `load` errors `EphysAnalysisConfig:BadSchema` on another schema or any other version |
 | `validate(CheckPaths=true)` | issues table `Section, Field, Severity, Message` ([rules](#validation)) |
@@ -341,13 +341,6 @@ A figure's `observe.units` and a fixed layer's `units` (the source is the figure
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `LineWidth` | 1.2 | traces, PSTH lines and bar outlines |
-| `ShowSEM` | `true` | the error of the means: bands behind traces (PSTH and continuous panels, population curves), error bars on means (rate bars, tuning curves); which error is `ErrorType` ([Error bands](#error-bands)) |
-| `ErrorType` | `"sem"` | `"sem"`: mean +/- SEM; `"std"`: mean +/- SD of the values; `"ci95"`: the 95% confidence interval of the mean from bootstrap resamples (`bootci`, percentile; Statistics and Machine Learning Toolbox). Over the epochs (the group's, or the x value's), as the compute function makes it (`R.err`); across the units for an overlay of several units (PSTH, tuning) |
-| `ErrorResamples` | 1000 | `"ci95"`: the bootstrap resamples. They come from a stream of their own (seed 0), so a figure gives the same band every time it runs |
-| `ErrorFaceColor` | `""` | bands: `""` = the trace's color; or one color (a name or `#rrggbb`) for every band, drawn as given |
-| `ErrorFaceAlpha` | `NaN` | bands: `NaN` = opaque, the trace's color paled 75% towards the ground (vector exports stay vector); 0-1 = the fill at that opacity, unpaled, so what is under it shows through. |
-| `ErrorEdgeColor` | `"none"` | bands: their outline: `"none"`, `"auto"` (the fill's color) or a color |
-| `ErrorEdgeStyle`, `ErrorEdgeWidth` | `"-"`, 0.5 | bands: the outline's line style (`-`, `--`, `:`, `-.`) and width, points |
 | `ShowStop` | `true` | stop-event marks (mean per group; a dot per raster row) |
 | `ShowZeroLine` | `true` | a dotted line at the event |
 | `ShowArtifactNote` | `true` | a line under the figure's title when some of the drawn epochs touch an artifact period, which happens only with the trial selection's `excludeArtifacts` off: *"3 of 40 epochs touch an artifact period"*. When panels with epochs of their own count differently, each count names its panels (*"Epochs that touch an artifact period: 3 of 40 (raster_1, psth_1); 5 of 38 (psth_2)"*). Only the periods the selection counts (at least `minArtifactSec` long) are noted |
@@ -756,7 +749,7 @@ the rate axes of a PSTH). The `waveform` settings
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `mode` | `"off"` | `"mean"`, `"subsample"` (the individual spikes read, thin and pale), `"both"` (the mean over the spikes), `"template"` (a sorted unit's template, `units.templateWaveform`: no spikes read; detections have none), or `"off"` |
-| `band` | `"off"` | an error band round the mean: `"std"` (the SD of the spikes the mean is over: `maxSpikes` of a sorted unit's, all of a detection channel's), `"sem"` (that SD over the square root of their number), or `"off"`; none on a template. Role `waveBand`, drawn as every [error band](#error-bands) is (`ErrorFaceColor`, `ErrorFaceAlpha`, ...) |
+| `band` | `"off"` | an error band round the mean: `"std"` (the SD of the spikes the mean is over: `maxSpikes` of a sorted unit's, all of a detection channel's), `"sem"` (that SD over the square root of their number), or `"off"`; none on a template. Role `waveBand`, drawn as every [error band](#error-bands) is, in the panel's `band` look |
 | `maxSpikes` | 100 | the spikes drawn per unit, picked at random (the same ones each run) |
 | `timeMs` | `[]` | the x scale: the span drawn, `[from to]` ms from the spike (`-Inf` / `Inf`: the cut's edge); `[]` = the whole cut. A span holding fewer than two samples draws the whole cut |
 | `width` | 1 | the box's width: 1 = a third of the panel's; at most 3 |
@@ -835,7 +828,7 @@ columns, 1 = its first input, `[]` = all). The panel's options are the continuou
 | `stack` | `"off"`: a trace per channel (and trial group); `"items"`: every channel in a row of its own, on one amplitude scale; `"groups"`: every trial group in a row of its own ([Stacks](#stacks)) |
 | `statistic` | what is drawn at each sample over a group's epochs: `"mean"` or `"median"` |
 | `transform` | `"none"`: the signal as recorded (after the baseline); `"rectify"`: each epoch's absolute value at every sample, before the statistic; `"magnitude"`: the layer's channels as one trace, their vector magnitude √(x² + y² + z² …) at every sample of each epoch, after the baseline and before the statistic (the mean of the magnitudes, not the magnitude of the means). For a 3-axis accelerometer, fix the AUX layer to its three channels and set `baseline` to `"subtract"`, so each axis's offset (gravity) comes out first |
-| `errorType` | the band over the epochs, chosen for this panel alone (not by `Style.ShowSEM` / `Style.ErrorType`): `"off"`; `"sem"`: statistic +/- SEM; `"std"`: +/- SD; `"ci95"`: the bootstrap 95% CI (of the median for `"median"`; `Style.ErrorResamples` resamples); `"iqr"`: the 25th to 75th percentile of the epochs (`"ci95"` and `"iqr"` need the Statistics and Machine Learning Toolbox; `"sem"` and `"std"` with the median are drawn around the median, and validate warns) |
+| `errorType` | the band over the epochs, chosen for this panel alone ([Error bands](#error-bands)): `"off"`; `"sem"`: statistic +/- SEM; `"std"`: +/- SD; `"ci95"`: the bootstrap 95% CI (of the median for `"median"`; `errorResamples` resamples); `"iqr"`: the 25th to 75th percentile of the epochs (`"ci95"` and `"iqr"` need the Statistics and Machine Learning Toolbox; `"sem"` and `"std"` with the median are drawn around the median, and validate warns) |
 | `trials` | `"faint"` or `"only"`: each epoch's own trace as well, or alone |
 | `yLimMode`, `yLim` | the signal's y limits in its units (V): `"auto"` from the traces (and their bands), `"fixed"` at `yLim`, `"batch"` one range over a run ([Y limits](#y-limits)) |
 
@@ -857,7 +850,7 @@ taken out first.
 
 The traces take the trial groups' colors (or the layer's `color`) and each channel a
 line style (the layer's `lineStyle`, else by order: `-`, `--`, `:`, `-.`); the bands are
-`errorType`'s (their fill, opacity and edge are the Style's `ErrorFace*` / `ErrorEdge*`).
+`errorType`'s (their fill, opacity and edge are the panel's `band`).
 Each trace and band is a component for the
 [aesthetics](EphysAnalysis.md#plot-aesthetics) editor (roles `trace`, `channelTrace` for a
 channel of a layer that draws several, and `sem`, like any continuous panel's); the
@@ -866,16 +859,18 @@ plot was [migrated](#looks-on-retired-roles).
 
 ### Error bands
 
-With `Style.ShowSEM` a figure draws the error of its means, of `Style.ErrorType`:
+Each panel that draws the error of its means chooses it in its own options:
+a PSTH its band, a firing rate panel its error bars (`display "bar"`), a
+tuning curve its error bars, in `errorType` (`EphysAnalysisConfig.PanelErrorTypes`;
+`"off"` draws none), with `errorResamples` for the bootstrap:
 
-| `ErrorType` | Band / bar | Needs |
+| `errorType` | Band / bar | Needs |
 | --- | --- | --- |
 | `"sem"` (default) | mean +/- SEM (std / sqrt(n)) | |
 | `"std"` | mean +/- the standard deviation of the values | |
-| `"ci95"` | the 95% confidence interval of the mean: `ErrorResamples` bootstrap resamples of the values, percentile method (`bootci`); asymmetric where the values are | Statistics and Machine Learning Toolbox |
+| `"ci95"` | the 95% confidence interval of the mean: `errorResamples` bootstrap resamples (default 1000, from a stream of their own, seed 0, so a figure gives the same band every time it runs) of the values, percentile method (`bootci`); asymmetric where the values are | Statistics and Machine Learning Toolbox |
 
-A continuous panel's band is chosen in its own `errorType` (the same three,
-plus `"off"` and `"iqr"`, the interquartile range, `prctile`; it needs the
+A continuous panel's `errorType` takes the same values (plus `"iqr"`, the interquartile range, `prctile`; it needs the
 same toolbox for `"ci95"` and `"iqr"`), and follows its `statistic`:
 for the median `"sem"` and `"std"` are drawn around the median (Validate
 warns) and `"ci95"` is the bootstrap CI of the median.
@@ -893,15 +888,26 @@ fewer than twice has no band. The caption names the error and what it is
 across ("bands: mean +/- SEM across epochs"; "the bootstrap 95% CI of the
 mean (1000 resamples, percentile)").
 
-Bands are patches (`errorPatch`) in the bands' look: `ErrorFaceColor`,
-`ErrorFaceAlpha`, `ErrorEdgeColor`, `ErrorEdgeStyle`, `ErrorEdgeWidth`
-([Style](#style)); the defaults draw them as before. Each band is a
+Bands are patches (`errorPatch`) in the look of the panel's `band`
+(`EphysAnalysisConfig.defaults("ErrorBand")`), which a PSTH, continuous,
+spectrum, coherence, unit waveforms and probe map panel each have, and a
+waveform inset takes from its panel:
+
+| `band` field | Default | Meaning |
+| --- | --- | --- |
+| `faceColor` | `""` | `""` = the trace's color; or one color (a name or `#rrggbb`) for every band, drawn as given |
+| `faceAlpha` | `NaN` | `NaN` = opaque, the trace's color paled 75% towards the ground (vector exports stay vector); 0-1 = the fill at that opacity, unpaled, so what is under it shows through |
+| `edgeColor` | `"none"` | the outline: `"none"`, `"auto"` (the fill's color) or a color |
+| `edgeStyle`, `edgeWidth` | `"-"`, 0.5 | the outline's line style (`-`, `--`, `:`, `-.`) and width, points |
+
+Each band is a
 component for the [aesthetics](EphysAnalysis.md#plot-aesthetics) editor
 (role `sem`, "Error band"), so a right-click
 restyles one group's bands, and a design's rules reach them. Error bars (rates, tuning) are `errorbar` objects in their own look; only
-`ErrorType` concerns them. `populationSummary` takes `ErrorType=` and
+`errorType` concerns them. `populationSummary` takes `ErrorType=` and
 `ErrorResamples=` too (across the units of each group) and `renderPopulation`
-draws its bands in the style's look.
+draws its bands (`ShowError`, default true) in the look of its `Band`, as
+`renderWaveforms`, `renderProbeMap` and `renderChronux` do.
 
 ### Panel notes
 
@@ -1064,7 +1070,7 @@ give the fields below; every field exists on every entry.
 | `latency` | `defaults("Latency")` | how the first-spike latencies and response onsets its panels read are found, once per unit and alignment for every panel ([First-spike latency](#first-spike-latency)): the method, the window, the baseline and the CUSUM's settings. The panels keep only their looks |
 | `sessions` | `defaults("FigureSessions")` | the [session figure](#session-figures) settings: with `sessions.enabled` the figure is drawn once across several datasets instead of once per dataset; `sessions.enabled` false keeps the block and leaves it unused. Which datasets, how the observation is matched across them and how the sessions are colored, merged and grouped |
 | `probe` | `defaults("FigureProbe")` | the [probe figure](#probe-figures) settings: with `probe.enabled` the whole figure is drawn once per unit or channel as a tile at its site on the probe, every tile on one page per dataset; `probe.enabled` false keeps the block and leaves it unused. The layout (schematic or physical), how tiles are kept apart, which shanks, channels and depths, how many tiles and their look |
-| `style` | [Style](#style) | the figure's look: fonts, line widths, error bands, legend, colors and probe sorting apply. `XLim`, `YLim`, `CLim`, `MaxTiles` and `TileSpacing` are not used: the time panels show the window, each panel has its own `options.yLim` / `cLim`, and the panels are placed by their `rect` |
+| `style` | [Style](#style) | the figure's look: fonts, line widths, legend, colors and probe sorting apply (the error a panel draws and its bands' look are the panel's options: [Error bands](#error-bands)). `XLim`, `YLim`, `CLim`, `MaxTiles` and `TileSpacing` are not used: the time panels show the window, each panel has its own `options.yLim` / `cLim`, and the panels are placed by their `rect` |
 | `aesthetics` | none | remembered looks of the figure's components, a list of rules `{role, group, property, value}` ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)) |
 
 `size` (the page the figure is exported on, `figureExportSize` ([Export and reports](EphysAnalysis.md#export-and-reports)); the app's **Size** row, which also shapes the preview):
@@ -1542,7 +1548,7 @@ refuses.
 | all three | `pad` | 0 | the FFT padding (-1, 0, 1, ...) |
 | all three | `fpass` | `[0 100]` | `[fmin fmax]` Hz (`fmax` `Inf` = Nyquist) |
 | `spectrum`, `coherence` | `err` | `"jackknife"` | the error bars: `"none"`, `"theoretical"` or `"jackknife"` (a coherence: the jackknife gives the band and the level independent signals stay under, `"theoretical"` the level alone) |
-| `spectrum`, `coherence` | `errP` | 0.05 | the error bars' p (0.05: 95%) |
+| `spectrum`, `coherence` | `band` | `defaults("ErrorBand")` | the band's look, as the PSTH's ([Error bands](#error-bands)) |
 | all three | `detrend` | `"constant"` | each trial's trend removed: `"none"`, `"constant"` or `"linear"` |
 | `spectrum`, `spectrogram` | `scale` | `"db"` | `"db"` (10 log10), `"log"` (a log y axis; a spectrogram: dB too) or `"linear"` (as is; a spectrogram baseline then in its own units) |
 | all three | `spikeFs` | 1000 | spike layers: the time grid the spike trains are analyzed on, Hz |
@@ -1662,7 +1668,9 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `measure` | `"rate"` | `"rate"`, `"count"` or `"probability"` |
 | `psth` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"`, `"subtract"`, `"zscore"`, `"percent"` or `"auroc"` (`"ratio"` is for rate and tuning panels) |
 | `psth` | `auroc` | `defaults("Auroc")` | baseline `Mode "auroc"`: the [auROC](#auroc) settings (`method`, `windows`, `windowSec`, `stepSec`, the call window `modulationWindow`, `cutoff`, `threshold`, `test`, `nResamples`, `correction`, `alpha`, `marks`, `modulatedOnly`). `windowSec` and `stepSec` must be whole numbers of the panel's bins (validate checks them) |
-| `psth` | `display` | `"trace"` | `"trace"` (bars or a line per trial group) or `"heatmap"`: the first item (unit or a layer's mean) as an image, a row per trial group, the first on top, colored by its PSTH on that item's own range, never across units; `histStyle`, `fill`, `fillAlpha`, `stack`, `stackSpacing` and `yLim` are not used then, and further items are noted on the panel |
+| `psth` | `errorType` | `"sem"` | the band over the epochs: `"off"`, `"sem"`, `"std"` or `"ci95"` ([Error bands](#error-bands)); not drawn with `display "heatmap"` |
+| `psth` | `errorResamples` | 1000 | `errorType "ci95"`: the bootstrap resamples |
+| `psth` | `band` | `defaults("ErrorBand")` | the band's look: `faceColor`, `faceAlpha`, `edgeColor`, `edgeStyle`, `edgeWidth` ([Error bands](#error-bands)) |
 | `psth` | `histStyle` | `"bar"` | `"bar"` or `"line"` |
 | `psth` | `fill` | `true` | fill the bars, or the area under the line |
 | `psth` | `fillAlpha` | `NaN` | fill opacity 0-1; `NaN` = 0.5 where groups overlay, else 1 |
@@ -1680,7 +1688,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `continuous` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"` or `"subtract"` (each epoch's mean over `Window`, per channel). The window must overlap the panel's window |
 | `continuous` | `statistic` | `"mean"` | `"mean"` or `"median"` over the epochs at each sample |
 | `continuous` | `transform` | `"none"` | `"none"`, `"rectify"` (each epoch's absolute value, before the statistic) or `"magnitude"` (the layer's channels as one: their vector magnitude in each epoch, after the baseline) |
-| `continuous` | `errorType` | `"sem"` | the band over the epochs: `"off"`, `"sem"`, `"std"`, `"ci95"` or `"iqr"`; `"ci95"` and `"iqr"` need the Statistics and Machine Learning Toolbox ([Aux signals](#aux-signals)) |
+| `continuous` | `errorResamples`, `band` | 1000, `defaults("ErrorBand")` | as the PSTH's |
 | `continuous` | `stack` | `"off"` | `"off"` (overlaid), `"groups"` (a row per trial group, the items overlaid in it) or `"items"` (a row per channel or layer mean, the groups overlaid in it) ([Stacks](#stacks)) |
 | `continuous` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the row height; positive |
 | `continuous` | `trials` | `"off"` | each epoch's trace: `"off"`, `"faint"` (paler and thinner than the mean, behind it and its band) or `"only"` (the traces alone, no mean or band) |
@@ -1699,13 +1707,13 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `heatmap` | `cLim` | `[]` | the color scale |
 | `heatmap` | `maskAfterStop` | `false` | spike layers: as the PSTH's |
 | `waveforms` | `layout` | `"grid"` | `"grid"`: the observed unit's waveform, or the means of a fixed layer's units overlaid; `"probe"`: every unit of the first enabled layer at its place on the probe, a further layer's units framed in red (bind the first layer to fixed units: validate warns when it follows the observation, which draws one glyph). Several enabled layers are not a warning in the probe layout |
-| `waveforms` | `waveform` | [Waveform](#unit-waveforms), `mode "both"` | `mode` `"mean"`, `"subsample"`, `"both"` or `"template"` (never `"off"`), `band`, `maxSpikes` (the spikes drawn), `timeMs`, `ampScale` and `ampLim`, and `showPP` / `showCount` (the label). `width` and `height` (the glyphs' size), `showSites` and `showNames` are for the probe layout |
+| `waveforms` | `band` | `defaults("ErrorBand")` | the look of the means' bands (`waveform.band`), as the PSTH's |
 | `waveforms` | `yLimMode`, `yLim` | `"auto"`, `[]` | the amplitude axis ([Y limits](#y-limits); not the probe layout's) |
 | `probemap` | `value` | `"rate"` | `"rate"`, `"nSpikes"` or `"nUnits"` |
 | `probemap` | `cLim` | `[]` | the color scale |
 | `probemap` | `unitLabels` | `false` | each unit's name beside its shank, with an arrow to the unit (roles `unitLabels`, `unitLeaders`, `unitArrows`) |
 | `probemap` | `waveColor` | `false` | with a `waveform` mode other than `"off"` and `value` `"rate"` or `"nSpikes"`: each unit's glyph (mean, band, spikes) in the color of its value in the color scale, with a color bar |
-| `probemap` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | `"off"`: a circle per unit; otherwise each unit's waveform as a glyph (`mode`, `band`, `maxSpikes`, `timeMs`, `ampScale`, `ampLim`, `width`, `height`; not `location`, `box`, `showPP`, `showCount`, `showSites`, `showNames`). Not shared by **Apply to all panels** |
+| `probemap` | `band` | `defaults("ErrorBand")` | the look of the glyphs' bands (`waveform.band`), as the PSTH's |
 | `corrmap` | `metric` | `"mean"` | each epoch's `"mean"` rate over its window, or its `"peak"` binned rate |
 | `corrmap` | `correlation` | `"pearson"` | or `"spearman"` |
 | `corrmap` | `fisherZ` | `false` | draw Fisher's z and average the pairwise r in z |
@@ -1716,14 +1724,14 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `corrmap` | `cLim` | `[]` | the color scale |
 | `rate` | `measure` | `"rate"` | `"rate"` (spikes/s), `"count"` (spikes per window) or `"probability"` (the share of epochs with a spike) |
 | `rate` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"`, `"subtract"`, `"ratio"` or `"zscore"`, as `firingRate`'s `Normalize`: `"subtract"` (that epoch's baseline value), `"ratio"` (over the unit's mean baseline) or `"zscore"` (against the baseline's mean and SD over all epochs) |
-| `rate` | `display` | `"bar"` | `"bar"` (the mean, with an error bar), `"box"` or `"points"` (each epoch's rate, over a bar of their mean) |
+| `rate` | `errorType`, `errorResamples` | `"sem"`, 1000 | `display "bar"`: the error bars over the epochs, as the PSTH's band (`"off"`: none) |
 | `rate` | `yLimMode`, `yLim` | `"auto"`, `[]` | the rate axis ([Y limits](#y-limits)) |
 | `rate` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
 | `tuning` | `param` | `""` | the x axis, a trial parameter; `""` = the figure's first `groupBy` parameter, else the first numeric trial parameter with two or more values |
 | `tuning` | `seriesParam` | `""` | one curve per value of this trial parameter; `""` = one curve; not the same as `param` |
 | `tuning` | `stack`, `stackSpacing` | `"off"`, 1.1 | `"groups"`: a row per series, the first on top ([Stacks](#stacks)) |
 | `tuning` | `measure` | `"rate"` | as the rate panel's |
-| `tuning` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | as the rate panel's |
+| `tuning` | `errorType`, `errorResamples` | `"sem"`, 1000 | the error bars over the epochs of each value, as the PSTH's band (`"off"`: none) |
 | `tuning` | `yLimMode`, `yLim` | `"auto"`, `[]` | the rate axis, or a stack's rows' scale ([Y limits](#y-limits)) |
 | `tuning` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
 | `spectrum`, `spectrogram`, `coherence` | | | the [Chronux options](#spectral-panels), above; none but `stack` and `stackSpacing` is a shared option |
@@ -2384,9 +2392,11 @@ Errors:
   `layer`, `lineStyle`, a positive `lineWidth` and `alpha` / `faceAlpha` from 0 to 1. A
   panel's overlay `panel` is always `"all"` (`normalizePanel`: its overlays are drawn on its
   own axes), so there is no warning that a panel of the named kind is absent;
-- the figure's `style` (`MaxTiles >= 1`, `TileSpacing`, the legend settings, `ErrorType`, `ErrorResamples`, `ErrorFaceAlpha`, ...; the bootstrap CI
-  needs the Statistics and Machine Learning Toolbox where a PSTH band, a rate
-  panel's error bar or a tuning curve's error bar draws it).
+- each panel's own error: a PSTH's, rate or tuning panel's `errorType` (`PanelErrorTypes`;
+  `"ci95"` needs the Statistics and Machine Learning Toolbox), `errorResamples` (a whole
+  number >= 1) and `band` (`faceAlpha` 0-1 or `NaN`, `edgeStyle`, `edgeWidth` > 0);
+- the figure's `style` (`MaxTiles >= 1`, `TileSpacing`, the legend settings, the font size,
+  line width and site size, the colormaps).
 
 Warnings:
 

@@ -289,8 +289,7 @@ hmPanel = hmFig.panels(1);
 psPanel = psFig.panels(1);
 mixed = hmFig;
 mixed.id = "mixed";
-mixed.grid.rows = 2; mixed.grid.cols = 1; mixed.grid.rowHeights = []; mixed.grid.colWidths = [];
-hmPanel.row = 1; hmPanel.col = 1; psPanel.row = 2; psPanel.col = 1;
+hmPanel.rect = [0 0.5 1 0.5]; psPanel.rect = [0 0 1 0.5];   % the heat map over the PSTH
 mixed.panels = [hmPanel psPanel];
 cfgD = fx.cfg.addFigure(mixed);
 mixedSpec = cfgD.figureFor("mixed");

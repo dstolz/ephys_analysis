@@ -7,7 +7,8 @@ function test_copyFigureSettings()
 %   2. copyFigureSettings: one setting (the rest of its part kept), a
 %      part, a panel's options (to the panel of its type only; another
 %      type's that does not take them unchanged), one figure onto many
-%      (CHANGED), the layout (grid and panels), remembered looks added
+%      (CHANGED), the panels (with their places) and the layout (boxes
+%      mean, padding) apart, remembered looks added
 %      one by one, panels matched by id then type, a copy that changes
 %      nothing, every setting by default (the id, title and enabled kept;
 %      it validates), the errors (BadSetting, BadFigure), and the time of
@@ -67,13 +68,19 @@ check(height(y) == 1 && isequal(y.Groups{1}, ["psth_1  (PSTH)" "Axes and limits"
 check(height(fs) == 1 && fs.Groups{1} == "Text and legend" && isequal(fs.Paths{1}, "style.FontSize") && fs.Value == "9" ...
     && fs.Label == "Font size" && ~any(startsWith(I.Key, ["style.YLim" "style.MaxTiles" "style.TileSpacing" "style.StackSpacing"])), ...
     'an Appearance setting in its group; the Style fields a figure does not use are left out');
+pnl = row("arrangement.panels");
 lay = row("arrangement.layout");
-check(height(lay) == 1 && ismember("panels", lay.Paths{1}) && ismember("grid.rows", lay.Paths{1}) && contains(lay.Value, "raster, psth") ...
-    && height(row("observe.data")) == 1 && height(row("alignment.ref")) == 1 && height(row("panel.raster_1.options.tickColor")) == 1 ...
+check(height(pnl) == 1 && isequal(pnl.Paths{1}, "panels") && pnl.Value == "2 panels: raster, psth" && pnl.Label == "Panels (types, places, options, layers)" ...
+    && height(lay) == 1 && isequal(lay.Paths{1}, ["layout.boxesMean" "layout.padding"]) && lay.Label == "Boxes mean and padding" ...
+    && lay.Value == "plot areas, padding 0.15 cm" && ~any(contains(I.Key, ["spacing" "grid" ".size"])) ...
+    && ~any(cellfun(@(g) any(g == "Size and alignment"), I.Groups)) && height(row("panel.psth_1.alignment")) == 1 ...
+    && isequal(row("panel.psth_1.alignment").Groups{1}, ["psth_1  (PSTH)" "Alignment and note"]), ...
+    'arrangement: the panels (their places with them) and the layout''s boxes mean and padding; no grid, spacing or per-panel size');
+check(height(row("observe.data")) == 1 && height(row("alignment.ref")) == 1 && height(row("panel.raster_1.options.tickColor")) == 1 ...
     && height(row("sessions.series")) == 1 && isequal(row("sessions.datasets").Paths{1}, ["sessions.datasets" "sessions.datasetKeys"]) ...
     && nnz(I.Part == "probe") == numel(fieldnames(A0.probe)) && isequal(row("probe.layout").Paths{1}, "probe.layout") ...
     && row("probe.layout").Value == "schematic" && row("probe.shanks").Value == "(auto)", ...
-    'the layout holds the grid and the panels; observations, alignment, the raster''s options, the session fields and each probe field are listed');
+    'observations, alignment, the raster''s options, the session fields and each probe field are listed');
 lk = row("looks.1");
 check(height(lk) == 1 && lk.Scope == "looks" && lk.Index == 1 && lk.Generic == "looks" && lk.Design ...
     && ~row("style.Colormap").Design && ~row("style.HeatColormap").Design, ...
@@ -109,9 +116,15 @@ check(isequal(changed, [1 3]) && F(1).panels(2).options.yLimMode == "fixed" && i
 F = copyFigureSettings(F0, D, 2, 1, "panel.psth_1");
 check(F(1).panels(2).options.bins.BinSec == 0.05 && isequal(F(1).panels(2).options.yLim, [0 50]) && F(1).panels(2).id == "psth_1" ...
     && isequaln(F(1).panels(1), A0.panels(1)), 'a panel''s every setting: "panel.psth_1" names them all');
-F = copyFigureSettings(F0, D, 2, 1, "arrangement.layout");
-check(isequal([F(1).panels.type], "psth") && F(1).grid.rows == 1 && isequal(F(1).panels(1).options.yLim, [0 50]) ...
-    && F(1).style.FontSize == A0.style.FontSize, 'the layout: the grid and the panels as they are; the appearance kept');
+F = copyFigureSettings(F0, D, 2, 1, "arrangement.panels");
+check(isequal([F(1).panels.type], "psth") && isequal(F(1).panels.rect, [0 0 1 1]) && isequal(F(1).panels(1).options.yLim, [0 50]) ...
+    && F(1).style.FontSize == A0.style.FontSize && isequaln(F(1).layout, A0.layout), ...
+    'the panels: as they are, their places with them; the layout and the appearance kept');
+Fl = F0;
+Fl(2).layout = struct('boxesMean', "outer", 'padding', 0.4);
+[F, changed] = copyFigureSettings(Fl, D, 2, 1, "arrangement.layout");
+check(isequal(changed, 1) && isequal(F(1).layout, Fl(2).layout) && isequaln(F(1).panels, A0.panels), ...
+    'the layout: what the boxes mean and the padding; the panels kept');
 F = copyFigureSettings(F0, D, 2, 1, "looks.1");
 check(isscalar(F(1).aesthetics) && F(1).aesthetics.value == 3, 'a remembered look replaces the one it covers; the look not ticked stays out');
 F = copyFigureSettings(F0, D, 2, 1, "looks");
@@ -121,16 +134,16 @@ check(isempty(changed) && isequal(copied, "style.Colormap"), 'a setting the figu
 
 % panels matched by id, then by type
 S = B;
-S.grid.rows = 2;
 S.panels(2) = S.panels(1);
+S.panels(1).rect = [0 0.5 1 0.5];
 S.panels(2).id = "psth_2";
-S.panels(2).row = 2;
+S.panels(2).rect = [0 0 1 0.5];
 S.panels(2).options.yLim = [0 20];
 T1 = S;
 T1.id = "t1";
 T1.panels = T1.panels([2 1]);   % psth_2 first: matched by its id
-T1.panels(1).row = 1;
-T1.panels(2).row = 2;
+T1.panels(1).rect = [0 0.5 1 0.5];
+T1.panels(2).rect = [0 0 1 0.5];
 T1.panels(1).options.yLim = [];
 T1.panels(2).options.yLim = [];
 T2 = B;

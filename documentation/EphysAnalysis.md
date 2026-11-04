@@ -932,7 +932,9 @@ which (a time stack's labels change) or the top-left panel, which is drawn as
 above.
 `InPlaceOnly=true` makes only such an edit and draws nothing otherwise (the
 second output, `how`, says `"inplace"`, `"drawn"` or `""`), so the app can
-skip its compute and busy card for it. [`renderFigure`](EphysAnalysisConfig.md#renderfigure)
+skip its compute and busy card for it. `LayoutOnly=true` only lays what is
+drawn out at the spec's rects, whatever else changed (`how` `"layout"`): the
+app's Arrange does so after a drag on a preview it will not draw again yet. [`renderFigure`](EphysAnalysisConfig.md#renderfigure)
 on the config page describes the layout, titles, legend and look in full.
 
 Four map and waveform drawings are public functions of their own, which the

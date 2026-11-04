@@ -3,7 +3,7 @@ function hk = drawContinuousPanel(ax, P, look)
 %   HK = drawContinuousPanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
-%   isTop, isBottom, epochs, groups, observation, isTime). Each signal
+%   epochs, groups, observation, isTime). Each signal
 %   layer (LFP, MUA, SPIKE, AUX: an evokedPotential result) gives its
 %   items: each channel in probe order, or with aggregate "mean" the mean
 %   over its channels (R.layerMean, its band across them). Every item and

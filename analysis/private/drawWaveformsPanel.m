@@ -3,7 +3,7 @@ function hk = drawWaveformsPanel(ax, P, look)
 %   HK = drawWaveformsPanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
-%   isTop, isBottom, epochs, groups, observation, isTime). Its first
+%   epochs, groups, observation, isTime). Its first
 %   computed layer (R.kind "waveforms": meta, labels, waveforms from
 %   unitWaveforms) holds
 %     one unit     drawn by renderWaveforms into AX (grid layout, the

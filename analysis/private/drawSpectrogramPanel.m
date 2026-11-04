@@ -3,7 +3,7 @@ function hk = drawSpectrogramPanel(ax, P, look)
 %   HK = drawSpectrogramPanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
-%   isTop, isBottom, epochs, groups, observation, isTime). Its map layer
+%   epochs, groups, observation, isTime). Its map layer
 %   (chronuxSpecgram or chronuxSpikeSpecgram: computeSpectrogramPanel) is drawn for the trial group
 %   options.group (clipped to the groups there are) as an image over time
 %   from the event (x, the panel's window) and frequency (y), role "image",
@@ -125,20 +125,4 @@ end
 figLayerNotes(ax, P, look, true);
 hk.yName = "Frequency (Hz)";
 if stacked; hk.yName = sprintf("%s (%.3g-%.3g Hz per row)", gName, R.f(1), R.f(end)); end
-end
-
-
-function tf = inTimeColumn(look)
-%inTimeColumn  True when another time panel shares a column with this one (drawHeatmapPanel's rule).
-PT = EphysAnalysisConfig.panelTypes();
-p = look.panel;
-tf = false;
-for q = reshape(look.spec.panels, 1, [])
-    row = PT.Type == q.type;
-    if q.id == p.id || ~any(row) || ~PT.SharesTime(row); continue; end
-    if q.col <= p.col + p.colSpan - 1 && p.col <= q.col + q.colSpan - 1
-        tf = true;
-        return
-    end
-end
 end

@@ -3,7 +3,7 @@ function hk = drawProbeMapPanel(ax, P, look)
 %   HK = drawProbeMapPanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
-%   isTop, isBottom, epochs, groups, observation, isTime). Its first
+%   epochs, groups, observation, isTime). Its first
 %   computed layer (a probeMapValues result) is drawn by renderProbeMap
 %   into AX (Style.CLim = options.cLim): the units at their positions
 %   colored by their rate or spike count (units per site: the sites

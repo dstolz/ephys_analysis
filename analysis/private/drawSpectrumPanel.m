@@ -3,7 +3,7 @@ function hk = drawSpectrumPanel(ax, P, look)
 %   HK = drawSpectrumPanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
-%   isTop, isBottom, epochs, groups, observation, isTime). Each computed
+%   epochs, groups, observation, isTime). Each computed
 %   layer (chronuxSpectrum or chronuxSpikeSpectrum: computeSpectrumPanel)
 %   gives its items, its channels or units. Every item and trial group is
 %     a band    the error bars (R.Slo / R.Shi, options.err not "none"),

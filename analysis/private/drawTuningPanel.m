@@ -3,7 +3,7 @@ function hk = drawTuningPanel(ax, P, look)
 %   HK = drawTuningPanel(AX, P, LOOK) draws the panel result P (F.panels(k)
 %   of EphysAnalysisRunner.computeFigure: tuningCurve results) into the
 %   axes AX, as renderFigure asks (LOOK: style, colors, W, spec, panel,
-%   panelId, isTop, isBottom, epochs, groups, observation, isTime). x is
+%   panelId, epochs, groups, observation, isTime). x is
 %   the parameter's values (numeric at their values, text evenly spaced
 %   and ticked with them), labeled with its name. Each item -- each unit
 %   of a layer in probe order, or with aggregate "mean" the layer's mean

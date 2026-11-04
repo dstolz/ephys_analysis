@@ -3,7 +3,7 @@ function hk = drawHeatmapPanel(ax, P, look)
 %   HK = drawHeatmapPanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
-%   isTop, isBottom, epochs, groups, observation, isTime). Its map layer,
+%   epochs, groups, observation, isTime). Its map layer,
 %   the first computed layer that is not events marks (a spikePSTH or an
 %   evokedPotential result: every group computed), is cut to the group
 %   options.group (clipped to the groups there are; figSliceGroup) and

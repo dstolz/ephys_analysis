@@ -2,8 +2,8 @@ function hk = drawPsthPanel(ax, P, look)
 %drawPsthPanel  Draw a figure's PSTH panel: each layer's peri-event rate per trial group, events as latency lines.
 %   HK = drawPsthPanel(AX, P, LOOK) draws the panel result P (F.panels(k)
 %   of EphysAnalysisRunner.computeFigure) into the axes AX, as renderFigure
-%   asks (LOOK: style, colors, W, spec, panel, panelId, isTop, isBottom,
-%   epochs, groups, observation, isTime). Each point layer (units,
+%   asks (LOOK: style, colors, W, spec, panel, panelId, epochs, groups,
+%   observation, isTime). Each point layer (units,
 %   detected, an events train: a spikePSTH result) gives its items: each
 %   unit in probe order, or with aggregate "mean" the mean over its units
 %   (R.layerMean, its band across the units; recomputed from the

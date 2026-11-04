@@ -3,7 +3,7 @@ function hk = drawRatePanel(ax, P, look)
 %   HK = drawRatePanel(AX, P, LOOK) draws the panel result P (F.panels(k)
 %   of EphysAnalysisRunner.computeFigure: firingRate results) into the axes
 %   AX, as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
-%   isTop, isBottom, epochs, groups, observation, isTime). The trial groups
+%   epochs, groups, observation, isTime). The trial groups
 %   go along x (ticked with their values, rowLabels; the groupBy
 %   parameters label the axis). Each item -- each unit of a layer in probe
 %   order, or with aggregate "mean" the layer's mean over its units --

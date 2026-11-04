@@ -3,7 +3,7 @@ function reg = figurePanelRegistry()
 %   REG = figurePanelRegistry() is a struct with one field per panel type
 %   of EphysAnalysisConfig.panelTypes() (raster, psth, continuous, heatmap,
 %   waveforms, probemap, corrmap, rate, tuning, spectrum, spectrogram,
-%   coherence, eventTrace), each a struct with
+%   coherence, eventTrace, legend), each a struct with
 %     compute  @(src, panel, E, G, ctx) -> P, the panel's result: P.layers,
 %              one entry per layer of the panel (figurePanelLayers: name,
 %              source, binding, category, eventsAs, skip, R, meta). SRC is
@@ -19,21 +19,23 @@ function reg = figurePanelRegistry()
 %              P is the panel's result (F.panels(k) of computeFigure),
 %              LOOK what renderFigure passes (style, colors: the trial
 %              groups' palette, W: the panel's [pre post], spec, panel: the
-%              spec's panel, panelId, isTop, isBottom, epochs, groups,
-%              observation, isTime) and HK figDrawResult's struct: axes,
-%              legendHandles, legendLabels, legendGroup, yName, extraAxes
-%              (a coherence panel's phase axes under its magnitude)
+%              spec's panel, panelId, epochs, groups, observation, isTime)
+%              and HK figDrawResult's struct: axes, legendHandles,
+%              legendLabels, legendGroup, yName, extraAxes (a coherence
+%              panel's phase axes under its magnitude)
 %   EphysAnalysisRunner.computeFigure and renderFigure dispatch through it
 %   (no switch on the type). The functions live in analysis/private:
 %   computeRasterPanel, computePsthPanel, computeContinuousPanel,
 %   computeHeatmapPanel, computeWaveformsPanel, computeProbeMapPanel,
 %   computeCorrMapPanel, computeRatePanel, computeTuningPanel,
 %   computeSpectrumPanel, computeSpectrogramPanel, computeCoherencePanel,
-%   computeEventTracePanel,
+%   computeEventTracePanel, computeLegendPanel,
 %   and drawRasterPanel, drawPsthPanel, drawContinuousPanel,
 %   drawHeatmapPanel, drawWaveformsPanel, drawProbeMapPanel,
 %   drawCorrMapPanel, drawRatePanel, drawTuningPanel, drawSpectrumPanel,
-%   drawSpectrogramPanel, drawCoherencePanel, drawEventTracePanel.
+%   drawSpectrogramPanel, drawCoherencePanel, drawEventTracePanel,
+%   drawLegendPanel. A legend panel computes and draws nothing: renderFigure
+%   puts the figure's legend on its hidden axes.
 %
 %   See also EphysAnalysisRunner.computeFigure, renderFigure, EphysAnalysisConfig.panelTypes.
 
@@ -51,6 +53,7 @@ reg.spectrum   = entry(@computeSpectrumPanel,   @drawSpectrumPanel);
 reg.spectrogram = entry(@computeSpectrogramPanel, @drawSpectrogramPanel);
 reg.coherence  = entry(@computeCoherencePanel,  @drawCoherencePanel);
 reg.eventTrace = entry(@computeEventTracePanel, @drawEventTracePanel);
+reg.legend     = entry(@computeLegendPanel,     @drawLegendPanel);
 end
 
 

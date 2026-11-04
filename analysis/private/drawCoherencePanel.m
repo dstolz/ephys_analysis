@@ -3,7 +3,7 @@ function hk = drawCoherencePanel(ax, P, look)
 %   HK = drawCoherencePanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
-%   isTop, isBottom, epochs, groups, observation, isTime). The seed layer's
+%   epochs, groups, observation, isTime). The seed layer's
 %   R (chronuxCoherence, chronuxSpikeField or chronuxUnitCoherence:
 %   computeCoherencePanel) holds one pair per partner item, labeled
 %   "<seed> x <partner>". As renderChronux draws a pair:

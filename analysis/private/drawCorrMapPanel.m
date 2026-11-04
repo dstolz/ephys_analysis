@@ -3,7 +3,7 @@ function hk = drawCorrMapPanel(ax, P, look)
 %   HK = drawCorrMapPanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
-%   isTop, isBottom, epochs, groups, observation, isTime). Its first
+%   epochs, groups, observation, isTime). Its first
 %   computed layer (a unitCorrelation result: every group computed) is cut
 %   to the group options.group (clipped to the groups there are;
 %   figSliceGroup) and drawn by renderCorrMap into AX (Style.CLim =

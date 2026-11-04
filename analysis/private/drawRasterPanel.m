@@ -3,7 +3,7 @@ function hk = drawRasterPanel(ax, P, look)
 %   HK = drawRasterPanel(AX, P, LOOK) draws the panel result P
 %   (F.panels(k) of EphysAnalysisRunner.computeFigure) into the axes AX,
 %   as renderFigure asks (LOOK: style, colors, W, spec, panel, panelId,
-%   isTop, isBottom, epochs, groups, observation, isTime). The point layers
+%   epochs, groups, observation, isTime). The point layers
 %   (units, detected, events drawn as a train: spikePSTH results with
 %   R.raster) give the blocks of rows, each layer's units in probe order:
 %     the first block   rasterInto, as a raster plot draws one unit: a row

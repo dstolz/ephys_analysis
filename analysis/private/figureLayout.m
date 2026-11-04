@@ -1,30 +1,51 @@
 function figureLayout(canvas, S)
-%figureLayout  Lay out a figure renderFigure drew on CANVAS: each panel's axes and note band, the legend and the title; again whenever CANVAS changes size.
+%figureLayout  Lay out a figure renderFigure drew on CANVAS: each panel's axes and note band at its rect, the title and the legend; again whenever CANVAS changes size.
 %   figureLayout(CANVAS, S) measures the room each panel's labels take
 %   (its axes' TightInset, on the sides where tick labels, an axis label or
 %   a title sit, nothing on a side with none; and a color bar outside), its
 %   note's band (the text as drawn, and the panel's labels on that side,
-%   which the band holds), the legend and the title; arranges them
-%   (figureArrange: the gaps exact, the rows and columns in exact
-%   proportion, each panel at its size in its cell); sets every position in
-%   pixels; measures again, since a new size can change the tick labels,
-%   and arranges again when it did; then places the notes (a note in a band
-%   in the part the panel's labels leave free; a note over the panel in its
-%   axes, placeNote). S (renderFigure builds it):
-%     grid     the figure's grid
-%     panels   one per panel drawn: axes (its axes, then its extra axes,
-%              top to bottom), shares (their shares of its plot area), r1,
-%              r2, c1, c2, size, align, valign, note (its note's settings),
-%              text (the note's text object; [] = none), band (the hidden
-%              axes holding the text beside the panel; [] = in the axes)
+%   which the band holds) and the title; places the panels (figureArea: the
+%   page inside the margin and the area under the title; figurePlace: each
+%   panel at its rect, its plot area moved in as far as its labels need to
+%   stay clear of its neighbors and the page's edge); sets every position
+%   in pixels; measures again, since a new size can change the tick
+%   labels, and places again when it did; then places the legend and the
+%   notes (a note in a band in the part the panel's labels leave free; a
+%   note over the panel in its axes, placeNote). S (renderFigure builds
+%   it):
+%     layout   boxesMean ("plot" | "outer": figurePlace's Mode) and
+%              paddingPx (Figure.layout.padding in px at 96 dpi, times the
+%              scale: figurePlace's Padding)
+%     panels   one per panel drawn: id, axes (its axes, then its extra
+%              axes, top to bottom), shares (their shares of its plot
+%              area), rect (Panel.rect), fixed (a legend panel: no insets),
+%              note (its note's settings), text (the note's text object; []
+%              = none), band (the hidden axes holding the text beside the
+%              panel; [] = in the axes)
 %     title    the hidden axes whose title and subtitle are the figure's
 %              ([] = none)
-%     legend   the figure's legend ([] = none) and side, the band it takes
-%              ("north", "south", "east" or "west"; "" = none: it sits in a
-%              panel)
+%     legend   [] (none) or the figure's legend: handle, mode and, for a
+%              legend panel, panel (its index) and options (its type's
+%              options). Mode "panel": in the legend panel's box at its
+%              natural size, aligned by options.align / valign;
+%              options.orientation "auto" lays it out horizontally when the
+%              box is wider than tall, options.columns 0 picks the columns
+%              (all in a row, horizontal; one column, vertical; more when it
+%              would run out of the box). Mode "float": centered in the
+%              page's largest free space (EphysAnalysisConfig.freeRect over
+%              the panels' rects and their plot areas grown by their
+%              labels, in px) when that holds it and Padding round it (at
+%              least 4 px), else inside its axes (Location "best"). Done
+%              again at every layout, so it follows the panels.
 %     margin   px round the figure
-%     scale    renderFigure's Scale: the margin, the gaps and the spacing
-%              round notes and color bars times it (figureArrange Scale)
+%     scale    renderFigure's Scale: the margin and the spacing round notes
+%              and color bars times it (figureArea's Scale)
+%   CANVAS keeps what was laid out for an editor's overlay (appdata
+%   FigureLayoutResult): page, area, title (figureArea's), ids (the
+%   panels'), panels (figurePlace's: outer, box, axes, band, nudged,
+%   clipped), neighbors (figureNeighbors of the outer boxes), legend (the
+%   legend's px box in a legend panel or floating; [] = none or inside a
+%   panel) and legendMode ("panel" | "float" | "inside" | "").
 %   CANVAS (the figure, panel or tab drawn into: figureCanvas) keeps S
 %   (appdata FigureLayout) and lays itself out again from it whenever it
 %   changes size: its SizeChangedFcn calls figureLayout(CANVAS), after the
@@ -40,7 +61,7 @@ function figureLayout(canvas, S)
 %   kept and chained alike, and laid out by calling S.layoutFcn(CANVAS)
 %   in place of all this.
 %
-%   See also renderFigure, figureArrange, placeNote.
+%   See also renderFigure, figurePlace, figureArea, placeNote.
 
 if nargin < 2
     if ~isvalid(canvas) || ~isappdata(canvas, 'FigureLayout'); return; end
@@ -70,22 +91,24 @@ if ~isempty(S.title) && isgraphics(S.title)
     t = S.title.TightInset;   % (in pixels, as renderFigure made it)
     if written(S.title.Title) || written(S.title.Subtitle); top = t(4) + 2 * S.scale; end   % a text of several lines is a column
 end
-leg = struct('side', "", 'size', [0 0]);
-if ~isempty(S.legend) && isgraphics(S.legend) && S.side ~= ""
-    if ~strcmp(S.legend.Units, 'pixels'); S.legend.Units = 'pixels'; end
-    p = S.legend.Position;
-    leg = struct('side', S.side, 'size', p(3:4));
-end
+A = figureArea(sz, Top=top, Margin=S.margin, Scale=S.scale);
+how = {'Mode', string(S.layout.boxesMean), 'Padding', S.layout.paddingPx};
 [cells, deco, bars] = measure(S, {});
-L = figureArrange(sz, S.grid, cells, Top=top, Legend=leg, Margin=S.margin, Scale=S.scale);
+L = figurePlace(A, cells, how{:});
 place(S, L);
 [cells2, deco2] = measure(S, bars);   % the labels at the new sizes: tick labels can change with an axes' size
 if ~isempty(cells2) && max([abs([cells2.inset] - [cells.inset]), abs([cells2.need] - [cells.need])]) > 1
-    L = figureArrange(sz, S.grid, cells2, Top=top, Legend=leg, Margin=S.margin, Scale=S.scale);
+    L = figurePlace(A, cells2, how{:});
     place(S, L);
+    cells = cells2;
     deco = deco2;
 end
+[lg, mode] = placeFigureLegend(S, L, cells);
 placeNotes(S, L, deco);
+ids = strings(1, numel(S.panels));
+for k = 1:numel(S.panels); ids(k) = string(S.panels(k).id); end
+setappdata(canvas, 'FigureLayoutResult', struct('page', A.page, 'area', A.area, 'title', {A.title}, 'ids', ids, ...
+    'panels', {L.panels}, 'neighbors', L.neighbors, 'legend', {lg}, 'legendMode', mode));
 end
 
 
@@ -101,38 +124,40 @@ end
 
 
 function [cells, deco, bars] = measure(S, bars)
-%measure  Each panel's cell for figureArrange: its insets (the room its labels take) and its note band's need.
+%measure  Each panel for figurePlace: its rect, its insets (the room its labels take) and its note band's need.
 %   BARS (one per panel, a row per axes) is the room its color bars take
 %   ({} = measure it: reading a color bar is slow, and its room does not
-%   change with the axes' size).
-cells = struct('r1', {}, 'r2', {}, 'c1', {}, 'c2', {}, 'size', {}, 'align', {}, 'valign', {}, 'inset', {}, ...
-    'band', {}, 'need', {}, 'shares', {});
+%   change with the axes' size). A legend panel (fixed) has no insets.
+cells = struct('rect', {}, 'inset', {}, 'band', {}, 'need', {}, 'shares', {}, 'fixed', {});
 n = numel(S.panels);
 deco = zeros(1, n);   % px the panel's labels take in its band (on the band's side)
 if isempty(bars)
     bars = cell(1, n);
     for k = 1:n
         bars{k} = zeros(numel(S.panels(k).axes), 4);
+        if S.panels(k).fixed; continue; end
         for i = 1:numel(S.panels(k).axes); bars{k}(i, :) = colorbarRoom(S.panels(k).axes(i), S.scale); end
     end
 end
 for k = 1:n
     P = S.panels(k);
-    ins = insetOf(P.axes, bars{k});
     side = "";
     need = 0;
-    if ~isempty(P.band) && isgraphics(P.band) && ~isempty(P.text) && isgraphics(P.text)
-        side = string(P.note.placement);
-        i = find(side == ["left" "below" "right" "above"], 1);
-        deco(k) = ins(i);
-        ins(i) = 0;   % the band holds the labels on its side
-        e = P.text.Extent .* P.band.Position([3 4 3 4]);   % normalized in the band (pixels): its size in pixels
-        along = e(4);
-        if ismember(side, ["left" "right"]); along = e(3); end
-        need = deco(k) + along + 12 * S.scale;
+    ins = [0 0 0 0];
+    if ~P.fixed
+        ins = insetOf(P.axes, bars{k});
+        if ~isempty(P.band) && isgraphics(P.band) && ~isempty(P.text) && isgraphics(P.text)
+            side = string(P.note.placement);
+            i = find(side == ["left" "below" "right" "above"], 1);
+            deco(k) = ins(i);
+            ins(i) = 0;   % the band holds the labels on its side
+            e = P.text.Extent .* P.band.Position([3 4 3 4]);   % normalized in the band (pixels): its size in pixels
+            along = e(4);
+            if ismember(side, ["left" "right"]); along = e(3); end
+            need = deco(k) + along + 12 * S.scale;
+        end
     end
-    cells(k) = struct('r1', P.r1, 'r2', P.r2, 'c1', P.c1, 'c2', P.c2, 'size', P.size, 'align', P.align, ...
-        'valign', P.valign, 'inset', ins, 'band', side, 'need', need, 'shares', P.shares);
+    cells(k) = struct('rect', P.rect, 'inset', ins, 'band', side, 'need', need, 'shares', P.shares, 'fixed', P.fixed);
 end
 end
 
@@ -226,20 +251,17 @@ end
 
 
 function place(S, L)
-%place  Every axes, band, the legend and the title at its place in L (pixels).
+%place  Every axes, band and the title at its place in L (pixels).
 for k = 1:numel(S.panels)
     P = S.panels(k);
-    A = L.panels(k).axes;
+    X = L.panels(k).axes;
     for i = 1:numel(P.axes)
-        set(P.axes(i), 'Units', 'pixels', 'Position', [A(i, 1:2) max(A(i, 3:4), 1)]);
+        set(P.axes(i), 'Units', 'pixels', 'Position', [X(i, 1:2) max(X(i, 3:4), 1)]);
     end
     if ~isempty(P.band) && isgraphics(P.band) && ~isempty(L.panels(k).band)
         b = L.panels(k).band;
         set(P.band, 'Units', 'pixels', 'Position', [b(1:2) max(b(3:4), 1)]);
     end
-end
-if ~isempty(L.legend) && ~isempty(S.legend) && isgraphics(S.legend)
-    S.legend.Position = L.legend;
 end
 if ~isempty(S.title) && isgraphics(S.title)
     if isempty(L.title)
@@ -248,6 +270,93 @@ if ~isempty(S.title) && isgraphics(S.title)
         set(S.title, 'Units', 'pixels', 'Position', [L.title(1:3) 1]);   % its title and subtitle sit over this line
     end
 end
+end
+
+
+function [box, mode] = placeFigureLegend(S, L, cells)
+%placeFigureLegend  The figure's legend where S.legend says: in its legend panel, floating in free space, or inside its axes.
+%   BOX: its px box ([] when inside a panel or none); MODE "panel",
+%   "float", "inside" or "".
+box = [];
+mode = "";
+if ~isfield(S, 'legend') || ~isstruct(S.legend) || isempty(S.legend); return; end
+G = S.legend;
+lgd = G.handle;
+if isempty(lgd) || ~isgraphics(lgd); return; end
+switch string(G.mode)
+    case "panel"
+        box = legendInPanel(lgd, L.panels(G.panel).box, G.options);
+        mode = "panel";
+    case "float"
+        if ~strcmp(lgd.Units, 'pixels'); lgd.Units = 'pixels'; end
+        p = lgd.Position;   % its natural size (never set to another)
+        pad = max(S.layout.paddingPx, 4 * S.scale);
+        a = L.area;
+        R = struct('rect', cell(1, numel(L.panels)));
+        for k = 1:numel(L.panels)   % what each panel covers: its rect, and its plot area with its labels round it
+            q = L.panels(k);
+            in = cells(k).inset;
+            lab = [q.box(1:2) - in(1:2), q.box(1:2) + q.box(3:4) + in(3:4)];
+            if ~isempty(q.band); lab = [min(lab(1:2), q.band(1:2)), max(lab(3:4), q.band(1:2) + q.band(3:4))]; end
+            o = [q.outer(1:2), q.outer(1:2) + q.outer(3:4)];
+            e = [min(o(1:2), lab(1:2)), max(o(3:4), lab(3:4))];
+            R(k).rect = [(e(1:2) - a(1:2)) ./ a(3:4), (e(3:4) - e(1:2)) ./ a(3:4)];
+        end
+        f = EphysAnalysisConfig.freeRect(struct('panels', R), MinSize=(p(3:4) + 2 * pad) ./ a(3:4));
+        if isempty(f)
+            if ~strcmp(lgd.Location, 'best'); lgd.Location = 'best'; end   % no room: inside its axes, where it hides the least
+            mode = "inside";
+        else
+            c = a(1:2) + (f(1:2) + f(3:4) / 2) .* a(3:4);
+            lgd.Location = 'none';
+            lgd.Position = [c - p(3:4) / 2, p(3:4)];
+            box = lgd.Position;
+            mode = "float";
+        end
+    otherwise
+        mode = "inside";
+end
+end
+
+
+function box = legendInPanel(lgd, box0, o)
+%legendInPanel  The legend at its natural size in a legend panel's box BOX0, by the panel's options O; BOX its px box.
+%   orientation "auto": horizontal when the box is wider than tall;
+%   columns 0: all entries in a row (horizontal) or one column (vertical),
+%   more columns (vertical) or fewer (horizontal) when that runs out of
+%   the box; else that many. align / valign: where it sits in the box.
+lgd.Location = 'none';
+if ~strcmp(lgd.Units, 'pixels'); lgd.Units = 'pixels'; end
+n = max(1, numel(lgd.String));
+orient = string(o.orientation);
+if orient == "auto"
+    orient = "vertical";
+    if box0(3) > box0(4); orient = "horizontal"; end
+end
+lgd.Orientation = char(orient);
+cols = round(double(o.columns));
+if cols > 0
+    nc = min(cols, n);
+elseif orient == "horizontal"
+    nc = n;
+else
+    nc = 1;
+end
+lgd.NumColumns = nc;
+p = lgd.Position;
+if cols <= 0 && n > 1
+    if orient == "horizontal" && p(3) > box0(3)
+        lgd.NumColumns = max(1, floor(nc * box0(3) / p(3)));
+        p = lgd.Position;
+    elseif orient == "vertical" && p(4) > box0(4)
+        lgd.NumColumns = min(n, ceil(p(4) / max(box0(4), 1)));
+        p = lgd.Position;
+    end
+end
+x = box0(1) + (box0(3) - p(3)) * shareOf(o.align, ["left" "center" "right"]);
+y = box0(2) + (box0(4) - p(4)) * shareOf(o.valign, ["bottom" "middle" "top"]);
+lgd.Position = [x y p(3:4)];
+box = lgd.Position;
 end
 
 

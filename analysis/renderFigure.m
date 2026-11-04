@@ -1,5 +1,5 @@
 function [h, how] = renderFigure(F, spec, target, opts)
-%renderFigure  Draw one computed figure: its panels laid out on its grid, with one legend and the figure's title.
+%renderFigure  Draw one computed figure: its panels at their places on the page, with one legend and the figure's title.
 %   [H, HOW] = renderFigure(F, SPEC, TARGET, Name=Value) draws F, the result of
 %   EphysAnalysisRunner.computeFigure (one observation of a figure: a unit,
 %   a channel or the dataset), as SPEC says (Config.figureFor(id): the spec
@@ -10,16 +10,15 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %   Layout   its own engine, not MATLAB's tiled layout: TARGET (emptied;
 %            a grid layout gets a panel: figureCanvas) holds one axes per
 %            panel, which figureLayout places in pixels once everything
-%            is drawn and dressed (figureArrange: the plot areas of the
-%            rows and columns line up across the grid, in the exact
-%            proportions of SPEC.grid.rowHeights and colWidths; between
-%            them the room the labels there take and the gap of
-%            SPEC.grid.spacing, the clear space between neighboring panels'
-%            labels: a preset, "none" making a stack's plot areas flush, or
-%            "custom" gaps in px or %; a panel of SPEC.panels(k).size
-%            smaller than its cell sits at its align / valign), and again
-%            whenever TARGET changes size. An axes TARGET draws panel 1
-%            only.
+%            is drawn and dressed, and again whenever TARGET changes size:
+%            each panel at its rect (SPEC.panels(k).rect, 0-1 of the page
+%            inside a margin, from its bottom-left corner), the title over
+%            the page (figureArea), each plot area moved in only as far as
+%            its labels need to keep SPEC.layout.padding clear of its
+%            neighbors' labels and the page's edge (figurePlace; with
+%            layout.boxesMean "outer" a rect holds the panel with its
+%            labels). Panels put flush stay flush; plot edges that line up
+%            stay lined up. An axes TARGET draws panel 1 only.
 %   Panels   each panel type's draw function (figurePanelRegistry: no
 %            switch on the type here) draws its layers; a skipped layer
 %            says why in the panel, a panel with nothing to draw says so in
@@ -38,9 +37,10 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %   Time     every panel sharing the figure's time axis (sharesTime; a
 %            spectrogram, a coherogram on the epochs too) shows
 %            [SPEC.window.pre post] (set on each: no linkaxes);
-%            figureTimeStack labels a column's stack of time panels once,
-%            at its bottom (at its top when their x axes are on top), and
-%            drops the inner x tick labels.
+%            figureTimeStack labels a stack of time panels put flush one
+%            on the other once, at its bottom (at its top when their x
+%            axes are on top), and drops the inner x tick labels; panels
+%            with a gap between them keep theirs.
 %   Title    SPEC.title, else "<id>: <observation> — <event> (<n> epochs)"
 %            (a dataset figure names no observation; a figure with no
 %            aligned panel no event; a figure merged across sessions,
@@ -68,16 +68,24 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            holding the text and the panel's labels on that side; fitted
 %            to the text once its looks are final, at most half the area;
 %            a band below or above keeps the axes' left edge and width
-%            those of a plain panel; a panel with a band left or right, or
-%            smaller than its cell, keeps its own time tick labels:
-%            figureTimeStack), placed over the panel or at x, y it sits in
+%            those of a plain panel; a panel with a band left or right
+%            keeps its own time tick labels: figureTimeStack), placed over
+%            the panel or at x, y it sits in
 %            the axes (placeNote). Their own looks are rules after the
 %            design's and the user's and before SPEC.aesthetics.
-%   Legend   one, in a band east of the panels (Style.LegendLocation: or
-%            north, south, west; "inside" in a panel; placeLegend):
-%            the trial groups once (as a PSTH panel draws them, else a
-%            continuous one, else a raster's bands), then the panels'
-%            layer, unit, channel and mark entries, each label once. A
+%   Legend   one (none with Style.LegendLocation "none"): the trial groups
+%            once (as a PSTH panel draws them, else a continuous one, else
+%            a raster's bands), then the panels' layer, unit, channel and
+%            mark entries, each label once. It never shrinks a plot area.
+%            "auto": in the figure's legend panel (type "legend": its axes
+%            hidden, Tag "legendHost"; the legend at its natural size,
+%            aligned in the panel's box by the panel's options), else
+%            floating, centered in the page's largest free space when it
+%            fits there, else inside the first panel (figureLayout: again
+%            at every layout); "inside": in the first panel (placeLegend).
+%            A legend panel holding no legend says so in small gray text
+%            in a preview (a visible figure, or Reuse), nothing in an
+%            export. A
 %            panel with a trial selection of its own (F.panels(k).
 %            ownSelection) colors its own groups (groupPalette of its
 %            groups) and lists its entries in a legend of its own inside
@@ -160,9 +168,13 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     the panels that read them), panel spec, group colors
 %                     and batch range, while what every panel depends on is
 %                     the same too (F but its panels, SPEC but its panels'
-%                     contents, every panel's place, sides, time axis and
-%                     note, the style, the design, the remembered looks, the
-%                     size of TARGET). Only the other panels are drawn
+%                     contents and its layout, every panel's sides, time
+%                     axis and note, which panels touch which and lie in
+%                     one column (figureNeighbors of the rects) and the
+%                     top-left one, the style, the design, the remembered
+%                     looks, the size of TARGET; not the rects themselves:
+%                     a moved panel keeps its automatic ticks until it is
+%                     drawn again). Only the other panels are drawn
 %                     again; the kept ones go back to where a new panel
 %                     starts and everything drawn across the panels (tick
 %                     sizes, the time stack, the legend, the title, the
@@ -183,8 +195,14 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     after (an empty label or title has no looks set and
 %                     no menu) and that nothing else decides (a time panel
 %                     with further axes; a title that is the type's own or
-%                     names the observation) is set so; any other edit is
-%                     drawn as above.
+%                     names the observation) is set so. An edit of the
+%                     panels' rects or of SPEC.layout alone (or with such
+%                     text) draws nothing either: the parts go back to
+%                     where a new drawing starts and figureLayout lays
+%                     them out at the new rects (inPlace); one that
+%                     changes which panels touch which (a time stack's
+%                     labels change) or the top-left panel is drawn as
+%                     above. Any other edit is drawn as above.
 %     InPlaceOnly     false (default) or true: with Reuse (implied), only
 %                     an edit inPlace can set is made; nothing is drawn
 %                     when it cannot be (HOW is "", H []), so the caller
@@ -200,7 +218,7 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     line width, marker size, error bar cap and legend
 %                     token times S (a scatter's marker area times S^2;
 %                     PlotAesthetics.scaleSizes) and the layout's px
-%                     (margin, gaps, legend and note spacing) too, before
+%                     (margin, padding, note spacing) too, before
 %                     the layout. So everything keeps the proportion to the
 %                     page it has in the export: whatever set the size (the
 %                     style, a draw function, the design, the remembered
@@ -210,14 +228,15 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     reads and sets the exported sizes
 %
 %   HOW: "drawn" (drawn, all of it or the panels Reuse could not keep),
-%   "inplace" (only text set on the drawn handles), or "" (InPlaceOnly and
-%   nothing done).
+%   "inplace" (only text set on the drawn handles, and the parts laid out
+%   again), or "" (InPlaceOnly and nothing done).
 %
 %   H fields
 %     layout  what the figure is laid out on (TARGET, or the panel made in
 %             a grid layout): its axes, the hidden axes of its title (Tag
 %             "titleHost") and note bands, its legend ([] for an axes
-%             TARGET)
+%             TARGET). It keeps where everything went (appdata
+%             FigureLayoutResult: figureLayout)
 %     axes    the panels' axes drawn, in panel order
 %     panels  one per SPEC.panels: id, type, axes (empty when not drawn),
 %             extraAxes (a coherence panel's phase axes, drawn under its
@@ -299,7 +318,7 @@ for k = 1:np
     colorsOf{k} = colors;
     if own(k); colorsOf{k} = groupPalette(P.groups, style); end
 end
-cells = figurePanelCells(spec.grid, panels);
+isLeg = types == "legend";   % a legend panel: its hidden axes hold the figure's legend
 kept = false(1, np);   % the panels whose drawing is kept from the last one (Reuse)
 prior = [];
 if opts.Reuse
@@ -330,9 +349,9 @@ scaleKey = char(PlotAesthetics.ScaleKey);
 for x = [canvas ax0]   % drawn at the export's sizes (the looks set them so), scaled once everything is drawn
     if isappdata(x, scaleKey); rmappdata(x, scaleKey); end
 end
-if ~isempty(canvas); L0 = firstLayout(canvas, spec.grid, panels, cells, style, opts.Scale); end
+if ~isempty(canvas); L0 = firstLayout(canvas, spec, panels, isLeg, style, opts.Scale); end
 nDraw = np;
-if ~isempty(ax0); nDraw = min(1, np); end
+if ~isempty(ax0); nDraw = min(1, np) * ~(np > 0 && isLeg(1)); end   % one axes: panel 1 (not a legend panel: it would hide it)
 axs = gobjects(1, np);
 extra = cell(1, np);   % each panel's further axes (a coherence panel's phase)
 hks = cell(1, np);
@@ -359,7 +378,7 @@ for k = 1:nDraw
     end
     band = [];
     if isempty(ax0)   % the panel's axes at its first place (figureLayout places it once its labels are known)
-        ax = axes(canvas, 'Units', 'pixels', 'Position', L0.panels(k).box);
+        ax = axes(canvas, 'Units', 'pixels', 'Position', max(L0.panels(k).box, [-Inf -Inf 1 1]));
         setappdata(ax, 'FigurePanel', p.id);   % a panel of the layout (drawCoherencePanel splits it for its phase)
         if besideNote(p)
             band = axes(canvas, 'Units', 'pixels', 'Position', max(L0.panels(k).band, [-Inf -Inf 1 1]), 'Visible', 'off', ...
@@ -377,16 +396,18 @@ for k = 1:nDraw
         figLayerNotes(ax, P, look, false, "Unknown panel type """ + p.type + """");
     end
     ax = hk.axes;
-    role = string(ax.Tag);
-    if ~ismember(role, ["axes" "rasterAxes"]); role = "axes"; end
-    tagPart(ax, role, "", p.id);   % the aesthetics editor lists the tiles by panel id
+    if ~isLeg(k)   % (a legend panel's axes stay its hidden legendHost: no tile of the aesthetics editor)
+        role = string(ax.Tag);
+        if ~ismember(role, ["axes" "rasterAxes"]); role = "axes"; end
+        tagPart(ax, role, "", p.id);   % the aesthetics editor lists the tiles by panel id
+    end
     if p.sharesTime && ~isempty(look.W)
         xlim(ax, [spec.window.pre spec.window.post]);
     end
     if hk.yName ~= ""; ylabel(ax, hk.yName, 'Interpreter', 'none'); end
     ttl = p.title;
     if own(k); ttl = groupingTitle(ttl, p, spec); end
-    if ttl ~= ""; title(ax, ttl, 'FontWeight', 'normal', 'Interpreter', 'none'); end
+    if ttl ~= "" && ~isLeg(k); title(ax, ttl, 'FontWeight', 'normal', 'Interpreter', 'none'); end
     if own(k)   % its groups are not the figure's: a legend of its own, inside it; the figure's legend serves the others
         if style.Legend
             v = isgraphics(hk.legendHandles);
@@ -445,17 +466,15 @@ multi = nnz(drawn) > 1;
 if multi; tileTicks(axs(drawn), style); end
 labelSize = [];
 if multi; labelSize = style.FontSize; end
-sided = false(1, np);   % a band left or right of a panel's axes, or a panel smaller than its cell: not the column's width
-for k = 1:np; sided(k) = isempty(ax0) && (sideNote(panels(k)) || any(cells(k).size < 1)); end
+sided = false(1, np);   % a band left or right of a panel's axes: narrower than its rect
+for k = 1:np; sided(k) = isempty(ax0) && sideNote(panels(k)); end
 hidden = figureTimeStack(axs, panels, isTime, labelSize, sided);
 
 % title: the figure's, or what it shows; the top-left panel names the observation under a title of the figure's own
 [txt, named] = figureAutoTitle(F, spec);
 obs = F.observation;
-if spec.title ~= "" && named && any(drawn)
-    on = find(drawn);
-    [~, i] = sortrows([[panels(on).row].' [panels(on).col].']);
-    k1 = on(i(1));
+if spec.title ~= "" && named && any(drawn & ~isLeg)
+    k1 = firstPanel(spec, drawn & ~isLeg);
     if panels(k1).title == "" && strjoin(string(axs(k1).Title.String), "") == ""
         title(axs(k1), string(obs.label), 'FontWeight', 'normal', 'Interpreter', 'none');
     end
@@ -479,18 +498,46 @@ elseif ~isempty(ax0)
     if ~isempty(lines); subtitle(ax0, lines, 'FontSize', style.FontSize, 'Interpreter', 'none'); end
 end
 
-% one legend: the groups once, then the layers', units', channels' and marks' entries
+% one legend: the groups once, then the layers', units', channels' and marks' entries; in the legend panel, floating in the
+% free space or inside the first panel (figureLayout places the first two once the panels are laid out: G2)
 lgd = [];
-if style.Legend && any(drawn)
+G2 = [];
+iLeg = find(isLeg & drawn, 1);
+loc = string(style.LegendLocation);
+if style.Legend && loc ~= "none" && any(drawn & ~isLeg)
     [lh, ll] = figureLegendEntries(hks, types, G);
     if ~isempty(lh)
         ls = style;
-        side = figureLegendSide(style);
-        if ~isempty(canvas) && side ~= ""   % in the band beside the panels figureLayout gives it
+        if isempty(canvas)   % one axes: in it
+            lgd = placeLegend(legendHost(axs(drawn), canvas), lh, ll, ls, [], "best");
+        elseif loc == "auto" && ~isempty(iLeg)
             ls.LegendLocation = "none";
-            if string(ls.LegendOrientation) == "auto" && ismember(side, ["north" "south"]); ls.LegendOrientation = "horizontal"; end
+            lgd = placeLegend(axs(iLeg), lh, ll, ls, [], "none");
+            G2 = struct('handle', lgd, 'mode', "panel", 'panel', iLeg, 'options', panels(iLeg).options);
+        elseif loc == "auto"
+            ls.LegendLocation = "none";
+            lgd = placeLegend(legendHost(axs(drawn & ~isLeg), canvas), lh, ll, ls, [], "none");
+            G2 = struct('handle', lgd, 'mode', "float", 'panel', 0, 'options', []);
+        else
+            lgd = placeLegend(legendHost(axs(drawn & ~isLeg), canvas), lh, ll, ls, [], "best");
         end
-        lgd = placeLegend(legendHost(axs(drawn), canvas), lh, ll, ls, [], "east");
+    end
+end
+if ~isempty(iLeg)   % a legend panel holding no legend says why, in a preview only (light gray)
+    old = findall(axs(iLeg), '-depth', 1, 'Type', 'text');
+    delete(old(arrayfun(@(t) isappdata(t, 'LegendPanelNote'), old)));
+    if isempty(G2) && (opts.Reuse || figureEditable(opts.Editable, target))
+        why = "No legend entries";
+        if ~style.Legend || loc == "none"
+            why = "The legend is off (Legend location: none)";
+        elseif loc == "inside"
+            why = "The legend is inside the first panel (Legend location: inside)";
+        end
+        t = text(axs(iLeg), 0.5, 0.5, why, 'Units', 'normalized', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
+            'FontSize', max(6, style.FontSize - 2), 'Color', [0.65 0.65 0.65], 'Interpreter', 'none', 'Clipping', 'off', ...
+            'HitTest', 'off', 'PickableParts', 'none');
+        setappdata(t, 'LegendPanelNote', true);
+        tagPart(t, "note");
     end
 end
 
@@ -554,7 +601,7 @@ if isempty(canvas)   % one axes: its note goes where it belongs once its looks a
         if ~isempty(notes{k}) && ~isempty(notes{k}.text); placeNote(notes{k}, panels(k).note); end
     end
 else   % the layout, once everything is drawn and dressed: every axes, band, the legend and the title, then the notes
-    figureLayout(canvas, layoutOf(spec, panels, cells, axs, extra, notes, bands, th, lgd, style, opts.Scale));
+    figureLayout(canvas, layoutOf(spec, panels, axs, extra, notes, bands, th, G2, isLeg, opts.Scale));
 end
 if figureEditable(opts.Editable, target)
     PlotAesthetics.enableEditing(target, figureEditContext(F, spec, target, opts, root, design, follows, txt));
@@ -644,12 +691,15 @@ end
 
 
 function h = inPlace(F, spec, target, keys, opts, own, design, follows)
-%inPlace  Make the drawing TARGET keeps (Reuse) the one SPEC draws by setting text on it: H as renderFigure returns it; [] = it cannot be.
-%   Only when SPEC differs from the spec drawn in text alone -- a panel's
-%   xLabel, yLabel or title, the figure's own title -- and everything else
-%   a drawing depends on (drawingKeys: F, the style, design and looks, the
-%   places, the target's size, each panel's result and colors) is the
-%   same. Each text is set where a drawing puts it: a panel's own label,
+%inPlace  Make the drawing TARGET keeps (Reuse) the one SPEC draws by setting text on it and laying it out again: H as renderFigure returns it; [] = it cannot be.
+%   Only when SPEC differs from the spec drawn in text and places alone --
+%   a panel's xLabel, yLabel, title or rect, the figure's own title, its
+%   layout -- and everything else a drawing depends on (drawingKeys: F,
+%   the style, design and looks, which panels touch which and the top-left
+%   one, the target's size, each panel's result and colors) is the same.
+%   New rects and layout go into what figureLayout lays out (appdata
+%   FigureLayout: each panel's rect, layout's boxesMean and paddingPx).
+%   Each text is set where a drawing puts it: a panel's own label,
 %   else the type's (panelAxes' xAuto, yAuto), in the axes panelAxes set it
 %   in; a time panel's x label as figureTimeStack names it (nothing where
 %   the stack hides it); a panel's title of its own (with groupingTitle's
@@ -682,17 +732,23 @@ if ~all(isgraphics(D.axes)) || ~all(cellfun(@(p) all(isgraphics(p)), D.parts))
 end
 P = spec.panels;
 Q = D.spec.panels;
-was = D.spec;   % the spec drawn with the new texts: anything else that differs is drawn
+was = D.spec;   % the spec drawn with the new texts and places: anything else that differs is drawn
 was.title = spec.title;
+was.layout = spec.layout;
 for k = 1:np
     K = D.keys.panels{k};
     for f = ["xLabel" "yLabel" "title"]
         was.panels(k).(f) = P(k).(f);
         K.p.(f) = P(k).(f);
     end
+    was.panels(k).rect = P(k).rect;
     if ~isequaln(K, keys.panels{k}); return; end
 end
 if ~isequaln(was, spec); return; end
+moved = ~isequaln(D.spec.layout, spec.layout);   % new places: laid out again at them
+for k = 1:np
+    moved = moved || ~isequaln(Q(k).rect, P(k).rect);
+end
 drawn = isgraphics(D.axes);
 for k = find(drawn)
     if ~all(isgraphics(D.parts{k})); return; end
@@ -746,7 +802,7 @@ for i = 1:size(sets, 1)
     set(sets{i, 1}, 'String', sets{i, 2});
     if sets{i, 3} ~= ""; set(sets{i, 1}, 'Interpreter', sets{i, 3}); end
 end
-if ~isempty(sets)
+if ~isempty(sets) || moved
     for k = find(drawn)   % where a new drawing starts: the layout makes what a drawing makes
         A = D.parts{k};
         for i = 1:numel(A)
@@ -755,7 +811,15 @@ if ~isempty(sets)
             if ~isempty(cb) && isvalid(cb); cb.Location = cb.Location; end   % placed from its axes again, as a new one is
         end
     end
-    figureLayout(target);   % as it was laid out (the same axes, bands, legend and title)
+    S = [];
+    if isappdata(target, 'FigureLayout'); S = getappdata(target, 'FigureLayout'); end
+    if moved && isstruct(S) && isfield(S, 'panels') && numel(S.panels) == np
+        for k = 1:np; S.panels(k).rect = double(P(k).rect); end
+        S.layout = layoutSettings(spec.layout, S.scale);
+        figureLayout(target, S);   % the same axes, bands, legend and title at the new places
+    else
+        figureLayout(target);   % as it was laid out (the same axes, bands, legend and title)
+    end
 end
 h = figureHandles(target, spec, D.axes, D.extra, D.notes, D.ovls, D.yExt, txt);
 if any(tips) && figureEditable(opts.DataTips, target)
@@ -825,28 +889,37 @@ function K = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, target)
 %drawingKeys  What a drawing depends on (Reuse): global (what every panel's does) and each panel's own.
 %   global  F but its panels, creation time and latency summary; SPEC but
 %           its panels, its latency block (the panels that read it carry
-%           their latencies in their results) and its id (its title only
-%           as there being one: the top-left panel
-%           then names the observation); each panel's id, type, place,
-%           sides, time axis and note (the time stack, the layout and the
-%           draw functions' inTimeColumn read them across panels); the
-%           style, the design, the user's remembered looks of the panels'
-%           kinds and of "figure"; BatchYLim; editing and data tips on;
-%           TARGET's size in pixels; Scale
-%   panels  each one's result (F.panels(k)), spec, group colors, time
-%           axis and batch range
+%           their latencies in their results), its layout (inPlace lays a
+%           new one out) and its id (its title only as there being one:
+%           the top-left panel then names the observation); each panel's
+%           id, type, sides, time axis and note; which panels touch which
+%           and lie in one column (figureNeighbors of the rects at
+%           RectTol: below, above, left, right, inColumn; the time stack
+%           and the draw functions' inTimeColumn read them) and the
+%           top-left panel's id, but not the rects themselves; the style,
+%           the design, the user's remembered looks of the panels' kinds
+%           and of "figure"; BatchYLim; editing and data tips on; TARGET's
+%           size in pixels; Scale
+%   panels  each one's result (F.panels(k)), spec but its rect, group
+%           colors, time axis and batch range
 %   ownTime  each panel on a time axis whose x limits are not the
 %           figure's window (its own window, or one from event to event)
 P = spec.panels;
 np = numel(P);
-place = struct('id', {}, 'type', {}, 'cell', {}, 'align', {}, 'xSide', {}, 'ySide', {}, 'sharesTime', {}, 'note', {});
+place = struct('id', {}, 'type', {}, 'xSide', {}, 'ySide', {}, 'sharesTime', {}, 'note', {});
 for k = 1:np
-    place(k) = struct('id', P(k).id, 'type', P(k).type, 'cell', {[P(k).row P(k).col P(k).rowSpan P(k).colSpan ...
-        reshape(double(P(k).size), 1, [])]}, 'align', string(P(k).align) + "|" + string(P(k).valign), 'xSide', P(k).xSide, ...
-        'ySide', P(k).ySide, 'sharesTime', P(k).sharesTime, 'note', P(k).note);
+    place(k) = struct('id', P(k).id, 'type', P(k).type, 'xSide', P(k).xSide, 'ySide', P(k).ySide, ...
+        'sharesTime', P(k).sharesTime, 'note', P(k).note);
+end
+N = figureNeighbors(reshape([zeros(1, 0) P.rect], 4, []).', EphysAnalysisConfig.RectTol);
+rel = struct('below', N.below, 'above', N.above, 'left', N.left, 'right', N.right, 'inColumn', N.inColumn);
+first = "";
+if np > 0
+    k1 = firstPanel(spec, string([P.type]) ~= "legend");
+    if k1 > 0; first = P(k1).id; end
 end
 Fg = rmfield(F, intersect({'panels' 'created' 'spec' 'latency'}, fieldnames(F)));
-Sg = rmfield(spec, intersect({'panels' 'id' 'autoId' 'enabled' 'title' 'latency'}, fieldnames(spec)));
+Sg = rmfield(spec, intersect({'panels' 'id' 'autoId' 'enabled' 'title' 'latency' 'layout'}, fieldnames(spec)));
 Sg.titled = spec.title ~= "";
 rules = struct();
 if opts.UserAesthetics
@@ -861,13 +934,13 @@ try
 catch
 end
 K = struct();
-K.global = struct('F', Fg, 'spec', Sg, 'place', place, 'style', style, 'design', design, 'rules', rules, ...
-    'batch', {opts.BatchYLim}, 'editable', figureEditable(opts.Editable, target), 'tips', figureEditable(opts.DataTips, target), 'size', sz, ...
-    'scale', opts.Scale);
+K.global = struct('F', Fg, 'spec', Sg, 'place', place, 'neighbors', rel, 'first', first, 'style', style, 'design', design, ...
+    'rules', rules, 'batch', {opts.BatchYLim}, 'editable', figureEditable(opts.Editable, target), ...
+    'tips', figureEditable(opts.DataTips, target), 'size', sz, 'scale', opts.Scale);
 K.panels = cell(1, np);
 K.ownTime = false(1, np);
 for k = 1:np
-    K.panels{k} = struct('P', F.panels(k), 'p', P(k), 'colors', colorsOf{k}, 'isTime', isTime(k), ...
+    K.panels{k} = struct('P', F.panels(k), 'p', rmfield(P(k), 'rect'), 'colors', colorsOf{k}, 'isTime', isTime(k), ...
         'batch', {figureBatchFor(opts.BatchYLim, P(k).id)});
     K.ownTime(k) = isTime(k) && ~(P(k).sharesTime && ~isempty(figureFixedWindow(P(k).window)));
 end
@@ -931,7 +1004,7 @@ tf = besideNote(p) && ismember(string(p.note.placement), ["left" "right"]);
 end
 
 
-function L = firstLayout(canvas, grid, panels, cells, style, scale)
+function L = firstLayout(canvas, spec, panels, isLeg, style, scale)
 %firstLayout  Where the panels' axes and note bands go before anything is drawn: labels and bands estimated from the font size.
 %   figureLayout places them once they are drawn; this is where they are
 %   drawn (a draw function sees a plot of about its final size). With
@@ -939,6 +1012,7 @@ function L = firstLayout(canvas, grid, panels, cells, style, scale)
 %   page (CANVAS's size over SCALE), so everything is drawn as the export
 %   draws it -- the axes' size against the fonts, which sets the automatic
 %   ticks and limits a draw function reads -- before it is scaled.
+%   ISLEG(k): panel k is a legend panel (no labels).
 px = 96 / 72 * style.FontSize;   % the font size in pixels
 sz = [700 500];   % the canvas's size, when it cannot be read yet
 try
@@ -946,10 +1020,8 @@ try
     if all(p(3:4) > 40); sz = p(3:4) / scale; end
 catch
 end
-C = struct('r1', {}, 'r2', {}, 'c1', {}, 'c2', {}, 'size', {}, 'align', {}, 'valign', {}, 'inset', {}, ...
-    'band', {}, 'need', {}, 'shares', {});
+C = struct('rect', {}, 'inset', {}, 'band', {}, 'need', {}, 'shares', {}, 'fixed', {});
 for k = 1:numel(panels)
-    c = cells(k);
     band = "";
     need = 0;
     if besideNote(panels(k))
@@ -970,28 +1042,44 @@ for k = 1:numel(panels)
     ins = [4.5 3 0.5 0] * px;   % [left bottom right top]: the y labels left, the x labels below
     if panels(k).ySide == "right"; ins([1 3]) = ins([3 1]); end
     if panels(k).xSide == "top"; ins([2 4]) = ins([4 2]); end
-    C(k) = struct('r1', c.r1, 'r2', c.r2, 'c1', c.c1, 'c2', c.c2, 'size', c.size, 'align', c.align, 'valign', c.valign, ...
-        'inset', ins, 'band', band, 'need', need, 'shares', 1);
+    if isLeg(k); ins = [0 0 0 0]; end
+    C(k) = struct('rect', double(panels(k).rect), 'inset', ins, 'band', band, 'need', need, 'shares', 1, 'fixed', isLeg(k));
 end
-L = figureArrange(sz, grid, C, Top=3 * px, Margin=6);
+A = figureArea(sz, Top=3 * px, Margin=6);
+lay = layoutSettings(spec.layout, 1);
+L = figurePlace(A, C, Mode=lay.boxesMean, Padding=lay.paddingPx);
 end
 
 
-function S = layoutOf(spec, panels, cells, axs, extra, notes, bands, th, lgd, style, scale)
-%layoutOf  What figureLayout lays out: each panel's axes (a coherence panel's phase under its magnitude, a third of it), note and band, the title and the legend.
-%   SCALE: renderFigure's Scale, which multiplies the layout's px (figureLayout).
-P = struct('axes', {}, 'shares', {}, 'r1', {}, 'r2', {}, 'c1', {}, 'c2', {}, 'size', {}, 'align', {}, 'valign', {}, ...
-    'note', {}, 'text', {}, 'band', {});
+function S = layoutOf(spec, panels, axs, extra, notes, bands, th, G2, isLeg, scale)
+%layoutOf  What figureLayout lays out: each panel's axes (a coherence panel's phase under its magnitude, a third of it) at its rect, note and band, the title and the legend.
+%   G2: the figure's legend as figureLayout places it ([] = none, or
+%   inside a panel). ISLEG(k): panel k is a legend panel. SCALE:
+%   renderFigure's Scale, which multiplies the layout's px (figureLayout).
+P = struct('id', {}, 'axes', {}, 'shares', {}, 'rect', {}, 'fixed', {}, 'note', {}, 'text', {}, 'band', {});
 for k = 1:numel(panels)
-    c = cells(k);
     A = [axs(k) reshape(extra{k}, 1, [])];
     t = [];
     if ~isempty(notes{k}) && ~isempty(notes{k}.text); t = notes{k}.text; end
-    P(k) = struct('axes', A, 'shares', [2 ones(1, numel(A) - 1)], 'r1', c.r1, 'r2', c.r2, 'c1', c.c1, 'c2', c.c2, ...
-        'size', c.size, 'align', c.align, 'valign', c.valign, 'note', panels(k).note, 'text', t, 'band', bands{k});
+    P(k) = struct('id', panels(k).id, 'axes', A, 'shares', [2 ones(1, numel(A) - 1)], 'rect', double(panels(k).rect), ...
+        'fixed', isLeg(k), 'note', panels(k).note, 'text', t, 'band', bands{k});
 end
-S = struct('grid', spec.grid, 'panels', P, 'title', th, 'legend', lgd, 'side', figureLegendSide(style), 'margin', 6, ...
-    'scale', scale);
+S = struct('layout', layoutSettings(spec.layout, scale), 'panels', P, 'title', th, 'legend', G2, 'margin', 6, 'scale', scale);
+end
+
+
+function lay = layoutSettings(layout, scale)
+%layoutSettings  Figure.layout as figureLayout reads it: boxesMean, and the padding in px (cm at 96 dpi, times SCALE).
+lay = struct('boxesMean', string(layout.boxesMean), 'paddingPx', double(layout.padding) * 96 / 2.54 * scale);
+end
+
+
+function k = firstPanel(spec, ok)
+%firstPanel  The top-left panel of SPEC (EphysAnalysisConfig.panelOrder) among those OK marks; 0 = none.
+order = EphysAnalysisConfig.panelOrder(spec);
+order = order(ok(order));
+k = 0;
+if ~isempty(order); k = order(1); end
 end
 
 

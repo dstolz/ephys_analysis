@@ -6,6 +6,9 @@ function focusFigurePane(obj, step)
 %   Id field, else the first supersection's header); the preview's
 %   controls the Observation drop-down, else the Preview button. Tab and
 %   Shift+Tab then move on from there. The status bar names the column.
+%   The arrow keys go to the control focused, no longer to Arrange's
+%   nudges (FigureArrangeFocus).
+obj.FigureArrangeFocus = false;
 names = ["the figure list" "the editor" "the preview"];
 i = mod(obj.FigureFocusPane - 1 + step, 3) + 1;
 if obj.FigureFocusPane == 0 && step < 0; i = 3; end

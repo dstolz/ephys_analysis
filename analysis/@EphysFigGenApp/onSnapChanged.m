@@ -8,6 +8,7 @@ function onSnapChanged(obj)
 %
 %   See also EphysFigGenApp.onRectUnitsChanged, snapStepIn.
 if obj.Applying; return; end
+obj.FigureArrangeFocus = false;   % (an editor control: the arrow keys are its again)
 E = obj.FigureEditor;
 v = E.snapStep.Value;
 u = obj.FigureRectUnits;

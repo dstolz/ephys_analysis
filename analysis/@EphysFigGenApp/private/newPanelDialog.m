@@ -1,4 +1,4 @@
-function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0)
+function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0, canDraw)
 %newPanelDialog  Pick a new panel's type, name, place and key parameters in a modal window over FIG.
 %   C = newPanelDialog(FIG, F, ANCHOR, LINES, PARAMS) shows the New panel
 %   window for the figure entry F, whose selected panel is ANCHOR (its
@@ -14,9 +14,9 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0)
 %   EphysAnalysisConfig.freeRect, grayed and refused when the page has
 %   none; Below, Above, Right of and Left of ANCHOR, "Below raster_2
 %   (splits it)": the anchor keeps the half next to the new panel; Draw
-%   it on the preview (two clicks), grayed and refused until the Arrange
-%   overlay comes; the first panel of a figure has one place, Fill the
-%   page) and the type's key parameters:
+%   it on the preview (two clicks), grayed and refused unless the preview
+%   shows the figure (CANDRAW); the first panel of a figure has one place,
+%   Fill the page) and the type's key parameters:
 %     every type      what it reads (the sources the type draws; a
 %                     coherence panel its seed and its partner) and the
 %                     binding (follows the observation or fixed; fixed
@@ -43,8 +43,8 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0)
 %                     Columns (0 = automatic); no source: a legend panel
 %                     shows the figure's legend entries
 %   OK returns C, a struct onNewPanel takes as its options: Type, Where
-%   ("free", "below", "above", "right", "left"; "draw" once the Arrange
-%   overlay comes), Rect ([]), Id, Title, Source, Partner, Binding, Lines
+%   ("free", "below", "above", "right", "left", "draw": onNewPanel then
+%   waits for two clicks on the preview), Rect ([]), Id, Title, Source, Partner, Binding, Lines
 %   and Options (the partial options the parameters set), Set ("") and
 %   Alignment. Refused with a red line instead: a name another panel of F
 %   has; a second legend panel ("The figure already has a legend panel
@@ -70,6 +70,9 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0)
 %   C = newPanelDialog(..., START, SETS, WHERE0): Place starts at WHERE0
 %   ("free" by default; a place not offered, or grayed: the first one
 %   that can be taken).
+%   C = newPanelDialog(..., WHERE0, CANDRAW): CANDRAW true (default false)
+%   when the preview shows the figure (previewShowsFigure), so that "Draw
+%   it on the preview (two clicks)" can be taken.
 %   The window's UserData holds its controls for the tests: Types (the
 %   tiles, a struct by type), Pick (a function: Pick(TYPE) picks a
 %   type), Sets (a struct array: Key, Tile), PickSet (PickSet(KEY) picks
@@ -87,6 +90,7 @@ n = height(T);
 if nargin < 6; start = struct(); end
 if nargin < 7; sets = FigureTemplate.panelTypes(Yours=false); end
 if nargin < 8 || isempty(where0); where0 = "free"; end
+if nargin < 9 || isempty(canDraw); canDraw = false; end
 ns = height(sets);
 c = [];
 taken = string.empty(1, 0);
@@ -162,7 +166,7 @@ titleField = uieditfield(rg, "text", "Placeholder", "none", ...
     "Tooltip", "The panel's own title (blank = none; under a figure title of your own the top-left panel names the observation).");
 titleField.Layout.Row = 4; titleField.Layout.Column = 2;
 l = uilabel(rg, "Text", "Place:"); l.Layout.Row = 5;
-[placeText, placeData, grayed, placeTip] = placeItems(F, anchor);
+[placeText, placeData, grayed, placeTip] = placeItems(F, anchor, canDraw);
 if isempty(F.panels)
     whereDD = uidropdown(rg, "Items", placeText, "ItemsData", placeData, "Enable", "off", "Tooltip", placeTip);
 else
@@ -289,8 +293,8 @@ if isvalid(d); delete(d); end
     function finish(accept)
         if accept
             w = string(whereDD.Value);
-            if w == "draw"
-                refuse("Drawing on the preview comes with the Arrange overlay: pick another place.");
+            if w == "draw" && ~canDraw
+                refuse("Preview the figure first (Ctrl+P): drawing a panel needs it on the preview. Pick another place.");
                 return
             elseif any(grayed == w)
                 refuse("The page has no empty space left: pick a place beside a panel.");
@@ -327,11 +331,11 @@ if isvalid(d); delete(d); end
 end
 
 
-function [items, data, grayed, tip] = placeItems(F, anchor)
+function [items, data, grayed, tip] = placeItems(F, anchor, canDraw)
 %placeItems  The Place choices for a new panel (or a saved figure's block) in figure F: the free space, beside ANCHOR, drawn.
 %   ITEMS the items, DATA their keys ("free", "below", "above", "right",
 %   "left", "draw"), GRAYED the keys that cannot be taken now (no free
-%   space; "draw" until the Arrange overlay comes), TIP the drop-down's
+%   space; "draw" unless CANDRAW: the preview shows the figure), TIP the drop-down's
 %   tooltip. A figure without panels: one item, "Fill the page" ("free").
 if isempty(F.panels)
     items = "Fill the page";
@@ -356,8 +360,12 @@ if anchor ~= "" && any([F.panels.id] == anchor)
 end
 items(end+1) = "Draw it on the preview (two clicks)";
 data(end+1) = "draw";
-grayed(end+1) = "draw";
-tip = tip + " Drawing it on the preview is coming with the Arrange overlay.";
+if canDraw
+    tip = tip + " Drawn: after OK, click one corner on the preview, then the opposite one (Esc cancels).";
+else
+    grayed(end+1) = "draw";
+    tip = tip + " Drawing it on the preview needs the figure previewed first (Ctrl+P).";
+end
 end
 
 

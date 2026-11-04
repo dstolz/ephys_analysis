@@ -17,11 +17,21 @@ function markFigurePanel(obj)
 %   (the preview resized) the frame follows. A drawing over the preview
 %   (renderFigure empties it) takes the strips with it; they are made
 %   again here.
+%   While Arrange is on (FigureArrange) the strips are hidden: the
+%   selected panel's box over the preview is blue instead. Each call also
+%   brings Arrange's overlay up to date (syncArrangeOverlay: made, its
+%   boxes at the panels' rects, or taken away), and the listeners on the
+%   axes move the overlay with a new layout.
+obj.syncArrangeOverlay();
 P = obj.FigurePreviewPanel;
 if isempty(P) || ~isvalid(P); return; end
 M = obj.FigurePanelMark;
-[A, id] = selectedAxes(obj, P);
 followAxes(obj, P);
+if obj.FigureArrange   % the selected panel's box shows it
+    if ~isempty(M) && all(isvalid(M)); set(M, 'Visible', 'off'); end
+    return
+end
+[A, id] = selectedAxes(obj, P);
 if isempty(A)
     if ~isempty(M) && all(isvalid(M)); set(M, 'Visible', 'off'); end
     return
@@ -109,8 +119,14 @@ function placeAgain(obj, ax)
 %placeAgain  An axes of the preview moved (figureLayout): the frame follows it when it is the selected panel's.
 %   Not while the preview is drawn: renderFigure keeps the axes of panels
 %   an edit left alone (Reuse) and moves them, and the frame is drawn
-%   once it is done (refreshFigurePreview).
-if ~isvalid(obj) || ~isvalid(ax) || isempty(obj.FigurePanelMark) || obj.FigurePreviewState == "drawing"; return; end
+%   once it is done (refreshFigurePreview). While Arrange is on, its
+%   overlay follows the page instead (syncArrangeOverlay, Follow).
+if ~isvalid(obj) || ~isvalid(ax) || obj.FigurePreviewState == "drawing"; return; end
+if obj.FigureArrange
+    obj.syncArrangeOverlay(Follow=true);
+    return
+end
+if isempty(obj.FigurePanelMark); return; end
 P = obj.FigurePreviewPanel;
 A = selectedAxes(obj, P);
 if any(A == ax); obj.markFigurePanel(); end

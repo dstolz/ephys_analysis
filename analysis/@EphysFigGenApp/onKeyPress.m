@@ -18,6 +18,12 @@ function onKeyPress(obj, evt)
 %     Ctrl+Alt+arrows       the panel above, below, left or right of the
 %                           selected one, by the panels' rects
 %                           (stepFigurePanel)
+%     Arrows (Arrange)      with Arrange on and its overlay clicked last
+%                           (FigureArrangeFocus): nudge the selected
+%                           panel by the snap step; Shift+arrows ten
+%                           steps, Ctrl+arrows one pixel of the preview,
+%                           Alt+arrows resize it (its right or top edge;
+%                           Alt+Shift ten steps) (nudgePanel)
 %     Page Up, Page Down    the previous and next observation
 %                           (onFigureObservationStep), left alone while a
 %                           preview computes or draws
@@ -111,7 +117,23 @@ if alt && ~ctrl && ~shift && isDigit
     if u >= 1 && u <= numel(obj.FigureSupers); obj.gotoFigureSuper(obj.FigureSupers(u).Name); end
     return
 end
-if ctrl && alt && ~shift && ismember(key, ["uparrow" "downarrow" "leftarrow" "rightarrow"])
+arrow = ismember(key, ["uparrow" "downarrow" "leftarrow" "rightarrow"]);
+if arrow && obj.FigureArrange && obj.FigureArrangeFocus && ~(ctrl && alt)   % Arrange's nudges (Ctrl+Alt still selects)
+    d = [(key == "rightarrow") - (key == "leftarrow"), (key == "uparrow") - (key == "downarrow")];
+    if alt
+        how = "resize";
+        if shift; how = "resizeTen"; end
+    elseif ctrl
+        how = "pixel";
+    elseif shift
+        how = "ten";
+    else
+        how = "step";
+    end
+    obj.nudgePanel(d(1), d(2), how);
+    return
+end
+if ctrl && alt && ~shift && arrow
     obj.stepFigurePanel(erase(key, "arrow"));
     return
 end

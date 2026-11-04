@@ -1,0 +1,33 @@
+function cm = arrangeMenu(obj, id)
+%arrangeMenu  The right-click menu of a panel's box in Arrange: Set corners, Bring forward, Send back, Remove panel.
+%   CM = arrangeMenu(OBJ, ID) is a context menu (in the app's window) for
+%   the panel ID's widget (arrangeWidget, which deletes it with itself).
+%   Each item selects the panel first (onPanelSelected), then does what
+%   the Panels section's button of that name does: onSetCorners,
+%   onPanelOrder(1), onPanelOrder(-1), onRemovePanel. ID ":legend" (the
+%   floating legend's box) has one item, Make it a legend panel here,
+%   which places a legend panel at the box (onArrangeMoved).
+%
+%   See also arrangeWidget, EphysFigGenApp.onSetCorners, EphysFigGenApp.onPanelOrder,
+%   EphysFigGenApp.onRemovePanel.
+cm = uicontextmenu(obj.Fig, 'Tag', 'arrangeMenu');
+if id == ":legend"
+    uimenu(cm, 'Text', 'Make it a legend panel here', 'MenuSelectedFcn', @(~, ~) obj.onArrangeMoved(id, []));
+    return
+end
+uimenu(cm, 'Text', 'Set corners', 'Tag', 'setCorners', 'MenuSelectedFcn', @(~, ~) act(obj, id, @() obj.onSetCorners()));
+uimenu(cm, 'Text', 'Bring forward', 'Tag', 'bringForward', 'Separator', 'on', 'MenuSelectedFcn', @(~, ~) act(obj, id, @() obj.onPanelOrder(1)));
+uimenu(cm, 'Text', 'Send back', 'Tag', 'sendBack', 'MenuSelectedFcn', @(~, ~) act(obj, id, @() obj.onPanelOrder(-1)));
+uimenu(cm, 'Text', 'Remove panel', 'Tag', 'removePanel', 'Separator', 'on', 'MenuSelectedFcn', @(~, ~) act(obj, id, @() obj.onRemovePanel()));
+end
+
+
+function act(obj, id, fcn)
+%act  Select the panel ID of the selected figure (when it is still there), then call FCN.
+k = obj.SelectedFigure;
+if k < 1 || k > numel(obj.Config.Figures) || isempty(obj.Config.Figures(k).panels); return; end
+j = find([obj.Config.Figures(k).panels.id] == id, 1);
+if isempty(j); return; end
+if j ~= obj.SelectedPanel; obj.onPanelSelected(j); end
+fcn();
+end

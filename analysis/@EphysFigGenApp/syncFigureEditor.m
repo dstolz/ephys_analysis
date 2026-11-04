@@ -11,7 +11,8 @@ function syncFigureEditor(obj)
 %                    Arrange hint always; the selected panel's line, its
 %                    Position and Size and its buttons (Bring forward
 %                    while a panel is drawn after it, Send back while one
-%                    is drawn before it; Set corners waits for Arrange)
+%                    is drawn before it; Set corners while the preview
+%                    shows the figure: syncArrangeOverlay)
 %                    once there is one, else "No panel yet"; the values
 %                    in the units picked (showPanelPlace)
 %     Panel, Panel alignment, Layers, Options   with a panel selected;
@@ -239,7 +240,6 @@ v.selPanel = hasPanel; v.noPanel = ~hasPanel;
 v.rectXY = hasPanel; v.rectWH = hasPanel; v.panelButtons = hasPanel;
 en(E.bringForward, hasPanel && j < np);   % the drawing order: forward while a panel is drawn after it
 en(E.sendBack, hasPanel && j > 1);
-E.setCorners.Enable = "off";   % with the Arrange overlay
 axesOn = hasPanel && fig.panels(j).type ~= "legend";   % a legend panel has no axes
 v.panelType = hasPanel; v.panelTitle = hasPanel; v.panelBox = axesOn; v.panelXLabel = axesOn; v.panelYLabel = axesOn;
 v.group = false;

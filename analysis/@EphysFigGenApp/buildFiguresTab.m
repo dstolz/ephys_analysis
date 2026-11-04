@@ -51,8 +51,8 @@ function buildFiguresTab(obj)
 %           mean (the plot area, its labels kept clear, or the outer box,
 %           labels inside); Padding (the clear space round a panel's
 %           labels); Snap and its step (Arrange's snapping and the arrow
-%           keys' nudge, preferences: onSnapChanged); Set corners (with
-%           Arrange), Remove panel, Bring forward and Send back (the
+%           keys' nudge, preferences: onSnapChanged); Set corners (two
+%           clicks on the preview: onSetCorners), Remove panel, Bring forward and Send back (the
 %           drawing order where panels overlap: onPanelOrder); a hint on
 %           Arrange), Selected panel (its type, title, box,
 %           group shown), the
@@ -146,7 +146,8 @@ function buildFiguresTab(obj)
 %           new figure, onApplyTemplate; Save as..., Update, Remove,
 %           Import..., Export... and Report issue, onFigureTemplate) and,
 %           at its right, Arrange (a state button: the panels moved and
-%           resized over the preview, onArrangeToggled). Under it the preview
+%           resized over the preview, onArrangeToggled; its boxes:
+%           syncArrangeOverlay). Under it the preview
 %           (refreshFigurePreview: computeFigure and renderFigure for that
 %           one observation; the selected panel outlined there,
 %           markFigurePanel): a container per figure (FigurePreviewHost,
@@ -731,8 +732,9 @@ E.snapUnits = uilabel(sng, "Text", "cm", "FontColor", gray);
 [S, r] = formRow(S, "panelButtons", "", 30);
 pb = subgrid(S.Body, r, {'1x', '1x', '1x', '1x'});
 place(pb, r, [1 2]);
-E.setCorners = uibutton(pb, "Text", "Set corners", "Enable", "off", ...
-    "Tooltip", "needs the Arrange mode (coming with the overlay)");
+E.setCorners = uibutton(pb, "Text", "Set corners", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onSetCorners(), ...
+    "Tooltip", "Place the selected panel by two clicks on the preview: one corner, then the opposite one (snapped as " + ...
+    "Arrange snaps). Arrange switches on for it; Esc cancels. On while the preview shows the figure.");
 E.removePanel = uibutton(pb, "Text", "Remove panel", "ButtonPushedFcn", @(~,~) obj.onRemovePanel(), ...
     "Tooltip", "Remove the selected panel. The other panels keep their places; the space it held is left free.");
 E.bringForward = uibutton(pb, "Text", "Bring forward", "ButtonPushedFcn", @(~,~) obj.onPanelOrder(1), ...
@@ -1804,8 +1806,8 @@ obj.FigureOpenButton = uibutton(sg, "Text", "Open in window", "Enable", "off", .
     "It is independent of this app: later edits do not follow into it. An out-of-date preview is redrawn first. (" + cmdKey + "+W)", ...
     "ButtonPushedFcn", @(~,~) obj.onOpenFigureWindow());
 obj.FigureOpenButton.Layout.Row = 1; obj.FigureOpenButton.Layout.Column = 6;
-hintRow = uilabel(pg, "Text", "Right-click the plot to change colors, fonts and labels.", "FontColor", gray);
-hintRow.Layout.Row = 7; hintRow.Layout.Column = [1 5];
+obj.FigurePreviewHint = uilabel(pg, "Text", "Right-click the plot to change colors, fonts and labels.", "FontColor", gray);   % (Arrange's hint while on: onArrangeToggled)
+obj.FigurePreviewHint.Layout.Row = 7; obj.FigurePreviewHint.Layout.Column = [1 5];
 obj.setFigurePreviewState("idle");
 end
 

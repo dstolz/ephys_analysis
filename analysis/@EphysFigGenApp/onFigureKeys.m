@@ -37,6 +37,8 @@ K = [ ...
     "Shift+Arrows (Arrange)",            "Nudge it by ten steps"
     c + "+Arrows (Arrange)",            "Nudge it by one pixel of the preview: the finest move the screen shows"
     a + "+Arrows (Arrange)",            "Resize it: its right or top edge by one step (with Shift, ten)"
+    a + " held while dragging (Arrange)", "No snapping: the box goes exactly where the pointer puts it"
+    "Right-click a box (Arrange)",        "Set corners, Bring forward, Send back, Remove panel; on the floating legend's dashed box: Make it a legend panel here"
     "Escape (Arrange: a drag or Set corners)", "Cancel the drag, or Set corners' clicks: the figure is unchanged"
     c + "+Z",                          "Undo the last edit of the figures: the layout, a panel, a layer, an option, the figure list (the Edit menu names it)"
     c + "+Y, " + c + "+Shift+Z",       "Redo the last edit undone"

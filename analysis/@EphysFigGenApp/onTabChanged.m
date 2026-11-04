@@ -2,6 +2,9 @@ function onTabChanged(obj)
 %onTabChanged  Refresh what the shown tab draws; a hint in the status bar; the Edit menu (on with the Figures tab).
 %   A tab shown for the first time is laid out now (revealTab: the startup
 %   leaves the tabs it does not show hidden).
+%   The arrow keys are no longer Arrange's (FigureArrangeFocus): a click
+%   on its overlay gives them back.
+obj.FigureArrangeFocus = false;
 revealTab(obj, obj.Tabs.SelectedTab);
 switch obj.Tabs.SelectedTab
     case obj.TabData

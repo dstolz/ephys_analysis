@@ -40,5 +40,7 @@ end
 if ~isempty(obj.NoteSearchWindow) && isvalid(obj.NoteSearchWindow)
     delete(obj.NoteSearchWindow);
 end
+O = obj.FigureArrangeOverlay;
+if isstruct(O) && ~isempty(O.timer) && isvalid(O.timer); stop(O.timer); end   % Arrange's cue timer (it deletes itself)
 delete(obj.Fig);
 end

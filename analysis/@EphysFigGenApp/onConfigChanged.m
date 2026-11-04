@@ -30,12 +30,15 @@ function onConfigChanged(obj, what, src)
 %   control's edit also opens Apply to figures (onApplyToFigures: the
 %   other figures and panels that can take it) and the preview waits for
 %   its answer instead of redrawing.
+%   Any edit takes the arrow keys back from Arrange's overlay
+%   (FigureArrangeFocus: a field typed in after a drag keeps its arrows).
 arguments
     obj (1,1) EphysFigGenApp
     what (1,1) string = ""
     src = []
 end
 if obj.Applying; return; end
+obj.FigureArrangeFocus = false;
 try
     cfg = obj.gatherConfig();
 catch ME

@@ -48,7 +48,12 @@ classdef EphysFigGenApp < handle
     %                (onPanelRectEdited, onRectUnitsChanged), what a box
     %                means and the padding, Snap (onSnapChanged), Remove
     %                panel, Bring forward, Send back: onPanelOrder; the
-    %                preview's Arrange button, onArrangeToggled), the selected panel (type, title,
+    %                preview's Arrange button, onArrangeToggled: a box per
+    %                panel over the preview, syncArrangeOverlay, dragged
+    %                and resized with snapping and smart guides,
+    %                onArrangeMoving / onArrangeMoved, nudged by the arrow
+    %                keys, nudgePanel, or placed by two corner clicks,
+    %                onSetCorners / startCornerMode), the selected panel (type, title,
     %                box, group shown), the figure's event reference, epoch window and
     %                trial selection ("Use default" for the Alignment tab's),
     %                the panel's own event and window ("Same as the figure"),
@@ -145,8 +150,10 @@ classdef EphysFigGenApp < handle
     %   previous and next observation (onFigureObservationStep). Ctrl+P,
     %   Ctrl+R, Ctrl+U, Ctrl+T, Ctrl+K, Ctrl+E and Ctrl+W press Preview,
     %   Redraw All, Test report (the Export tab's), Auto, Export preview,
-    %   Export code and Open in window (pressFigureButton). Escape cancels
-    %   an Arrange drag or Set corners (cancelArrange). Ctrl+Z undoes
+    %   Export code and Open in window (pressFigureButton). With Arrange on
+    %   and its overlay clicked, the arrows nudge the selected panel by the
+    %   snap step (Shift: ten, Ctrl: a pixel, Alt: resize; nudgePanel).
+    %   Escape cancels an Arrange drag or Set corners (cancelArrange). Ctrl+Z undoes
     %   the last edit of the figures, Ctrl+Y and Ctrl+Shift+Z redo it
     %   (onUndoRedo). The "?" button lists them all (onFigureKeys).
     %
@@ -316,6 +323,7 @@ classdef EphysFigGenApp < handle
         FigurePreviewHost      matlab.ui.container.Panel        % the preview's cell: every figure's container stacked in it (fitFigureViews: shaped like its figure's export page), the shown one visible
         FigurePreviewBadge struct = struct()     % the figure preview's state badge: Grid, Icon, Text (setFigurePreviewState)
         FigurePreviewLabel     matlab.ui.control.Label
+        FigurePreviewHint      matlab.ui.control.Label          % the gray line under the preview: the right-click editor, or Arrange's keys while on (onArrangeToggled)
         FigureCancelButton     matlab.ui.control.Button         % the busy card's Cancel while the figure preview computes (else empty)
         FigureSessionDropDown  matlab.ui.control.DropDown       % "Figure:" under the preview: which of a session figure's figures (facet / group) is drawn
 
@@ -394,11 +402,11 @@ classdef EphysFigGenApp < handle
         FigureSessionResults = []           % a session figure's last preview: struct(res (figureSessionCompute's RES), spec, what, label, seconds)
         FigureProbeTiles = []               % a probe figure's tiles on the active dataset, counted once per key (private/probeTileCount: key, T, left, words)
         FigureGroupsCollapsed (1,:) string = string.empty(1,0)   % keys of the figure tree's groups the user collapsed
-        FigureDrag = []                     % a drag over the preview in Arrange (a rubber band, a fallback widget): its state with the window's oldMotion and oldUp callbacks, else [] (cancelArrange)
+        FigureDrag = []                     % Arrange's drag (struct id) or Set corners' wait (the window's oldMotion and oldDown callbacks, back after it), else [] (cancelArrange)
         FigureArrange (1,1) logical = false % the preview's Arrange button is on: the panels are moved and resized over it (onArrangeToggled; session state, not a preference)
-        FigureArrangeOverlay = []           % Arrange's overlay over the preview: its axes, a widget per panel, the guides; else []
-        FigureArrangeMode (1,1) string = "" % what Arrange is doing: "" | "drag" | "corners" (Set corners: two clicks); cancelArrange ends it
-        FigureCorners = []                  % Set corners: what the two clicks place ("panel", "new", "block") and the first corner, else []
+        FigureArrangeOverlay = []           % Arrange's overlay over the preview (syncArrangeOverlay): struct axes, panel (its container), widgets (id -> box), legend (the floating legend's box), legendRect, guides (arrangeCues), band (Set corners' rectangle), timer (the nudge's cues); else []
+        FigureArrangeMode (1,1) string = "" % what Arrange is doing: "" | "drag" | "canceled" (a drag Escape canceled, until its release) | "corners" (Set corners: two clicks); cancelArrange ends it
+        FigureCorners = []                  % Set corners: struct what ("set", "new", "block"), payload (the panel's id, or onNewPanel's options) and first (the first corner, [] until clicked), else []
         FigureArrangeFocus (1,1) logical = false   % the overlay was clicked last: the arrow keys nudge the selected panel (cleared by an editor edit)
         FigureRectUnits (1,1) string = "cm"  % the Panels section's units for a rect, padding and snap step (EphysAnalysisConfig.RectUnits; pref FigureRectUnits)
         FigureSnap (1,1) logical = true     % Arrange snaps the panels to edges, centers and the step (pref FigureSnap)
@@ -605,6 +613,13 @@ classdef EphysFigGenApp < handle
         onSnapChanged(obj)
         onArrangeToggled(obj)
         cancelArrange(obj, msg)
+        [shown, why] = syncArrangeOverlay(obj, opts)
+        onArrangeMoving(obj, id, evt, alt)
+        onArrangeMoved(obj, id, evt)
+        onArrangeClicked(obj, id, evt)
+        onSetCorners(obj)
+        ok = startCornerMode(obj, what, payload)
+        nudgePanel(obj, dx, dy, how)
         onPanelTypeChanged(obj)
         onResetPanelOptions(obj)
         onForgetPanelOptions(obj)
@@ -663,6 +678,14 @@ classdef EphysFigGenApp < handle
         onReportIssue(obj, kind)
         body = issueReport(obj, kind, opts)
         [url, truncated] = issueURL(obj, kind, title, body)
+    end
+
+    methods (Static, Hidden)
+        function [rect, g] = snapRectFor(varargin)
+            %snapRectFor  Arrange's snapping, private/snapRect, reached from outside the class (the tests' unit cases).
+            %   [RECT, G] = EphysFigGenApp.snapRectFor(RECT, PREV, OTHERS, STEP, TOL, Name=Value)
+            [rect, g] = snapRect(varargin{:});
+        end
     end
 end
 

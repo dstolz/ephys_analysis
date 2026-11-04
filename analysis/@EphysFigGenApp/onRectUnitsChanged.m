@@ -10,6 +10,7 @@ function onRectUnitsChanged(obj)
 %
 %   See also showPanelPlace, figureRectConvert, EphysFigGenApp.onSnapChanged.
 if obj.Applying; return; end
+obj.FigureArrangeFocus = false;   % (an editor control: the arrow keys are its again)
 u = string(obj.FigureEditor.rectUnits.Value);
 if ~ismember(u, EphysAnalysisConfig.RectUnits); return; end
 [pageCm, dpi] = figurePage(obj);

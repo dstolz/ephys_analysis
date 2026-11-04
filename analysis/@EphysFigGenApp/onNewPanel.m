@@ -7,8 +7,8 @@ function onNewPanel(obj, opts)
 %   goes, one per figure), the panel's name and title, where it goes (the
 %   largest empty space of the page; below, above, right or left of the
 %   selected panel, which is halved for it; or drawn on the preview with
-%   two clicks, which comes with the Arrange overlay; the first panel of
-%   a figure fills the page) and the type's key parameters.
+%   two clicks, offered while the preview shows the figure; the first
+%   panel of a figure fills the page) and the type's key parameters.
 %   OK adds the panel and selects it; Cancel adds nothing. The window
 %   and the panel start from the options last set on a panel of the type
 %   (rememberedPanelOptions: a preference, rememberPanelOptions), over the
@@ -31,8 +31,10 @@ function onNewPanel(obj, opts)
 %   empty space of the page, else below the selected panel; "below",
 %   "above", "left", "right": beside the selected panel, which keeps the
 %   half next to the new one; "rect": at Rect=[x y w h], 0-1 of the page;
-%   "draw": two clicks on the preview, which comes with the Arrange
-%   overlay: for now the status bar says so and nothing is added), Id (""
+%   "draw": two clicks on the preview, the corners of its rect
+%   (startCornerMode "new", "block" for a saved figure: Arrange switches
+%   on, the panel is added at the second click; the preview must show the
+%   figure, else the status bar says so)), Id (""
 %   = "<type>_<n>"), Title, Source (the first layer's source, "" = the
 %   type's default layer's), Partner (a coherence panel's second layer,
 %   "" = LFP), Binding ("" = the type's DefaultBinding; "fixed" wherever
@@ -94,7 +96,7 @@ if opts.Type == "" && opts.Set == ""
         start.(PT.Type(i)) = mergeOptions(PT.DefaultOptions{i}, rememberedPanelOptions(obj, PT.Type(i), params));
     end
     sets = savedPanelTypes(obj);
-    c = newPanelDialog(obj.Fig, fig, anchor, lines, params, start, sets, opts.Where);
+    c = newPanelDialog(obj.Fig, fig, anchor, lines, params, start, sets, opts.Where, previewShowsFigure(obj));
     if isvalid(obj.Fig); figure(obj.Fig); end
     if isempty(c)
         obj.setStatus("New panel canceled: " + fig.id + " is unchanged.");
@@ -105,8 +107,8 @@ if opts.Type == "" && opts.Set == ""
 elseif remembered
     [~, params] = datasetItems(obj);
 end
-if opts.Where == "draw"   % two clicks on the preview: the Arrange overlay's (Set corners)
-    obj.setStatus("Draw on the preview comes with the Arrange overlay: pick another place for now.");
+if opts.Where == "draw" && opts.Set ~= ""   % a saved figure's block, drawn on the preview with two clicks
+    drawOnPreview(obj, opts, remembered, "block");
     return
 end
 if opts.Set ~= ""   % a saved figure's panels, as one block
@@ -122,6 +124,10 @@ t = opts.Type;
 if t == "legend" && ~isempty(fig.panels) && any([fig.panels.type] == "legend")
     other = fig.panels(find([fig.panels.type] == "legend", 1)).id;
     obj.setStatus("The figure already has a legend panel (" + other + ").");
+    return
+end
+if opts.Where == "draw"   % two clicks on the preview: the panel is added at the second (startCornerMode)
+    drawOnPreview(obj, opts, remembered, "new");
     return
 end
 L = EphysAnalysisConfig.defaultLayer(t);   % a legend panel: none
@@ -166,6 +172,20 @@ if ~isempty(fieldnames(mem))
         strjoin(string(fieldnames(mem)).', ", ") + "; Edit > Reset panel options to defaults).";
 end
 commitFigureEdit(obj, cfg, msg, Action="Add panel");
+end
+
+
+function drawOnPreview(obj, opts, remembered, what)
+%drawOnPreview  Where "draw": wait for two clicks on the preview (startCornerMode WHAT), then add the panel or block OPTS describe at their rect.
+%   The options go with the corners (FigureCorners.payload) and come back
+%   here as Where "rect" with the rect drawn (cornerClick), starting from
+%   the remembered options as they would now (REMEMBERED).
+o = struct();
+for f = ["Type" "Set" "Alignment" "Id" "Title" "Source" "Partner" "Binding" "Lines" "Options"]
+    if isfield(opts, f); o.(f) = opts.(f); end
+end
+o.Remembered = remembered;
+obj.startCornerMode(what, o);
 end
 
 

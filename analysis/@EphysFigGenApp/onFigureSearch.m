@@ -13,7 +13,9 @@ function onFigureSearch(obj, text)
 %   figure does not show is listed too (going there says why). Blank TEXT
 %   hides the list. While the list shows, Enter goes to the match picked
 %   (else the first) and Down / Up pick another (onKeyPress); a click goes
-%   there (gotoFigureRow). The status bar counts the matches.
+%   there (gotoFigureRow). The status bar counts the matches. Typing here
+%   takes the arrow keys back from Arrange's nudges (FigureArrangeFocus).
+obj.FigureArrangeFocus = false;
 text = strtrim(string(text));
 lb = obj.FigureSearchList;
 grid = lb.Parent;

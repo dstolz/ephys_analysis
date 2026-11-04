@@ -32,6 +32,15 @@ function results = run_all_tests(names, opts)
 %                     LegacySuiteTest.isExcluded(tag). CI passes none.
 %     ResultsCSV      file to write the results table to ("" = none),
 %                     written before the run's final error
+%     DialogWatch     seconds a dialog may wait for an answer before the run
+%                     says so (0 = never): one line in the output,
+%                       [needs you] <dialog> "<window>" | asked by <fn> (<file>:<line>) | test <fn> (<file>:<line>)
+%                     read by tools\Run-Tests.ps1. A dialog is waiting when
+%                     the stack holds one of MATLAB's dialogs (questdlg,
+%                     uiconfirm, uigetfile, ...) or uiwait / waitfor while a
+%                     modal window is open. Under -batch MATLAB refuses its
+%                     own blocking dialogs with an error, so there only the
+%                     apps' modal windows can wait.
 %
 %   Every app reads and writes its preferences in a temporary file for the
 %   whole run (AppPrefs.useTemporary), so the run never touches your own
@@ -59,6 +68,7 @@ arguments
     opts.Tag (1,:) string = string.empty(1, 0)
     opts.ExcludeTag (1,:) string = string.empty(1, 0)
     opts.ResultsCSV (1,1) string = ""
+    opts.DialogWatch (1,1) double {mustBeNonnegative} = 0
 end
 
 import matlab.unittest.TestSuite
@@ -176,7 +186,9 @@ if opts.Coverage ~= "" || opts.CoverageXML ~= ""
     runner.addPlugin(CodeCoveragePlugin.forFolder({here, ana}, 'IncludingSubfolders', true, 'Producing', format));
 end
 
+stopWatch = startDialogWatch(opts.DialogWatch); %#ok<NASGU> (held until the clear below)
 R = runner.run(suite);
+clear stopWatch
 
 suites = unique(group, 'stable');
 n = numel(suites);
@@ -240,6 +252,60 @@ function file = suiteFile(here, ana, name)
 %suiteFile  The file of suite NAME: in this folder, else in analysis/.
 file = fullfile(here, name + ".m");
 if ~isfile(file); file = fullfile(ana, name + ".m"); end
+end
+
+
+function stop = startDialogWatch(seconds)
+%startDialogWatch  A timer that reports a dialog waiting SECONDS or more for an answer (see DialogWatch).
+%   Timers run while uiwait / waitfor wait, so the timer sees the waiting frames on the stack.
+%   A native dialog (uigetfile under -r) stops MATLAB's thread and the timer with it: the runner
+%   finds that one by its window. STOP (an onCleanup) deletes the timer; [] when SECONDS is 0.
+stop = [];
+if seconds <= 0; return; end
+t = timer('Name', 'run_all_tests dialog watch', 'Period', 5, 'StartDelay', 5, ...
+    'ExecutionMode', 'fixedSpacing', 'BusyMode', 'drop', 'ObjectVisibility', 'off', ...
+    'TimerFcn', @(tm, ~) lookForDialog(tm, seconds));
+t.UserData = struct('Key', "", 'Since', 0, 'Told', false);
+start(t);
+stop = onCleanup(@() stopTimer(t));
+end
+
+
+function stopTimer(t)
+%stopTimer  Stop and delete timer T (deleting a running timer warns).
+if isvalid(t); stop(t); delete(t); end
+end
+
+
+function lookForDialog(tm, seconds)
+%lookForDialog  The dialog watch's tick: print one [needs you] line per dialog that has waited SECONDS.
+s = dbstack('-completenames');
+names = string({s.name});
+dialogs = ["uiconfirm" "questdlg" "inputdlg" "listdlg" "msgbox" "errordlg" "warndlg" "helpdlg" ...
+    "uigetfile" "uiputfile" "uigetdir" "uisetcolor" "uisetfont"];
+k = find(ismember(names, [dialogs "uiwait" "waitfor"]), 1, 'last');   % the outermost: what the code called
+modal = findall(groot, 'Type', 'figure', 'Visible', 'on', 'WindowStyle', 'modal');
+if isempty(k) || (~ismember(names(k), dialogs) && isempty(modal))
+    tm.UserData = struct('Key', "", 'Since', 0, 'Told', false);
+    return
+end
+caller = s(min(k + 1, numel(s)));
+key = names(k) + "@" + caller.file + ":" + caller.line;
+st = tm.UserData;
+nowS = posixtime(datetime('now'));
+if st.Key ~= key
+    tm.UserData = struct('Key', key, 'Since', nowS, 'Told', false);
+    return
+end
+if st.Told || nowS - st.Since < seconds; return; end
+st.Told = true;
+tm.UserData = st;
+windows = "";
+if ~isempty(modal); windows = " " + strjoin("""" + string({modal.Name}) + """", ", "); end
+testPart = "";
+j = find(startsWith(names, "test_"), 1, 'first');   % the test line nearest the dialog
+if ~isempty(j); testPart = sprintf(' | test %s (%s:%d)', names(j), s(j).file, s(j).line); end
+fprintf('\n[needs you] %s%s | asked by %s (%s:%d)%s\n', names(k), windows, caller.name, caller.file, caller.line, testPart);
 end
 
 

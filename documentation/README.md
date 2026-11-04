@@ -521,7 +521,10 @@ a slow section is seen at once.
 Locally, [`tools/Run-Tests.ps1`](../tools/Run-Tests.ps1) (PowerShell) runs
 suites or sections in a hidden MATLAB with a log (on a Windows desktop of its
 own that is never shown, so the windows the tests open never come over yours
-or take the focus; `-Visible` runs it on your desktop to watch), leaves out the `Slow` and
+or take the focus; `-Visible` runs it on your desktop to watch; a dialog
+left waiting for a person stops the run with an `ACTION NEEDED` block and
+exit code 3, and `-Interactive` reruns it on your desktop under `-r` so you
+can answer it), leaves out the `Slow` and
 `Benchmark` tests unless `-IncludeSlow`, keeps every suite's seconds in
 `%LOCALAPPDATA%\ephys_analysis\test_timings.csv` (and every section's in
 `section_timings.csv`) so it can say how long a run will take, and never runs

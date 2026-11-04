@@ -39,6 +39,30 @@ unless the owner says otherwise.
   the selector prints; it logs, records every run's seconds, keeps to two test
   MATLABs on the machine, and leaves out the tests tagged `Slow` and
   `Benchmark` (CI runs them; `-IncludeSlow` does too).
+- `Run-Tests.ps1` runs MATLAB on a hidden desktop, so test windows never
+  cover the owner's work. A dialog waiting for a person can't be answered
+  there. The runner then prints an `ACTION NEEDED` block (the dialog, the
+  code that asked, the test line, the command to rerun it) and exits 3.
+  When that happens:
+  1. Read the code the block names. If the test should answer the dialog
+     itself (from a timer, as `test_EphysAnalysisApp` 5d.newpanel does),
+     fix the test instead and say so.
+  2. Otherwise tell the owner clearly before anything opens on their screen:
+     send a push notification (PushNotification) and start your message
+     with this block, filled in:
+     > ⚠️ **ACTION NEEDED: a test needs your answer**
+     > **Window:** "[title]" ([what it asks])
+     > **When:** after you reply "go", `[suite:section]` runs on your
+     > desktop; the window appears about [N] s in
+     > **Do:** [exactly what to click or type, e.g. click **Yes**]
+     > **Then:** leave it; the run goes on and I report the result
+  3. Wait for "go", then run the block's command
+     (`tools\Run-Tests.ps1 '<suite:section>' -Interactive`) in the
+     background. Watch its output for `ACTION NEEDED` (Monitor), and when
+     it appears, notify again: "Now: answer '[title]': [what to do]".
+  4. Report the result. `-Interactive` uses `-r` instead of `-batch`, since
+     under `-batch` MATLAB refuses its own blocking dialogs (`questdlg`,
+     `uiconfirm`, `uigetfile`).
 - Test once, when the change is finished, not after each edit. While fixing
   failures, rerun only the suites that failed.
 - Never run the whole suite (bare `run_all_tests`) unless the owner asks for

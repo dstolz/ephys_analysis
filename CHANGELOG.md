@@ -10,9 +10,19 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis app: closing asks Save / Discard / Cancel at once (the config the app holds is checked first; only a
+  clean one is also read from the controls), and once answered the window disappears before the preferences are
+  saved and its contents deleted. A second close request while one is under way is ignored.
 - Pipeline app: the Run tab's **Steps** panel scrolls when the window is too short to show the whole checklist.
 - `tools\Run-Tests.ps1` runs MATLAB on a Windows desktop of its own that is never shown, so the apps and figures
   the tests open no longer come over your windows or take the focus; `-Visible` runs it on your desktop, as before. `-TimeoutMin` is 45 by default (was 120).
+- A dialog left waiting for a person during a test run is reported, not waited out to the timeout: `run_all_tests`
+  gained `DialogWatch` (seconds; a timer that sees `uiwait` with a modal window open, or one of MATLAB's own
+  dialogs, on the stack and prints a `[needs you]` line), and `Run-Tests.ps1` also finds the run's native dialog
+  windows. It then prints an **ACTION NEEDED** block (the dialog, the code that asked, the test line, the command
+  to rerun it), stops the run and exits 3. Under `-batch`, MATLAB refuses its own blocking dialogs and the test
+  fails, which prints the block too. `-Interactive` (with `-DialogSec`, default 30) runs on your desktop under `-r`,
+  where such a dialog waits for your answer.
 - Analysis app: a new panel put above, below, left or right of the selected one fills the empty cells on that side
   (across all the anchor's columns or rows) and leaves the grid as it is; a new row or column is added only when
   one of those cells is taken (`EphysAnalysisConfig.placePanel`). The empty cells of the Panels sketch show a gray

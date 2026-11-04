@@ -2001,7 +2001,7 @@ that is a figure's setting, not a panel type.
 | | **Generate script → Compact (loads the saved config)...** | a short script that loads the saved JSON and runs the runner; unsaved changes are saved first (it asks) |
 | | **Generate script → Standalone (every setting written out)...** | a script that needs no config file and never uses the runner ([Scripts](EphysAnalysis.md#scripts)) |
 | | **Open pipeline app** | launches `EphysPipelineApp` |
-| | **Close** | asks about unsaved changes, cancels a run under way, closes |
+| | **Close** | asks about unsaved changes at once; once answered, the window disappears, then a run under way is canceled and the app closes |
 | Edit | **Undo** *edit* (Ctrl+Z) | takes back the last edit of the figures ([Undo and redo](#undo-and-redo)); the item names it (**Undo Add panel**, **Undo Bin (ms)**) and is grayed with nothing to undo, or off the Figures tab |
 | | **Redo** *edit* (Ctrl+Y, Ctrl+Shift+Z) | does the last edit undone again; grayed with none |
 | | **Apply last change to figures...** (Ctrl+Shift+A) | offers the last edit of the figures to the other figures or panels that can take it ([Apply a change to other figures](#apply-a-change-to-other-figures)); on with Undo while that edit has something other figures can take. The Figures tab's **Apply last change...** button, above the preview, does the same |

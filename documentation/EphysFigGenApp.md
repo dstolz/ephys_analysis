@@ -303,7 +303,7 @@ scope with no selection.
 
 ### Figures tab
 
-A *figure* is a grid of panels of different types (a raster, a PSTH, a
+A *figure* is a set of panels of different types, each placed on the page by its own rectangle, (a raster, a PSTH, a
 signal trace, a probe map, ...) designed for **one observation**, a sorted
 unit, a channel of a signal or the dataset, and drawn for it: each panel
 holds *layers* of data that follow the observation or name fixed items, so a
@@ -424,11 +424,10 @@ observation, the event and the epoch count; a title of your own names no
 observation, so the top-left panel names it; `title`), **Size** (the page the figure
 is exported on, below; `size`), **Enabled** (a
 disabled figure stays in the config and is still drawn by the preview and by
-**Generate selected figure**, but the Export tab's **Run** and **Redraw All** skip it; `enabled`) and a gray summary (*"2 rows x 1
-column, 2 panels; per unit"*).
+**Generate selected figure**, but the Export tab's **Run** and **Redraw All** skip it; `enabled`) and a gray summary (*"2 panels; per unit"*).
 
 **The id.** A new figure's id is *automatic* (**auto** ticked, the id in
-gray): it names the figure's active panel types in grid order and the data it
+gray): it names the figure's active panel types, top to bottom, and the data it
 draws, *Raster+PSTH units*, *Continuous LFP*, *Raster+PSTH+Continuous
 units+LFP* ([the rule](EphysAnalysisConfig.md#figure-ids)), and follows every
 edit of them: a panel added, removed or of another type, a layer's source, the
@@ -438,8 +437,7 @@ stays whatever the panels; ticking **auto** goes back to the automatic id
 (the status bar names it). A typed id another figure has, or a blank one, is
 refused. What refers to a figure by its id follows an automatic rename: the
 observation it last showed, the right-click editor of its preview or of its
-**Open in window** figure (looks remembered there reach it), and the Spacing
-window opened on it; runs, the Export tab, the pipeline's Analysis step and
+**Open in window** figure (looks remembered there reach it); runs, the Export tab, the pipeline's Analysis step and
 **Copy settings...** read the ids when they run, and the tree and the editor hold
 the figure itself, so none of them can point at a stale id. The figure's file
 names (`{Plot}`) follow the id.
@@ -448,7 +446,7 @@ Then sections that collapse under their
 colored headers (**▼** / **►**), grouped under three **supersections**, each a
 dark full-width header in capitals that collapses all its sections at once:
 **FIGURE** (what the figure is drawn for and how its epochs are cut, and its
-grid), **PANEL** (the selected panel; its header names it, *PANEL  psth_1
+panels' places), **PANEL** (the selected panel; its header names it, *PANEL  psth_1
 (PSTH)*, or says none is picked) and **LOOK**. The sections, in this order,
 with the key of each in brackets:
 
@@ -690,11 +688,8 @@ legend panel here**, and a legend panel takes that place (one undo step, *Add
 panel*), so the legend stays where you put it instead of following the free
 space; no plot area changes size.
 
-<a name="removing-an-empty-cell"></a>
-
-**Removing an empty cell.** There are no cells any more: a panel's space, once
-removed, is simply free; New panel's *Largest empty space* fills it, or drag a
-neighbor over it with Arrange.
+A panel removed leaves its space free: New panel's *Largest empty space* fills
+it, or drag a neighbor over it with Arrange.
 
 <a name="the-new-panel-window"></a>
 
@@ -759,7 +754,7 @@ and can be applied, updated, exported, imported and removed as any template
 same box, **A panel type too**, unticked. A figure with no panel cannot be
 saved as a panel type.
 
-**Spacing** between panels is no setting of its own any more: the panels' rects place them, and **Padding** (above) keeps their labels clear of one another.
+**Spacing** between panels is no setting of its own: the panels' rects place them, and **Padding** (above) keeps their labels clear of one another (with *Boxes mean* set to *plot area*).
 
 **Changing a panel's type** (Selected panel → **Type**) starts its options afresh from
 the new type's ([Panel options](EphysAnalysisConfig.md#panel-options)),
@@ -998,10 +993,10 @@ top in one step: set the X axis side to *top* on one panel and apply it (or use
 correlation panels, a PSTH drawn as a heat map), **Sort by** and **Label with** depth and shank (they
 order and label the observation picker too), **Show** error, stop marks,
 the artifact note (under the title, how many of the drawn epochs touch an
-artifact period when **Artifacts: Exclude epochs** is off), legend and grid, the legend's place, orientation and box, **Error** (its type
-and the bootstrap's resamples), **Band fill** and **Band edge** ([Error bands](EphysAnalysisConfig.md#error-bands)). It has no tiles per page, grid spacing
+artifact period when **Artifacts: Exclude epochs** is off), legend and grid lines, the legend's place, orientation and box, **Error** (its type
+and the bootstrap's resamples), **Band fill** and **Band edge** ([Error bands](EphysAnalysisConfig.md#error-bands)). It has no tiles per page, tile spacing
 or y and color limits: a figure is one observation, the spacing is the
-Panels section's, and each panel has its own y and color limits among its
+Panels section's (the panels' rects and the padding), and each panel has its own y and color limits among its
 Options.
 
 **The preview** draws the selected figure for the observation picked, on the
@@ -1372,7 +1367,7 @@ that can take the change, each with its value now, as the control shows it
 
 | Part | What it does |
 | --- | --- |
-| the table | one row per figure for a figure's setting (Appearance, Observations, the figure's event, window and selection, Sessions, the spacing); one row per panel for a panel's (an Option, the box, the axis sides, the panel's own alignment, the text note's look), with the panel's id and type. Only those that can take it are listed: a panel whose type has the option and takes the value (a stack of *One row per channel* only on continuous panels; a baseline mode only where the type offers it; a type's own option, a PSTH's **PSTH as**, only on panels of that type), the selected figure's other panels too. A row that has the value already is gray, marked *(has it)*, and cannot be ticked |
+| the table | one row per figure for a figure's setting (Appearance, Observations, the figure's event, window and selection, Sessions); one row per panel for a panel's (an Option, the box, the axis sides, the panel's own alignment, the text note's look), with the panel's id and type. Only those that can take it are listed: a panel whose type has the option and takes the value (a stack of *One row per channel* only on continuous panels; a baseline mode only where the type offers it; a type's own option, a PSTH's **PSTH as**, only on panels of that type), the selected figure's other panels too. A row that has the value already is gray, marked *(has it)*, and cannot be ticked |
 | the column headers | click one to sort the table by it (again to reverse) |
 | the filters | above the table: a text field (live; the figure's id or title, the panel's id or type, the value now), the **panel type**, the **figure type** (the panel types the figure holds, *psth + raster*) and **Show** (all rows, those that *Will change*, those that *Has it already*). A row a filter hides keeps its tick, as sorting does |
 | **All**, **None** | tick every row shown that can change, or clear the rows shown (the rows a filter hides are left as they are); the count says how many of all will change |
@@ -1386,7 +1381,7 @@ again, one unticked stays unticked, and one never listed before is ticked.
 
 What stays with each figure is never offered: its id, title and enabled, a
 panel's title, axis label texts, place and size, its layers, overlays and
-note text, the grid's rows, columns and their sizes, and the looks
+note text, the panels' rects and what they mean, and the looks
 remembered from the preview. An edit of one of those made with Ctrl held
 opens no window; the status bar says it stays with its figure. A field of an
 event reference, window or selection given to a figure (or panel) that uses
@@ -1434,7 +1429,7 @@ decides it (an option the panel's type has and takes the value of: a PSTH's
 y limits only to PSTHs; *fixed* y limits to another type only when it has
 limits of its own): a panel takes the settings of the panel copied from
 with its id and type, else of the first panel of its type, else of the
-first panel that gives it one. With *Grid and panels* ticked too, the
+first panel that gives it one. With *Arrangement and panels* ticked too, the
 panels are copied first and the panel settings then have nothing left to
 change.
 
@@ -1459,9 +1454,9 @@ to figures' `changeTargets` and `applyChanges`, and
 
 A *figure template* is a figure's settings kept under a name of yours, to give
 to other figures, in this config or another: what it observes, its event
-reference, epoch window and trial selection, its page size, the grid with every
-panel (type, place, size, options, own alignment, layers, text note, overlays,
-waveform), the spacing, the Appearance, the looks remembered from the preview
+reference, epoch window and trial selection, its page size, every
+panel (type, rect, options, own alignment, layers, text note, overlays,
+waveform), what the rects mean (*Boxes mean*) and the padding, the Appearance, the looks remembered from the preview
 and the Sessions settings. It leaves out what makes a figure that figure: its id
 (and whether the id is automatic), its title and whether it is enabled. An
 event reference, window or selection the figure takes from the Defaults stays
@@ -1485,7 +1480,7 @@ template's new settings, apply it to them again; ticking them all in the window
 does that at once. Each figure keeps its id (an automatic one follows its new
 panels), title and enabled. The parts copy as **Copy settings...** copies them
 ([Copy settings to other figures or a design](#copy-settings-to-other-figures-or-a-design)):
-*Arrangement and panels* gives the template's grid with every panel, and
+*Arrangement and panels* gives the template's panels, each at its rect, with *Boxes mean* and the padding, and
 *Panel settings* alone gives each panel's settings to the panels of the figure
 that take them, so a template's appearance or a PSTH's options can go to figures
 whose panels you keep. The template's remembered looks replace the figure's own
@@ -1520,7 +1515,7 @@ preference `FigureTemplate`, `Folder`). The file is `<name>.json`:
   "saved": "2026-10-26 14:05",
   "from": "Raster+PSTH units",
   "panel": false,
-  "figure": { "size": {...}, "observe": {...}, "grid": {...}, "panels": [...], "ref": "default", ... }
+  "figure": { "size": {...}, "observe": {...}, "layout": {...}, "panels": [...], "ref": "default", ... }
 }
 ```
 
@@ -1719,7 +1714,7 @@ sends the preview out of date. The format:
 The **Probe layout** section of the editor (in the FIGURE supersection, below
 Sessions; collapsed until opened, no key) makes the selected figure a *probe
 figure*: drawn **once per dataset**, every unit (or channel) it observes a
-small *tile* of all the figure's panels, on the figure's grid, at that unit's
+small *tile* of all the figure's panels, each at its rect, at that unit's
 site on the probe. To lay out a figure you also want page by page, **Duplicate**
 it and tick **On the probe** on the copy. The layouts, the overlap strategies
 and what a page holds are under
@@ -1830,7 +1825,7 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | **File names** | a file-name pattern with `{Name}` `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`. A figure writes a file set per observation ([Exported figure names](file-formats.md#exported-figure-names)): `{Plot}` is its id, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`), `{Index}` its number, and `_<Unit>` is added when the pattern names neither ([Figures in an export](EphysAnalysisConfig.md#figures-in-an-export)) | `{Name}_{Plot}` |
 | **Resolution (dpi, PNG)** | the PNG resolution (`Export.Dpi`) | 150 |
 | **Overwrite existing** | off: a page whose files all exist is not written again | on |
-| **Size (cm)** | the figure's width and height (a page of many tiles is made taller, and a figure's page grows with its rows: 3.5 cm each plus 2 cm); a figure with a [size of its own](#the-page-a-figure-is-exported-on) keeps that | 18 × 12 |
+| **Size (cm)** | the figure's width and height (a page of many tiles is made taller; a figure's page is this size as it is, however many panels it holds); a figure with a [size of its own](#the-page-a-figure-is-exported-on) keeps that | 18 × 12 |
 
 **Report** (the config's `Report` section):
 
@@ -2510,7 +2505,7 @@ the preview follows); `To=` copies from the figure shown onto two others, one
 of which has the value already: the other's kept preview is marked out of
 date and nothing is drawn, and Undo takes it back. The window, answered from
 a timer, picks the heat map figure in **From** (the figure selected is then
-ticked to copy onto), ticks the Alignment part and *Grid and panels* after
+ticked to copy onto), ticks the Alignment part and *Arrangement and panels* after
 **None**, shows the font size alone for **Find** *font*, and copies: the first
 figure holds the heat map's panel, its bins included, its automatic id
 follows, and the ticks are remembered. `Design=` copies the figure's group

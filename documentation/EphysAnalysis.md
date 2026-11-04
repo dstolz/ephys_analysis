@@ -127,7 +127,7 @@ P = probeMapValues(U, src.probe, Value="rate");
 figure; renderProbeMap(P, [], gcf);
 ```
 
-A figure holds panels of any of these kinds on a grid (a raster over a PSTH over
+A figure holds panels of any of these kinds, each at its own rect on the page (a raster over a PSTH over
 an LFP trace of the unit's own channel, a heat map, a probe map, ...); each panel's
 layers call the compute functions above, and `renderFigure` draws them with
 `renderHeatmap`, `renderProbeMap`, `renderCorrMap` and `renderWaveforms` where a
@@ -1275,13 +1275,13 @@ FigureTemplate.remove("Lab card");
 FigureTemplate.save(FigureTemplate.fromFigure(cfg.Figures(k), Panel=true), "Card block");
 P = FigureTemplate.panelTypes();              % Key ("builtin:rasterPsth", then "Card block"), Label, Summary, Figure, ...
 [block, label] = FigureTemplate.panelFigure("Card block");
-[cfg.Figures(2), ids] = EphysAnalysisConfig.placePanels(cfg.Figures(2), block, "below", "psth_1");   % ids: its panels' ids there
+[cfg.Figures(2), ids] = EphysAnalysisConfig.placeBlock(cfg.Figures(2), block, "below", "psth_1");   % ids: its panels' ids there
 ```
 
 A template saved with `Panel=true` (the app's **Save as panel type...**) is a
 *panel type* too: `panelTypes()` lists it after the built-in *Raster over PSTH*
-(`"builtin:rasterPsth"`), and `EphysAnalysisConfig.placePanels` puts all its
-panels next to a panel of another figure, keeping their arrangement and gaps
+(`"builtin:rasterPsth"`), and `EphysAnalysisConfig.placeBlock` puts all its
+panels next to a panel of another figure, keeping their arrangement (a raster flush over its PSTH stays flush)
 ([Placing panels](EphysAnalysisConfig.md#placing-panels)). Like applying a
 template, it copies: the panels are that figure's own afterwards.
 
@@ -1296,7 +1296,7 @@ replaces the figure's remembered looks with the template's.
 ### Figures
 
 A *figure* of the config's [`Figures`](EphysAnalysisConfig.md#figures) list
-puts panels of different types on a grid for one observation (a unit, a
+puts panels of different types, each at its rect on the page, for one observation (a unit, a
 channel or the dataset), and has functions of its own, which the runner, the
 app's preview and the standalone scripts share:
 
@@ -1325,7 +1325,7 @@ if figureSkipReason(src, spec) == ""
     T = figureObservations(src, spec);
     for i = 1:height(T)
         F = figureCompute(src, spec, Observation=T(i, :));
-        fig = newExportFigure(cfg.Export, F, spec);     % 3.5 cm a row of the arrangement + 2 cm
+        fig = newExportFigure(cfg.Export, F, spec);     % the page: FigureSizeCm, or the figure's own size
         renderFigure(F, spec, fig);
         exportFigure(fig, fullfile("E:\out", figureOutputName(cfg.Export.FilenamePattern, ...
             src.name, spec, T(i, :), i, height(T))), Format="png");
@@ -1446,9 +1446,8 @@ close(fig)
   [figure's](#figures) page (`F` from `figureCompute`, `spec` from
   `figureFor`; `figureExportSize` gives the page): the figure's own
   [`size`](EphysAnalysisConfig.md#figure-layout-and-observe-fields) when `spec.size.source` is
-  `"own"` (px at the Export `Dpi`, in or cm), else 3.5 cm for each row of the
-  arrangement plus 2 cm for the title and x label, never below
-  `FigureSizeCm(2)`. The runner, both reports and the generated scripts call
+  `"own"` (px at the Export `Dpi`, in or cm), else `FigureSizeCm` as it is
+  (the panels are placed on it by their rects). The runner, both reports and the generated scripts call
   it so.
 - `files = exportFigure(fig, fileBase, Format=, Dpi=, Append=)`: `png` via
   `exportgraphics(Resolution=)`, `pdf` / `eps` via

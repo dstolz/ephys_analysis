@@ -69,19 +69,23 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
    after. Pick a trial parameter in **Group by** (`Depth`, say) to draw one
    color per value. The numbers on the right are the trials in each group.
 3. **Figures.** Press **Add** under the figure list. A window asks for the
-   first panel: pick *Raster over PSTH* under **Saved figures** for a unit's
-   raster above its PSTH. Or pick *Raster*, then **New panel...** puts
-   another panel on the page: a *PSTH* **Below** the raster takes the
-   raster's lower half, flush under it; **Largest empty space** puts it where
-   no panel is yet. To move or size a panel, press **Arrange** above the
-   preview: drag a panel's box to move it, a corner or edge to resize it.
-   It snaps to the other panels and the page (hold **Alt** to stop that),
-   and magenta lines show what lines up. To place it exactly, type its
-   **Position** and **Size** in the **Panels** section, in cm or the units
-   you pick. The preview on
-   the right draws the figure for the unit picked above it; step through the
-   units to look at them one by one. Right-click the plot to change colors,
-   fonts and labels.
+   first panel. Pick *Raster over PSTH* under **Saved figures** for a unit's
+   raster above its PSTH, or pick *Raster* to start with one panel.
+   - To add a panel, press **New panel...**. **Largest empty space** puts it
+     where no panel is yet. *Below*, *Above*, *Right of* or *Left of* splits
+     the selected panel in two, flush: the new panel takes the half on that
+     side.
+   - To move or resize a panel, press **Arrange** above the preview. Every
+     panel gets a box. Drag a box to move it; drag a corner or an edge to
+     resize it. The box snaps to the other panels and the page (hold **Alt**
+     to stop that), and magenta lines and distances show what lines up. Arrange
+     needs the Image Processing Toolbox; without it, type the numbers below.
+   - To place a panel exactly, type its **Position** and **Size** in the
+     **Panels** section, in the **Units** you pick (cm, inches, pixels, %).
+     Or press **Set corners** and click two opposite corners on the preview.
+   - The preview on the right draws the figure for the unit picked above it.
+     Step through the units to look at them one by one. Right-click the plot
+     to change colors, fonts and labels.
 4. **Export.** Tick the formats (png, svg, pdf), press **Run**, then **Open
    report**.
 5. **File → Save config** keeps it all: the alignment, the figures and the
@@ -98,7 +102,8 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | check one unit's figures before a long run | Export tab: **Test report** |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
 | move or resize a panel | press **Arrange** above the preview and drag the panel's box (a corner or an edge resizes it); after a click on the preview the arrow keys nudge it. Or pick it (Ctrl+Click it in the preview) and type its **Position** and **Size** in the Panels section; **Units** picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [Arranging panels on the preview](EphysFigGenApp.md#arranging-panels-on-the-preview)) |
-| put the legend where you want it | with **Arrange** on, drag the legend's dashed box where you want it: it becomes a legend panel there. Or **New panel...** → *Legend*: a panel of its own that holds the figure's legend; place and size it as any panel |
+| put the legend where you want it | with **Arrange** on, drag the legend's dashed box where you want it: it becomes a legend panel there. Or **New panel...** → *Legend*: a panel of its own that holds the figure's legend; place and size it as any panel. Appearance → **Legend** picks *Auto*, *Inside* or *None*; the legend never makes a plot smaller |
+| keep labels from running into the next panel, or make a rect mean the whole panel with its labels | in the **Panels** section, **Padding** is the clear space kept around labels, and **Boxes mean** says whether a rect is the plot area (labels kept clear) or the outer box (labels inside it) |
 | copy a change to the other figures | **Edit → Apply last change to figures...** |
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysFigGenApp.md#notes)) |
@@ -126,7 +131,7 @@ the quickest way to draw the same figures for one group of recordings.
 | observation | what one copy of a figure is drawn for: a sorted unit, a channel, or the whole dataset |
 | epoch | the stretch of time around one event that a figure uses |
 | group | the trials that share a value of the **Group by** parameter; each group gets its own color |
-| panel | one plot of a figure (a raster, a PSTH, a probe map, ...) |
+| panel | one plot of a figure (a raster, a PSTH, a probe map, ...), placed on the page by its own rectangle |
 | config | everything you set in the app, saved as a `.json` file |
 
 ## When something goes wrong

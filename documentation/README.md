@@ -383,7 +383,7 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   `mTRFExport.resample`, which mirrors a signal past its ends so that
   `resample` does not filter them against zeros; `imresize` in the analysis
   app's New panel window, which draws a saved figure's tile from its panels'
-  pictures scaled into its grid; and the `tools/makePanelThumbnails` script,
+  pictures scaled into the panels' rects; and the `tools/makePanelThumbnails` script,
   which scales those pictures down with `imresize`: the app reads the PNGs it
   wrote, committed under `analysis/icons/panels`; `images.roi.Rectangle` for
   the boxes of the analysis app's **Arrange** over the figure preview, which
@@ -661,7 +661,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs (intervals and their trials, between windows, artifact periods, events shifted by a trial parameter), raster event marks (`epochEvents`), spikes in each epoch (`epochSpikes`), trial selection and grouping, units and detections, `selectUnits`' response and auROC tests, against the synthetic truth |
 | `test_EphysAnalysisConfig` (analysis/) | the analysis config (version 2): JSON round trips, validation (the `units.response` test, "No figure is enabled.", raster options and parameter shifts included), session figures' validation, load warnings and `BadSchema`, a version 1 file migrated on load |
 | `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), the run record (`ephys-analysis-run/2`), cancel, a figure per trial group, a failing export closing its page, unit waveforms, session figures (plan, run, the *Across sessions* report section, the data export, cancel), compact vs standalone script equivalence |
-| `test_EphysFigGenApp` (analysis/) | the analysis GUI, headless: its five tabs, the toolbar, the Figures tab (the figure tree, the editor, the Design row, the preview, Generate, a figure across sessions, dragging a panel), the epoch diagram, a version 1 config opened, the Chronux tab, preferences |
+| `test_EphysFigGenApp` (analysis/) | the analysis GUI, headless: its five tabs, the toolbar, the Figures tab (the figure tree, the editor, the Design row, the preview, Generate, a figure across sessions, Arrange over the preview), the epoch diagram, a version 1 config opened, the Chronux tab, preferences |
 | `test_PipelineAnalysisStep` (analysis/) | the pipeline's Analysis step running a saved analysis config over a synthetic project: validation, plan, dry run, figures and report, progress, cancel, a `list` selection with one report per dataset, both scripts |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
 | `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, `aurocCall` over stacked results, silent units, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the figure caption's auROC clause; the PSTH and heat map marks (skipped without the toolbox) |

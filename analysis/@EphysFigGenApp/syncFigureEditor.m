@@ -62,6 +62,14 @@ function syncFigureEditor(obj)
 %                    (stackModes; not a PSTH drawn as a heat map nor a
 %                    heat map of trials), its spacing grayed out while
 %                    Off;
+%                    the Error row of a PSTH (not drawn as a heat map),
+%                    continuous, rate or tuning panel (its items by type:
+%                    errorTypeItems; grayed out on a rate panel but with
+%                    bars, its resamples but with the bootstrap CI), and
+%                    Band fill and Band edge on a PSTH, continuous,
+%                    spectrum, coherence (not over time), waveforms or
+%                    probe map panel (grayed out while its Error is Off;
+%                    the edge's style and width while the edge is none);
 %                    a continuous panel's trials (and at most, enabled
 %                    unless off); a heat map's rows, its raster sort
 %                    rows for trials (and neither row order nor Group
@@ -124,7 +132,7 @@ function syncFigureEditor(obj)
 %   amplitude; Spikes drawn but with Template, the band with a mean), the
 %   bins of a unit
 %   correlation for its peak rate, the mask with a stop event, the stack
-%   spacing when stacked, the error and legend rows with their boxes, and
+%   spacing when stacked, the legend rows with their box, and
 %   the list buttons (Add layer off on a legend panel, which has no
 %   layers: the Layers note says so); Up and Down when the figure has a
 %   neighbor that way in its group of the tree. The Panels section's
@@ -182,7 +190,7 @@ end
 
 v = struct();
 for f = ["id" "title" "size" "sizeWidth" "enabled" "summary" "observe" "obsStarred" "sesEnabled" "prbEnabled" "obsPerGroup" "obsCount" "newPanel" "rectUnits" "boxesMean" "padding" "snap" "arrangeHint" ...
-        "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showSEM" "legendLoc" "errType" "errFace" "errEdge" "looksText"]
+        "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showStop" "legendLoc" "looksText"]
     v.(f) = true;   % the rows every figure shows
 end
 % observations
@@ -249,7 +257,7 @@ layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layer
     "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "evSpanStyle" "layerColor" "layerLineStyle"];
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "tickWidth" "backColor" ...
     "firstSpike" "latencyBox" "onsetLine" "trialCount" ...
-    "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "statistic" "errorType" "order" ...
+    "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "statistic" "errorType" "errFace" "errEdge" "order" ...
     "value" "unitLabels" "waveColor" "metric" "correlation" "fisherZ" "detrend" "yLim" "cLim" "panelColormap" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
@@ -364,7 +372,12 @@ if hasPanel
     en(E.maxTrials, string(E.contTrials.Value) ~= "off");
     v.maskAfterStop = ismember(t, ["raster" "psth"]) || pointHeat;
     v.histStyle = t == "psth" && ~psthHeat; v.fill = v.histStyle; v.normalize = t == "psth";
-    v.statistic = t == "continuous"; v.errorType = v.statistic;
+    v.statistic = t == "continuous";
+    v.errorType = ismember(t, ["psth" "continuous" "rate" "tuning"]) && ~psthHeat;   % the panel's own error (its items by type)
+    if v.errorType; errorTypeItems(E.errorType, t); end
+    errOn = t ~= "rate" || string(E.rateDisplay.Value) == "bar";   % a rate panel draws its error bars on bars
+    en(E.errorType, errOn);
+    en(E.errResamples, errOn && string(E.errorType.Value) == "ci95");
     v.order = t == "heatmap" && ~trialHeat;
     et = t == "eventTrace";   % an event-trace panel's rows; those its display or trials do not use stay grayed out
     v.etDisplay = et; v.etTrials = et; v.etColorBy = et; v.etHeight = et; v.etEdge = et; v.etMinWidth = et; v.etLineStyle = et;
@@ -393,6 +406,11 @@ if hasPanel
     en([E.spTW E.spK], string(E.spTaperMode.Value) == "TWK");
     en([E.spW E.spP], string(E.spTaperMode.Value) == "Wp");
     v.spErr = ismember(t, ["spectrum" "coherence"]) && ~overTime;
+    v.errFace = ismember(t, ["psth" "continuous" "spectrum" "coherence" "waveforms" "probemap"]) && ~psthHeat && ~overTime;   % the bands' look
+    v.errEdge = v.errFace;
+    bandOn = ~(v.errorType && string(E.errorType.Value) == "off");   % its error off: no band to style
+    en([E.errFace E.errAlpha E.errEdge], bandOn);
+    en([E.errEdgeStyle E.errEdgeWidth], bandOn && lower(strtrim(string(E.errEdge.Value))) ~= "none");
     en(E.spErrP, string(E.spErr.Value) ~= "none");
     v.spScale = ismember(t, ["spectrum" "spectrogram"]);
     v.spSpikeFs = spectral && any(ismember([p.layers.source], spikes));
@@ -509,11 +527,6 @@ if np > 0; types = [fig.panels.type]; end
 v.siteSize = any(types == "probemap");
 psthHeats = arrayfun(@(q) q.type == "psth" && isfield(q.options, 'display') && q.options.display == "heatmap", fig.panels);
 v.heatColormap = any(ismember(types, ["heatmap" "probemap" "corrmap"])) || any(psthHeats);
-errOn = logical(E.showSEM.Value);
-en(E.errType, errOn);
-en(E.errResamples, errOn && string(E.errType.Value) == "ci95");
-en([E.errFace E.errAlpha E.errEdge], errOn);
-en([E.errEdgeStyle E.errEdgeWidth], errOn && lower(strtrim(string(E.errEdge.Value))) ~= "none");
 en([E.legendLoc E.legendOrient E.legendBox], E.legend.Value);
 
 % observations' enables

@@ -74,7 +74,10 @@ function buildFiguresTab(obj)
 %           panels: applyOptionsToAll; a raster's First spike row and a
 %           PSTH's Latency box row each show a summary beside a button that
 %           opens their modal window, the marks' or the box's look:
-%           latencyDialog; a raster's or PSTH's Onset line), its Waveform
+%           latencyDialog; a raster's or PSTH's Onset line; a PSTH's,
+%           continuous signal's, firing rate or tuning panel's Error with
+%           its bootstrap resamples, and the Band fill and Band edge of
+%           every panel that draws bands: errorTypeItems), its Waveform
 %           (the unit's waveform: an inset on a raster, PSTH, firing rate
 %           or tuning curve panel, the panel itself on a unit waveforms
 %           panel; what it shows, its x and y scales, size, place and
@@ -1144,12 +1147,34 @@ E.transform = uidropdown(tg, "Items", ["As recorded" "Rectified |x|" "Vector mag
     "ValueChangedFcn", changed, "Tooltip", "Rectified: each epoch's absolute value, before the mean or median. Vector " + ...
     "magnitude: each layer's channels as one trace, sqrt(x² + y² + z²) at every sample of each epoch, after the baseline " + ...
     "(subtract one to take out each axis's offset, e.g. gravity on an accelerometer), before the mean or median.");
-[S, r] = formRow(S, "errorType", "Error band:");
-E.errorType = uidropdown(S.Body, "Items", ["Off" "mean ± SEM" "mean ± SD" "bootstrap 95% CI" "interquartile range"], ...
+% the panel's own error: a PSTH's or continuous signal's band, a firing rate or tuning panel's error bars (its items
+% per type: errorTypeItems), and the bands' look
+[S, r] = formRow(S, ["errorType" "errResamples"], "Error:");
+erg = subgrid(S.Body, r, {'1x', 'fit', 70});
+E.errorType = uidropdown(erg, "Items", ["Off" "mean ± SEM" "mean ± SD" "bootstrap 95% CI" "interquartile range"], ...
     "ItemsData", EphysAnalysisConfig.AuxErrorTypes, "ValueChangedFcn", changed, ...
-    "Tooltip", "The band around each trace, over the epochs (the bootstrap and the interquartile range need the " + ...
-    "Statistics and Machine Learning Toolbox).");
-place(E.errorType, r, 2);
+    "Tooltip", "The error over the epochs: a PSTH's or continuous signal's band around each trace, a firing rate " + ...
+    "panel's error bars (Display: bars) or a tuning curve's. Off: none. The bootstrap and a continuous signal's " + ...
+    "interquartile range need the Statistics and Machine Learning Toolbox.");
+uilabel(erg, "Text", "resamples:");
+E.errResamples = uispinner(erg, "Limits", [1 1e6], "Step", 500, "Value", 1000, "RoundFractionalValues", "on", ...
+    "ValueChangedFcn", changed, "Tooltip", "Bootstrap 95% CI: how many resamples.");
+[S, r] = formRow(S, ["errFace" "errAlpha"], "Band fill:");
+bfg = subgrid(S.Body, r, {'1x', 'fit', 60});
+E.errFace = uidropdown(bfg, "Editable", "on", "Items", ["auto" "gray" "black" "white" "#d9d9d9"], "Value", "auto", ...
+    "ValueChangedFcn", changed, "Tooltip", "The fill of the panel's error bands (a waveform's too): auto, the " + ...
+    "trace's color; or one color for every band (a name or #RRGGBB).");
+uilabel(bfg, "Text", "opacity");
+E.errAlpha = uieditfield(bfg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "opaque", "Limits", [0 1], ...
+    "ValueChangedFcn", changed, "Tooltip", "Blank: opaque, paled towards the ground. 0 to 1: that opacity.");
+[S, r] = formRow(S, ["errEdge" "errEdgeStyle"], "Band edge:");
+beg = subgrid(S.Body, r, {'1x', '1x', 60});
+E.errEdge = uidropdown(beg, "Editable", "on", "Items", ["none" "auto" "black" "gray"], "Value", "none", ...
+    "ValueChangedFcn", changed, "Tooltip", "none: no outline; auto: the fill's color; or a color.");
+E.errEdgeStyle = uidropdown(beg, "Items", ["solid" "dashed" "dotted" "dash-dot"], "ItemsData", EphysAnalysisConfig.OverlayLineStyles, ...
+    "Value", "-", "ValueChangedFcn", changed, "Tooltip", "The outline's line style.");
+E.errEdgeWidth = uispinner(beg, "Limits", [0.1 6], "Step", 0.25, "Value", 0.5, "ValueChangedFcn", changed, ...
+    "Tooltip", "The outline's width, points.");
 [S, r] = formRow(S, ["contTrials" "maxTrials"], "Trials:");
 tg2 = subgrid(S.Body, r, {'1x', 'fit', 70});
 E.contTrials = uidropdown(tg2, "Items", ["Off" "Faint, behind the mean" "Only the trials"], "ItemsData", ["off" "faint" "only"], ...
@@ -1552,11 +1577,9 @@ lag = subgrid(S.Body, r, {'fit', 'fit', '1x'});
 lag.ColumnSpacing = 12;
 E.labelDepth = uicheckbox(lag, "Text", "Depth", "ValueChangedFcn", changed, "Tooltip", "Append each unit's / channel's probe depth to its label.");
 E.labelShank = uicheckbox(lag, "Text", "Shank", "ValueChangedFcn", changed, "Tooltip", "Append each unit's / channel's shank to its label.");
-[S, r] = formRow(S, ["showSEM" "showStop" "showArtifactNote" "legend" "grid"], "Show:");
-shg = subgrid(S.Body, r, repmat({'fit'}, 1, 5));
+[S, r] = formRow(S, ["showStop" "showArtifactNote" "legend" "grid"], "Show:");
+shg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
 shg.ColumnSpacing = 12;
-E.showSEM = uicheckbox(shg, "Text", "Error", "Value", true, "ValueChangedFcn", changed, ...
-    "Tooltip", "Draw the error of the means: bands behind PSTH traces.");
 E.showStop = uicheckbox(shg, "Text", "Stop marks", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Mark each epoch's stop event (the Epoch window's).");
 E.showArtifactNote = uicheckbox(shg, "Text", "Artifact note", "Value", true, "ValueChangedFcn", changed, ...
@@ -1573,29 +1596,6 @@ E.legendLoc = uidropdown(lgg, "Items", ["Auto" "Inside" "None"], "ItemsData", ["
 E.legendOrient = uidropdown(lgg, "Items", ["Auto" "Vertical" "Horizontal"], "ItemsData", ["auto" "vertical" "horizontal"], ...
     "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "How the legend's entries line up.");
 E.legendBox = uicheckbox(lgg, "Text", "Box", "ValueChangedFcn", changed, "Tooltip", "Draw the legend's outline and background.");
-[S, r] = formRow(S, ["errType" "errResamples"], "Error:");
-erg = subgrid(S.Body, r, {'1x', 'fit', 80});
-E.errType = uidropdown(erg, "Items", ["mean ± SEM" "mean ± SD" "bootstrap 95% CI"], "ItemsData", EphysAnalysisConfig.ErrorTypes, ...
-    "Value", "sem", "ValueChangedFcn", changed, "Tooltip", "What the PSTH bands show, over " + ...
-    "the epochs (the bootstrap needs the Statistics and Machine Learning Toolbox). A continuous panel's band is its own option.");
-uilabel(erg, "Text", "resamples:");
-E.errResamples = uispinner(erg, "Limits", [1 1e6], "Step", 500, "Value", 1000, "RoundFractionalValues", "on", ...
-    "ValueChangedFcn", changed, "Tooltip", "Bootstrap 95% CI: how many resamples.");
-[S, r] = formRow(S, ["errFace" "errAlpha"], "Band fill:");
-bfg = subgrid(S.Body, r, {'1x', 'fit', 60});
-E.errFace = uidropdown(bfg, "Editable", "on", "Items", ["auto" "gray" "black" "white" "#d9d9d9"], "Value", "auto", ...
-    "ValueChangedFcn", changed, "Tooltip", "auto: the trace's color; or one color for every band (a name or #RRGGBB).");
-uilabel(bfg, "Text", "opacity");
-E.errAlpha = uieditfield(bfg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "opaque", "Limits", [0 1], ...
-    "ValueChangedFcn", changed, "Tooltip", "Blank: opaque, paled towards the ground. 0 to 1: that opacity.");
-[S, r] = formRow(S, ["errEdge" "errEdgeStyle"], "Band edge:");
-beg = subgrid(S.Body, r, {'1x', '1x', 60});
-E.errEdge = uidropdown(beg, "Editable", "on", "Items", ["none" "auto" "black" "gray"], "Value", "none", ...
-    "ValueChangedFcn", changed, "Tooltip", "none: no outline; auto: the fill's color; or a color.");
-E.errEdgeStyle = uidropdown(beg, "Items", ["solid" "dashed" "dotted" "dash-dot"], "ItemsData", EphysAnalysisConfig.OverlayLineStyles, ...
-    "Value", "-", "ValueChangedFcn", changed, "Tooltip", "The outline's line style.");
-E.errEdgeWidth = uispinner(beg, "Limits", [0.1 6], "Step", 0.25, "Value", 0.5, "ValueChangedFcn", changed, ...
-    "Tooltip", "The outline's width, points.");
 sec(end+1) = S;
 
 % the looks remembered for the figure (the preview's right-click editor)

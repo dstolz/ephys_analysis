@@ -385,7 +385,10 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   app's New panel window, which draws a saved figure's tile from its panels'
   pictures scaled into its grid; and the `tools/makePanelThumbnails` script,
   which scales those pictures down with `imresize`: the app reads the PNGs it
-  wrote, committed under `analysis/icons/panels`).
+  wrote, committed under `analysis/icons/panels`; `images.roi.Rectangle` for
+  the boxes of the analysis app's **Arrange** over the figure preview, which
+  move and resize the panels: without the toolbox Arrange stays off and says
+  so, and the panels are placed by their Position and Size fields).
 - Optimization Toolbox (`fminunc`, trust-region with the analytic Hessian,
   in `NeuroGLMExport.fit` with `Method="matRegress"`: neuroGLM's own Poisson
   fit under a ridge prior; the default `Method="glmfit"` needs only the

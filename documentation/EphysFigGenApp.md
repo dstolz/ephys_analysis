@@ -543,8 +543,9 @@ below move within them. The **?** button right of the search field (also
 | **Ctrl+T** | **Auto**, ticked or unticked |
 | **Ctrl+K** | **Export preview** |
 | **Ctrl+E**, **Ctrl+W** | **Export code**, **Open in window** |
-| **Escape** | cancels an Arrange drag or Set corners (with the Arrange overlay); clears the search |
-| **Arrows**, **Shift+Arrows**, **Ctrl+Arrows**, **Alt+Arrows** | with Arrange on, after a click on the preview: nudge the selected panel by the snap step, ten steps, one preview pixel; resize it (its right or top edge) by a step. They come with the Arrange overlay |
+| **Escape** | cancels an Arrange drag (the box goes back) or Set corners; clears the search |
+| **Arrows**, **Shift+Arrows**, **Ctrl+Arrows**, **Alt+Arrows** | with Arrange on, after a click on the preview: nudge the selected panel by the snap step, ten steps, one preview pixel; resize it (its right or top edge) by a step, **Alt+Shift** ten. A burst of presses is one undo step ([Arranging panels on the preview](#arranging-panels-on-the-preview)) |
+| **Alt** held while dragging a box | no snapping (Arrange) |
 | **Ctrl+Z** | undo the last edit of the figures (**Edit → Undo**: [Undo and redo](#undo-and-redo)) |
 | **Ctrl+Y**, **Ctrl+Shift+Z** | redo the last edit undone |
 | **Ctrl** held while you edit | the edit is made, then **Apply to figures** offers it to the other figures ([Apply a change to other figures](#apply-a-change-to-other-figures)) |
@@ -596,9 +597,9 @@ plot areas share the edge and the raster's time labels are dropped. Pick a
 panel with **Ctrl+Click** on it in the preview, **Ctrl+]** and **Ctrl+[**, or
 **Ctrl+Alt+arrows** (the panel above, below, left or right, by the rects); the
 sections from Selected panel to Options then show it, and the preview outlines
-it. The preview's **Arrange** button (on the template row) will move and
-resize the panels over the preview with the mouse, snapping them to one
-another; until that overlay comes it only notes that it is on.
+it. The preview's **Arrange** button (on the template row) moves and resizes
+the panels over the preview with the mouse, snapping them to one another
+([Arranging panels on the preview](#arranging-panels-on-the-preview)).
 
 | Control | Effect |
 | --- | --- |
@@ -609,13 +610,85 @@ another; until that overlay comes it only notes that it is on.
 | **Boxes mean** | what a rect is, for the whole figure: *plot area (labels kept clear)*: the axes themselves, their labels kept clear of the neighbors and the page edge; *outer box (labels inside)*: the panel with its labels, as a box on a slide (`layout.boxesMean`) |
 | **Padding** | the clear space between a panel's labels and its neighbors or the page edge (outer box: between the rect's edge and the labels), in the units picked, stored in cm (`layout.padding`; 0.15 cm by default) |
 | **Snap**, **every** | Arrange snaps a panel moved or resized to the other panels' edges and centers, the page and a grid of this step; the arrow keys nudge the selected panel by the step (Shift: ten). Preferences, not part of the config: no undo step (`FigureSnap`, `FigureSnapStep`) |
-| **Set corners** | sets the selected panel's rect with two clicks on the preview: waits for the Arrange overlay (off until then) |
+| **Set corners** | sets the selected panel's rect with two clicks on the preview: one corner, then the opposite one (snapped as Arrange snaps; Escape or a click off the page cancels). Arrange switches on for it; on while the preview shows the figure. One undo step, *Set corners* |
 | **Remove panel** | removes the panel; the other panels keep their places, and the space it held is left free (*"Removed psth_1."*) |
 | **Bring forward**, **Send back** | the drawing order: the panel is drawn after the next panel (over it where they overlap) or before the one drawn before it; each is off at its end of the order. One undo step, *Reorder panel* |
 
 Under the buttons a gray line recalls Arrange: *Arrange (over the preview)
 drags and resizes the panels; arrows nudge the selected one by the snap step,
 Shift x10.*
+
+<a name="arranging-panels-on-the-preview"></a>
+
+**Arranging panels on the preview.** Press **Arrange** (on the template row,
+at its right) with the figure previewed: each panel gets a box over the
+preview at its rect, the selected panel's blue (`syncArrangeOverlay`). The
+boxes are the Image Processing Toolbox's `images.roi.Rectangle`: without a
+license for it the button goes back off and the status bar says so. While
+Arrange is on, the plot's data tips and right-click editors wait, the
+selected panel's outline gives way to its blue box, and the gray line under
+the preview lists the keys. The preview must show the figure, drawn or out of
+date (the boxes then stand at the rects as edited, over the last drawing's
+page); for another figure not drawn yet, or a probe figure (its panels are
+drawn in every tile), there are no boxes and the status bar says why
+(*"Arrange: preview psth units first (Ctrl+P)."*).
+
+| Do | Effect |
+| --- | --- |
+| click a box | selects its panel: the editor shows it |
+| drag a box | moves the panel. The Position fields follow as you drag; the figure takes the place when you let go, one undo step, *Move panel* (*"Moved psth_1: 9.0 x 6.0 cm at 0, 6."*) |
+| drag a handle (a corner or an edge of the box) | resizes the panel: *Resize panel* |
+| hold **Alt** while dragging | no snapping: the box goes exactly where the pointer puts it |
+| **Escape** while dragging | the box goes back; letting go then changes nothing |
+| right-click a box | **Set corners**, **Bring forward**, **Send back**, **Remove panel**, as the Panels section's buttons |
+| click the page, then the arrows | nudge the selected panel (below) |
+| **Set corners** | click one corner on the preview, then the opposite one: the panel takes the rect between them (a dashed rectangle follows the pointer after the first click); Escape or a click off the page cancels |
+
+**Snapping** (with **Snap** ticked and Alt not held), within 6 px of the
+preview: a panel you move snaps to another panel's edge (lined up with the
+same edge, or flush against the opposite one), to another panel's center or
+the page's center, to the page's edges, or to an equal spacing (its gap to
+the nearest panel the same as that panel's gap to the next one, or as the
+gap on its other side); else the nearer of its edges goes to the grid of the
+snap step. A panel you resize snaps only the edge you drag: to the other
+panels' edges, the page's edge, or an equal size (as wide or as tall as
+another panel), else to the grid. A corner clicked snaps as an edge does.
+
+**Smart guides**, magenta, while you drag: a line through every edge or
+center that lines up with another panel's, from that panel to yours; the
+distance to the nearest panel (or the page's edge) on each side, under a
+quarter of the page, in the Panels section's units (*0.50 cm*); with an
+equal spacing both gaps read *= 0.50 cm*; with an equal size the other panel
+is outlined and the readout says *= raster_1*; and, by the corner you drag,
+where the panel is: *x 2.00, y 4.50 · 9.00 x 6.00 cm* (moving), *9.00 x 6.00
+cm* (resizing). Nothing is drawn while you drag. When you let go the figure
+is laid out again in place (no panel drawn again), unless the move changes
+which panels touch which (a raster parted from its PSTH gets its time labels
+back) or which one is top-left: then the panels are drawn again. A panel
+moved keeps the tick marks it had until it is drawn again (**Preview**).
+
+**The arrow keys** nudge the selected panel once you have clicked the
+preview's page or a box; an edit in the editor, the search, F6 or another tab
+gives the arrows back to the controls.
+
+| Keys | Move the selected panel by |
+| --- | --- |
+| **Arrows** | one snap step (the Panels section's **every**, in its units) |
+| **Shift+Arrows** | ten steps |
+| **Ctrl+Arrows** | one pixel of the preview: the finest move the screen shows |
+| **Alt+Arrows** | resize: its right edge (left and right arrows) or its top edge (up and down) by one step; **Alt+Shift** ten |
+
+The panel stays on the page. A burst of presses, each under a second after
+the last, is one undo step (*Move panel* or *Resize panel*); the guides show
+the nudged place and go a second after the last press. **Ctrl+Alt+arrows**
+still select the panel above, below, left or right.
+
+**The floating legend.** When the figure's legend floats in free space
+(Appearance → **Legend** *Auto* and no legend panel), Arrange gives it a
+dashed box too: drag or resize it, or right-click it and choose **Make it a
+legend panel here**, and a legend panel takes that place (one undo step, *Add
+panel*), so the legend stays where you put it instead of following the free
+space; no plot area changes size.
 
 <a name="removing-an-empty-cell"></a>
 
@@ -641,7 +714,7 @@ right side follows it:
 | the type's label and description | what the type draws |
 | **Name** | the panel's id (`<type>_<n>`, the first free, until you type one; another panel of the figure's name is refused with a red line, the window staying open; so is a second *Legend* panel: *"The figure already has a legend panel (legend_1)."*) |
 | **Title** | the panel's own title (blank = none) |
-| **Place** | *Largest empty space* (the largest rectangle of the page no panel covers; grayed, and refused with a red line, when the page has none), *Below*, *Above*, *Right of* or *Left of* the selected panel (named: *Below raster_2 (splits it)*, the selected panel keeping the half next to the new one), and *Draw it on the preview (two clicks)* (grayed: it comes with the Arrange overlay). *Fill the page*, and off, for a figure's first panel |
+| **Place** | *Largest empty space* (the largest rectangle of the page no panel covers; grayed, and refused with a red line, when the page has none), *Below*, *Above*, *Right of* or *Left of* the selected panel (named: *Below raster_2 (splits it)*, the selected panel keeping the half next to the new one), and *Draw it on the preview (two clicks)* (after **OK**, click one corner of its place on the preview, then the opposite one; Arrange switches on, Escape cancels; grayed until the preview shows the figure). *Fill the page*, and off, for a figure's first panel |
 | **Key parameters** | **Reads** (the first layer's source, among the sources the type draws; a *Coherence* panel's **Seed** and **Partner**) and **Binding** (*Follows the observation* or *Fixed*; fixed and grayed out where the layer cannot follow), for every type but *Event traces*; then the type's own: *Raster* **Sort rows by** (trial order, the stop event or a trial parameter); *PSTH* **Bin (ms)**, **Smooth (ms)**, **Measure**, **Display** (trace or heat map); *Continuous signal* **Display** (lines or stacked rows), **Error band**; *Heat map* **Rows** (the layer's units or channels, or one unit's epochs: the binding then follows the observation), **Bin (ms)**; *Unit waveforms* **Layout**; *Probe map* **Value**; *Unit correlation* **Epoch rate**, **Correlation**; *Firing rate* **Measure**, **Display**; *Tuning curve* **Parameter**, **Series**; *Power spectrum* **Frequency (Hz)**, **Scale**; *Spectrogram* **Frequency (Hz)**, **Moving window (s)**; *Coherence* **Frequency (Hz)**; *Event traces* **Lines** (the active dataset's lines, several picked with Ctrl+click: an events layer and a row each) and **Draw as**; *Legend* **Orientation** (auto, by the panel's shape; vertical; horizontal) and **Columns** (0 = automatic), and no source: it shows the figure's legend entries. Every other option keeps the type's default and is in the editor's sections |
 | **OK**, **Cancel** | **OK** adds the panel (`onNewPanel`, `EphysAnalysisConfig.placePanel`) and selects it: the editor and the preview follow, a figure that observed the dataset observes what a following layer reads, and an automatic id follows the panel; the status bar says what was added and where, in the units picked (*"Added psth_1 (PSTH) in the free space, 9.0 x 6.0 cm at 0, 0. Its layer: units, follows the observation."*; *"... below raster_1 (raster_1 halved), ..."*; the first panel *"... filling the page, ..."*). **Cancel**, or closing the window, adds nothing |
 
@@ -2139,7 +2212,7 @@ results, on the Log tab and in the report.
 | notes | `refreshNotes`, `onNoteButton`, `onSearchNotes`, `onDatasetNoteClicked` (the ✎ column); `private/loadNotes` (on Scan), `private/noteButton`, `private/noteTip`, `private/syncNoteButtons` (from `syncStarButtons`; the notepad follows here), `private/openNotePad`, `private/noteMarks`, `private/noteEntries`, `private/goToNote` (over `goToFavorite`); the notepad `analysis/NotePad.m`, the search window `analysis/NoteSearch.m`, the files `analysis/DatasetNotes.m` (the sort a unit's note and star record: `analysis/private/sortIdentity.m`) |
 | previews | `refreshAlignPreview` (the Alignment tab; its count line, bars and excluded epochs are `analysis/EpochGroupCounts.m`'s static `summary`, `drawBars` and `withExcluded`, shared with the dataset browser's *Epochs per group* window); the Figures tab's under its row below; `private/showPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
 | epoch diagram | the window `onShowEpochs`, `refreshEpochDiagram`; the Alignment tab's `refreshAlignPreview`; the diagram itself is `analysis/EpochDiagram.m` (in a window, or `Parent=` a container) |
-| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the panels' places `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`; its saved figures `FigureTemplate.panelTypes`, placed by `EphysAnalysisConfig.placeBlock`; Save as panel type... is `onFigureTemplate("panel")` with `private/askTemplateName`), `onRemovePanel`, `onPanelOrder` (Bring forward, Send back), `onPanelRectEdited` (the Position and Size fields, read back by `gatherFigureEditor`), `onRectUnitsChanged`, `onSnapChanged`, the rows shown by `private/showPanelPlace` (over `private/figurePage`, `private/unitsShown`, `private/rectText`, `private/snapStepIn` and `figureRectConvert`), `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `placeBlock`, `removePanel`, `orderPanel` and `freeRect`; a structural edit ends in `private/commitFigureEdit`), the Arrange button `onArrangeToggled` and `cancelArrange` (also `onKeyPress`'s Escape); the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewScale` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Probe layout section's rows (`gatherFigureEditor` / `applyFigureEditor`, `syncFigureEditor`) and its tile count `private/probeTileCount` (over `figureProbeTiles`; its picker is `refreshFigureObservations`' probe branch, its preview `refreshFigurePreview`'s over `EphysAnalysisRunner.computeProbeFigure` and `renderFigure`, which hands it to `renderProbeFigure`; the tree's *On the probe* group `private/figureGroups`; the edit's name `private/figureEditLabel`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
+| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the panels' places `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`; its saved figures `FigureTemplate.panelTypes`, placed by `EphysAnalysisConfig.placeBlock`; Save as panel type... is `onFigureTemplate("panel")` with `private/askTemplateName`), `onRemovePanel`, `onPanelOrder` (Bring forward, Send back), `onPanelRectEdited` (the Position and Size fields, read back by `gatherFigureEditor`), `onRectUnitsChanged`, `onSnapChanged`, the rows shown by `private/showPanelPlace` (over `private/figurePage`, `private/unitsShown`, `private/rectText`, `private/snapStepIn` and `figureRectConvert`), `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `placeBlock`, `removePanel`, `orderPanel` and `freeRect`; a structural edit ends in `private/commitFigureEdit`), the Arrange button `onArrangeToggled` and `cancelArrange` (also `onKeyPress`'s Escape), its overlay `syncArrangeOverlay` (called by `markFigurePanel` and `setFigurePreviewState`; `private/previewShowsFigure`), the boxes `private/arrangeWidget`, `arrangeWidgetSet`, `arrangeWidgetSelect`, `arrangeWidgetLock` and their menu `private/arrangeMenu`, a drag `onArrangeMoving` / `onArrangeMoved` (over `private/arrangeContext`, the snapping `private/snapRect`, reached by the tests as `EphysFigGenApp.snapRectFor`, and the smart guides `private/arrangeCues`), a click `onArrangeClicked`, Set corners `onSetCorners`, `startCornerMode` and `private/cornerClick` (`private/pageAtPointer`), the arrow keys `nudgePanel`; the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`); the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoPreviewToggled`, `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewScale` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Probe layout section's rows (`gatherFigureEditor` / `applyFigureEditor`, `syncFigureEditor`) and its tile count `private/probeTileCount` (over `figureProbeTiles`; its picker is `refreshFigureObservations`' probe branch, its preview `refreshFigurePreview`'s over `EphysAnalysisRunner.computeProbeFigure` and `renderFigure`, which hands it to `renderProbeFigure`; the tree's *On the probe* group `private/figureGroups`; the edit's name `private/figureEditLabel`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy settings...**: `private/copySettingsDialog`, then `analysis/copyFigureSettings` over `analysis/figureSettingItems` and `analysis/figureSettingParts`, or `analysis/figureLookToDesign` into a design) |
 | remembered panel options, color swatches | `private/rememberPanelOptions` (called by `private/recordFigureEdit`), `private/rememberedPanelOptions` (read by `onNewPanel` and the New panel window), `onResetPanelOptions`, `onForgetPanelOptions`; `private/colorSwatch`, `private/syncColorSwatches` (`buildFiguresTab`, `syncFigureEditor`, `private/latencyDialog`) |
 | one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change and the Apply last change button: the undo history, the button's state and tooltip set by `private/refreshEditMenu`), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
@@ -2552,6 +2625,36 @@ axes' own menu holds both labels' text, both sides and the every-panel moves;
 top (one time axis, on the raster) as one undo step; the raster's hidden x label
 keeps a text given to it, the status bar saying the stack does not show it; an
 every-panel move that changes nothing says so.
+
+Its section 5h.arrange drives Arrange over the preview, with Auto on and
+`FigureAutoPreviewSeconds` `Inf`, on a Raster over PSTH figure grouped by
+Depth. The button on gives a hidden overlay axes over the page (limits 0-1) and a
+box per panel at its rect, the selected one blue, the outline hidden. A drag
+is driven through the boxes' listeners with
+`images.roi.ROIMovingEventData(prev, cur)`: a resize of the PSTH's right edge
+moves its box and its fields only, the release is one undo step (*Resize
+panel*) laid out in place (the same line handles); a panel added gets its box;
+a move 2 px off a neighbor snaps flush, with an alignment line and the readout
+in cm, the config unchanged; Escape puts the box back until the release, which
+changes nothing; Alt moves it freely; three panels in a row snap to an equal
+spacing (two *= ... cm* readouts) and to an equal width (*= raster_1*, the
+outline); a resize that parts the PSTH from the raster draws the preview
+again. `EphysFigGenApp.snapRectFor` (the private `snapRect`) is checked on
+unit cases: the same edge, abutting, a center, the page's edge, equal
+spacing beyond a neighbor and between two, an equal size, only the dragged
+edge, the grid, no reach (Alt), a corner. After a click on the page, three
+arrows are one undo step of one snap step each, Shift ten, Ctrl a preview
+pixel, Alt+Right a resize; the guides go after a second, an editor edit takes
+the arrows back, Ctrl+Alt+Up still selects. **Set corners** locks the boxes
+and takes two clicks (the window's `CurrentPoint` set on the page, the
+overlay's `ButtonDownFcn` called); Escape after the first, or a click off the
+page, cancels. **New panel** with `Where="draw"` adds a panel at two clicks,
+and its window offers *Draw it on the preview (two clicks)*, OK starting the
+clicks. With the panels on the left 60 % of the page the legend floats: its
+dashed box dragged makes `legend_1` there (*Add panel*), the PSTH's plot area
+unchanged. With Auto off a typed x moves the box over the out-of-date
+preview; another figure not drawn and a probe figure get no overlay and say
+why; the button off takes the overlay away, the outline and Ctrl+Click back.
 
 Its section 5q drives the figure templates and the **Apply last change...**
 button, from no figure, with Auto off and the templates folder (beside the

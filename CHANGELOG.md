@@ -419,6 +419,23 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app, Figures tab: the preview's **Arrange** button (free placement, part 4) puts a box over the preview
+  for each panel at its rect (`syncArrangeOverlay`; `images.roi.Rectangle`, so it needs the Image Processing
+  Toolbox). Drag a box to move its panel, a handle to resize it: it snaps, within 6 px, to the other panels' edges
+  (aligned or flush), their centers and the page's, the page's edges, an equal spacing and (resizing) an equal
+  size, else to the snap step's grid; **Alt** held, no snapping. Magenta smart guides show what lines up, the
+  distances to the neighbors and the page's edges in the Panels section's units, equal spacing (*= 0.50 cm*) and
+  size (*= raster_1*), and a readout of the place and size. The figure takes the rect on release, one undo step
+  (*Move panel*, *Resize panel*), laid out again in place (no panel drawn again) unless the time stack or the
+  top-left panel changes; Escape during a drag puts the box back. After a click on the preview the arrow keys
+  nudge the selected panel by the snap step (Shift: ten, Ctrl: one preview pixel, Alt: resize its right or top
+  edge), a burst of presses one undo step. **Set corners** (the Panels section, a box's right-click menu) and New
+  panel's *Draw it on the preview (two clicks)* place a panel, or a saved figure's block, by two corner clicks
+  (Escape or a click off the page cancels). A legend floating in free space gets a dashed box: dragged, or
+  *Make it a legend panel here*, it becomes a legend panel at that place. A box's right-click menu has Set corners,
+  Bring forward, Send back and Remove panel. While Arrange is on the selected panel's outline gives way to its blue
+  box and the plot's data tips and right-click editors wait; another figure not drawn, or a probe figure, gets no
+  boxes and the status bar says why.
 - `EphysAnalysisConfig.placePanel(fig, panel, where, anchorId, rect)` places a panel in the page's largest free
   space (`"free"`, the default), in the far half of an anchor panel's rect (`"below"`, `"above"`, `"left"`,
   `"right"`) or at a rect; `placeBlock` places a figure's panels as one block the same ways, mapped into the target

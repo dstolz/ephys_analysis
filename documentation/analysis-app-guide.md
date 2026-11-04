@@ -73,9 +73,12 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
    raster above its PSTH. Or pick *Raster*, then **New panel...** puts
    another panel on the page: a *PSTH* **Below** the raster takes the
    raster's lower half, flush under it; **Largest empty space** puts it where
-   no panel is yet. To move or size a panel exactly, type its **Position**
-   and **Size** in the **Panels** section, in cm or the units you pick.
-   The preview on
+   no panel is yet. To move or size a panel, press **Arrange** above the
+   preview: drag a panel's box to move it, a corner or edge to resize it.
+   It snaps to the other panels and the page (hold **Alt** to stop that),
+   and magenta lines show what lines up. To place it exactly, type its
+   **Position** and **Size** in the **Panels** section, in cm or the units
+   you pick. The preview on
    the right draws the figure for the unit picked above it; step through the
    units to look at them one by one. Right-click the plot to change colors,
    fonts and labels.
@@ -94,8 +97,8 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | draw a small figure at every unit's place on the probe | tick **On the probe** in the figure's Probe layout section |
 | check one unit's figures before a long run | Export tab: **Test report** |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
-| move or resize a panel | pick it (Ctrl+Click it in the preview), then type its **Position** and **Size** in the Panels section; **Units** picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [the arrangement](EphysFigGenApp.md#removing-an-empty-cell)) |
-| put the legend where you want it | **New panel...** → *Legend*: a panel of its own that holds the figure's legend; place and size it as any panel |
+| move or resize a panel | press **Arrange** above the preview and drag the panel's box (a corner or an edge resizes it); after a click on the preview the arrow keys nudge it. Or pick it (Ctrl+Click it in the preview) and type its **Position** and **Size** in the Panels section; **Units** picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [Arranging panels on the preview](EphysFigGenApp.md#arranging-panels-on-the-preview)) |
+| put the legend where you want it | with **Arrange** on, drag the legend's dashed box where you want it: it becomes a legend panel there. Or **New panel...** → *Legend*: a panel of its own that holds the figure's legend; place and size it as any panel |
 | copy a change to the other figures | **Edit → Apply last change to figures...** |
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysFigGenApp.md#notes)) |

@@ -3126,6 +3126,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     units5ha = app.FigureRectUnits;
     snap5ha = {app.FigureSnap, app.FigureSnapStep};
     coalesce5ha = app.FigureHistory.CoalesceSeconds;
+    app.FigureHistory = FigureEditHistory();   % the steps counted below start here (the sections before may have filled its Depth, 100)
     unitsTo("cm");
     app.FigureSnap = true;
     app.FigureSnapStep = struct('value', 0.5, 'units', "cm");
@@ -5113,14 +5114,14 @@ end
 
 
 function copyFigureDialog(D)
-%copyFigureDialog  In the Copy figure settings window: From the second figure, None, tick the Alignment part and the layout, Find "font", note the count, Copy.
+%copyFigureDialog  In the Copy figure settings window: From the second figure, None, tick the Alignment part and the Panels setting, Find "font", note the count, Copy.
 D.From.Value = 2;
 D.From.ValueChangedFcn(D.From, []);
 targets = string({D.Targets.CheckedNodes.Text});
 press(D, "None");
 nodes = findall(D.Settings, 'Type', 'uitreenode');
 align = nodes(string({nodes.Text}) == "Alignment");
-layout = nodes(startsWith(string({nodes.Text}), "Arrangement and panels"));
+layout = nodes(startsWith(string({nodes.Text}), "Panels ("));   % the leaf "Panels (types, places, options, layers)" of the part Arrangement and panels (a part's own node holds no setting)
 D.Settings.CheckedNodes = [align; align.Children; layout];
 D.Settings.CheckedNodesChangedFcn(D.Settings, []);
 D.Find.ValueChangingFcn(D.Find, struct('Value', 'font'));

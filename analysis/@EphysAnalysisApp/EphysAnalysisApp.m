@@ -338,6 +338,7 @@ classdef EphysAnalysisApp < handle
         Config EphysAnalysisConfig = EphysAnalysisConfig()   % working copy
         SavedConfigStruct struct = struct()                   % last saved / opened state
         Applying (1,1) logical = false      % applyConfig is pushing values (suppresses onConfigChanged)
+        Closing (1,1) logical = false       % onClose is under way: another close request is ignored
         RecentConfigs (1,:) string = string.empty(1,0)
         ScriptFolder (1,1) string = ""
         PreviewMaxMB (1,1) double = 500     % larger signal extracts are previewed only on request

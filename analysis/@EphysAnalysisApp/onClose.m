@@ -1,6 +1,20 @@
 function onClose(obj)
-%onClose  Ask about unsaved changes, stop a run, save the preferences, write the note in the notepad, close.
-if ~obj.confirmDiscard(); return; end
+%onClose  Ask about unsaved changes, then hide the window, stop a run, save the preferences, write the note in the notepad, close.
+%   The Save / Discard / Cancel question comes first and at once
+%   (confirmDiscard). Once the answer lets the app close, the window is
+%   hidden before the rest, so it goes at once; deleting a window that
+%   holds drawn previews takes a second or more. A close request made
+%   while one is under way (a second click on the window's X) is ignored.
+if obj.Closing; return; end
+obj.Closing = true;
+if ~obj.confirmDiscard()
+    obj.Closing = false;
+    return
+end
+if ~isempty(obj.Fig) && isvalid(obj.Fig)
+    obj.Fig.Visible = "off";
+    drawnow nocallbacks   % shown hidden now; a queued edit is not acted on (it would start a preview)
+end
 if (obj.Running || obj.FigurePreviewState == "computing") && ~isempty(obj.Runner)
     obj.Runner.cancel();   % a preview computing right now stops at its next checkpoint
 end

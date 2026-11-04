@@ -353,7 +353,7 @@ that recording again by its folder.
 | --- | --- |
 | Trials: every control but Prefetch ticked; Probe: Exclude channels, the channel-count check; Artifacts: Detect / Preview, manual periods table; Sorting: Use folder / Use auto / Open in phy, Optimize for probe (the default probe when the dataset has none); Spikes: Preview; Analysis: Open report / Open figures folder (the active dataset's first); Visualize; Review; Project: Associate file / Clear, the Tools panel set to **Active dataset** | the **active dataset** |
 | Run pipeline, Dry run, Run this step, Plan, Signals / Export / Analysis target tables; Project: Find sessions for selected, the Tools panel set to **Ticked datasets**; Clean up: Preview and the files it lists | the rows **ticked** in the Project table (`Project.Selection = "list"`), or **all** datasets when none are ticked (`"all"`) |
-| Trials: Prefetch ticked | the rows **ticked** in the Project table; with none ticked it asks you to tick some |
+| Trials: Prefetch ticked; Probe and Artifacts: Apply to ticked datasets | the rows **ticked** in the Project table; with none ticked it asks you to tick some |
 | Probe: Assign to selected datasets | the rows **ticked** in the Project table, or the **active dataset** when none are ticked |
 | Project: Tags... (and Dataset → Tags...) | the rows **selected** (highlighted) in the Project table, ticked or not, or the **active dataset** when none is selected |
 | Project: a click on a Tags cell | that row's dataset (it becomes the active one) |
@@ -1325,8 +1325,11 @@ holds the exclusions of the active dataset, written to its manifest when the
 field is committed (Enter, or a click elsewhere). The list is parsed
 strictly: text that does not parse changes nothing, an alert says why and
 the field shows the list in force again. Channels beyond the dataset's
-channel count are dropped, and the status bar says so. How exclusions reach
-each step:
+channel count are dropped, and the status bar says so. **Apply to ticked
+datasets** gives every dataset ticked in the Project table the field's list,
+in place of its own, and writes their manifests; with none ticked it asks you
+to tick some. A click on it commits the field first, so the active dataset
+takes the list too. How exclusions reach each step:
 
 | Step | Excluded channels |
 | --- | --- |
@@ -1385,6 +1388,7 @@ live while the box is ticked.
 | --- | --- |
 | **Leave out bad channels** | `Artifacts.ExcludeBadChannels` (off): leave each dataset's `BadChannels` out of every step. A run or preview suggests them for a dataset whose list was never set, whatever the reference |
 | Bad, **Suggest** | the active dataset's `BadChannels` (written to its manifest). **Suggest** measures each channel's noise floor on a sample of the recording as it is and fills the field (each channel's ratio goes to the log); typing a list marks it set by hand. A list that does not parse changes nothing (an alert says why). Channels excluded on the Probe tab are not counted |
+| **Apply to ticked datasets** | gives every dataset ticked in the Project table the Bad field's list, in place of its own, set by hand, and writes their manifests; with none ticked it asks you to tick some. A click on it commits the field first, so the active dataset takes the list too |
 | right-click a lane of the viewer's plot | **Mark ch *N* as bad** / **Unmark ch *N* as bad** adds the lane's channel to the Bad list or takes it off (set by hand, as typing it); **Leave out bad channels** ticks or unticks the box |
 
 The viewer draws the bad channels' lanes light gray, *(bad)* after their

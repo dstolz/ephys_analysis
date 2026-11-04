@@ -115,11 +115,15 @@ Three ideas make the rest easy:
    look at.
 4. **Probe.** Pick your probe's map and press **Assign to all datasets** (or
    make it the default probe). Type the bad channels of a recording in
-   **Exclude channels**.
+   **Exclude channels**. To leave the same channels out of several
+   recordings, tick them on the Project tab, type the channels and press
+   **Apply to ticked datasets**.
 5. **Artifacts** (optional). Choose a common reference if you want one, press
    **Detect / Preview** to see what the detector finds, and mark extra noisy
    periods by hand on the plot. **Leave out bad channels** finds dead or noisy
-   channels for you.
+   channels for you. To mark the same bad channels on several recordings,
+   tick them on the Project tab, type the channels in **Bad** and press
+   **Apply to ticked datasets**.
 6. **Choose the steps.** Switch on what you need on the Sorting, Signals,
    Spikes, Export and Analysis tabs, and set their options. The defaults are a
    good start. The **Diagram** tab draws what your config will do, from top

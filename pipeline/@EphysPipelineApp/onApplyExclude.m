@@ -2,6 +2,9 @@ function onApplyExclude(obj, scope)
 %onApplyExclude  Set per-recording channel exclusions from the Probe tab field.
 %   scope = "selected" -> the active dataset (also the path taken when the
 %                         edit field is committed)
+%   scope = "ticked"   -> the datasets ticked in the Project table (Apply to
+%                         ticked datasets); with none ticked it asks you to
+%                         tick some and changes nothing
 %   scope = "all"      -> every dataset in the project
 %
 %   The field holds 1-based channels to drop from Kilosort4 sorting (e.g.
@@ -38,6 +41,14 @@ switch scope
             return
         end
         targets = d;
+    case "ticked"
+        idx = obj.tickedDatasetIndices();
+        if isempty(idx)
+            uialert(obj.Fig, "Tick the datasets to exclude these channels on in the Select column of the Project tab.", ...
+                "Exclude channels");
+            return
+        end
+        targets = obj.Project.Datasets(idx);
     case "all"
         targets = obj.Project.Datasets;
     otherwise
@@ -63,6 +74,8 @@ obj.onProbeSelected();   % refresh the channel-count check / preview marks
 
 if scope == "all"
     msg = sprintf("Excluded %d channel(s) on %d dataset(s).", numel(ch), numel(targets));
+elseif scope == "ticked"
+    msg = sprintf("Excluded %d channel(s) on %d ticked dataset(s).", numel(ch), numel(targets));
 else
     msg = sprintf("Excluded %d channel(s) on '%s'.", ...
         numel(targets(1).ExcludeChannels), targets(1).Name);

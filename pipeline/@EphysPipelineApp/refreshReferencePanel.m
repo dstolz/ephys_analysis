@@ -73,6 +73,7 @@ d = obj.currentDataset();
 hasData = ~isempty(d);
 obj.ArtBadField.Enable         = matlab.lang.OnOffSwitchState(hasData);
 obj.ArtBadSuggestButton.Enable = matlab.lang.OnOffSwitchState(hasData);
+obj.ArtBadTickedButton.Enable  = matlab.lang.OnOffSwitchState(hasData);
 if ~hasData
     obj.ArtBadField.Value = "";
     obj.ArtBadStatusLabel.Text = "";

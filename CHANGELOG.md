@@ -425,6 +425,10 @@ says how to cut a release.
 - Pipeline app, Project tab: **Copy manifests** in the Tools panel puts the manifest files of its datasets (the active
   one, or the ticked ones) on the clipboard as files, to paste into a folder, an e-mail or a chat, and lists in a
   message the files the clipboard holds and any not copied (`copyFilesToClipboard`, Windows).
+- Pipeline app, Probe tab: **Apply to ticked datasets**, next to **Exclude channels**, gives every dataset ticked in the
+  Project table the field's channel list and saves it in their manifests (the field alone edits the active dataset).
+  The Artifacts tab has the same button under **Bad**: the ticked datasets take the Bad list as their bad channels,
+  set by hand.
 - Figures: free panel placement, Arrange. The preview's **Arrange** button on the Figures tab puts a box over the preview
   for each panel at its rect (`syncArrangeOverlay`; `images.roi.Rectangle`, so it needs the Image Processing
   Toolbox). Drag a box to move its panel, a handle to resize it: it snaps, within 6 px, to the other panels' edges

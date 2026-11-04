@@ -392,6 +392,7 @@ classdef EphysPipelineApp < handle
         ArtBadCheckBox      matlab.ui.control.CheckBox           % Artifacts.ExcludeBadChannels
         ArtBadField         matlab.ui.control.EditField          % active dataset's bad channels
         ArtBadSuggestButton matlab.ui.control.Button
+        ArtBadTickedButton  matlab.ui.control.Button       % Apply to ticked datasets: the Bad list on every ticked dataset
         ArtBadStatusLabel   matlab.ui.control.Label
         ArtRefDropDown      matlab.ui.control.DropDown           % common reference (Reference.Mode): none / car / cmr / wcar
         ArtRefLowField      matlab.ui.control.NumericEditField   % good-noise band (x median) of the suggestion (Reference.BadLow / BadHigh)
@@ -469,6 +470,7 @@ classdef EphysPipelineApp < handle
         AssignAllButton     matlab.ui.control.Button
         ProbeDatasetDropDown matlab.ui.control.DropDown
         ExcludeChannelsField matlab.ui.control.EditField
+        ExcludeTickedButton matlab.ui.control.Button       % Apply to ticked datasets: the field's list on every ticked dataset
         ShowChanNumbersCheckBox matlab.ui.control.CheckBox
         ShowKCoordsCheckBox matlab.ui.control.CheckBox      % Probe info plot: label each site with its kcoords group
         ProbeDefaultField   matlab.ui.control.EditField
@@ -1268,7 +1270,7 @@ classdef EphysPipelineApp < handle
         onSuggestReferenceExclude(obj)
         onReferenceExcludeEdited(obj)
         onSuggestBadChannels(obj)
-        onBadChannelsEdited(obj)
+        onBadChannelsEdited(obj, scope)
         onClearManualArtifacts(obj, opts)
         showArtifactView(obj, span)
         drawArtifactView(obj)

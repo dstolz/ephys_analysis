@@ -38,7 +38,7 @@ arguments
     n (1,1) double
 end
 
-unit = regexprep(observationLabel(obs), '[^\w\-\.]', '_');
+unit = regexprep(observationShortLabel(obs), '[^\w\-\.]', '_');
 grp = string(valueOf(obs, 'groupLabel', ""));
 if isempty(grp) || ismissing(grp); grp = ""; end
 perGroup = grp ~= "";
@@ -54,41 +54,6 @@ if n > 1 && ~contains(pattern, ["{Unit}" "{Index}"]) && ~ismember(string(valueOf
 end
 if perGroup && ~contains(pattern, ["{Group}" "{Index}"])
     f = f + "_" + grp;
-end
-end
-
-
-function s = observationLabel(obs)
-%observationLabel  An observation's short label: "su12", "ch7", "dataset".
-kind = string(valueOf(obs, 'kind', "unit"));
-meta = valueOf(obs, 'meta', []);
-switch kind
-    case "unit"
-        s = "";
-        if istable(meta) && height(meta) >= 1 && ismember("label", string(meta.Properties.VariableNames))
-            s = string(meta.label(1));
-            cls = "";
-            if ismember("class", string(meta.Properties.VariableNames)); cls = string(meta.class(1)); end
-            if cls ~= "det" && cls ~= "" && startsWith(s, cls)
-                % a sorted unit "<class><id>_<recording>": the part before the suffix every unit of the
-                % recording shares; a detection's label is its channel's name ("Shank_1"), kept whole
-                s = shortUnitLabels(s);
-            end
-        end
-        if s == ""; s = "u" + valueOf(obs, 'unitId', NaN); end
-    case "channel"
-        ch = double(valueOf(obs, 'channel', NaN));
-        if isfinite(ch)
-            s = "ch" + ch;
-        elseif istable(meta) && height(meta) >= 1 && ismember("label", string(meta.Properties.VariableNames))
-            s = string(meta.label(1));   % an AUX channel has no recording channel
-        else
-            s = "ch" + valueOf(obs, 'column', NaN);
-        end
-    case "probe"
-        s = "probe";   % a probe figure's page: every tile of the dataset
-    otherwise
-        s = "dataset";
 end
 end
 

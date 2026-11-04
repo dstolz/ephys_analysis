@@ -12,7 +12,9 @@ function onArrangeMoved(obj, id, evt)
 %   which (a time stack's labels) or the top-left panel draws the panels
 %   again. The status bar says where the panel is now ("Moved psth_1:
 %   9.0 x 6.0 cm at 0, 6."). A drag that leaves the rect as it was changes
-%   nothing; one Escape canceled (cancelArrange) puts the box back.
+%   nothing (a release with no step of a drag before it, where it started,
+%   is not snapped either); one Escape canceled (cancelArrange) puts the
+%   box back.
 %   ID ":legend", the floating legend's box (dragged or resized, or its
 %   menu's Make it a legend panel here, EVT []): a legend panel is added
 %   at the box (onNewPanel, Type "legend", Where "rect": "Add panel"), so
@@ -40,6 +42,10 @@ if isempty(evt)
     raw = double(C.w.Position);
 else
     raw = double(reshape(evt.CurrentPosition, 1, 4));
+    if mode ~= "drag" && all(abs(raw - C.rect0) < 1e-12)   % a click that moved nothing: no snap to the grid either
+        arrangeWidgetSet(C.w, C.rect0);
+        return
+    end
 end
 if obj.FigureSnap && ~C.alt
     rect = snapRect(raw, C.rect0, C.others, C.step, C.tol, Names=C.names);

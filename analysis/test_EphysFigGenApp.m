@@ -200,7 +200,7 @@ FE = app.FigureEditor;
 FA = app.FigureAlignControls;
 FP = app.PanelAlignControls;
 figAxes = @() findall(app.FigurePreviewPanel, 'Type', 'axes', '-regexp', 'Tag', '^(axes|rasterAxes)$');
-figTitle = @() strjoin(string(findall(app.FigurePreviewPanel, 'Type', 'axes', 'Tag', 'titleHost').Title.String), " ");
+figTitle = @() previewTitle(app.FigurePreviewPanel);
 rectIs = @(r, want) numel(r) == 4 && all(abs(double(r) - want) < 1e-6);
 secOf = @(n) app.FigureSections([app.FigureSections.Name] == n);
 outRoot = fullfile(root, 'out');
@@ -1279,23 +1279,27 @@ if S.sec("5d.outline", "the panel keys across the grid and in the panel order; t
     check(noLeft && up && prev && round1 && app.SelectedPanel == 1 && contains(app.StatusBar.Text, "panel 1 of 3"), ...
         'Ctrl+Alt+Left (none), Ctrl+Alt+Up; Ctrl+[ and Ctrl+] step through the panel order, round at the ends');
     % the outline follows the figure laid out again (the preview resized)
-    app.onPanelSelected(2);
-    pos0 = findPanelAxes(P, "psth_1").Position;
-    app.Fig.Position(3:4) = app.Fig.Position(3:4) + [160 120];   % (the preview is the shape of its page: it grows with whichever side limits it)
-    drawnow;
-    app.fitFigureViews();   % (the preview host's SizeChangedFcn: MATLAB runs it for a visible figure only)
-    P.SizeChangedFcn(P, []);   % (MATLAB runs it for a visible figure only)
-    [bm, nm] = markBox(P);
-    check(nm == 4 && ~isequal(findPanelAxes(P, "psth_1").Position, pos0) && boxNear(bm, expectBox(P, "psth_1")), ...
-        'the preview made larger, the figure is laid out again and the outline follows psth_1''s axes');
-    app.Fig.Position(3:4) = app.Fig.Position(3:4) - [160 120];
-    drawnow;
-    app.fitFigureViews();
-    P.SizeChangedFcn(P, []);
-    h = app.onOpenFigureWindow();
-    check(isgraphics(h) && isempty(findall(h, 'Tag', 'previewPanelMark')) && numel(findall(P, 'Tag', 'previewPanelMark')) == 4, ...
-        'Open in window draws no outline (it is the preview''s, not the figure''s)');
-    delete(h);
+    if app.FigurePreviewState == "drawn"   % (a preview that failed has no axes to follow)
+        app.onPanelSelected(2);
+        pos0 = findPanelAxes(P, "psth_1").Position;
+        app.Fig.Position(3:4) = app.Fig.Position(3:4) + [160 120];   % (the preview is the shape of its page: it grows with whichever side limits it)
+        drawnow;
+        app.fitFigureViews();   % (the preview host's SizeChangedFcn: MATLAB runs it for a visible figure only)
+        P.SizeChangedFcn(P, []);   % (MATLAB runs it for a visible figure only)
+        [bm, nm] = markBox(P);
+        check(nm == 4 && ~isequal(findPanelAxes(P, "psth_1").Position, pos0) && boxNear(bm, expectBox(P, "psth_1")), ...
+            'the preview made larger, the figure is laid out again and the outline follows psth_1''s axes');
+        app.Fig.Position(3:4) = app.Fig.Position(3:4) - [160 120];
+        drawnow;
+        app.fitFigureViews();
+        P.SizeChangedFcn(P, []);
+        h = app.onOpenFigureWindow();
+        check(isgraphics(h) && isempty(findall(h, 'Tag', 'previewPanelMark')) && numel(findall(P, 'Tag', 'previewPanelMark')) == 4, ...
+            'Open in window draws no outline (it is the preview''s, not the figure''s)');
+        delete(h);
+    else
+        check(false, "the outline follows a resize, and Open in window draws none: no preview drawn (" + app.FigurePreviewState + ")");
+    end
     % across the page: two panels side by side under a wide one; Right and Left go between them, Up from either to the wide one
     cfg0 = app.gatherConfig();
     cfgO = cfg0;
@@ -1776,6 +1780,7 @@ end
 
 if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where (the first fills the page, below / above / right / left, the free space, a rect), Remove, the rect's fields in each unit (typed, refused, kept on the page), the units switched, Boxes mean and Padding, Bring forward / Send back, Snap and its step, Arrange's button and Escape, layer and figure Up and Down (Auto off: nothing here needs drawing)")
     app.FigureAutoCheckBox.Value = false;
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5d.outline), let go: an edit stays with its figure
     units5a = app.FigureRectUnits;
     app.onAddFigure("blank");
     unitsTo("cm");
@@ -1998,6 +2003,7 @@ if S.sec("5d.newpanel", "Add: a blank figure, then the New panel window (answere
     check(rowShown("legOrient") && rowShown("legAlign") && ~rowShown("panelXLabel") && ~rowShown("panelBox") && rowShown("layerNote") ...
         && contains(string(FE.layerNote.Text), "has no layers") && FE.addLayer.Enable == "off", ...
         'a legend panel selected: its Options rows (entries, place in the panel), no axes rows, the Layers note and Add off');
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % (no Ctrl held from an earlier section: the edit stays with this figure)
     FE.legOrient.Value = "horizontal";
     FE.legColumns.Value = 3;
     app.onConfigChanged("figure", FE.legColumns);
@@ -4755,6 +4761,14 @@ D.Pick("legend");
 press(D, "Ok");
 setappdata(groot, 'secondLegendSeen', string(D.Message.Text));
 press(D, "Cancel");
+end
+
+
+function t = previewTitle(P)
+%previewTitle  The preview's title text ("" while none is drawn: a preview not drawn yet, or failed, fails its check instead of erroring).
+h = findall(P, 'Type', 'axes', 'Tag', 'titleHost');
+t = "";
+if ~isempty(h); t = strjoin(string(h(1).Title.String), " "); end
 end
 
 

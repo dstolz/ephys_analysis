@@ -33,7 +33,7 @@ function d = latencyDialog(obj, kind)
 %
 %   See also buildFiguresTab, latencySummary, firstSpikeLatency, commitFigureEdit.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     kind (1,1) string {mustBeMember(kind, ["firstSpike" "latencyBox"])}
 end
 delete(findall(groot, 'Type', 'figure', 'Tag', 'latencyDialog'));

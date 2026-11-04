@@ -1,13 +1,13 @@
 # Analysis app guide
 
-The analysis app, `EphysAnalysisApp`, draws figures of recordings the
+The analysis app, `EphysFigGenApp`, draws figures of recordings the
 [pipeline app](pipeline-app-guide.md) has processed: rasters, PSTHs, evoked
 potentials, firing rates, tuning curves, heat maps, probe maps, spectra and
 more. You design a figure once, see it on one unit, and then draw it for
 every unit of every recording you choose, with an HTML or PDF report that
 collects them. This page is for people who use the app; it needs no
 programming beyond the line that opens it. The
-[app's reference](EphysAnalysisApp.md) has the details of every control.
+[app's reference](EphysFigGenApp.md) has the details of every control.
 
 <!-- wiki: ![The analysis app, Figures tab, previewing a unit's raster over its PSTH, grouped by Depth](images/analysis-figures-tab.png) -->
 
@@ -36,26 +36,26 @@ The recordings must have been processed by the pipeline: sorted units or
 detected spikes for the spike figures, the LFP or MUA signals for the signal
 figures, and paired behavior trials to choose or group trials by the
 behavior. A figure the data cannot support says why instead of drawing
-([Why is my figure skipped?](EphysAnalysisApp.md#why-is-my-figure-skipped)).
+([Why is my figure skipped?](EphysFigGenApp.md#why-is-my-figure-skipped)).
 
 ## Open the app
 
 ```matlab
-EphysAnalysisApp("D:\EPHYS")       % your project folder, the one the pipeline scanned
+EphysFigGenApp("D:\EPHYS")       % your project folder, the one the pipeline scanned
 ```
 
 Or, from the pipeline app, **File → Open analysis app...** (it opens on the
-pipeline's project). `EphysAnalysisApp` alone opens your last config.
+pipeline's project). `EphysFigGenApp` alone opens your last config.
 
 ## The five tabs
 
 | Tab | Use it to |
 | --- | --- |
-| [Data](EphysAnalysisApp.md#data-tab) | choose where the recordings are, tick the ones to draw, and see the active one's lines and trial parameters |
-| [Alignment](EphysAnalysisApp.md#alignment-tab) | set the event every figure aligns to, the time window around it, and which trials count and how they are grouped. The counts on the right say how many trials fall in each group |
-| [Figures](EphysAnalysisApp.md#figures-tab) | design figures and preview them on one unit, channel or recording at a time |
-| [Export](EphysAnalysisApp.md#export-tab) | choose the file formats and the report, then draw everything |
-| [Log](EphysAnalysisApp.md#log-tab) | read what each scan, preview and run did |
+| [Data](EphysFigGenApp.md#data-tab) | choose where the recordings are, tick the ones to draw, and see the active one's lines and trial parameters |
+| [Alignment](EphysFigGenApp.md#alignment-tab) | set the event every figure aligns to, the time window around it, and which trials count and how they are grouped. The counts on the right say how many trials fall in each group |
+| [Figures](EphysFigGenApp.md#figures-tab) | design figures and preview them on one unit, channel or recording at a time |
+| [Export](EphysFigGenApp.md#export-tab) | choose the file formats and the report, then draw everything |
+| [Log](EphysFigGenApp.md#log-tab) | read what each scan, preview and run did |
 
 **Help → Help for this tab** opens the page for the tab you are on.
 
@@ -95,11 +95,11 @@ pipeline's project). `EphysAnalysisApp` alone opens your last config.
 | draw a small figure at every unit's place on the probe | tick **On the probe** in the figure's Probe layout section |
 | check one unit's figures before a long run | Export tab: **Test report** |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
-| close an empty cell in a figure | in the sketch of the grid (Panels section), click the **−** in the cell and pick a way: stretch the column's or row's panels over it, shift the cells up or left, grow the panel next to it, or delete its row or column. The ways that cannot are grayed, with why (see [Removing an empty cell](EphysAnalysisApp.md#removing-an-empty-cell)) |
+| close an empty cell in a figure | in the sketch of the grid (Panels section), click the **−** in the cell and pick a way: stretch the column's or row's panels over it, shift the cells up or left, grow the panel next to it, or delete its row or column. The ways that cannot are grayed, with why (see [Removing an empty cell](EphysFigGenApp.md#removing-an-empty-cell)) |
 | copy a change to the other figures | **Edit → Apply last change to figures...** |
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
-| keep a note on a recording, channel or unit | the notepad (see [Notes](EphysAnalysisApp.md#notes)) |
-| reuse a figure's panels in other figures | select it and press **Save as panel type...** under the figure list. In any figure, **New panel...** then lists it under **Saved figures**: pick it, and all its panels go next to the selected panel, arranged as they were (see [Saved figures as panel types](EphysAnalysisApp.md#figures-as-panel-types)) |
+| keep a note on a recording, channel or unit | the notepad (see [Notes](EphysFigGenApp.md#notes)) |
+| reuse a figure's panels in other figures | select it and press **Save as panel type...** under the figure list. In any figure, **New panel...** then lists it under **Saved figures**: pick it, and all its panels go next to the selected panel, arranged as they were (see [Saved figures as panel types](EphysFigGenApp.md#figures-as-panel-types)) |
 | draw the same figures every time the pipeline runs | save the config, then choose it on the pipeline app's Analysis tab |
 | draw the same figures from a script | **File → Generate script** |
 
@@ -131,7 +131,7 @@ the quickest way to draw the same figures for one group of recordings.
 - **A figure says it cannot be drawn.** It says why and what to do: *No LFP
   signal: switch on LFP in the pipeline's Signals tab and run it*, *No paired
   trials: approve the pairing on the pipeline's Trials tab*, and so on. See
-  [Why is my figure skipped?](EphysAnalysisApp.md#why-is-my-figure-skipped)
+  [Why is my figure skipped?](EphysFigGenApp.md#why-is-my-figure-skipped)
 - **The Export tab's Plan** lists every recording and figure that would run,
   and why any would be skipped, with a *What to do* column, before you run
   anything. Double-click a row to see that figure.

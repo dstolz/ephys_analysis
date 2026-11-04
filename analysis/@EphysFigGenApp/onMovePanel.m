@@ -2,7 +2,7 @@ function onMovePanel(obj, direction)
 %onMovePanel  Swap the selected panel with its same-shaped neighbor "up", "down", "left" or "right" (movePanel).
 %   Without such a neighbor nothing moves, and the status bar says so.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     direction (1,1) string {mustBeMember(direction, ["up" "down" "left" "right"])}
 end
 k = obj.SelectedFigure;

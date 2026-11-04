@@ -7,11 +7,11 @@ function results = run_all_tests(names, opts)
 %   run_all_tests(NAMES)     runs only the named suites (string array or
 %                            cellstr). A function-style suite that takes
 %                            sections (TestSections) can be cut down to some:
-%                            "test_EphysAnalysisApp:5i,5j" runs its fixture
+%                            "test_EphysFigGenApp:5i,5j" runs its fixture
 %                            and the sections 5i and 5j (with the ones they
 %                            declare they need); "5d" also selects every
 %                            "5d.*". Single quotes survive every shell:
-%                            run_all_tests({'test_EphysAnalysisApp:5i'})
+%                            run_all_tests({'test_EphysFigGenApp:5i'})
 %
 %   Options
 %     Sections        sections to run in every named function-style suite

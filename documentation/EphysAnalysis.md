@@ -26,7 +26,7 @@ Figures tab's [spectral panels](EphysAnalysisConfig.md#spectral-panels), run by 
 its Analysis step, which runs an analysis config over the pipeline's
 selected datasets ([EphysPipeline → Analysis step](EphysPipeline.md#analysis-step);
 the pipeline app's **Analysis** tab), and for the links that open
-[`EphysAnalysisApp`](EphysAnalysisApp.md): the pipeline app's **File → Open
+[`EphysFigGenApp`](EphysFigGenApp.md): the pipeline app's **File → Open
 analysis app...**, the Project tab's **Tools** panel (**Analysis app**) and
 the Analysis tab's **Open in the analysis app**. Without `analysis` on the
 path, everything else in the pipeline still runs.
@@ -43,7 +43,7 @@ usable without the next:
 | [Generated scripts](#generated-scripts) | `EphysAnalysisScript.compact` / `.standalone` / `.preview` | reproduce an app session exactly, see every call a run makes, or take one previewed figure into a script of your own |
 | [The functions](#a-worked-script) | `loadAnalysisSource`, `epochTable`, `spikePSTH`, `figureCompute`, `renderFigure`, ... | your own alignment, your own figure layout, or numbers instead of figures |
 
-The app, [`EphysAnalysisApp`](EphysAnalysisApp.md), is a GUI over the runner.
+The app, [`EphysFigGenApp`](EphysFigGenApp.md), is a GUI over the runner.
 
 ## A worked script
 
@@ -344,7 +344,7 @@ To see how a reference, window and selection cut a dataset,
 the digital lines as TTL traces with each event, window and epoch, the
 epochs dropped and why, and the epochs aligned to their event. `d.Epochs` is
 the `epochTable` with every event kept, plus `kept`, `number` and `reason`.
-It is the app's [epoch diagram](EphysAnalysisApp.md#epoch-diagram).
+It is the app's [epoch diagram](EphysFigGenApp.md#epoch-diagram).
 
 ### Units and channels
 
@@ -1242,7 +1242,7 @@ your templates folder (`FigureTemplate.folder()`: `EphysFigureTemplates` beside
 MATLAB's preferences folder, or `setFolder`'s), kept, listed, imported and
 deleted as designs are. Applying one copies its settings once; nothing links
 the figure to the template afterwards. The app's Figures tab has them in the
-row above the preview ([Figure templates](EphysAnalysisApp.md#figure-templates)).
+row above the preview ([Figure templates](EphysFigGenApp.md#figure-templates)).
 
 ```matlab
 t = FigureTemplate.fromFigure(cfg.Figures(k), Description="raster over PSTH");
@@ -1332,7 +1332,7 @@ figure page, its file names and its report entry
 ## Favorites (stars)
 
 A plain star (on / off) marks a dataset, a channel or a sorted unit. The
-analysis app sets them ([Favorites](EphysAnalysisApp.md#favorites)); scripts
+analysis app sets them ([Favorites](EphysFigGenApp.md#favorites)); scripts
 use `DatasetFavorites`. They live beside the data, in
 `<Name>_favorites.json` in the dataset's output folder
 ([the file](file-formats.md#favorites-name_favoritesjson)), so they move with
@@ -1376,7 +1376,7 @@ reads them to decide anything, and every figure and number is the same with or
 without them. They travel with the data as `src.tags` (a cellstr, from the
 manifest) and are shown in:
 
-- the [Data tab](EphysAnalysisApp.md#data) (a read-only *Tags* column after *Key*,
+- the [Data tab](EphysFigGenApp.md#data) (a read-only *Tags* column after *Key*,
   and a **Tags:** filter over the table, which only shows or hides rows);
 - the report: `addReportDataset` stores `tags` in the dataset's entry (`{}` for a
   section), the HTML report writes them after the dataset's name in its section
@@ -1401,7 +1401,7 @@ observations are starred, or *starred only*.
 ## Notes
 
 Free text on a dataset, a channel or a sorted unit. The analysis app writes
-them in its notepad and searches them ([Notes](EphysAnalysisApp.md#notes));
+them in its notepad and searches them ([Notes](EphysFigGenApp.md#notes));
 scripts use `DatasetNotes`. They live beside the stars, in `<Name>_notes.json`
 in the dataset's output folder ([the file](file-formats.md#notes-name_notesjson)),
 on the same levels and ids as a star, a unit's note recorded with its sort.
@@ -1581,7 +1581,7 @@ pipeline's selected datasets instead of `cfg.Source`
 
 | Member | Meaning |
 | --- | --- |
-| `plan(Datasets=, Figures=, SessionFigures=)` | table `Dataset, Plot, Kind, Source, Enabled, Reason`, one row per dataset and [figure](#figures) (`Plot` its id, `Kind` `"figure"`, `Source` what it is drawn for: `unit`, `channel` or `dataset`; `Enabled` whether it will run; `Reason` from `figureSkipReason`; default: every figure, enabled or not; `string.empty(1, 0)` for none; whether the unit filter or channel list leaves an observation shows only when it runs, as *no observation*), then one row per [session figure](#session-figures-in-a-run) and facet (`Dataset` `"sessions: <facet>"`, `Plot` its id, `Kind` `"figure"`, `Source` what it observes; `Reason` from `figureSessionSkipReason`; default: every session figure, `string.empty(1, 0)` for none; a session figure is never listed per dataset, and `Figures=` leaves it out). It reads only each dataset's source. `Reason` comes from `figureSkipReason`: *disabled*, *no sorted units*, *no detected spikes*, *no LFP extract* (or another signal), *no probe map*, *no paired trials*, *no line X*, *no trial parameter X*, or *cannot read the dataset: ...* ([why a figure is skipped](EphysAnalysisApp.md#why-is-my-figure-skipped)). A figure that passes can still fail when it runs, e.g. when no event is left after the selection |
+| `plan(Datasets=, Figures=, SessionFigures=)` | table `Dataset, Plot, Kind, Source, Enabled, Reason`, one row per dataset and [figure](#figures) (`Plot` its id, `Kind` `"figure"`, `Source` what it is drawn for: `unit`, `channel` or `dataset`; `Enabled` whether it will run; `Reason` from `figureSkipReason`; default: every figure, enabled or not; `string.empty(1, 0)` for none; whether the unit filter or channel list leaves an observation shows only when it runs, as *no observation*), then one row per [session figure](#session-figures-in-a-run) and facet (`Dataset` `"sessions: <facet>"`, `Plot` its id, `Kind` `"figure"`, `Source` what it observes; `Reason` from `figureSessionSkipReason`; default: every session figure, `string.empty(1, 0)` for none; a session figure is never listed per dataset, and `Figures=` leaves it out). It reads only each dataset's source. `Reason` comes from `figureSkipReason`: *disabled*, *no sorted units*, *no detected spikes*, *no LFP extract* (or another signal), *no probe map*, *no paired trials*, *no line X*, *no trial parameter X*, or *cannot read the dataset: ...* ([why a figure is skipped](EphysFigGenApp.md#why-is-my-figure-skipped)). A figure that passes can still fail when it runs, e.g. when no event is left after the selection |
 | `run(Datasets=, Figures=, SessionFigures=, Export=, Report=)` | every enabled figure on every dataset, then every [session figure](#session-figures-in-a-run) over the datasets; returns (and keeps in `Results`) one row per dataset and figure: `Dataset, Plot, Kind, Status` (`done`, `skipped`, `error`, `canceled`), `Message, Files, Seconds` (`Plot` is the figure's id, `Kind` is `"figure"`), and per session figure a row whose `Dataset` is `"sessions: <label>"` (`all`, the subject, or `<subject> / <trial group>`; never a dataset's name). `Datasets` takes indices, keys or names (default all), `Figures` figure ids (`[]`, the default, = the enabled ones; `string.empty(1, 0)` = none; else the ids, enabled or not), `SessionFigures` session figure ids (`[]`, the default, = `Config.enabledSessionFigures()`; `string.empty(1, 0)` none; a session figure is never drawn per dataset, whatever `Figures=` names); `Export` / `Report` override `cfg.Export.Enabled` / `cfg.Report.Enabled`; `Observation` (a struct: `kind` `"unit"`, `"channel"` or `"dataset"`, `data`, `unitId`, `channel`, `label`) draws each figure only for what matches that one observation (`figureObservations(src, spec, Observation=)`: the unit itself on a figure of the same data, else what is on its recording channel; every trial group of a match; a figure of the dataset draws the dataset), a figure with no match (nothing on that channel; a unit or channel figure when the dataset is picked) is `skipped` with the reason as its `Message`, and no session figure runs: each is a `skipped` row `sessions: all` (*it is drawn across the sessions, not for one dataset's observation*), listed under *Across sessions* in the one report -- the app's **Test report** |
 | `runDataset(k, Figures=, Export=, Report=, Span=)` | every figure on dataset `k`, appended to `Results` and returned (`Figures=` as in `run`; `Export` default true, `Report` false; the report is the one `run` started; `Span=[a b]` the share of a longer run it covers) |
 | `computeFigure(src, spec, Observation=, Reuse=)` | `F` of one observation (a row of `figureObservations(src, spec)`) of a figure (`cfg.figureFor(id)`) on one dataset (`source(k)`): `figureCompute` with the runner's checkpoint while `PollFcn` is set; no graphics. `Reuse=true` (the app's preview) takes again what earlier previews computed on the same data (`figureCompute`'s `Reuse`) and keeps what it computed in `FigureCache`, the most recently used first, up to `FigureCacheMB` (256 MB); a run does not reuse |
@@ -1776,7 +1776,7 @@ session with the repository on the path.
 A third form loads one figure's data, arranged in the epochs the app's
 figure preview draws, then draws the figure for one observation as the
 preview does. The Figures tab's **Export code** button opens it in the editor
-([The preview](EphysAnalysisApp.md)); in code:
+([The preview](EphysFigGenApp.md)); in code:
 
 ```matlab
 txt = EphysAnalysisScript.preview(cfg, "PSTH units", Datasets="subj1/day1", Observation=T(3, :), ...
@@ -1948,7 +1948,7 @@ and counted. Each trial's mean is removed before its spectrum unless
 | `test_EphysAnalysisRunner` | the fixture: `plan` and its skip reasons, `run` exports (a file per observation, no figure left open), HTML and PDF reports (percent-encoded and `file://` links; the PDF's title, summary and figure pages in order, each page drawn once), the run record (`ephys-analysis-run/2`), `Overwrite` off, `run(Figures=)` alone, cancel (between observations and inside a compute), driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), a failing export closing its page (runner and standalone script), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections drawn from the spikes file's waveforms), a figure per trial group, a report per dataset, and a session figure across both datasets (plan, a page per matched site, the *Across sessions* entry, the data file, `Overwrite` off, cancel, the standalone script) |
 | `test_EphysAnalysisFigures` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) (section 10: session figures across two datasets) |
 | `test_ChronuxAnalysis` | no fixture: signal blocks and spike trains built in the test, in the shape the figures' spectral panels hand the analyses: `chronuxSettings` and its errors; `chronuxTimeBase` (segments clear of the artifact periods' rows, the seconds accounted for, segments on the spike clock, epochs and their groups); the alignment (a signal whose value is its row); and with Chronux on the path `chronuxSpectrum` (a 40 Hz sine's peak, the jackknife bars bracketing the spectrum, a burst inside an artifact period not seen, groups), `chronuxSpecgram` (a burst after each event, the dB baseline, window centers, NaN over an artifact period, `TooLarge`), a throwing `Check`, `chronuxCoherence` (the seed and pair modes' pairs and `BadPair`, a delayed copy coherent with the delay's phase, noise under `confC`, a coherogram NaN over an artifact period), the spike analyses (a train modulated at 20 Hz peaks there and tends to its rate, spikes locked to a 40 Hz field are coherent with it, identical trains have a coherence of 1; `chronuxSpikeSpecgram`: firing modulated at 30 Hz after each event over the baseline, on the signal spectrogram's window centers, `Short` and `Aligned`; spike-field and unit-unit coherograms over epochs and over a stretch, NaN over an artifact period), and `renderChronux` (every kind, layout and scale, the phase tiles, the rate line, pages, a uifigure panel, every part's role known); a spectrum and a unit coherence with a trial whose only spike sits past the grid's last point (`chronuxOntoGrid`) |
-| `test_EphysAnalysisApp` | see [EphysAnalysisApp](EphysAnalysisApp.md#tests) |
+| `test_EphysFigGenApp` | see [EphysFigGenApp](EphysFigGenApp.md#tests) |
 | `test_PipelineAnalysisStep` | the fixture: the pipeline's Analysis step running a saved analysis config, see [EphysPipeline](EphysPipeline.md#tests) |
 
 The fixture (`analysis/private/makeAnalysisFixture.m`) writes
@@ -1960,9 +1960,9 @@ generated config with the Behavior, Signals (LFP, MUA, AUX) and Spikes
 <!-- wiki
 ## Related
 
-- [Analysis app](EphysAnalysisApp.md) and [Analysis configs](EphysAnalysisConfig.md)
+- [Analysis app](EphysFigGenApp.md) and [Analysis configs](EphysAnalysisConfig.md)
 - [Loading outputs](Loading-Outputs): `DatasetOutputs`, units tables and trial-aligned analysis without this module
 - [Synthetic test data](Synthetic-Test-Data): a project to try these examples on
 - [Output files](Output-Files#time-and-channel-conventions): the time and channel conventions of the files themselves
-- API: [EphysAnalysisConfig](API-EphysAnalysisConfig), [EphysAnalysisRunner](API-EphysAnalysisRunner), [EphysAnalysisScript](API-EphysAnalysisScript), [EphysAnalysisApp](API-EphysAnalysisApp), [Analysis functions](API-Analysis-Functions)
+- API: [EphysAnalysisConfig](API-EphysAnalysisConfig), [EphysAnalysisRunner](API-EphysAnalysisRunner), [EphysAnalysisScript](API-EphysAnalysisScript), [EphysFigGenApp](API-EphysFigGenApp), [Analysis functions](API-Analysis-Functions)
 -->

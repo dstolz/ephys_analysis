@@ -10,7 +10,7 @@ function rememberFigureAesthetics(obj, id, rules)
 %
 %   See also renderFigure, PlotAesthetics.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     id (1,1) string
     rules = []
 end

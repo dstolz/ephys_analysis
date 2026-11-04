@@ -23,7 +23,7 @@ function X = figureSearchIndex(S, U)
 %   keys: why a hidden row is hidden, figureRowReason). New rows join
 %   without a change here.
 %
-%   See also EphysAnalysisApp.onFigureSearch, EphysAnalysisApp.gotoFigureRow, formRow.
+%   See also EphysFigGenApp.onFigureSearch, EphysFigGenApp.gotoFigureRow, formRow.
 X = struct('Section', {}, 'Super', {}, 'Row', {}, 'Label', {}, 'Words', {}, 'LabelWords', {}, 'Target', {}, ...
     'Flash', {}, 'Keys', {});
 for u = 1:numel(U)

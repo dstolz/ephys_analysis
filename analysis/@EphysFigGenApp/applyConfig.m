@@ -9,7 +9,7 @@ function applyConfig(obj, cfg, opts)
 %   step of the undo history (recordFigureEdit); without it (Undo and Redo
 %   themselves, onUndoRedo) nothing is recorded.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     cfg (1,1) EphysAnalysisConfig
     opts.MarkSaved (1,1) logical = false
     opts.Action (1,1) string = ""

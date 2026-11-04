@@ -31,7 +31,7 @@ function onApplyTemplate(obj, name, opts)
 %   Parts=PARTS (figureSettingParts' Part names; default every one) skip
 %   the window.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     name (1,1) string = string(missing)
     opts.To string = string(missing)
     opts.New = []

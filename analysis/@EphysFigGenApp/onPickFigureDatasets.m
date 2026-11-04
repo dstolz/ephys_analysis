@@ -13,7 +13,7 @@ function onPickFigureDatasets(obj, opts)
 %
 %   See also figureSessionObservations, sessionTable.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.Keys (1,:) string = string(missing)
 end
 k = obj.SelectedFigure;

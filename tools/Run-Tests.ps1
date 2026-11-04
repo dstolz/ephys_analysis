@@ -33,7 +33,7 @@ a named mutex; a lock whose process is gone is stale). A third run waits for a f
 its own preferences folder, so two MATLABs never share matlabprefs.mat.
 
 .PARAMETER Suites
-Suite names, each with optional sections: test_AppPrefs, test_EphysAnalysisApp:5i,5j.
+Suite names, each with optional sections: test_AppPrefs, test_EphysFigGenApp:5i,5j.
 
 .PARAMETER Select
 Run what .github\scripts\select_suites.py --worktree --sections prints for the uncommitted change
@@ -71,11 +71,11 @@ Print the suites, the expected time and the MATLAB command, and run nothing.
 
 .EXAMPLE
 tools\Run-Tests.ps1 test_AppPrefs
-tools\Run-Tests.ps1 test_EphysAnalysisApp:5i,5j test_PlotDesign
+tools\Run-Tests.ps1 test_EphysFigGenApp:5i,5j test_PlotDesign
 tools\Run-Tests.ps1 -Select
 tools\Run-Tests.ps1 -Select -DryRun
 tools\Run-Tests.ps1 test_EphysPipelineApp test_EphysAnalysisFigures -Parallel 2
-tools\Run-Tests.ps1 'test_EphysAnalysisApp:5n' -Interactive
+tools\Run-Tests.ps1 'test_EphysFigGenApp:5n' -Interactive
 #>
 [CmdletBinding()]
 param(

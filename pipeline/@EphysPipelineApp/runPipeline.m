@@ -24,7 +24,7 @@ function runPipeline(obj, opts)
 %   Run is refused while an earlier Run's move is still going, since the
 %   move removes the outputs it took once they are copied. With Copy files
 %   for the analysis app on (the AnalysisCopy section), a Run that ran to
-%   its end and was not a dry run copies the files EphysAnalysisApp reads,
+%   its end and was not a dry run copies the files EphysFigGenApp reads,
 %   with the settings last used in the copy window, once its steps are over
 %   (copyAnalysisFilesAfterRun); the Run is refused up front when that
 %   window never had a destination chosen.

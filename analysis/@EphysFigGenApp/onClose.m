@@ -21,7 +21,7 @@ end
 try
     obj.savePreferences();
 catch ME
-    warning('EphysAnalysisApp:SavePrefsFailed', 'Could not save preferences: %s', ME.message);
+    warning('EphysFigGenApp:SavePrefsFailed', 'Could not save preferences: %s', ME.message);
 end
 if ~isempty(obj.Runner)
     obj.Runner.clearSources();
@@ -32,7 +32,7 @@ end
 if ~isempty(obj.NotePadWindow) && isvalid(obj.NotePadWindow)
     p = obj.NotePadWindow;
     if ~p.save()   % a read-only folder: the text goes to the Command Window rather than nowhere
-        warning('EphysAnalysisApp:NoteNotWritten', 'The note on %s was not written (%s). Its text:\n%s', ...
+        warning('EphysFigGenApp:NoteNotWritten', 'The note on %s was not written (%s). Its text:\n%s', ...
             p.Item.title, p.StateLabel.Text, p.Text);
     end
     delete(p);

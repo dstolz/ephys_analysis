@@ -5,7 +5,7 @@ function onFigureAlignEdited(obj, part)
 %   own: those values with the edit. The Alignment tab's are unchanged. A
 %   panel that uses the figure's alignment shows the new values.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     part (1,1) string {mustBeMember(part, ["ref" "window" "selection"])}
 end
 if obj.Applying; return; end

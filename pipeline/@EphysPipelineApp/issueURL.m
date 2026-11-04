@@ -13,7 +13,7 @@ function [url, truncated] = issueURL(obj, kind, title, body)
 %   leaves the whole report on the clipboard. Nothing else is changed: what
 %   is sent is the report as issueReport wrote it, up to the cut.
 %
-%   The address is built by IssueReport.url, which EphysAnalysisApp uses too.
+%   The address is built by IssueReport.url, which EphysFigGenApp uses too.
 arguments
     obj (1,1) EphysPipelineApp
     kind (1,1) string {mustBeMember(kind, ["bug", "feature"])}

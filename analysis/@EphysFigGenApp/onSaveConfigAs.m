@@ -1,7 +1,7 @@
 function ok = onSaveConfigAs(obj, file)
 %onSaveConfigAs  Save the working config to a file picked (or given as FILE).
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     file (1,1) string = ""
 end
 ok = false;

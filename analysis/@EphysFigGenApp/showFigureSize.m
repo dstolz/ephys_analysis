@@ -11,7 +11,7 @@ function showFigureSize(obj, z)
 %
 %   See also onFigureSizeEdited, applyFigureEditor, figureExportSize.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     z = []
 end
 k = obj.SelectedFigure;

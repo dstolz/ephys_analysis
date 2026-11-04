@@ -2,7 +2,7 @@ function onDeleteDesign(obj, name, opts)
 %onDeleteDesign  Delete design NAME of yours, after asking (Confirm=false: without).
 %   Its file goes; if it was chosen, Default is (PlotDesign.remove).
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     name (1,1) string
     opts.Confirm (1,1) logical = true
 end

@@ -4,7 +4,7 @@ classdef EphysAnalysisConfig
     %   (an event reference, an epoch window and a trial selection shared by
     %   every figure unless a figure or panel overrides them), which figures
     %   to draw and how to export them and report on them. It has no GUI
-    %   dependency: EphysAnalysisApp edits one, EphysAnalysisRunner runs
+    %   dependency: EphysFigGenApp edits one, EphysAnalysisRunner runs
     %   one, and EphysAnalysisScript writes scripts from one. It round-trips
     %   through JSON exactly (Inf / NaN / empty values included).
     %
@@ -107,7 +107,7 @@ classdef EphysAnalysisConfig
     %   legacyPlotToFigure, legacyNormalizePlot, legacyPlotDefaults,
     %   legacyPlotKinds) and is used for nothing else.
     %
-    %   See also EphysAnalysisRunner, EphysAnalysisScript, EphysAnalysisApp,
+    %   See also EphysAnalysisRunner, EphysAnalysisScript, EphysFigGenApp,
     %   EphysAnalysisConfig.defaults, EphysAnalysisConfig.validate.
 
     properties

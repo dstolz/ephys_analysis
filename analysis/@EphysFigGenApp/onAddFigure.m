@@ -21,7 +21,7 @@ function onAddFigure(obj, template)
 %   the Observe list's order (sorted units, detected spikes, LFP, MUA,
 %   SPIKE, AUX), else the dataset.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     template = string(missing)
 end
 ask = isstring(template) && isscalar(template) && ismissing(template);   % the Add button: blank, then New panel

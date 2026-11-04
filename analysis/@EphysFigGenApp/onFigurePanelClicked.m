@@ -18,7 +18,7 @@ function onFigurePanelClicked(obj, id, panel, ctrl, fromWindow)
 %
 %   See also renderFigure, onPanelSelected, gotoFigureSection, gotoFigureSetting.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     id (1,1) string
     panel (1,1) string
     ctrl (1,1) logical = true

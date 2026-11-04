@@ -28,7 +28,7 @@ function onCopyFigureSettings(obj, opts)
 %   skip the window; Settings=KEYS (figureSettingItems' keys or the
 %   parts' names; default every one) names what they copy.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.From (1,1) string = string(missing)
     opts.Settings string = string(missing)
     opts.To string = string(missing)

@@ -23,7 +23,7 @@ function h = onOpenFigureWindow(obj)
 %
 %   See also refreshFigurePreview, renderFigure, rememberFigureAesthetics.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
 end
 h = [];
 if obj.Running

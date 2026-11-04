@@ -24,7 +24,7 @@ function R = onRunExport(obj, opts)
 %   as many process workers as the Export tab's Workers says
 %   (EphysAnalysisRunner.Workers).
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.Figures = []    % [] = the enabled figures; string.empty(1, 0) = none; else ids
     opts.SessionFigures = [] % likewise for the session figures (figures drawn across the datasets)
     opts.Datasets = []

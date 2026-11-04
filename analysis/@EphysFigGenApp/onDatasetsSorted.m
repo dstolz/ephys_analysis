@@ -5,7 +5,7 @@ function onDatasetsSorted(obj, evt)
 %   table, so the sort holds through a tick or a new active dataset. An edit
 %   (a Run tick) is not a sort and changes nothing.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     evt
 end
 obj.DatasetsSort = TableSort.fromEvent(obj.DatasetsTable, evt, obj.DatasetsSort);

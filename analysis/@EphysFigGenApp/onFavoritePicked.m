@@ -8,7 +8,7 @@ function onFavoritePicked(obj, which)
 %
 %   See also refreshFavorites, fillFavorites, selectDataset, goToFavorite.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     which (1,1) string {mustBeMember(which, ["AlignFavorites" "FigureFavorites"])}
 end
 C = obj.(which);

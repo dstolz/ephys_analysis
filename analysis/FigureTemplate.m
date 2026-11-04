@@ -12,7 +12,7 @@ classdef FigureTemplate
     %   to takes them from its own config's Defaults.
     %
     %   Applying a template copies its settings into a figure once
-    %   (EphysAnalysisApp.onApplyTemplate). There is no link: a template
+    %   (EphysFigGenApp.onApplyTemplate). There is no link: a template
     %   changed later reaches a figure only when it is applied again, so
     %   apply it to all the figures that should follow it at once.
     %
@@ -79,7 +79,7 @@ classdef FigureTemplate
     %   (no such template), FigureTemplate:BadName (not a file name),
     %   FigureTemplate:Exists (one of yours has the name; Overwrite=true).
     %
-    %   See also EphysAnalysisApp, copyFigureSettings, PlotDesign,
+    %   See also EphysFigGenApp, copyFigureSettings, PlotDesign,
     %   EphysAnalysisConfig.normalizeFigure, EphysAnalysisConfig.figureTemplates.
 
     properties (Constant)
@@ -242,7 +242,7 @@ classdef FigureTemplate
         function T = panelTypes(opts)
             %panelTypes  The figures the New panel window offers as panel types: the built-in ones, then yours.
             %   T has a row per figure, in the window's order:
-            %     Key          what panelFigure (and EphysAnalysisApp.onNewPanel
+            %     Key          what panelFigure (and EphysFigGenApp.onNewPanel
             %                  Set=) takes: "builtin:<template>" for a built-in
             %                  one, else the template's name
             %     Label        the name shown on its tile

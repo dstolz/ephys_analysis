@@ -23,7 +23,7 @@ function T = onEditUnitMapping(obj, opts)
 %
 %   See also onBrowseFigureMapping, readUnitMapping, writeUnitMapping.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.File (1,1) string = ""
     opts.Table = []
 end
@@ -66,7 +66,7 @@ end
 if given
     keys = string(opts.Table.Properties.VariableNames);
     if ~ismember("cell", keys)
-        error('EphysAnalysisApp:UnitMapping', 'The mapping table needs a variable "cell".');
+        error('EphysFigGenApp:UnitMapping', 'The mapping table needs a variable "cell".');
     end
     keys(keys == "cell") = [];
 elseif sp.datasets == "list"

@@ -7,7 +7,7 @@ function onAddFigureOverlay(obj, shape)
 %   line at 0, or a gray patch from 0 to 0.1 at 25 % opacity, over the
 %   panel's data. It is picked in the list, its rows ready to edit.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     shape (1,1) string {mustBeMember(shape, ["line" "region"])}
 end
 k = obj.SelectedFigure;

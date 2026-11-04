@@ -1,6 +1,6 @@
-classdef EphysAnalysisApp < handle
-    %EPHYSANALYSISAPP  GUI for quick-look figures of processed ephys datasets.
-    %   EphysAnalysisApp edits one EphysAnalysisConfig and draws it with an
+classdef EphysFigGenApp < handle
+    %EPHYSFIGGENAPP  GUI for quick-look figures of processed ephys datasets.
+    %   EphysFigGenApp edits one EphysAnalysisConfig and draws it with an
     %   EphysAnalysisRunner. It computes nothing itself: previews, plans and
     %   runs all go through the runner (computeFigure, computeSessionFigure,
     %   plan, run) and renderFigure, so what the app shows is what a
@@ -148,7 +148,7 @@ classdef EphysAnalysisApp < handle
     %   the last edit of the figures, Ctrl+Y and Ctrl+Shift+Z redo it
     %   (onUndoRedo). The "?" button lists them all (onFigureKeys).
     %
-    %   Preferences (getpref group 'EphysAnalysisApp'): FigurePosition,
+    %   Preferences (getpref group 'EphysFigGenApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder,
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
     %   button), FigureAutoPreview (the Figures tab's Auto, on by default:
@@ -173,14 +173,14 @@ classdef EphysAnalysisApp < handle
     %   source switched to them (openSource).
     %
     %   Usage
-    %     EphysAnalysisApp                      % the last config, or defaults
-    %     EphysAnalysisApp("D:\EPHYS")          % a pipeline project root, with the last config's figures
-    %     EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out", NamePattern=..., Recordings="separate")
-    %     EphysAnalysisApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])  % only these ticked (root-relative keys)
-    %     EphysAnalysisApp("D:\out\subj1_day1") % one dataset's output folder
-    %     EphysAnalysisApp("am_quicklook.json") % an analysis config
-    %     EphysAnalysisApp(..., Splash=false)   % no startup window
-    %     app = EphysAnalysisApp(...);          % keep a handle
+    %     EphysFigGenApp                      % the last config, or defaults
+    %     EphysFigGenApp("D:\EPHYS")          % a pipeline project root, with the last config's figures
+    %     EphysFigGenApp("D:\EPHYS", OutputRoot="E:\out", NamePattern=..., Recordings="separate")
+    %     EphysFigGenApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])  % only these ticked (root-relative keys)
+    %     EphysFigGenApp("D:\out\subj1_day1") % one dataset's output folder
+    %     EphysFigGenApp("am_quicklook.json") % an analysis config
+    %     EphysFigGenApp(..., Splash=false)   % no startup window
+    %     app = EphysFigGenApp(...);          % keep a handle
     %
     %   See also EphysAnalysisConfig, EphysAnalysisRunner, EphysAnalysisScript,
     %   EphysPipelineApp.
@@ -411,7 +411,7 @@ classdef EphysAnalysisApp < handle
     end
 
     properties (Constant)
-        PrefGroup = 'EphysAnalysisApp'
+        PrefGroup = 'EphysFigGenApp'
         WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"
         RepoURL = "https://github.com/dstolz/ephys_analysis"        % the repository the issue items file against
         AutoPreviewSeconds = 2
@@ -422,8 +422,8 @@ classdef EphysAnalysisApp < handle
     end
 
     methods
-        function obj = EphysAnalysisApp(source, opts)
-            %EphysAnalysisApp  Build the app; open SOURCE (config, project root or output folder).
+        function obj = EphysFigGenApp(source, opts)
+            %EphysFigGenApp  Build the app; open SOURCE (config, project root or output folder).
             arguments
                 source (1,1) string = ""
                 opts.OutputRoot (1,1) string = ""

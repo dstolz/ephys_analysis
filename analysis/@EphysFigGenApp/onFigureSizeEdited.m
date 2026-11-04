@@ -27,7 +27,7 @@ function onFigureSizeEdited(obj, part)
 %
 %   See also figureExportSize, newExportFigure, showFigureSize, fitFigureViews.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     part (1,1) string {mustBeMember(part, ["preset" "width" "height" "units" "lock"])}
 end
 k = obj.SelectedFigure;

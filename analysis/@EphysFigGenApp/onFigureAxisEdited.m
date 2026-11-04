@@ -19,7 +19,7 @@ function onFigureAxisEdited(obj, id, panel, change)
 %
 %   See also renderFigure, PlotAesthetics.enableEditing, gotoFigureSetting.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     id (1,1) string
     panel (1,:) string
     change (1,1) struct

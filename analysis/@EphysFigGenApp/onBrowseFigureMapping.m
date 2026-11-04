@@ -7,7 +7,7 @@ function onBrowseFigureMapping(obj, file)
 %   config (onConfigChanged "figure"); it is read when the observations
 %   are matched (figureSessionObservations).
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     file (1,1) string = ""
 end
 k = obj.SelectedFigure;

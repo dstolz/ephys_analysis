@@ -1126,9 +1126,9 @@ def main(do_splice=True):
     cls = load_class(pdir("pipeline", "@EphysPipelineApp"))
     g = app_section(cls, {0: "Figure and tab strip", 1: "Project and the active dataset"})
     write_gen("EphysPipelineApp", g); pages["API-EphysPipelineApp"] = g
-    cls = load_class(pdir("analysis", "@EphysAnalysisApp"))
+    cls = load_class(pdir("analysis", "@EphysFigGenApp"))
     g = app_section(cls, {0: "Figure and tabs", 1: "State"})
-    write_gen("EphysAnalysisApp", g); pages["API-EphysAnalysisApp"] = g
+    write_gen("EphysFigGenApp", g); pages["API-EphysFigGenApp"] = g
     # functions
     pf = public_functions(pdir("pipeline")) + public_functions(SRC)
     pf.sort(key=lambda f: f["name"].lower())

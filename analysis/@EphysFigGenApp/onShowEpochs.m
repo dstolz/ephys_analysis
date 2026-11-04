@@ -13,7 +13,7 @@ function onShowEpochs(obj)
 %   active dataset, and an opened config (refreshEpochDiagram), until it is
 %   closed. It closes with the app. A second press raises the window.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
 end
 d = obj.EpochDiagramWindow;
 if isempty(d) || ~isvalid(d) || ~d.isOpen()

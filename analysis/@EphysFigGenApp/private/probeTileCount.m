@@ -24,7 +24,7 @@ function P = probeTileCount(obj, spec, opts)
 %
 %   See also figureProbeTiles, refreshFigureObservations, syncFigureEditor.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     spec (1,1) struct
     opts.Force (1,1) logical = false
 end

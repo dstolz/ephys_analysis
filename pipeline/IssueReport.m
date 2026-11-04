@@ -1,6 +1,6 @@
 classdef IssueReport
     %IssueReport  The parts of "Report an issue" / "Request a feature" both apps share.
-    %   The Help menus of EphysPipelineApp and EphysAnalysisApp file issues
+    %   The Help menus of EphysPipelineApp and EphysFigGenApp file issues
     %   against the repository itself. Each app writes its own report (what
     %   its session holds: issueReport) and hands it to the static methods
     %   here, which know nothing about either app:
@@ -19,7 +19,7 @@ classdef IssueReport
     %   Nothing is filed from MATLAB: the form opens prefilled in the
     %   browser and the user submits it there, no credentials involved.
     %
-    %   See also EphysPipelineApp.onReportIssue, EphysAnalysisApp.onReportIssue,
+    %   See also EphysPipelineApp.onReportIssue, EphysFigGenApp.onReportIssue,
     %   ephysVersion.
 
     properties (Constant)

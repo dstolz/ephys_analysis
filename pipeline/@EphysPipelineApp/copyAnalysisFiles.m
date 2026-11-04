@@ -1,7 +1,7 @@
 function X = copyAnalysisFiles(obj, datasets)
 %copyAnalysisFiles  Copy DATASETS' files for the analysis app, with the copy window's settings.
 %   X = obj.copyAnalysisFiles(DATASETS) lists, for each EphysDataset, the
-%   files EphysAnalysisApp reads (DatasetOutputs.analysisFiles) for the
+%   files EphysFigGenApp reads (DatasetOutputs.analysisFiles) for the
 %   settings last used in File > Copy files for the analysis app...
 %   (AnalysisCopyDialog.settings: what to copy, the destination, what to do
 %   when the folder has files, the checksum), queues them on an

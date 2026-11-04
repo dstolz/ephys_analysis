@@ -3,7 +3,7 @@ function onDesignsFolder(obj, action, folder)
 %   Another folder -- one the lab shares, say -- is remembered
 %   (PlotDesign.setFolder); the designs in it are listed at once.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     action (1,1) string {mustBeMember(action, ["open" "choose"])}
     folder (1,1) string = ""
 end

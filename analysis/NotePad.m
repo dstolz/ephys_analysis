@@ -32,7 +32,7 @@ classdef NotePad < handle
     %   Dirty (typed since written), Fig, Area, TitleLabel, StateLabel,
     %   SaveButton.
     %
-    %   See also DatasetNotes, NoteSearch, EphysAnalysisApp.
+    %   See also DatasetNotes, NoteSearch, EphysFigGenApp.
 
     properties (SetAccess = private)
         Item = []                       % the note in the window: struct(notes, level, id, title)

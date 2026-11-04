@@ -7,7 +7,7 @@ function [ok, why] = folderReachable(folder, timeout)
 %   hold isfolder for a minute or more. WHY says why OK is false: "no
 %   folder is set", "it was not found" or "it did not answer within 5 s"
 %   ("" when OK). The apps check a project root this way before their
-%   startup scan (EphysPipelineApp, EphysAnalysisApp.openConfigFile).
+%   startup scan (EphysPipelineApp, EphysFigGenApp.openConfigFile).
 %
 %   See also isfolder, backgroundPool.
 arguments

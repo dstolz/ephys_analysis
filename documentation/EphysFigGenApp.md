@@ -1,6 +1,6 @@
-# EphysAnalysisApp
+# EphysFigGenApp
 
-`EphysAnalysisApp` ([source](../analysis/@EphysAnalysisApp/EphysAnalysisApp.m))
+`EphysFigGenApp` ([source](../analysis/@EphysFigGenApp/EphysFigGenApp.m))
 is the GUI for quick-look figures of datasets the pipeline has processed.
 A *figure* puts panels of different types (a raster flush above its PSTH
 above the LFP of the same unit, a heat map, a probe map, a unit-by-unit
@@ -41,7 +41,7 @@ after a pipeline run:
 
 ```matlab
 addpath_nogit('C:\src\ephys_analysis')     % pipeline + analysis (see INSTALL.md)
-EphysAnalysisApp("D:\EPHYS_synthetic")     % a project root processed by the pipeline
+EphysFigGenApp("D:\EPHYS_synthetic")     % a project root processed by the pipeline
 ```
 
 1. **Data**: the project is scanned when the app opens; click a row in the
@@ -74,14 +74,14 @@ units, no LFP extract, no paired trials, ...): see
 
 | Call | Opens |
 | --- | --- |
-| `EphysAnalysisApp` | the last config (preference `LastConfigFile`), else the defaults |
-| `EphysAnalysisApp("D:\EPHYS")` | the last config with its source switched to project mode on that root, scanned (with no last config, a new quick look config) |
-| `EphysAnalysisApp("D:\EPHYS", OutputRoot="E:\out")` | the same with the project's output root. `NamePattern=` and `Recordings=` (`"concatenate"`, `"separate"`, `"single"`) are taken too |
-| `EphysAnalysisApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])` | the same with only those datasets selected (root-relative keys; `Source.Selection = "list"`): every dataset is listed, but only these are ticked to run, and the first of them is active; one dataset names the config. The pipeline app's Tools panel opens it this way |
-| `EphysAnalysisApp("D:\out\subj1_day1")` | a folder holding `<Name>_manifest.json` or `<Name>_extract*.mat` is one dataset's output folder: the last config with its source switched to folders mode with that folder, scanned (with no last config, a new quick look config) |
-| `EphysAnalysisApp("am.json")` | that analysis config as it is (its source scanned when it exists) |
-| `app = EphysAnalysisApp(...)` | the same, keeping a handle |
-| `EphysAnalysisApp(..., Splash=false)` | the same without the startup window |
+| `EphysFigGenApp` | the last config (preference `LastConfigFile`), else the defaults |
+| `EphysFigGenApp("D:\EPHYS")` | the last config with its source switched to project mode on that root, scanned (with no last config, a new quick look config) |
+| `EphysFigGenApp("D:\EPHYS", OutputRoot="E:\out")` | the same with the project's output root. `NamePattern=` and `Recordings=` (`"concatenate"`, `"separate"`, `"single"`) are taken too |
+| `EphysFigGenApp("D:\EPHYS", Datasets=["subj1/day1" "subj1/day2"])` | the same with only those datasets selected (root-relative keys; `Source.Selection = "list"`): every dataset is listed, but only these are ticked to run, and the first of them is active; one dataset names the config. The pipeline app's Tools panel opens it this way |
+| `EphysFigGenApp("D:\out\subj1_day1")` | a folder holding `<Name>_manifest.json` or `<Name>_extract*.mat` is one dataset's output folder: the last config with its source switched to folders mode with that folder, scanned (with no last config, a new quick look config) |
+| `EphysFigGenApp("am.json")` | that analysis config as it is (its source scanned when it exists) |
+| `app = EphysFigGenApp(...)` | the same, keeping a handle |
+| `EphysFigGenApp(..., Splash=false)` | the same without the startup window |
 
 The detection is in `openSource`. Opened on a folder, the app takes its
 last config again (preference `LastConfigFile`), its figures, defaults and
@@ -121,7 +121,7 @@ analysis app...** copies just the files this app reads (manifest, behavior,
 signals, detected spikes, sorted units, probe file) for the ticked datasets
 into `<folder>\<subject>\<session>`
 ([details](EphysPipelineApp.md#copying-files-for-the-analysis-app)). Open
-that folder here as a project root: `EphysAnalysisApp("<folder>")`.
+that folder here as a project root: `EphysFigGenApp("<folder>")`.
 
 ## Tabs
 
@@ -388,7 +388,7 @@ drawn on it current again.
 status line and *Figure:* pick, and switching back shows it at once, without
 computing or drawing it again, unless it is out of date: then it is drawn as
 after an edit (at once with **Auto**, else marked *Out of date*). The eight
-figures shown last keep theirs (`EphysAnalysisApp.MaxFigureViews`, a constant:
+figures shown last keep theirs (`EphysFigGenApp.MaxFigureViews`, a constant:
 each holds its computed result and its graphics); a figure beyond them is drawn
 again when it is shown. Removing a figure frees its container, and another
 config drops them all. Choosing a design redraws every kept preview in it (no
@@ -2018,7 +2018,7 @@ that is a figure's setting, not a panel type.
 | | **Documentation home**, **Analysis quick start**, **Analysis configs** | the wiki's Home, [Quick start](#quick-start) on this page, the page made from [EphysAnalysisConfig.md](EphysAnalysisConfig.md) |
 | | **Report an issue on GitHub...**, **Request a feature on GitHub...** | compose a GitHub issue from this session and open it prefilled ([Reporting an issue](#reporting-an-issue)) |
 | | **Report a figure template issue...**, **Request a figure template feature...** | the same window about [figure templates](#figure-templates): titled *Figure templates:*, sending the system info, the template picked (its file) and the Log tab |
-| | **About EphysAnalysisApp** | the version and git commit of the code, the repository folder and the MATLAB release; **Copy** puts them on the clipboard |
+| | **About EphysFigGenApp** | the version and git commit of the code, the repository folder and the MATLAB release; **Copy** puts them on the clipboard |
 
 The title shows `*` while the config has unsaved changes; closing, opening
 or starting a new config asks to save them.
@@ -2111,7 +2111,7 @@ units only.
 
 ## Preferences
 
-Group `EphysAnalysisApp`, kept through [`AppPrefs`](../pipeline/AppPrefs.m): MATLAB preferences, or the file
+Group `EphysFigGenApp`, kept through [`AppPrefs`](../pipeline/AppPrefs.m): MATLAB preferences, or the file
 named by the environment variable `EPHYS_APP_PREFS_FILE` (the tests' temporary store). Everything else
 is in the config.
 
@@ -2121,7 +2121,7 @@ is in the config.
 | `LastConfigFile` | the last config file opened or saved (**New config** leaves it): reopened at launch, and the config the app starts from when opened on a folder |
 | `RecentConfigs` | File → Open recent (8) |
 | `ScriptFolder` | where Generate script offers to save |
-| `PreviewMaxMB` | signal extracts larger than this (default 500 MB) are previewed only with the Preview button. Set it with `AppPrefs.setpref('EphysAnalysisApp', 'PreviewMaxMB', 1000)` before opening the app |
+| `PreviewMaxMB` | signal extracts larger than this (default 500 MB) are previewed only with the Preview button. Set it with `AppPrefs.setpref('EphysFigGenApp', 'PreviewMaxMB', 1000)` before opening the app |
 | `FigureAutoPreview` | the Figures tab's Auto box (on by default: one observation is quick to compute). The time limit it applies, 2 s, is not a preference but the app's `FigureAutoPreviewSeconds` property |
 | `FigureGroupBy` | how the figure tree groups (`observe`, the default; `status`; `none`) |
 | `FigureGroupsCollapsed` | the figure tree's collapsed groups, by key (`observe:unit`, `status:Off`, ...); the selected figure's group opens whatever is kept |
@@ -2203,7 +2203,7 @@ results, on the Log tab and in the report.
 
 ## Tests
 
-`test_EphysAnalysisApp` builds the app headlessly on the analysis fixture
+`test_EphysFigGenApp` builds the app headlessly on the analysis fixture
 (a small synthetic project run through the pipeline) and drives it through
 its methods, in sections 0 to 6: the startup (1: built hidden, each tab, the
 scan and the first dataset a step of the splash, which `-batch` leaves
@@ -2639,5 +2639,5 @@ back by its own name; **Report issue** opens the issue window titled
 - [Analysis configs](Analysis-Configs): every field of the config the app edits
 - [Analysis scripting](Analysis-Scripting): the runner, generated scripts and the compute / render functions
 - [Output files](Output-Files) and [Loading outputs](Loading-Outputs): what the analysis reads
-- API: [EphysAnalysisApp](API-EphysAnalysisApp), [EphysAnalysisConfig](API-EphysAnalysisConfig), [EphysAnalysisRunner](API-EphysAnalysisRunner), [EphysAnalysisScript](API-EphysAnalysisScript), [Analysis functions](API-Analysis-Functions)
+- API: [EphysFigGenApp](API-EphysFigGenApp), [EphysAnalysisConfig](API-EphysAnalysisConfig), [EphysAnalysisRunner](API-EphysAnalysisRunner), [EphysAnalysisScript](API-EphysAnalysisScript), [Analysis functions](API-Analysis-Functions)
 -->

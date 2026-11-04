@@ -84,7 +84,7 @@ classdef DatasetFavorites < handle
     %
     %   The file's shape: documentation/file-formats.md, "Favorites".
     %
-    %   See also EphysAnalysisApp, loadAnalysisSource, DatasetOutputs,
+    %   See also EphysFigGenApp, loadAnalysisSource, DatasetOutputs,
     %   figureObservations, unitSummary.
 
     properties (SetAccess = private)

@@ -16,7 +16,7 @@ function openSource(obj, source, opts)
 %   be read, it is a new "<folder> quick look" config (one dataset of
 %   Datasets names it instead). Either way the datasets are scanned.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     source (1,1) string
     opts.OutputRoot (1,1) string = ""
     opts.NamePattern (1,1) string = ""

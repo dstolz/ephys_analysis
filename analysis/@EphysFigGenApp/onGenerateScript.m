@@ -3,7 +3,7 @@ function onGenerateScript(obj, kind, file)
 %   The compact form loads the saved JSON, so unsaved changes are saved
 %   first (with a prompt). FILE skips the file dialog.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     kind (1,1) string {mustBeMember(kind, ["compact", "standalone"])}
     file (1,1) string = ""
 end

@@ -1,5 +1,5 @@
 function a = onOpenAnalysisApp(obj, idx)
-%onOpenAnalysisApp  Open the analysis app (EphysAnalysisApp) on this project's outputs.
+%onOpenAnalysisApp  Open the analysis app (EphysFigGenApp) on this project's outputs.
 %   onOpenAnalysisApp(obj) (File menu) opens it on the whole project:
 %   with a project root set, on that root, output root, name pattern and
 %   Open Ephys recording mode, else with its own last config.
@@ -10,19 +10,19 @@ function a = onOpenAnalysisApp(obj, idx)
 %   app ([] when it did not open). On a project the analysis app opens its
 %   own last config again, its source switched to this project and
 %   selection (unsaved), or a new quick look config when it has none
-%   (EphysAnalysisApp.openSource).
+%   (EphysFigGenApp.openSource).
 %
 %   The analysis app lives in the repository's analysis folder, which the
 %   pipeline never depends on: without it on the path this only says so.
 %
-%   See also EphysAnalysisApp, EphysPipelineApp.onOpenTool.
+%   See also EphysFigGenApp, EphysPipelineApp.onOpenTool.
 arguments
     obj (1,1) EphysPipelineApp
     idx (1,:) double = zeros(1, 0)
 end
 a = [];
-if ~exist('EphysAnalysisApp', 'class')
-    uialert(obj.Fig, "EphysAnalysisApp is not on the MATLAB path. Add the repository's analysis folder " + ...
+if ~exist('EphysFigGenApp', 'class')
+    uialert(obj.Fig, "EphysFigGenApp is not on the MATLAB path. Add the repository's analysis folder " + ...
         "(addpath_nogit on the repository adds it).", "Open analysis app");
     return
 end
@@ -36,7 +36,7 @@ if ~isempty(idx) && ~isempty(obj.Project)
         allKeys = obj.Project.datasetKeys();
         keys = allKeys(idx);
     end
-    a = EphysAnalysisApp(obj.Project.Root, OutputRoot=P.OutputRoot, NamePattern=P.NamePattern, ...
+    a = EphysFigGenApp(obj.Project.Root, OutputRoot=P.OutputRoot, NamePattern=P.NamePattern, ...
         Recordings=rec, Datasets=keys);
     if isempty(keys)
         what = obj.Project.Root;
@@ -47,10 +47,10 @@ if ~isempty(idx) && ~isempty(obj.Project)
     end
     obj.setStatus("Opened the analysis app on " + what + ".", "");
 elseif P.Root ~= "" && isfolder(P.Root)
-    a = EphysAnalysisApp(P.Root, OutputRoot=P.OutputRoot, NamePattern=P.NamePattern, Recordings=rec);
+    a = EphysFigGenApp(P.Root, OutputRoot=P.OutputRoot, NamePattern=P.NamePattern, Recordings=rec);
     obj.setStatus("Opened the analysis app on " + P.Root + ".", "");
 else
-    a = EphysAnalysisApp();
+    a = EphysFigGenApp();
     obj.setStatus("Opened the analysis app.", "");
 end
 if nargout == 0

@@ -11,7 +11,7 @@ function t = layerLabel(L)
 %   Its name, when it has one, comes first in quotes; "  (off)" ends a
 %   layer that is not enabled.
 %
-%   See also EphysAnalysisApp.onLayerSelected.
+%   See also EphysFigGenApp.onLayerSelected.
 switch L.source
     case "events"
         t = "events: " + eventRefLabel(eventMarkRef(L.event)) + " (" + L.eventsAs + ")";

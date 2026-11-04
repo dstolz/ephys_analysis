@@ -6,7 +6,7 @@ function onFavoritesFilter(obj, which, text)
 %
 %   See also fillFavorites, refreshFavorites.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     which (1,1) string {mustBeMember(which, ["AlignFavorites" "FigureFavorites"])}
     text (1,1) string = ""
 end

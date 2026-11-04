@@ -32,7 +32,7 @@ function [R, file] = onTestReport(obj, opts)
 %   See also onRunExport, onGenerateFigure, onOpenReport, EphysAnalysisRunner.run,
 %   figureObservations.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.Open (1,1) logical = true   % open the report in the browser when it is written
 end
 R = table();

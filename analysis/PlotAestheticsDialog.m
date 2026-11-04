@@ -32,7 +32,7 @@ classdef PlotAestheticsDialog < handle
     %     T = d.remembered(); d.forget(ROWS)
     %     d.reset(); d.cancel(); d.ok()
     %
-    %   See also PlotAesthetics, renderFigure, EphysAnalysisApp.
+    %   See also PlotAesthetics, renderFigure, EphysFigGenApp.
 
     properties (SetAccess = private)
         Fig                                 % the dialog's uifigure

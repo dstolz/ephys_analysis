@@ -1,7 +1,7 @@
 classdef FigureEditHistory
     %FIGUREEDITHISTORY  The figure editor's undo and redo: the figures before and after each edit.
     %   H = FigureEditHistory() is an empty history. The analysis app keeps
-    %   one (EphysAnalysisApp.FigureHistory) and records every edit of its
+    %   one (EphysFigGenApp.FigureHistory) and records every edit of its
     %   Figures tab: what Config.Figures was before the edit and is after
     %   it, a label naming the edit ("Add panel", "Bin"), and where the
     %   editor was (the figure, panel and layer selected), so undo and redo
@@ -31,7 +31,7 @@ classdef FigureEditHistory
     %     CoalesceSeconds  the most time between two edits of one control
     %                      that make one step (1 s)
     %
-    %   See also EphysAnalysisApp, EphysAnalysisConfig.
+    %   See also EphysFigGenApp, EphysAnalysisConfig.
 
     properties (SetAccess = private)
         Undo struct = struct('Label', {}, 'Key', {}, 'Selection', {}, 'Time', {}, 'Before', {}, 'After', {})

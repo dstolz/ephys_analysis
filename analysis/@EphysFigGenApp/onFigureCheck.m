@@ -11,6 +11,6 @@ switch how
     case "invert"
         obj.setFiguresEnabled(1:n, "toggle");
     otherwise
-        error('EphysAnalysisApp:BadCheck', 'Unknown check action "%s".', how);
+        error('EphysFigGenApp:BadCheck', 'Unknown check action "%s".', how);
 end
 end

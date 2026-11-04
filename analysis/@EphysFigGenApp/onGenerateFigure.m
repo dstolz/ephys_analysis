@@ -28,7 +28,7 @@ function R = onGenerateFigure(obj, opts)
 %
 %   See also onRunExport, EphysAnalysisRunner.run, EphysAnalysisRunner.runDataset.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.Datasets = []
 end
 R = table();

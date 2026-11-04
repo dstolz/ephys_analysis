@@ -37,7 +37,7 @@ switch by
         val(:) = "Off";
         val([F.enabled]) = "Enabled";
     otherwise
-        error('EphysAnalysisApp:BadGrouping', 'Unknown figure grouping "%s".', by);
+        error('EphysFigGenApp:BadGrouping', 'Unknown figure grouping "%s".', by);
 end
 order = [canon(ismember(canon, val)), setdiff(unique(val, 'stable'), canon, 'stable')];
 for g = 1:numel(order)

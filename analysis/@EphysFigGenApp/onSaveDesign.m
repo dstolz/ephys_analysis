@@ -14,7 +14,7 @@ function onSaveDesign(obj, name, description)
 %   design button beside the Design list on the Figures tab and the Design
 %   menu call it.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     name (1,1) string = missing
     description (1,1) string = ""
 end

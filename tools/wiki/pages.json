@@ -8,7 +8,7 @@
     {"page": "Pipeline-App-Guide", "source": "documentation/pipeline-app-guide.md", "status": "generated"},
     {"page": "Analysis-App-Guide", "source": "documentation/analysis-app-guide.md", "status": "generated"},
     {"page": "Dataset-Browser-Guide", "source": "documentation/dataset-browser-guide.md", "status": "generated"},
-    {"page": "Analysis-App", "source": "documentation/EphysAnalysisApp.md", "exclude": ["Where the code is", "Tests"], "status": "generated"},
+    {"page": "Analysis-App", "source": "documentation/EphysFigGenApp.md", "exclude": ["Where the code is", "Tests"], "status": "generated"},
     {"page": "Analysis-Configs", "source": "documentation/EphysAnalysisConfig.md", "exclude": ["Tests"], "status": "generated"},
     {"page": "Analysis-Scripting", "source": "documentation/EphysAnalysis.md", "exclude": ["Tests"], "status": "generated"},
     {"page": "Dataset-Browser", "source": "documentation/DatasetBrowser.md", "sections": ["Opening it", "The window", "Preferences", "Errors and warnings"], "main": true, "status": "generated"},

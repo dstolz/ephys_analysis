@@ -13,7 +13,7 @@ function onReportIssue(obj, kind)
 %   ticked and uses the "enhancement" label.
 %
 %   If no browser opens, an alert shows the address to copy instead. The
-%   dialog itself is IssueReport.dialog, which EphysAnalysisApp uses too.
+%   dialog itself is IssueReport.dialog, which EphysFigGenApp uses too.
 arguments
     obj (1,1) EphysPipelineApp
     kind (1,1) string {mustBeMember(kind, ["bug", "feature"])}

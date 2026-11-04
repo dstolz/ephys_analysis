@@ -21,8 +21,8 @@ function rememberPanelOptions(obj, before, after)
 %   Edit > Reset panel options to defaults forgets one type's, Edit >
 %   Forget remembered panel options every type's.
 %
-%   See also rememberedPanelOptions, recordFigureEdit, EphysAnalysisApp.onResetPanelOptions,
-%   EphysAnalysisApp.onForgetPanelOptions.
+%   See also rememberedPanelOptions, recordFigureEdit, EphysFigGenApp.onResetPanelOptions,
+%   EphysFigGenApp.onForgetPanelOptions.
 k = obj.SelectedFigure;
 if numel(before) ~= numel(after) || k < 1 || k > numel(after); return; end
 A = after(k).panels;

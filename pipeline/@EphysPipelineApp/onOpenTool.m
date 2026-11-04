@@ -2,7 +2,7 @@ function onOpenTool(obj, tool)
 %onOpenTool  Open the Tools panel's datasets (toolTargets) in another program.
 %   TOOL is
 %     "manifest"  each dataset's manifest in a ManifestViewerApp (onViewManifest)
-%     "analysis"  one EphysAnalysisApp on them all (onOpenAnalysisApp)
+%     "analysis"  one EphysFigGenApp on them all (onOpenAnalysisApp)
 %     "phy"       phy's template-gui on each that has sorted output (onLaunchPhy)
 %     "folder"    each output folder in the file browser (onOpenOutputFolder)
 %   Opening more than four windows at once is asked about first.

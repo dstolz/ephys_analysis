@@ -20,7 +20,7 @@ function styleButton(b, role)
 %   fixed height it keeps that height, so give rows that hold buttons at
 %   least 26 px (30 px for a tab's main action).
 %
-%   EphysPipelineApp and EphysAnalysisApp give every button the
+%   EphysPipelineApp and EphysFigGenApp give every button the
 %   ordinary look and list their colored ones in buildUI (styleButtons).
 arguments
     b

@@ -19,7 +19,7 @@ for the preprocessing pipeline. It edits **one pipeline config**
   folder);
 - export an NWB 2 file;
 - run an analysis config (figures, figure files, a report) from the
-  [analysis app](EphysAnalysisApp.md) over the processed datasets;
+  [analysis app](EphysFigGenApp.md) over the processed datasets;
 - associate Epsych2 behavior sessions;
 - review sorted units and open them in phy;
 - write synthetic datasets of simple, exactly known units and evoked
@@ -202,7 +202,7 @@ hints there too.
 
 ### The analysis app
 
-**File → Open analysis app...** opens [`EphysAnalysisApp`](EphysAnalysisApp.md),
+**File → Open analysis app...** opens [`EphysFigGenApp`](EphysFigGenApp.md),
 a separate window for quick-look figures of this project's outputs (PSTHs,
 rasters, evoked potentials, rates, tuning, probe maps). With a project root
 set it opens on that root, output root, name pattern and Open Ephys recording
@@ -217,7 +217,7 @@ that folder is not on the path, an alert says so.
 ### Copying files for the analysis app
 
 **File → Copy files for the analysis app...** (the folder-arrow tool on the
-toolbar) copies just the files [`EphysAnalysisApp`](EphysAnalysisApp.md)
+toolbar) copies just the files [`EphysFigGenApp`](EphysFigGenApp.md)
 reads, for the ticked datasets (every dataset when none is ticked), to
 another folder, so the analysis runs on another computer without the
 recordings or the rest of the pipeline's outputs. The window
@@ -266,7 +266,7 @@ The config does not validate with **Copy outputs to** set to **move**: the
 move removes the outputs here once they are copied, while the files for the
 analysis app are read from them.
 
-On the other computer, `EphysAnalysisApp("<folder>")` finds the datasets
+On the other computer, `EphysFigGenApp("<folder>")` finds the datasets
 (a root of outputs without recordings is read as its datasets). The manifest
 names the probe file by its path on the pipeline computer; the analysis uses
 the file of the same name beside the manifest when that path is not there
@@ -744,7 +744,7 @@ with its Epsych2 session.
 | **Tags...** | edits the tags of the datasets on the selected rows (Shift / Ctrl+click selects several), ticked or not, or of the active dataset when no row is selected; also **Dataset → Tags...** ([Dataset tags](#dataset-tags)) |
 | Tags: filter | (under the token filters) the tags picked or typed (**any of** / **all of** them), the tags to leave out (**not**) and a search over the name, key and tags, all applied, as in the [dataset browser](DatasetBrowser.md) ([Dataset tags](#dataset-tags)). A view only, like the token filters: not saved, and ticks on hidden rows stay in the selection |
 | **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys** ([Open Ephys sessions](#open-ephys-sessions)): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node**, **Stream** and **Event stream** (blank = automatic; the event stream is the stream whose TTL events to use when they are recorded on another stream than the continuous data, an NI-DAQ beside Neuropixels). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
-| **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Analysis app**: one [analysis app](EphysAnalysisApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
+| **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Analysis app**: one [analysis app](EphysFigGenApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
 
 ### What Scan does
 
@@ -2300,14 +2300,14 @@ matches the [name pattern](#name-pattern-and-token-columns).
 Every group and field of `<Name>.nwb` is in [Files on disk](file-formats.md#nwb-export-ephysdatasetexportnwb-the-export-step).
 
 For quick-look figures (PSTHs, evoked potentials, tuning) of the same data,
-use the [analysis app](EphysAnalysisApp.md).
+use the [analysis app](EphysFigGenApp.md).
 
 <!-- wiki: Worked examples of the toolbox inputs the DatasetBrowser makes (trial-aligned spectra, spike-field coherence, FieldTrip trials) are on [Analysis toolbox exports](Analysis-Toolbox-Exports). -->
 
 ## Analysis
 
 The Analysis step (`Analysis.*`) runs an analysis config made in the
-[analysis app](EphysAnalysisApp.md) over the selected datasets. It draws the
+[analysis app](EphysFigGenApp.md) over the selected datasets. It draws the
 config's figures, writes their figure files and writes its HTML / PDF report,
 as **Run** does in the analysis app. It is the last step, because it reads
 what the others write: each dataset's extract (the events and the signals),
@@ -2325,7 +2325,7 @@ it, validation says so.
   looked for in the Signals / Spikes / Export output folders when those are
   set.
 - **Open in the analysis app** opens the config in
-  [EphysAnalysisApp](EphysAnalysisApp.md), to edit its figures. Save it there,
+  [EphysFigGenApp](EphysFigGenApp.md), to edit its figures. Save it there,
   then press **Reload** here. With no config chosen, the button opens the
   analysis app on this project's selected datasets, to make one.
 - The summary under the buttons shows what the config holds: its name and
@@ -3688,7 +3688,7 @@ Scripted, `app.issueReport("bug")` returns the same report (name-value
 
 The dialog, the address and the system lines are
 [`IssueReport`](../pipeline/IssueReport.m), which the analysis app's Help menu
-uses too ([Reporting an issue](EphysAnalysisApp.md#reporting-an-issue) there);
+uses too ([Reporting an issue](EphysFigGenApp.md#reporting-an-issue) there);
 each app writes only its own report.
 
 ## Sorted tables
@@ -3847,8 +3847,8 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `tableSort.m`, `onTableSorted.m`, `onTableSortMenu.m`, `onCopySorted.m`, `clearTableSort.m`, `showRunResults.m`, `private/sortMenuItem.m`, `private/sortableTable.m`, `private/saveTableSorts.m`, `private/makeSortable.m`, `private/identityTable.m`, `private/datasetIdentity.m`; `pipeline/TableSort.m`, `pipeline/subjectAndDate.m` | [sorted tables](#sorted-tables): a header click remembered and saved, applied whenever a table is filled, Clear sort |
 | `stopTimers.m` | stops the app's timers (Kilosort4, copy and resource monitors, the scheduled copy's refresh) on close, and when the figure is deleted any other way |
 | `helpURL.m`, `onHelp.m` | Help menu (wiki pages) |
-| `onReportIssue.m`, `issueReport.m`, `issueURL.m`; `pipeline/IssueReport.m` | Help menu (GitHub issue / feature request; the dialog, address and system lines are shared with EphysAnalysisApp) |
-| `pipeline/showAbout.m`, `pipeline/ephysVersion.m` | Help menu (About; shared with EphysAnalysisApp). The release number is the repository's `VERSION` file, which `ephysVersion` reads |
+| `onReportIssue.m`, `issueReport.m`, `issueURL.m`; `pipeline/IssueReport.m` | Help menu (GitHub issue / feature request; the dialog, address and system lines are shared with EphysFigGenApp) |
+| `pipeline/showAbout.m`, `pipeline/ephysVersion.m` | Help menu (About; shared with EphysFigGenApp). The release number is the repository's `VERSION` file, which `ephysVersion` reads |
 
 Messages shared with the other apps live in `pipeline/AppDialog.m` (`failure`,
 `alertFailure`, `noProject`, `alertNoProject`, `alert`, `showText`; `capture`

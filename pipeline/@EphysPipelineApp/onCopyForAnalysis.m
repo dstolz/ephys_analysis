@@ -1,12 +1,12 @@
 function dlg = onCopyForAnalysis(obj)
-%onCopyForAnalysis  Open the window that copies the files EphysAnalysisApp needs to another folder.
+%onCopyForAnalysis  Open the window that copies the files EphysFigGenApp needs to another folder.
 %   onCopyForAnalysis(obj) (File menu, and the toolbar's folder-arrow tool)
 %   opens an AnalysisCopyDialog on the ticked datasets of the Project table
 %   (every dataset when none is ticked). The window lists each dataset's
 %   files for the settings chosen there (signals, detected spikes, sorted
 %   units, the sorted binary, the probe file), copies them to
 %   <folder>/<subject>/<session> in the background (OutputTransfer) and
-%   shows the progress, so the folder can be opened with EphysAnalysisApp on
+%   shows the progress, so the folder can be opened with EphysFigGenApp on
 %   another computer. DLG = the window ([] when it did not open). Several
 %   windows can be open; each works on the datasets it was opened with.
 %

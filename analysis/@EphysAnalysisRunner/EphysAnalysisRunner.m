@@ -2,7 +2,7 @@ classdef EphysAnalysisRunner < handle
     % EphysAnalysisRunner  Draw, export and report an analysis config's figures.
     %   r = EphysAnalysisRunner(cfg) finds the config's datasets (an
     %   EphysProject's recordings, or a list of output folders) and runs its
-    %   figures over them. It has no GUI: EphysAnalysisApp drives one for its
+    %   figures over them. It has no GUI: EphysFigGenApp drives one for its
     %   previews and runs, and EphysAnalysisScript writes out the same steps
     %   as a script.
     %
@@ -55,7 +55,7 @@ classdef EphysAnalysisRunner < handle
     %                   Each figure's observations are computed here, in turn;
     %                   their pages are drawn on the workers meanwhile and
     %                   put in the report in order (submitPage, pageOutput).
-    %                   EphysAnalysisApp sets it from its Workers preference
+    %                   EphysFigGenApp sets it from its Workers preference
     %     SearchDirs    further folders each dataset's outputs are searched in
     %                   (DatasetOutputs SearchDirs), e.g. a pipeline's
     %                   Signals / Spikes OutputDir; set before datasets()
@@ -103,7 +103,7 @@ classdef EphysAnalysisRunner < handle
     %   runDataset draws the page (renderFigure dispatches to
     %   renderProbeFigure), exports it and reports it.
     %
-    %   See also EphysAnalysisConfig, EphysAnalysisScript, EphysAnalysisApp.
+    %   See also EphysAnalysisConfig, EphysAnalysisScript, EphysFigGenApp.
 
     properties
         Config EphysAnalysisConfig = EphysAnalysisConfig()

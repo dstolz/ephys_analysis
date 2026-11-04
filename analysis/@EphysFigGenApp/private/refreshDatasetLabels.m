@@ -29,7 +29,7 @@ function refreshDatasetLabels(obj, idx)
 %
 %   See also selectDataset, onScan, refreshDatasetsTable.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     idx (1,1) double = 0
 end
 if obj.HoldDatasetViews; return; end

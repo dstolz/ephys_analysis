@@ -12,7 +12,7 @@ function revealTab(obj, tab, hide)
 %   quarters of the window's components, among them.
 if nargin < 3; hide = false; end
 if isempty(tab) || ~isvalid(tab); return; end
-key = 'EphysAnalysisAppHidden';
+key = 'EphysFigGenAppHidden';
 if hide
     set(tab.Children, 'Visible', 'off');
     setappdata(tab, key, true);

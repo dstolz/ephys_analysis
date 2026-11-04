@@ -53,7 +53,7 @@ function refreshFigurePreview(obj, opts)
 %   selected figure's is shown (syncFigureView) and drawn when out of date
 %   (previewFigureView).
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.Force (1,1) logical = false
     opts.Redraw (1,1) logical = false
 end

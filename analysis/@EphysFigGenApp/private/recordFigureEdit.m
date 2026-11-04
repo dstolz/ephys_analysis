@@ -15,7 +15,7 @@ function recordFigureEdit(obj, cfg, label, opts)
 %   figure's panels are remembered for new panels of their types
 %   (rememberPanelOptions: a preference, not the config).
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     cfg (1,1) EphysAnalysisConfig
     label (1,1) string
     opts.Key = []

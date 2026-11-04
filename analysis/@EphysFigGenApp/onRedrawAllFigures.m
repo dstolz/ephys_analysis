@@ -33,7 +33,7 @@ function S = onRedrawAllFigures(obj)
 %
 %   See also refreshFigurePreview, syncFigureView, figureViewFresh, onGenerateFigure.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
 end
 none = strings(1, 0);
 S = struct('drawn', none, 'current', none, 'notDrawn', none, 'left', none, 'canceled', false, 'stopped', false);

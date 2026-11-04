@@ -11,7 +11,7 @@ function openNotePad(obj, idx, level, id, follows, opts)
 %
 %   See also NotePad, onNoteButton, onSearchNotes, syncNoteButtons.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     idx (1,1) double
     level (1,1) string
     id (1,1) double

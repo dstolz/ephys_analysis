@@ -6,11 +6,11 @@ function keys = figureRoleSettings(role)
 %   of buildFiguresTab ("showSEM", "fontSize"), or "@" and a section's name
 %   ("@style") for a part with no row of its own. The right-click menu's
 %   "Go to setting" goes to the first one the figure shows for the panel
-%   (EphysAnalysisApp.gotoFigureSetting), the next when a row is hidden
+%   (EphysFigGenApp.gotoFigureSetting), the next when a row is hidden
 %   (an option of another panel type). A role with no entry gives "@style"
 %   (the Appearance section).
 %
-%   See also PlotAesthetics.roles, EphysAnalysisApp.gotoFigureSetting.
+%   See also PlotAesthetics.roles, EphysFigGenApp.gotoFigureSetting.
 role = string(role);
 M = map();
 if isfield(M, role)

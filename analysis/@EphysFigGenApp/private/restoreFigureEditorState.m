@@ -12,7 +12,7 @@ function S = restoreFigureEditorState(obj, id, opts)
 %
 %   See also saveFigureEditorState, scrollFigureEditor.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     id (1,1) string
     opts.Selection (1,1) logical = true
 end

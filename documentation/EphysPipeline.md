@@ -598,7 +598,7 @@ remaining rows are `not run`, and `run()` returns normally.
 `runAnalysis` loads the analysis config when the step runs
 (`analysisConfig`: `loadAnalysisConfig`, then `Source` =
 `analysisSource(cfg, keys)` of the selected datasets), so what the
-[analysis app](EphysAnalysisApp.md) saved last is what runs. An
+[analysis app](EphysFigGenApp.md) saved last is what runs. An
 `EphysAnalysisRunner` scans the project root again, keeps those keys and also
 looks for each dataset's outputs in `outputSearchDirs`. Each dataset's
 outputs are read first (`loadAnalysisSource`): one that cannot be read, or a

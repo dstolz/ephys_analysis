@@ -6,7 +6,7 @@ function T = withSubjectDate(obj, T)
 %   pattern and, in a project, the recording's own start). T is returned as
 %   it is without a Dataset column or a scanned runner.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     T
 end
 r = obj.Runner;

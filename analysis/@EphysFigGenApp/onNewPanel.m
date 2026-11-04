@@ -52,7 +52,7 @@ function onNewPanel(obj, opts)
 %   See also EphysAnalysisConfig.placePanel, EphysAnalysisConfig.defaultLayer,
 %   EphysAnalysisConfig.panelTypes, EphysAnalysisConfig.placePanels.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.Type (1,1) string = ""
     opts.Set (1,1) string = ""
     opts.Alignment (1,1) string {mustBeMember(opts.Alignment, ["figure" "own"])} = "figure"

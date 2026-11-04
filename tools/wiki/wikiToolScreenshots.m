@@ -12,7 +12,7 @@ function files = wikiToolScreenshots(outFolder, opts)
 %                           H32_A1x32_RHD2132, site 1 selected
 %     manifest-viewer.png   ManifestViewerApp on the first dataset's
 %                           manifest, Summary tab
-%     analysis-data-tab.png       EphysAnalysisApp at 1240x800 on P:
+%     analysis-data-tab.png       EphysFigGenApp at 1240x800 on P:
 %                           Data tab, first dataset active
 %     analysis-alignment-tab.png  Alignment tab: Stim onset, grouped by Depth
 %     analysis-figures-tab.png    Figures tab: the unit card (a raster
@@ -48,7 +48,7 @@ function files = wikiToolScreenshots(outFolder, opts)
 %   preferences are never read or changed. SOURCE must be a commit that
 %   has AppPrefs.
 %
-%   See also wikiScreenshots, AppPrefs, EphysAnalysisApp, exportapp.
+%   See also wikiScreenshots, AppPrefs, EphysFigGenApp, exportapp.
 
 arguments
     outFolder (1,1) string
@@ -66,7 +66,7 @@ addpath(src);   % addpath_nogit and the root-level functions
 for d = ["pipeline" "analysis" "vendor" "toolboxes"]
     if isfolder(fullfile(src, d)); addpath_nogit(fullfile(src, d)); end
 end
-fprintf('app: %s\n', which('EphysAnalysisApp'));
+fprintf('app: %s\n', which('EphysFigGenApp'));
 if ~isfolder(outFolder); mkdir(outFolder); end
 proj = opts.Project;
 files = strings(1, 0);
@@ -112,7 +112,7 @@ end
 analysisShots = ["analysis-data-tab.png" "analysis-alignment-tab.png" "analysis-figures-tab.png" "analysis-export-tab.png" ...
     "analysis-example-unit-card.png" "analysis-example-heatmap.png" "analysis-example-corrmap.png"];
 if any(ismember(analysisShots, opts.Shots))
-    a = EphysAnalysisApp(proj);    % a new config over the project, scanned
+    a = EphysFigGenApp(proj);    % a new config over the project, scanned
     closeAnalysis = onCleanup(@() delete(a.Fig));
     a.Fig.Position = [40 40 1240 800];
     cfg = a.gatherConfig();

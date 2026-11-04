@@ -15,7 +15,7 @@ function why = figureRowReason(label, key, type)
 %   Appearance rows by the figure's panel types. A key it does not know
 %   gets a plain "is not used by this figure, its selected panel or layer".
 %
-%   See also EphysAnalysisApp.gotoFigureRow, syncFigureEditor.
+%   See also EphysFigGenApp.gotoFigureRow, syncFigureEditor.
 arguments
     label (1,1) string
     key (1,1) string

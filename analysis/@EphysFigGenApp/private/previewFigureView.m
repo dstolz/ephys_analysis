@@ -13,7 +13,7 @@ function previewFigureView(obj, opts)
 %
 %   See also syncFigureView, figureViewFresh, autoFigurePreview.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.Switched (1,1) logical = true
 end
 if ismember(obj.FigurePreviewState, ["computing" "drawing"]); return; end

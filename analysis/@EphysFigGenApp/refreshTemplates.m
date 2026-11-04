@@ -13,7 +13,7 @@ function refreshTemplates(obj, pick)
 %   a template saved, imported or deleted elsewhere (another app, a script,
 %   the folder) shows up.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     pick (1,1) string = string(missing)
 end
 dd = obj.FigureTemplateDropDown;

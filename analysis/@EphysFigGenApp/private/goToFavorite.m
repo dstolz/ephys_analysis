@@ -11,7 +11,7 @@ function goToFavorite(obj, e, opts)
 %
 %   See also onFavoritePicked, onScan.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     e table
     opts.What (1,1) string = "Favorite"   % how the status bar names it ("Note": goToNote)
 end

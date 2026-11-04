@@ -1,9 +1,9 @@
 classdef AnalysisCopyDialog < handle
-    % AnalysisCopyDialog  Copy the files EphysAnalysisApp needs to another folder.
+    % AnalysisCopyDialog  Copy the files EphysFigGenApp needs to another folder.
     %   A window that copies, for the chosen datasets, just the processed
     %   files the analysis app reads (DatasetOutputs.analysisFiles) into
     %   <folder>/<dataset key>, the layout the Transfer section writes, so
-    %   EphysAnalysisApp("<folder>") on another computer analyses them
+    %   EphysFigGenApp("<folder>") on another computer analyses them
     %   without the recordings. The copy runs in the background
     %   (OutputTransfer: robocopy, Windows only) and the window follows it.
     %
@@ -28,7 +28,7 @@ classdef AnalysisCopyDialog < handle
     %   options, delete. Opened by EphysPipelineApp (File -> Copy files for
     %   the analysis app...; onCopyForAnalysis).
     %
-    %   See also DatasetOutputs.analysisFiles, OutputTransfer, EphysAnalysisApp.
+    %   See also DatasetOutputs.analysisFiles, OutputTransfer, EphysFigGenApp.
 
     properties (Constant)
         PrefGroup = "AnalysisCopyDialog"
@@ -289,8 +289,8 @@ classdef AnalysisCopyDialog < handle
                 "Padding", [12 12 12 12], "RowSpacing", 8);
 
             uilabel(g, "WordWrap", "on", "Text", ...
-                "Copies just the processed files EphysAnalysisApp reads, for the ticked datasets, into " + ...
-                "<folder>\<subject>\<session>. Open that folder with EphysAnalysisApp on another computer: " + ...
+                "Copies just the processed files EphysFigGenApp reads, for the ticked datasets, into " + ...
+                "<folder>\<subject>\<session>. Open that folder with EphysFigGenApp on another computer: " + ...
                 "no recordings or other pipeline outputs are copied.");
 
             % --- destination

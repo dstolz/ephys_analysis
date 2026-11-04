@@ -10,8 +10,8 @@ Analysis plots are slow to draw, both in the analysis app's live preview and in 
 - `PlotAesthetics.enableEditing` ([PlotAesthetics.m:433-471](analysis/PlotAesthetics.m#L433-L471)) gives **every** drawn object its own `uicontextmenu` plus 2 `uimenu`s. These are web components in the app's uifigure.
   - A 16-unit PSTH-with-raster page has about 500 objects, so about 1,500 menu components are built on every redraw.
   - Before that, a `findall` over the whole app deletes the previous menus.
-- Every edit, including style-only edits such as font size, fill, legend or YLim, recomputes the data. `refreshPreview` always calls `computePlot` ([refreshPreview.m:50](analysis/@EphysAnalysisApp/refreshPreview.m#L50)), even though `PreviewResult` is cached.
-- The 2 s auto-preview gate ([autoPreview.m](analysis/@EphysAnalysisApp/autoPreview.m)) counts compute and draw time together. A plot that is slow to compute therefore loses live style edits too.
+- Every edit, including style-only edits such as font size, fill, legend or YLim, recomputes the data. `refreshPreview` always calls `computePlot` ([refreshPreview.m:50](analysis/@EphysFigGenApp/refreshPreview.m#L50)), even though `PreviewResult` is cached.
+- The 2 s auto-preview gate ([autoPreview.m](analysis/@EphysFigGenApp/autoPreview.m)) counts compute and draw time together. A plot that is slow to compute therefore loses live style edits too.
 
 **Shared render path (preview and runs).**
 - `tileTicks` writes FontSize, then reads automatic `TickValues`/`Limits` and writes again, for each axes in turn ([tileTicks.m](analysis/private/tileTicks.m)). On a PSTH page that is 32 axes in 16 nested tiled layouts. `clearRasterEdge` ([renderPSTH.m:207-221](analysis/renderPSTH.m#L207-L221)) and `waveformInset` (reads `xlim`/`ylim` in auto mode, [waveformInset.m:27-30](analysis/private/waveformInset.m#L27-L30)) do the same. Each read after a write forces a fresh layout pass.
@@ -122,13 +122,13 @@ Record the baseline table, then re-run after each phase. The before/after tables
 
 - [analysis/PlotAesthetics.m](analysis/PlotAesthetics.m): `enableEditing`, `onMenuOpening`, `components`, `roleLabel`, `apply`
 - [analysis/renderPlot.m](analysis/renderPlot.m)
-- [analysis/@EphysAnalysisApp/refreshPreview.m](analysis/@EphysAnalysisApp/refreshPreview.m), [autoPreview.m](analysis/@EphysAnalysisApp/autoPreview.m), [EphysAnalysisApp.m](analysis/@EphysAnalysisApp/EphysAnalysisApp.m) (new properties)
+- [analysis/@EphysFigGenApp/refreshPreview.m](analysis/@EphysFigGenApp/refreshPreview.m), [autoPreview.m](analysis/@EphysFigGenApp/autoPreview.m), [EphysFigGenApp.m](analysis/@EphysFigGenApp/EphysFigGenApp.m) (new properties)
 - New `analysis/@EphysAnalysisRunner/computeSpec.m`, plus its declaration in `EphysAnalysisRunner.m`
 - [analysis/private/tileTicks.m](analysis/private/tileTicks.m), [waveformInset.m](analysis/private/waveformInset.m), [rasterInto.m](analysis/private/rasterInto.m)
 - [analysis/renderPSTH.m](analysis/renderPSTH.m), [renderRaster.m](analysis/renderRaster.m), [renderTuning.m](analysis/renderTuning.m), [renderEvoked.m](analysis/renderEvoked.m)
 - [analysis/@EphysAnalysisConfig/defaults.m](analysis/@EphysAnalysisConfig/defaults.m), [analysis/reportImage.m](analysis/reportImage.m), [@EphysAnalysisRunner/runDataset.m](analysis/@EphysAnalysisRunner/runDataset.m)
 - Docs:
-  - `documentation/EphysAnalysisApp.md` (auto-preview rule, right-click)
+  - `documentation/EphysFigGenApp.md` (auto-preview rule, right-click)
   - `EphysAnalysisConfig.md` (Formats default)
   - `README.md` (Dependencies)
   - `CHANGELOG.md`
@@ -143,7 +143,7 @@ Record the baseline table, then re-run after each phase. The before/after tables
 - **Manual check.** Open the app on the synthetic project and preview a PSTH grid. Right-click a raster tick line, a SEM band, a title and the axes, and confirm the editor opens on that component. Edit the font size and confirm the status label shows the render time only. Press Preview and confirm it recomputes.
 - **Tests: only the suites that touch the change**, run once at the end, by name:
   - Phase 1a and Phase 2: `run_all_tests({'test_PlotAesthetics','test_PlotDesign'})`.
-  - Phases 1b-1c: `test_EphysAnalysisApp`, which takes 1-10 min, so run it in the background.
+  - Phases 1b-1c: `test_EphysFigGenApp`, which takes 1-10 min, so run it in the background.
   - Renderers: `test_EphysAnalysisCompute`.
   - Phase 3: `test_EphysAnalysisRunner`, plus `test_EphysAnalysisConfig` if it pins the default formats.
   - No full-suite run. Report which suites were run and which were left out.

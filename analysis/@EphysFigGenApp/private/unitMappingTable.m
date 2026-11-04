@@ -6,7 +6,7 @@ function T = unitMappingTable(C, keys)
 %   ""), and returns the table writeUnitMapping writes: a string variable
 %   "cell", then one string variable per key, named as the key is (keys hold
 %   "/"). Rows with no name and no id are dropped; ids and names are
-%   trimmed. Errors (EphysAnalysisApp:UnitMapping) when a row has ids but
+%   trimmed. Errors (EphysFigGenApp:UnitMapping) when a row has ids but
 %   no name or two rows share a name -- the editor says so and stays open.
 %
 %   See also onEditUnitMapping, editUnitMapping, readUnitMapping.
@@ -26,14 +26,14 @@ name = S(:, 1);
 ids = S(:, 2:end);
 drop = name == "" & all(ids == "", 2);
 if any(name == "" & ~drop)
-    error('EphysAnalysisApp:UnitMapping', 'Row %d has unit ids but no cell name.', find(name == "" & ~drop, 1));
+    error('EphysFigGenApp:UnitMapping', 'Row %d has unit ids but no cell name.', find(name == "" & ~drop, 1));
 end
 S(drop, :) = [];
 name = S(:, 1);
 [u, first] = unique(name, 'stable');
 if numel(u) < numel(name)
     dup = name(setdiff(1:numel(name), first));
-    error('EphysAnalysisApp:UnitMapping', 'Two rows are named "%s": each cell needs a name of its own.', dup(1));
+    error('EphysFigGenApp:UnitMapping', 'Two rows are named "%s": each cell needs a name of its own.', dup(1));
 end
 cols = cell(1, 1 + m);
 for j = 1:1 + m

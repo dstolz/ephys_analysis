@@ -16,7 +16,7 @@ function onRemoveCell(obj, rc, how)
 %
 %   See also EphysAnalysisConfig.removeCell, EphysAnalysisConfig.cellRemovals.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     rc (1,2) double
     how (1,1) string
 end

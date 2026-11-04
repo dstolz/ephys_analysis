@@ -22,7 +22,7 @@ function setFigurePreviewState(obj, state, opts)
 %     failed     computing or drawing it failed
 %     canceled   Cancel stopped the compute
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     state (1,1) string {mustBeMember(state, ["idle" "computing" "drawing" "drawn" "stale" "waiting" "skipped" "failed" "canceled"])}
     opts.Message (1,1) string = ""
 end

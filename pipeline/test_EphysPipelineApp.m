@@ -937,7 +937,7 @@ if S.sec("3", "scan, selection, plan")
     check(isscalar(mv) && contains(app.StatusBar.Text, "Opened the manifest of recA_260101_120000"), ...
         'Tools > Manifest viewer opens the ticked dataset''s manifest');
     close(mv);
-    if exist('EphysAnalysisApp', 'class')
+    if exist('EphysFigGenApp', 'class')
         an = app.onOpenAnalysisApp(app.toolTargets());
         anS = an.Config.Source;
         check(isvalid(an.Fig) && anS.Mode == "project" && anS.Root == app.Project.Root && anS.Selection == "all" ...

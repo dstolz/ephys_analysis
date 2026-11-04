@@ -38,7 +38,7 @@ classdef ProgressClock < handle
     %                                      "1 h 5 min elapsed"
     %     ProgressClock.durationText(SECS) "40 s", "3 min", "1 h 20 min"
     %
-    %   See also EphysPipelineApp.onPipelineProgress, EphysAnalysisApp.onRunExport.
+    %   See also EphysPipelineApp.onPipelineProgress, EphysFigGenApp.onRunExport.
 
     properties
         MinFraction (1,1) double {mustBeNonnegative} = 0.01   % no estimate before this much of the work is done

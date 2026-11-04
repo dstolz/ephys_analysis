@@ -17,7 +17,7 @@ function commitFigureEdit(obj, cfg, msg, opts)
 %   Action=LABEL names the edit in the undo history (recordFigureEdit:
 %   "Add panel", the Edit menu's "Undo Add panel"); "Edit" by default.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     cfg (1,1) EphysAnalysisConfig
     msg (1,1) string
     opts.Action (1,1) string = "Edit"

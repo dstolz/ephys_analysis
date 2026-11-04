@@ -6,7 +6,7 @@ function drawAsChoices(dd, type, v)
 %   another type) stays listed, so the box shows what the config holds
 %   (Validate reports it).
 %
-%   See also EphysAnalysisApp.syncFigureEditor, EphysAnalysisApp.applyFigureEditor.
+%   See also EphysFigGenApp.syncFigureEditor, EphysFigGenApp.applyFigureEditor.
 if nargin < 3; v = string(dd.Value); end
 v = string(v);
 labels = ["marks (on the rows / latency lines)" "a spike train of its own" "a line from onset to offset"];

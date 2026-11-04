@@ -5,7 +5,7 @@ is a value class that describes a set of quick-look figures: which datasets
 to read, how to align them, which multi-panel [figures](#figures) to
 design for one unit, channel or dataset (and which to draw
 [across sessions](#session-figures)), and how to export and
-report them. `EphysAnalysisApp` edits one, `EphysAnalysisRunner` runs one and
+report them. `EphysFigGenApp` edits one, `EphysAnalysisRunner` runs one and
 `EphysAnalysisScript` writes scripts from one ([Analysis](EphysAnalysis.md)).
 It is saved as JSON (schema `ephys-analysis-config`, version 2) and
 round-trips exactly, `Inf`, `NaN` and empty values included. A version 1
@@ -171,7 +171,7 @@ folder (`<Name>_*`, `<Name>` the folder's last part).
 | `Selection` | [TrialSelection](#trialselection) | which trials take part, in which groups |
 
 They are used by every figure whose `ref`, `window` or `selection` is the
-string `"default"`. The app's [Alignment tab](EphysAnalysisApp.md#alignment-tab)
+string `"default"`. The app's [Alignment tab](EphysFigGenApp.md#alignment-tab)
 edits them.
 
 ## Building blocks
@@ -722,7 +722,7 @@ the box plot and the onset lines with the block's rule, window and baseline
 (`latencyMethodText`). The analysis app edits the block in the figure editor's
 **First-spike latency** section, and the looks in a window of their own: the
 raster's **First-spike marks...** and the PSTH's **Latency box plot...**, with
-an **Onset line** row on both ([Figures tab](EphysAnalysisApp.md#figures-tab));
+an **Onset line** row on both ([Figures tab](EphysFigGenApp.md#figures-tab));
 **Copy settings** lists the block setting by setting.
 
 ### Trial counts
@@ -751,7 +751,7 @@ first unit of its first layer) on its peak channel as a small box in the panel (
 the rate axes of a PSTH). The `waveform` settings
 (`EphysAnalysisConfig.defaults("Waveform")`; a panel's
 `options.waveform`; the app's **Waveform** section,
-[The Waveform section](EphysAnalysisApp.md#the-waveform-section)):
+[The Waveform section](EphysFigGenApp.md#the-waveform-section)):
 
 | Field | Default | Meaning |
 | --- | --- | --- |
@@ -1017,7 +1017,7 @@ counts an enabled figure. The app starts that run two ways: the Export tab's
 **Generate selected figure** draws the Figures tab's selected figure alone, enabled or not, on every ticked
 dataset. The pieces are the config below, `figureObservations`,
 `figureCompute` (`EphysAnalysisRunner.computeFigure` wraps it) and
-`renderFigure`, which the app's [Figures tab](EphysAnalysisApp.md#figures-tab), a
+`renderFigure`, which the app's [Figures tab](EphysFigGenApp.md#figures-tab), a
 run and a script all call:
 
 ```matlab
@@ -1168,7 +1168,7 @@ Nothing in a config refers to a figure by its id, so an automatic rename breaks
 no reference: a run (`run(Figures=)`, the Export tab, the pipeline's Analysis
 step) reads the ids when it runs, and a session figure's settings are its own
 `sessions` block. The app follows a rename in what it keeps by id while it is
-open ([the id](EphysAnalysisApp.md#figures-tab)). The figure's file names
+open ([the id](EphysFigGenApp.md#figures-tab)). The figure's file names
 follow its id.
 
 ### Panel fields
@@ -2728,7 +2728,7 @@ them, and `figureSessionSpec` applies it to the compute and the render alike:
 The standalone script carries the same calls
 ([Generated scripts](EphysAnalysis.md#session-figures-in-a-standalone-script)),
 and the app edits the block in the Figures tab's Sessions section
-([Figures tab](EphysAnalysisApp.md#figures-tab)).
+([Figures tab](EphysFigGenApp.md#figures-tab)).
 
 #### Validating session figures
 
@@ -3396,7 +3396,7 @@ panel type without a refused value; see [Analysis](EphysAnalysis.md#plot-aesthet
 <!-- wiki
 ## Related
 
-- [Analysis app](EphysAnalysisApp.md): the GUI that edits a config
+- [Analysis app](EphysFigGenApp.md): the GUI that edits a config
 - [Analysis scripting](EphysAnalysis.md): running configs from scripts, generated scripts, the functions
 - [Pipeline configs](Pipeline-Configs): the pipeline config, whose project settings `Source` mirrors
 - API: [EphysAnalysisConfig](API-EphysAnalysisConfig), [EphysAnalysisRunner](API-EphysAnalysisRunner), [Analysis functions](API-Analysis-Functions)

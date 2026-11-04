@@ -1,5 +1,5 @@
-function test_EphysAnalysisApp(opts)
-%test_EphysAnalysisApp  Headless checks of the analysis GUI over a synthetic project.
+function test_EphysFigGenApp(opts)
+%test_EphysFigGenApp  Headless checks of the analysis GUI over a synthetic project.
 %   Builds the app on a small synthetic project run through the pipeline
 %   and drives it through its own methods: the startup (built hidden behind
 %   the splash, Splash=true and the -batch default without it; the tabs but
@@ -147,9 +147,9 @@ function test_EphysAnalysisApp(opts)
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
-%   Usage:  test_EphysAnalysisApp
-%           test_EphysAnalysisApp(Sections="5i")            % some sections (TestSections): "5d" runs every 5d.*
-%           run_all_tests({'test_EphysAnalysisApp:5i,5j'})
+%   Usage:  test_EphysFigGenApp
+%           test_EphysFigGenApp(Sections="5i")            % some sections (TestSections): "5d" runs every 5d.*
+%           run_all_tests({'test_EphysFigGenApp:5i,5j'})
 %
 %   Every section after the fixture and the app's build is guarded by
 %   S.sec: a section run alone sets up what it needs from the earlier ones
@@ -169,7 +169,7 @@ addpath(genpath(fullfile(repo, 'vendor')));
 
 root = fullfile(tempdir, sprintf('AnaApp_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
 mkdir(root);
-g = EphysAnalysisApp.PrefGroup;
+g = EphysFigGenApp.PrefGroup;
 restorePrefs = AppPrefs.useTemporary(); %#ok<NASGU> preferences in a temporary file, never the user's
 cleanup = onCleanup(@() removeRoot(root));
 
@@ -189,7 +189,7 @@ fprintf('\n== 0. fixture ==\n');
 F = makeAnalysisFixture(string(root), Scenarios=["clean" "late-start"], NumTrials=12);
 check(numel(F.names) == 2, 'two datasets run through the pipeline');
 
-app = EphysAnalysisApp(F.proj);   % built on the project and scanned: the setup every section runs on
+app = EphysFigGenApp(F.proj);   % built on the project and scanned: the setup every section runs on
 appCleanup = onCleanup(@() closeApp(app));
 
 % what the sections share: key presses, the figure editor's controls and sections, the preview's axes and title,
@@ -432,7 +432,7 @@ if S.sec("1", "build, open the project, scan")
     check(any(string(app.AlignControls.Line.Items) == "Stim") && any(gItems == "Depth") && any(gItems == "RespCode") ...
         && isequal(gItems, gItems(gOrd)), 'the Alignment boxes list the lines and every parameter (RespCode too), alphabetically');
     key1 = app.Runner.Keys(k);
-    app1 = EphysAnalysisApp(F.proj, Datasets=key1);
+    app1 = EphysFigGenApp(F.proj, Datasets=key1);
     [~, leaf1] = fileparts(key1);
     check(app1.Config.Source.Selection == "list" && isequal(app1.Config.Source.Datasets, key1) ...
         && height(app1.DatasetsTable.Data) == 2 && isequal(app1.Ticked, app1.Runner.Keys == key1) ...
@@ -467,7 +467,7 @@ end
 if S.sec("1c", "Help menu: GitHub issue and feature request")
     items = flip(string({app.HelpMenu.Children.Text}));
     check(isequal(items(end-4:end), ["Report an issue on GitHub..." "Request a feature on GitHub..." "Report a figure template issue..." ...
-        "Request a figure template feature..." "About EphysAnalysisApp"]), ...
+        "Request a figure template feature..." "About EphysFigGenApp"]), ...
         'the Help menu ends with the two GitHub issue items, the two about figure templates and About');
     app.log("synthetic log line for the report");
     bug = app.issueReport("bug", Description="the preview stops here");
@@ -476,7 +476,7 @@ if S.sec("1c", "Help menu: GitHub issue and feature request")
         && contains(bug, "<summary>Analysis config</summary>") && contains(bug, string(F.proj)) ...
         && contains(bug, "2 scanned, 2 ticked") && contains(bug, "<summary>Config JSON</summary>") ...
         && contains(bug, """schema""") && contains(bug, "<summary>Log tab</summary>") ...
-        && contains(bug, "synthetic log line for the report") && contains(bug, "Filed from the EphysAnalysisApp"), ...
+        && contains(bug, "synthetic log line for the report") && contains(bug, "Filed from the EphysFigGenApp"), ...
         'a bug report carries the description, the system, the config and the log tab');
     feat = app.issueReport("feature", Description="a button that stitches", System=false, Config=false, Logs=false);
     check(contains(feat, "### What would you like to be able to do") && contains(feat, "a button that stitches") ...
@@ -523,7 +523,7 @@ if S.sec("1d", "messages: what stops an action is an alert that says what to do;
     app.setStatus("A long message that the status bar could clip");
     check(string(app.StatusBar.Tooltip) == "A long message that the status bar could clip", 'the status bar''s tooltip holds the whole message');
     % no project: Scan names the Data tab's root, Plan has a button to it, a root that is not there and an empty one say so
-    app2 = EphysAnalysisApp("", Splash=false);
+    app2 = EphysFigGenApp("", Splash=false);
     app2Clean = onCleanup(@() closeApp(app2)); %#ok<NASGU>
     app2.RootField.Value = '';
     app2.onConfigChanged("source");
@@ -2238,7 +2238,7 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     app.WorkersSpinner.Value = 2;
     app.WorkersSpinner.ValueChangedFcn(app.WorkersSpinner, []);
     app.onSaveConfig();
-    app2 = EphysAnalysisApp(Splash=true);
+    app2 = EphysFigGenApp(Splash=true);
     H2 = app2.Splash.History;
     check(app2.Splash.Window ~= "" && ~app2.Splash.isOpen() && isempty(findall(groot, 'Tag', 'AppSplash')) ...
         && app2.Fig.Visible == "on" && all(ismember(["window" "config" "scan" "dataset" "show"], H2.Step)), ...
@@ -2841,12 +2841,12 @@ if S.sec("5h", "the figure tree, a panel's note and overlays, dragging a panel i
     offGroup = ftree.Children(2);
     app.onFigureGroupToggled(offGroup, true);
     app.onSaveConfig();
-    app2 = EphysAnalysisApp();
+    app2 = EphysFigGenApp();
     restoredBy = string(app2.FigureGroupDropDown.Value) == "status" && isequal(app2.FigureGroupsCollapsed, "status:Off") ...
         && numel(app2.FiguresTree.Children) == 2 && app2.SelectedFigure == 1;
     closeApp(app2);
     check(string(offGroup.NodeData) == "status:Off" && restoredBy ...
-        && isequal(string(AppPrefs.getpref(EphysAnalysisApp.PrefGroup, 'FigureGroupBy')), "status"), ...
+        && isequal(string(AppPrefs.getpref(EphysFigGenApp.PrefGroup, 'FigureGroupBy')), "status"), ...
         'a new app restores the figure tree''s Group by and its collapsed group (FigureGroupBy, FigureGroupsCollapsed)');
     app.onFigureGroupToggled(offGroup, false);
     app.setFiguresEnabled(2, "on");
@@ -4586,7 +4586,7 @@ end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
-    error('test_EphysAnalysisApp:Failures', '%d checks failed.', nFail);
+    error('test_EphysFigGenApp:Failures', '%d checks failed.', nFail);
 end
 end
 

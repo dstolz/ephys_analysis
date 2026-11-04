@@ -1,6 +1,6 @@
 classdef AppPrefs
     % AppPrefs  Where the apps keep their preferences: MATLAB's, or a file.
-    %   The apps (EphysPipelineApp, EphysAnalysisApp, ChannelMapperApp)
+    %   The apps (EphysPipelineApp, EphysFigGenApp, ChannelMapperApp)
     %   read and write their preferences only through these methods, which
     %   take the same arguments as MATLAB's own:
     %

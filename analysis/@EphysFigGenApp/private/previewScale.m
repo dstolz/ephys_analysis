@@ -15,7 +15,7 @@ function s = previewScale(obj, spec, widthPx)
 %
 %   See also fitFigureViews, onOpenFigureWindow, figureExportSize, renderFigure.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     spec (1,1) struct
     widthPx (1,1) double = NaN
 end

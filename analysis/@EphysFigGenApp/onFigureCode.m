@@ -19,7 +19,7 @@ function txt = onFigureCode(obj, file)
 %
 %   See also EphysAnalysisScript.preview, refreshFigurePreview, onOpenFigureWindow.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     file (1,1) string = ""
 end
 txt = "";

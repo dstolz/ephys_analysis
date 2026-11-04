@@ -18,7 +18,7 @@ function ok = gotoFigureRow(obj, i, opts)
 %   keeps the focus). Going there with the focus ends the search's hold on
 %   Enter and the arrows (FigureSearchState).
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     i (1,1) double
     opts.Focus (1,1) logical = true
 end

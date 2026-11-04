@@ -154,8 +154,8 @@ class GenPages(unittest.TestCase):
         idx = g.page_index(pages, texts)
         built = {p["page"]: g.build(p, texts, idx) for p in pages}
         files = [("pipeline", "@EphysPipelineApp", "helpURL.m"),
-                 ("analysis", "@EphysAnalysisApp", "helpURL.m"),
-                 ("analysis", "@EphysAnalysisApp", "buildMenus.m")]
+                 ("analysis", "@EphysFigGenApp", "helpURL.m"),
+                 ("analysis", "@EphysFigGenApp", "buildMenus.m")]
         for parts in files:
             name = "/".join(parts)
             src = open(os.path.join(g.REPO, *parts), encoding="utf-8").read()

@@ -246,8 +246,8 @@ cleared). Everything else in renderFigure unchanged but the five helpers moved o
 
 ### WP3: the app (worktree C)
 
-Files: `@EphysAnalysisApp/*` and its `private/`, `documentation/EphysAnalysisApp.md`,
-`test_EphysAnalysisApp.m` (section 5m). Rely on the contracts above (field names,
+Files: `@EphysFigGenApp/*` and its `private/`, `documentation/EphysFigGenApp.md`,
+`test_EphysFigGenApp.m` (section 5m). Rely on the contracts above (field names,
 `r.computeProbeFigure`, `figureProbeTiles`, `renderFigure` dispatching a PF,
 `cfg.isProbeFigure`).
 
@@ -290,11 +290,11 @@ Files: `@EphysAnalysisApp/*` and its `private/`, `documentation/EphysAnalysisApp
 - `onGenerateFigure`: a probe figure generates per dataset as any figure (one page
   each); the status text says *"... 1 page (23 tiles) ..."* where it counts observations
   if that text is per-observation.
-- `documentation/EphysAnalysisApp.md`: a `#### Probe layout in the Figures tab`
+- `documentation/EphysFigGenApp.md`: a `#### Probe layout in the Figures tab`
   subsection after the Sessions one (the rows table, the preview, Generate), the
   **Panel types** / **Where the code is** / **Tests** entries; `helpURL` anchors must be
   headings (`tools/wiki/test_gen_pages.py` checks).
-- `test_EphysAnalysisApp` section 5m: the section's rows wired to the config (gather /
+- `test_EphysFigGenApp` section 5m: the section's rows wired to the config (gather /
   apply, enabled toggling the rows, Physical enabling Overlap), the picker's one entry
   and count line, the preview drawing tiles (axes with appdata `ProbeTile`) and its
   status line, Undo of a probe edit named *Probe layout*, Generate writing one page.

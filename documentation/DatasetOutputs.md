@@ -146,7 +146,7 @@ property to set.
 | `readUnits(Name=Value)` | `Units` with reader options (`Groups`, `IncludeNoise`, `Templates`, ...) |
 | `readWaveforms(unitId, MaxSpikes=)` | `[W, info]`: at most `MaxSpikes` (100) of a sorted unit's spikes, picked at random (the same ones each time), on its peak channel, cut from the sorted `.bin` by `EphysDataset.readPhyWaveforms` (`W` `[nt x nSpikes]`); kept with `CacheData`. Its errors pass through (`...:NoDataFile` when the `.bin` is not there); `DatasetOutputs:NoUnit` for an unknown id |
 | `signalFile(type)` | the extract file that holds a signal (`""` when none); a combined file's `info` is loaded once per path, size and modification time (until `refresh()`) |
-| `analysisFiles(Signals=, Spikes=, Sorting=, SortedData=, Probe=)` | `[T, notes]`: the files [`EphysAnalysisApp`](EphysAnalysisApp.md) reads (see [below](#files-for-the-analysis-app)) |
+| `analysisFiles(Signals=, Spikes=, Sorting=, SortedData=, Probe=)` | `[T, notes]`: the files [`EphysFigGenApp`](EphysFigGenApp.md) reads (see [below](#files-for-the-analysis-app)) |
 | `probeFile()` | the probe `.json` of the manifest's `probe.file`; when no file is at that path (outputs copied to another machine), a file of the same name in the dataset's folder; `""` for none |
 | `inventory()` | table per kind: `Property`, `Path`, `Source`, `Exists`, `Bytes`, `Modified`, `NumCandidates` |
 | `refresh()`, `clearCache()` | re-scan; free cached data |

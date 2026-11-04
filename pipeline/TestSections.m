@@ -1,6 +1,6 @@
 classdef TestSections < handle
     % TestSections  Run some sections of a function-style test suite, and time every section.
-    %   A function-style suite (test_EphysAnalysisApp, test_EphysPipelineApp,
+    %   A function-style suite (test_EphysFigGenApp, test_EphysPipelineApp,
     %   test_EphysAnalysisFigures) builds its fixture, then runs numbered
     %   sections of checks. With this class each section is guarded, so a
     %   change to one tab or one panel type is tested by its own section:

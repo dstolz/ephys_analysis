@@ -77,7 +77,7 @@ classdef DatasetNotes < handle
     %
     %   The file's shape: documentation/file-formats.md, "Notes".
     %
-    %   See also EphysAnalysisApp, NotePad, NoteSearch, DatasetFavorites.
+    %   See also EphysFigGenApp, NotePad, NoteSearch, DatasetFavorites.
 
     properties (SetAccess = private)
         Name (1,1) string = ""

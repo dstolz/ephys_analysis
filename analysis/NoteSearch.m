@@ -33,7 +33,7 @@ classdef NoteSearch < handle
     %   none), Fig, Field, CountLabel, Table, Preview, GoToButton,
     %   EditButton.
     %
-    %   See also DatasetNotes, NotePad, EphysAnalysisApp.
+    %   See also DatasetNotes, NotePad, EphysFigGenApp.
 
     properties (SetAccess = private)
         Entries table = table()

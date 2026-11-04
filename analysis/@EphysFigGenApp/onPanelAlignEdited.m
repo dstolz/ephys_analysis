@@ -7,7 +7,7 @@ function onPanelAlignEdited(obj, part)
 %   already has its own; a ref or window part it did not have of its own
 %   (a config that gave it only one) is its own from this edit on.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     part (1,1) string {mustBeMember(part, ["ref" "window" "selection"])}
 end
 E = obj.FigureEditor;

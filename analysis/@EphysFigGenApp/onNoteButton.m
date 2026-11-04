@@ -13,7 +13,7 @@ function onNoteButton(obj, what)
 %
 %   See also openNotePad, syncNoteButtons, onSearchNotes, DatasetNotes.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     what (1,1) string {mustBeMember(what, ["dataset" "observation"])}
 end
 if isempty(obj.Runner) || obj.ActiveIdx < 1 || numel(obj.Notes) < obj.ActiveIdx

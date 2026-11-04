@@ -31,9 +31,9 @@ unless the owner says otherwise.
   reaches, why, and the expected seconds. When a signature, a classdef
   declaration or a UI builder changed, also run the suites that call it or
   build the app.
-- When a suite takes sections (`test_EphysAnalysisApp`, `test_EphysPipelineApp`,
+- When a suite takes sections (`test_EphysFigGenApp`, `test_EphysPipelineApp`,
   `test_EphysAnalysisFigures`), run only the sections the change touches:
-  `run_all_tests({'test_EphysAnalysisApp:5i'})`. Its fixture and what the
+  `run_all_tests({'test_EphysFigGenApp:5i'})`. Its fixture and what the
   sections declare they need run with them.
 - Run suites through `tools\Run-Tests.ps1` (PowerShell): `-Select` runs what
   the selector prints; it logs, records every run's seconds, keeps to two test
@@ -45,7 +45,7 @@ unless the owner says otherwise.
   code that asked, the test line, the command to rerun it) and exits 3.
   When that happens:
   1. Read the code the block names. If the test should answer the dialog
-     itself (from a timer, as `test_EphysAnalysisApp` 5d.newpanel does),
+     itself (from a timer, as `test_EphysFigGenApp` 5d.newpanel does),
      fix the test instead and say so.
   2. Otherwise tell the owner clearly before anything opens on their screen:
      send a push notification (PushNotification) and start your message
@@ -84,7 +84,7 @@ people learn to use this repository. Keep it current; the mechanics are in
   (`Tests`, `Where the code is`) stay in `documentation/` and are left out
   of the wiki with `exclude` in `tools/wiki/pages.json`.
 - **Three branches.** The sidebar has one branch per tool: the pipeline app
-  (`EphysPipelineApp`), the analysis app (`EphysAnalysisApp`) and the
+  (`EphysPipelineApp`), the analysis app (`EphysFigGenApp`) and the
   dataset browser (`DatasetBrowser`). Each is split into *Using the app*,
   starting at its plain-language guide, and *Writing scripts*, starting at
   its scripting page, with the tool's API pages under it. A new page goes

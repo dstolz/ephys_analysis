@@ -60,7 +60,7 @@ classdef EpochGroupCounts < handle
     %         the count line
     %
     %   See also epochTable, selectTrials, EpochDiagram, DatasetBrowser,
-    %   EphysAnalysisApp.
+    %   EphysFigGenApp.
 
     properties (SetAccess = private)
         Fig                                     % the window (uifigure)

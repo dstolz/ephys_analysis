@@ -10,6 +10,10 @@ says how to cut a release.
 
 ### Changed
 
+- `EphysAnalysisApp` is renamed `EphysFigGenApp` (class folder `analysis/@EphysFigGenApp`, `test_EphysFigGenApp`,
+  `documentation/EphysFigGenApp.md`, the wiki's `API-EphysFigGenApp` page). Its preferences group is
+  `EphysFigGenApp`, so preferences saved under the old name (window position, recent configs, hidden tabs, ...)
+  are not read.
 - Analysis app: closing asks Save / Discard / Cancel at once (the config the app holds is checked first; only a
   clean one is also read from the controls), and once answered the window disappears before the preferences are
   saved and its contents deleted. A second close request while one is under way is ignored.
@@ -538,7 +542,7 @@ says how to cut a release.
   typed, comma-separated, with `*` / `?` wildcards) and **Tags:** (any of / all of the tags picked or typed) show only
   the datasets that pass both; a hidden dataset keeps its **Run** tick, and the line above says *showing k of n (m
   ticked hidden)*. **Tick shown only** ticks exactly the datasets shown; **Untick all** clears every tick. See
-  [The filter](documentation/EphysAnalysisApp.md#data-tab).
+  [The filter](documentation/EphysFigGenApp.md#data-tab).
 - Pipeline app: **File > Scan the project at startup** (a check item, on by default, remembered as the `AutoScan`
   preference) turns the startup scan of the reopened config's project off.
 - Tags for new datasets. Pipeline app, Project tab, under **Scan**: **Tag new datasets:** with a field of tags and
@@ -614,11 +618,11 @@ says how to cut a release.
   undo step (*Size*) that shapes the preview and draws it again from the figure it holds, without computing.
   **Open in window** opens a figure of the page's shape at its true size. New functions `figureExportSize`,
   `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`; tests in `test_EphysAnalysisFigures`
-  section 13 and `test_EphysAnalysisApp` section 5o. See
-  [The page a figure is exported on](documentation/EphysAnalysisApp.md#the-page-a-figure-is-exported-on).
+  section 13 and `test_EphysFigGenApp` section 5o. See
+  [The page a figure is exported on](documentation/EphysFigGenApp.md#the-page-a-figure-is-exported-on).
 - Figures tab: **Ctrl+Click a panel** in the preview (or an **Open in window** figure) selects it in the figure
   editor and scrolls to its **Selected panel** section (`renderFigure(..., OnSelect=)`,
-  `EphysAnalysisApp.onFigurePanelClicked`). A Ctrl+Click reports the same button as a right-click, so it is told
+  `EphysFigGenApp.onFigurePanelClicked`). A Ctrl+Click reports the same button as a right-click, so it is told
   by the Ctrl key; the right-click menu is unchanged, and picking a panel is no edit (no undo step, no
   **Apply to figures** although Ctrl is held).
 - Analysis app: **remembered panel options.** The options you set on a panel are remembered per panel type, a
@@ -629,12 +633,12 @@ says how to cut a release.
   the active dataset has it. **Edit > Reset panel options to defaults** (the selected panel, one undo step, and its
   type's remembered options forgotten) and **Edit > Forget remembered panel options**. `onNewPanel(Type=...)` takes
   `Remembered=true` for the same. See
-  [Remembered panel options](documentation/EphysAnalysisApp.md#remembered-panel-options).
+  [Remembered panel options](documentation/EphysFigGenApp.md#remembered-panel-options).
 - Analysis app: **a color swatch beside every color field** of the Figures editor and of the First-spike latency and
   Latency box plot windows; it shows the field's color and opens the color chooser (`uisetcolor`), the color picked
   written as `#rrggbb`, one named undo step. Names, codes and words such as *groups* can still be typed
   (`private/colorSwatch`; the app's `ColorPicker` property is the chooser). See
-  [Picking a color](documentation/EphysAnalysisApp.md#picking-a-color).
+  [Picking a color](documentation/EphysFigGenApp.md#picking-a-color).
 - First-spike latency on raster and PSTH panels. `firstSpikeLatency(R, Units=, MinSec=, MaxSec=)` finds each
   epoch's first spike at or after `MinSec` and at or before `MaxSec` (both included, s from the aligned event;
   NaN where none; `MaxSec` `Inf` = the window's end) in a `spikePSTH` result's raster rows, the very spikes the
@@ -657,7 +661,7 @@ says how to cut a release.
   figure switched away from keeps its drawing, badge, status line and *Figure:* pick, and switching back shows it
   without computing or drawing it again unless it is out of date (`figureViewKey`: its figure with the defaults it
   uses, the active dataset or the ticked ones, its observation and a scan count; then it is drawn as after an edit).
-  The eight figures shown last keep theirs (`EphysAnalysisApp.MaxFigureViews`), Remove frees a figure's container and
+  The eight figures shown last keep theirs (`EphysFigGenApp.MaxFigureViews`), Remove frees a figure's container and
   another config drops them all. The tree drives it and marks it (`markFigureTree`): the figure shown bold, a preview
   out of date amber and italic, a failed one red, one not drawn gray; an edit marks only its own figure. The editor
   comes back as each figure left it: its sections and supersections open or collapsed, its scroll, its panel and
@@ -711,8 +715,8 @@ says how to cut a release.
   text...**, **Edit Y label text...**, **Move X axis to top**, **Move Y axis to right** and the every-panel
   moves, in the preview and in an **Open in window** figure, so a label the time stack hides can be set too
   (the status bar says the stack does not show it). renderFigure's `OnAxisEdit` (and
-  `EphysAnalysisApp.onFigureAxisEdited`) now takes a string row of panel ids. See
-  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+  `EphysFigGenApp.onFigureAxisEdited`) now takes a string row of panel ids. See
+  [Figures tab](documentation/EphysFigGenApp.md#figures-tab).
 - **Starred only** for figures (`observe.starred`, a checkbox in the Figures tab's Observations section): the
   preview's picker, < >, Generate, Export runs and scripts keep only the starred units of the sort in use, the
   starred channels (a detection channel by its recording channel) or a starred dataset, read from
@@ -724,10 +728,10 @@ says how to cut a release.
   dataset with its class, channel and depth (*subj1_day1 · unit 12 · su · ch 5 · 850 µm*) and a channel with its
   depth, from what is already in memory (app property `DatasetUnits` replaces `DatasetUnitCounts`), and a figure
   across sessions marks its starred matches ★ in the picker. See
-  [Favorites](documentation/EphysAnalysisApp.md#favorites).
+  [Favorites](documentation/EphysFigGenApp.md#favorites).
 
-- Tests by section, and a local runner. `run_all_tests({'test_EphysAnalysisApp:5i,5j'})` runs only those
-  sections of a function-style suite that takes them (`TestSections`: `test_EphysAnalysisApp`,
+- Tests by section, and a local runner. `run_all_tests({'test_EphysFigGenApp:5i,5j'})` runs only those
+  sections of a function-style suite that takes them (`TestSections`: `test_EphysFigGenApp`,
   `test_EphysPipelineApp`, `test_EphysAnalysisFigures`; a section declares what it needs, and every run
   prints each section's seconds), `ExcludeTag=` leaves tests out by tag (`Slow`: the copy schedule's Task
   Scheduler run, the real SpikeInterface sort, the process pool; `Benchmark`) and `ResultsCSV=` writes the
@@ -776,7 +780,7 @@ says how to cut a release.
   and picks its unit or channel for the preview, **Edit note** opens it in the notepad. A unit's note is
   recorded with its sort as a star is (`sortIdentity`, now shared by `DatasetFavorites`), so a new sort
   shows none of the old notes, which the search still finds. These are not phy's `cluster_notes.tsv` notes.
-  See [Notes](documentation/EphysAnalysisApp.md#notes), [the script API](documentation/EphysAnalysis.md#notes)
+  See [Notes](documentation/EphysFigGenApp.md#notes), [the script API](documentation/EphysAnalysis.md#notes)
   and [the file](documentation/file-formats.md#notes-name_notesjson).
 
 - Figures: sorted units and detected spikes in every spectral panel. A spectrogram panel now reads a spike
@@ -895,7 +899,7 @@ says how to cut a release.
   **Ctrl+Alt+arrows** move across its grid, **F6** / **Shift+F6** go from column to column, and the preview
   outlines the selected panel with a blue frame (`markFigurePanel`: preview only, moved without a redraw,
   following a resize). A **?** button (and **Help → Figures tab keys**) lists every key. See
-  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+  [Figures tab](documentation/EphysFigGenApp.md#figures-tab).
 - **Open in window** on the Figures tab, under the preview: draws the figure as previewed into a regular MATLAB
   figure window of its own (`onOpenFigureWindow`; named *id: observation (dataset)*, the right-click
   aesthetics editor works there). An out-of-date preview is redrawn first; the window does not follow later edits.
@@ -916,7 +920,7 @@ says how to cut a release.
   tags (no compute added; new panel types get them too); `renderFigure` takes `DataTips="auto"`. The new
   `DataTipFieldsDialog` (right-click **Data tip fields...**, or the app's **Design** menu) picks the
   fields shown, a preference (group `FigureDataTips`) applied to the figures on screen at once. See
-  [Data tips](documentation/EphysAnalysisApp.md#figures-tab).
+  [Data tips](documentation/EphysFigGenApp.md#figures-tab).
 - Figures: automatic ids. A figure's new field `autoId` (default `true`) makes its id follow what it holds:
   its active panel types in grid order, then the data it draws, *Raster+PSTH units*, *Continuous LFP*,
   *Raster+PSTH+Continuous units+LFP* (`EphysAnalysisConfig.autoFigureId`, over `panelTypes`' new `Short`
@@ -935,7 +939,7 @@ says how to cut a release.
   parameters (what it reads and the binding; a raster's sort, a PSTH's bins and measure, a continuous
   panel's display and error band, a heat map's rows, an event-trace panel's lines, a spectral panel's
   frequency range, ...). New `onNewPanel` (Type= and the choices as options for scripts and tests) and
-  `private/newPanelDialog`. See [the New panel window](documentation/EphysAnalysisApp.md#the-new-panel-window).
+  `private/newPanelDialog`. See [the New panel window](documentation/EphysFigGenApp.md#the-new-panel-window).
 
 - Adaptive weighted CAR for the derived signals (Khorasani, Shalchyan & Daliri 2019, *Front. Neurosci.*
   13:350): each channel minus its own Kalman-tracked share of the plain CAR, so an artifact that reaches
@@ -1009,7 +1013,7 @@ says how to cut a release.
   Epoch Diagram can follow the figure. New preferences `FigureAutoPreview` (on by default) and
   `FigureSectionsCollapsed`. Running, exporting and reporting figures, and the tab's own Generate button,
   are in the next bullets. See
-  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+  [Figures tab](documentation/EphysFigGenApp.md#figures-tab).
 - Figures: common options and linked panels. A figure has a `common` block (bins, measure, baseline, mask
   after the stop event, waveform inset) that every panel draws while its own `common` flag is true, the
   default, for the fields its type has (`commonFields`, `commonFieldsOf`); `figureFor` resolves the
@@ -1126,7 +1130,7 @@ says how to cut a release.
   exactly to the group's PSTH under `maskAfterStop`, and a per-group observation whose group loses every
   epoch to the panels' baselines draws with notes (`F.skip`) instead of failing. See
   [Figures](documentation/EphysAnalysisConfig.md#figures) and the
-  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+  [Figures tab](documentation/EphysFigGenApp.md#figures-tab).
 - Figures: spectral panels, three new panel types that draw Chronux analyses of the observed unit or
   fixed channels and units. *Power spectrum* (`spectrum`) overlays each layer's multitaper spectra
   (point and continuous layers, groups overlaid); *Spectrogram* (`spectrogram`) draws one channel's power
@@ -1143,7 +1147,7 @@ says how to cut a release.
   rate, tuning, spectrum or coherence panels), and a blank figure previews without failing. Spectral
   panels are not in the plot converter (no plot kind draws them). See
   [Spectral panels](documentation/EphysAnalysisConfig.md#spectral-panels) and the
-  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+  [Figures tab](documentation/EphysFigGenApp.md#figures-tab).
 - Figures: session figures, a figure drawn across several datasets. A figure's new `sessions` block
   (`defaults("FigureSessions")`; `observe.datasets` and `observe.datasetKeys` moved into it as
   `sessions.datasets` and `sessions.datasetKeys`) with `enabled` draws it once across the ticked (or listed)
@@ -1174,7 +1178,7 @@ says how to cut a release.
   picks one of the figures of a subject or trial group, an edit leaves the preview out of date until
   **Preview**, **Generate** writes across the datasets, and **Copy from...** gets an *Across sessions*
   part. See [Session figures](documentation/EphysAnalysisConfig.md#session-figures),
-  [Sessions in the Figures tab](documentation/EphysAnalysisApp.md#sessions-in-the-figures-tab) and
+  [Sessions in the Figures tab](documentation/EphysFigGenApp.md#sessions-in-the-figures-tab) and
   [Session figure data](documentation/file-formats.md#session-figure-data-mat).
 - Figures: a text note and overlays on each panel. A figure panel gets `note` (a note as a plot's, after
   `options`) and `overlays` (lines and semitransparent patches drawn on the panel's own axes, the last field;
@@ -1211,7 +1215,7 @@ says how to cut a release.
   middle of another panel's edge to put it above, below, left or right of that panel (it keeps its place in
   the panel order; taking it away first drops any row or column no other panel starts in, so a panel
   spanning it loses that span); Escape or a release outside cancels. The Add / Remove / Move buttons
-  stay. See the [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+  stay. See the [Figures tab](documentation/EphysFigGenApp.md#figures-tab).
 - Kilosort4 parameter details on the Sorting tab. Each parameter's name is a link that opens a modal
   window with its definition, function, impact, tuning and defaults (this pipeline's and Kilosort4
   4.1.7's own).
@@ -1252,7 +1256,7 @@ says how to cut a release.
   over the ticked datasets with its own badge, cancelable) and the seven tabs are Data, Alignment, Plots,
   Sessions, Export, Chronux and Log. See [Across sessions](documentation/EphysAnalysis.md#across-sessions),
   [Session plots](documentation/EphysAnalysisConfig.md#session-plots) and the
-  [Sessions tab](documentation/EphysAnalysisApp.md#sessions-tab).
+  [Sessions tab](documentation/EphysFigGenApp.md#sessions-tab).
 
 - The organized data behind the analysis plots, for further analysis in MATLAB. `epochData` gives one
   dataset's epochs (each unit's spike times and binned counts per epoch, or the epoched signal samples),
@@ -1943,7 +1947,7 @@ says how to cut a release.
   schematic draws each panel at its size and alignment and the gaps in proportion. Validate checks the
   new fields; `EphysAnalysisConfig.GridSpacings`, `GridSpacingPx`, `GridGapUnits`, `PanelAligns` and
   `PanelVAligns` list their values. See [grid](documentation/EphysAnalysisConfig.md#figure-grid-and-observe-fields)
-  and [the Spacing window](documentation/EphysAnalysisApp.md#figures-tab).
+  and [the Spacing window](documentation/EphysFigGenApp.md#figures-tab).
 - The analysis app's Dataset drop-downs (Alignment and Figures tabs) name each dataset with
   what it holds of spikes: *subj1_day1  (14 units)* once its sorted units have been counted (the first
   time it is opened in a session, from the units its Data tab reads, so no share is walked for them;
@@ -1951,7 +1955,7 @@ says how to cut a release.
   drop-down ends a sorted unit's label in its number of spikes (*su12  ch 7  -320 µm  (5,210 spikes)*)
   and a detection channel's in its detections; the figure's pick is still remembered by the label
   without the count. New private `refreshDatasetLabels` and app property `DatasetUnitCounts`. See
-  [the preview's controls](documentation/EphysAnalysisApp.md#figures-tab).
+  [the preview's controls](documentation/EphysFigGenApp.md#figures-tab).
 - **Favorites**: star (on / off) a dataset, a channel or a sorted unit to find it again. The stars are kept
   beside the data, in `<Name>_favorites.json` in the dataset's output folder, so they travel with it to the
   lab's share, another PC or another user; Scan reads them and each toggle writes at once. In the analysis
@@ -1964,7 +1968,7 @@ says how to cut a release.
   recorded with its sort (the sorting folder and the size of its `spike_times.npy`), so a new sort shows
   none of the old stars rather than moving them to other units. A read-only output folder leaves the star
   off and says why in the status bar. Scripts use the new `DatasetFavorites` class. See
-  [Favorites](documentation/EphysAnalysisApp.md#favorites),
+  [Favorites](documentation/EphysFigGenApp.md#favorites),
   [the script API](documentation/EphysAnalysis.md#favorites-stars) and
   [the file](documentation/file-formats.md#favorites-name_favoritesjson).
 - Time left for long operations, in the same words in both apps (*about 40 s left*, *about 3 min left*,
@@ -2078,7 +2082,7 @@ says how to cut a release.
   instead of skipping it, and with a figure of the dataset selected (the dataset picked) the report draws the
   dataset's figures. The figures across sessions stay out (they match observations across the datasets) and are
   now listed as skipped under *Across sessions* with why. See the
-  [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+  [Figures tab](documentation/EphysFigGenApp.md#figures-tab).
 
 - Figures tab: a switch between figures is faster. Each figure keeps its observation list (`FigurePickers`:
   `keepFigurePicker`, `takeFigurePicker`), so a figure shown again takes its own list, count line and pick back
@@ -2181,7 +2185,7 @@ says how to cut a release.
   Ctrl+7, Layers Ctrl+8, Options Ctrl+9 (nothing on Ctrl+0). A version-1 plot's bins, measure,
   baseline, auROC, mask and waveform go into the options of each migrated panel that has them. See
   [Copying options between panels](documentation/EphysAnalysisConfig.md#copying-options-between-panels)
-  and [Figures tab](documentation/EphysAnalysisApp.md#figures-tab).
+  and [Figures tab](documentation/EphysFigGenApp.md#figures-tab).
 - A figure's `observe` block names the data it is drawn for in one field, `observe.data` (constant
   `ObserveData`): `"units"` (each sorted unit), `"detected"` (each channel's detections), `"LFP"`,
   `"MUA"`, `"SPIKE"`, `"AUX"` (each channel of that extract) or `"dataset"`. It replaces

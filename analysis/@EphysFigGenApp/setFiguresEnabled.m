@@ -7,7 +7,7 @@ function setFiguresEnabled(obj, ks, how)
 %   enabled changes the run, not what it draws. A change is a step of the
 %   undo history (recordFigureEdit: "Enable figure", "Disable figures").
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     ks (1,:) double
     how (1,1) string {mustBeMember(how, ["on" "off" "toggle"])}
 end

@@ -12,9 +12,9 @@ function o = rememberedPanelOptions(obj, type, params)
 %   over the type's defaults, under what the New panel window or the
 %   caller gives.
 %
-%   See also rememberPanelOptions, EphysAnalysisApp.onNewPanel.
+%   See also rememberPanelOptions, EphysFigGenApp.onNewPanel.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     type (1,1) string
     params (1,:) string = string.empty(1, 0)
 end

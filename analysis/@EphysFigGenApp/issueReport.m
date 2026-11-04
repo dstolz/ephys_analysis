@@ -25,7 +25,7 @@ function body = issueReport(obj, kind, opts)
 %   No section is included unless its option is true, so the user can leave
 %   the config (which carries their file paths) out.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     kind (1,1) string {mustBeMember(kind, ["bug", "feature"])}
     opts.Description (1,1) string = ""
     opts.System (1,1) logical = true
@@ -50,7 +50,7 @@ if opts.Logs
 end
 L = [L; opts.Extra];
 
-L = [L; IssueReport.trailer("EphysAnalysisApp")];
+L = [L; IssueReport.trailer("EphysFigGenApp")];
 body = join(L, newline);
 end
 

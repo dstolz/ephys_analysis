@@ -87,7 +87,7 @@ classdef EpochDiagram < handle
     %   words without a window.
     %
     %   See also epochTable, eventRef, epochWindow, trialSelection,
-    %   EphysAnalysisApp.
+    %   EphysFigGenApp.
 
     properties (SetAccess = private)
         Fig                                     % the window (uifigure); [] when drawn in a Parent

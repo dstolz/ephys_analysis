@@ -1,6 +1,6 @@
 function loadPreferences(obj, openLast)
 %loadPreferences  Restore the app's preferences; OPENLAST: reopen the last config.
-%   Group EphysAnalysisApp: FigurePosition, LastConfigFile, RecentConfigs,
+%   Group EphysFigGenApp: FigurePosition, LastConfigFile, RecentConfigs,
 %   ScriptFolder, PreviewMaxMB (signal previews of larger extracts wait
 %   for the Preview button), FigureAutoPreview, FigureSectionsCollapsed and
 %   FigureSupersectionsCollapsed (the Figures tab's Auto box, on by

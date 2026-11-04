@@ -12,7 +12,7 @@ reference and [pipeline/INSTALL.md](pipeline/INSTALL.md) for setup.
 | [`pipeline/`](pipeline) | `EphysDataset`, `EphysReader` / `IntanReader` / `OpenEphysReader` / `TDTReader` / `BinaryReader`, `EphysProject`, `DatasetTracker`, `EphysPipelineConfig` / `EphysPipeline` / `EphysPipelineScript`, `EphysPipelineApp`, `ChannelMapperApp` / `ChannelMap` / `HardwareBank`, `ChronuxDataset`, `FieldTripExport`, Epsych2 readers, probe JSON, pipeline configs, Python drivers, tests |
 | [`pipeline/hardware/`](pipeline/hardware) | the channel mapper's hardware bank: connectors, Intan headstages, NeuroNexus packages, probe designs and saved mappings, one JSON each (`ChannelMapperApp`, [docs](documentation/ChannelMapperApp.md)) |
 | [`pipeline/pipeline_configs/`](pipeline/pipeline_configs) | starting-point pipeline configs (`H64LP_4x16.json`) |
-| [`analysis/`](analysis) | quick-look figures from the pipeline's outputs: `EphysAnalysisConfig` / `EphysAnalysisRunner` / `EphysAnalysisScript`, `EphysAnalysisApp`, PSTHs, evoked potentials, rates, tuning, heatmaps, probe maps, HTML / PDF reports ([docs](documentation/EphysAnalysis.md)) |
+| [`analysis/`](analysis) | quick-look figures from the pipeline's outputs: `EphysAnalysisConfig` / `EphysAnalysisRunner` / `EphysAnalysisScript`, `EphysFigGenApp`, PSTHs, evoked potentials, rates, tuning, heatmaps, probe maps, HTML / PDF reports ([docs](documentation/EphysAnalysis.md)) |
 | [`documentation/`](documentation) | Reference docs for the pipeline |
 | [`analysis/scripts/S_ExampleAnalysis.m`](analysis/scripts/S_ExampleAnalysis.m) | a walkthrough that runs on any machine, on a synthetic project it writes to `tempdir`: the project and a recording, trial pairing, the pipeline and its outputs, sorted units with quality metrics, a PSTH, response statistics and a population summary |
 | [`pipeline/extract_trials.m`](pipeline/extract_trials.m), [`pipeline/matrix2kilosort.m`](pipeline/matrix2kilosort.m) | Stand-alone helpers: `extract_trials` cuts trials out of a continuous signal around event times (not called by the pipeline; tested in `test_ChronuxDataset`), and `matrix2kilosort` writes a matrix as a Kilosort `.bin` (behind `EphysDataset.matrixToBin`) |
@@ -46,7 +46,7 @@ curves, heatmaps, probe maps; aligned to any digital line, grouped by Epsych2
 parameters; exported with an HTML / PDF report):
 
 ```matlab
-EphysAnalysisApp("D:\EPHYS")                                       % GUI
+EphysFigGenApp("D:\EPHYS")                                       % GUI
 r = EphysAnalysisRunner(EphysAnalysisConfig.load("D:\EPHYS\am.json"));
 disp(r.plan());  r.run();                                          % headless
 ```

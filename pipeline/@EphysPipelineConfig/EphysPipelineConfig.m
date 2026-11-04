@@ -62,7 +62,7 @@ classdef EphysPipelineConfig
     %                Python that writes it). The analysis-toolbox inputs
     %                (Chronux, FieldTrip, kCSD, ...) and event-organized
     %                epochs are the DatasetBrowser's, not the pipeline's
-    %     Analysis   Enabled, ConfigFile (an EphysAnalysisApp config, read
+    %     Analysis   Enabled, ConfigFile (an EphysFigGenApp config, read
     %                when the step runs and run over the pipeline's
     %                selected datasets: analysisSource), Figures (write the
     %                figure files), Report (write the report); where and how
@@ -79,7 +79,7 @@ classdef EphysPipelineConfig
     %                (OutputTransfer, EphysPipeline.transferOutputs). Not a
     %                step
     %     AnalysisCopy  Enabled: once a Run has made the files, copy the ones
-    %                EphysAnalysisApp reads (AnalysisCopyDialog,
+    %                EphysFigGenApp reads (AnalysisCopyDialog,
     %                DatasetOutputs.analysisFiles). What is copied, where to
     %                and what to do when the folder has files are the
     %                settings last used in that window, not part of the

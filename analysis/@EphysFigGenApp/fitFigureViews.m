@@ -13,7 +13,7 @@ function fitFigureViews(obj)
 %
 %   See also figureExportSize, onFigureSizeEdited, refreshFigurePreview.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
 end
 H = obj.FigurePreviewHost;
 if isempty(H) || ~isvalid(H) || isempty(obj.FigureViews); return; end

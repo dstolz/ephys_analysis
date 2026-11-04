@@ -48,7 +48,7 @@ organized by event.
 | [Platforms](platforms.md) | what runs on Windows, macOS and Linux; `platformSupport`, `openInSystem` |
 | [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, response statistics, population analysis, figures merged across sessions and their data export, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
 | [EphysAnalysisConfig](EphysAnalysisConfig.md) | the analysis config (JSON `ephys-analysis-config`): every field, panel types, version 1 migration, validation, tokens |
-| [EphysAnalysisApp](EphysAnalysisApp.md) | the analysis GUI: Data, Alignment, Figures, Export and Log tabs, preferences, why a figure is skipped |
+| [EphysFigGenApp](EphysFigGenApp.md) | the analysis GUI: Data, Alignment, Figures, Export and Log tabs, preferences, why a figure is skipped |
 | [DatasetBrowser](DatasetBrowser.md) | a window (and a handle for scripts) that filters and ticks a project's datasets and computes `epochMatrix`, every unit's or channel's response around an event over all of them, `data(row, time, group)`: `epochMatrixSettings`, `DatasetRuns` (the per-dataset cache), the result file, `datasetFilter` |
 | [Python drivers](python-drivers.md) | `run_ks4.py`, `probe_tool.py` |
 | [Kilosort4 notes](kilosort4-notes.md) | Kilosort4 parameters its documentation does not settle, worked out from its source: `whitening_range`, and `shank_spacing` (moving the shanks apart for the sort only) |
@@ -124,7 +124,7 @@ state in `<Name>_manifest.json` (`writeManifest` / `applyManifest`), which
 `ManifestViewerApp` shows (**Dataset → View manifest...**). Kilosort4
 (`run_ks4.py`) and probeinterface (`probe_tool.py`, behind `ProbeDesignerApp`)
 run in a conda Python through `system()`. On the analysis side,
-`EphysAnalysisApp` or an `EphysAnalysisScript` sets up an
+`EphysFigGenApp` or an `EphysAnalysisScript` sets up an
 `EphysAnalysisConfig`, and `EphysAnalysisRunner` reads the processed files
 through `DatasetOutputs`, never the recording.
 
@@ -508,14 +508,14 @@ pool, `Benchmark` the detection benchmark; CI runs them all) and write the
 results table to a file (`ResultsCSV=`).
 
 A function-style suite that takes sections
-([`TestSections`](../pipeline/TestSections.m): `test_EphysAnalysisApp`,
+([`TestSections`](../pipeline/TestSections.m): `test_EphysFigGenApp`,
 `test_EphysPipelineApp`, `test_EphysAnalysisFigures`) can be cut down to the
-sections a change touches: `run_all_tests({'test_EphysAnalysisApp:5i,5j'})`
+sections a change touches: `run_all_tests({'test_EphysFigGenApp:5i,5j'})`
 runs its fixture and those sections, with the ones they declare they need
-(`5d` also selects every `5d.*`), and `test_EphysAnalysisApp(Sections="5i")`
+(`5d` also selects every `5d.*`), and `test_EphysFigGenApp(Sections="5i")`
 does the same directly. `TestSections.list(file)` lists a suite's section
 ids. Every run prints how long each section took
-(`[test_EphysAnalysisApp 5d.add: 12.3 s]`) and, at the end, the slowest, so
+(`[test_EphysFigGenApp 5d.add: 12.3 s]`) and, at the end, the slowest, so
 a slow section is seen at once.
 
 Locally, [`tools/Run-Tests.ps1`](../tools/Run-Tests.ps1) (PowerShell) runs
@@ -589,17 +589,17 @@ cd C:\src\ephys_analysis\pipeline
 run_all_tests                                  % every suite; errors if any test fails
 run_all_tests(["test_EphysPipeline" "test_BinaryReader"])   % some suites
 run_all_tests(JUnit="results\junit.xml", Coverage="results\coverage")
-run_all_tests({'test_EphysAnalysisApp:5i,5j'})   % two sections of a suite, after its fixture
+run_all_tests({'test_EphysFigGenApp:5i,5j'})   % two sections of a suite, after its fixture
 run_all_tests({'test_CopySessions'}, ExcludeTag="Slow")
 test_EphysPipeline                             % a function-style suite on its own
-test_EphysAnalysisApp(Sections="5d.psth")      % one section (and what it needs) directly
+test_EphysFigGenApp(Sections="5d.psth")      % one section (and what it needs) directly
 runtests("test_BinaryReader")                  % a TestCase suite on its own
 ```
 
 ```powershell
 tools\Run-Tests.ps1 -Select                    # the suites and sections the uncommitted change reaches
-tools\Run-Tests.ps1 test_EphysAnalysisApp:5i test_PlotDesign
-tools\Run-Tests.ps1 test_EphysAnalysisApp -Each   # every section alone
+tools\Run-Tests.ps1 test_EphysFigGenApp:5i test_PlotDesign
+tools\Run-Tests.ps1 test_EphysFigGenApp -Each   # every section alone
 ```
 
 An app opened by hand while a suite runs in the same MATLAB uses the
@@ -658,7 +658,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_EphysAnalysisEpochs` (analysis/) | sources, event references, epochs (intervals and their trials, between windows, artifact periods, events shifted by a trial parameter), raster event marks (`epochEvents`), spikes in each epoch (`epochSpikes`), trial selection and grouping, units and detections, `selectUnits`' response and auROC tests, against the synthetic truth |
 | `test_EphysAnalysisConfig` (analysis/) | the analysis config (version 2): JSON round trips, validation (the `units.response` test, "No figure is enabled.", raster options and parameter shifts included), session figures' validation, load warnings and `BadSchema`, a version 1 file migrated on load |
 | `test_EphysAnalysisRunner` (analysis/) | plan, run, exports, HTML / PDF reports (each page drawn once), the run record (`ephys-analysis-run/2`), cancel, a figure per trial group, a failing export closing its page, unit waveforms, session figures (plan, run, the *Across sessions* report section, the data export, cancel), compact vs standalone script equivalence |
-| `test_EphysAnalysisApp` (analysis/) | the analysis GUI, headless: its five tabs, the toolbar, the Figures tab (the figure tree, the editor, the Design row, the preview, Generate, a figure across sessions, dragging a panel), the epoch diagram, a version 1 config opened, the Chronux tab, preferences |
+| `test_EphysFigGenApp` (analysis/) | the analysis GUI, headless: its five tabs, the toolbar, the Figures tab (the figure tree, the editor, the Design row, the preview, Generate, a figure across sessions, dragging a panel), the epoch diagram, a version 1 config opened, the Chronux tab, preferences |
 | `test_PipelineAnalysisStep` (analysis/) | the pipeline's Analysis step running a saved analysis config over a synthetic project: validation, plan, dry run, figures and report, progress, cancel, a `list` selection with one report per dataset, both scripts |
 | `test_ResponseStats` (analysis/) | `pAdjust` against statsmodels; `responseStats` on known counts against `signrank` / `kruskalwallis` called directly (toolbox tests skipped without it) |
 | `test_Auroc` (analysis/) | `aucOf`; `aurocCurves` (`"psth"` against a port of the Caras lab's code, `"epochs"`, windows, the stop mask, cutoffs, `aurocCall` over stacked results, silent units, bootstrap / ranksum / shuffle tests); `spikePSTH`'s auROC result; the figure caption's auROC clause; the PSTH and heat map marks (skipped without the toolbox) |

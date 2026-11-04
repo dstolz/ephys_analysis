@@ -610,7 +610,7 @@ classdef EphysPipelineScript
                 L(end+1, 1) = "% The analysis config could not be read when this script was written (" + msg + ").";
                 L(end+1, 1) = "acfg = EphysAnalysisConfig.load(" + lit(An.ConfigFile) + ");";
             else
-                L(end+1, 1) = "% The analysis config " + An.ConfigFile + " (EphysAnalysisApp), as it was when";
+                L(end+1, 1) = "% The analysis config " + An.ConfigFile + " (EphysFigGenApp), as it was when";
                 L(end+1, 1) = "% this script was written; it runs over the datasets above, not its own Source.";
                 L(end+1, 1) = "analysisJson = [";
                 for jl = splitlines(strip(acfg.toJson(), "right")).'

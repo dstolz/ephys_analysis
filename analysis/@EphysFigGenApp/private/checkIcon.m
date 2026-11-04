@@ -31,7 +31,7 @@ switch state
         paint(part, [0 120 60]);
     case "off"
     otherwise
-        error('EphysAnalysisApp:BadCheckState', 'Unknown check state "%s".', state);
+        error('EphysFigGenApp:BadCheckState', 'Unknown check state "%s".', state);
 end
 cache.(state) = img;
 

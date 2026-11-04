@@ -14,7 +14,7 @@ function ok = gotoFigureSetting(obj, id, role, panel)
 %
 %   See also figureRoleSettings, gotoFigureRow, PlotAesthetics.enableEditing.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     id (1,1) string
     role (1,1) string
     panel (1,1) string = ""

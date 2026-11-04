@@ -8,7 +8,7 @@ function onTickDatasets(obj, mode)
 %
 %   See also refreshDatasetsTable, onDatasetsTableEdited.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     mode (1,1) string {mustBeMember(mode, ["shown" "none"])}
 end
 T = obj.DatasetsTable.Data;

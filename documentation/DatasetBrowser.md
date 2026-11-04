@@ -97,7 +97,7 @@ The rows:
 The filter only chooses which datasets the table shows. A hidden dataset keeps
 its tick. Several terms are combined with AND. It is
 [`datasetFilter`](../pipeline/datasetFilter.m), the same filter, with the same
-controls, as the analysis app's [Data tab](EphysAnalysisApp.md#data-tab). (There
+controls, as the analysis app's [Data tab](EphysFigGenApp.md#data-tab). (There
 **Search** is applied on Enter or leaving the field, not as you type.)
 
 | Control | Effect |
@@ -143,7 +143,7 @@ the form does not show.
 The **Event** and **Trials** tabs are the analysis app's own controls
 (`AlignControls`, the Alignment tab's Event reference, Epoch window and Trial
 selection), so they offer the same fields and behave the same; see
-the [Alignment tab](EphysAnalysisApp.md#alignment-tab) for each one. The window is always
+the [Alignment tab](EphysFigGenApp.md#alignment-tab) for each one. The window is always
 fixed (`epochMatrix` takes no other mode), so the browser hides the window's
 mode and its stop event.
 
@@ -180,7 +180,7 @@ group, cut as **Compute** cuts them (`epochTable` with the **Event** and
 **Trials** tabs' settings). With **Group by** *Depth*, it shows how many
 epochs, and trials, each depth gives. Top to bottom:
 
-- the count, as the analysis app's [Alignment tab](EphysAnalysisApp.md#alignment-tab)
+- the count, as the analysis app's [Alignment tab](EphysFigGenApp.md#alignment-tab)
   words it: *"N epochs from M of T trials in G groups (scope)"*, with the
   events dropped and why; or, in red, why there are none;
 - **Show the epochs Pairing and Artifacts exclude** (off by default): each

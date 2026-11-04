@@ -3,7 +3,7 @@ function onImportDesign(obj, file)
 %   Asks for FILE unless given, and before replacing a design of yours of
 %   the same name (PlotDesign.import).
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     file (1,1) string = ""
 end
 if file == ""

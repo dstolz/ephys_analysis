@@ -11,7 +11,7 @@ function onStarToggled(obj, what, tf)
 %
 %   See also starItem, refreshFavorites, DatasetFavorites.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     what (1,1) string {mustBeMember(what, ["dataset" "observation"])}
     tf (1,1) logical = true
 end

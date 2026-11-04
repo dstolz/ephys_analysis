@@ -16,7 +16,7 @@ function showPreviewState(obj, P, state, opts)
 %   computing the card also has a Cancel button. The spinners are animated
 %   SVG, so they turn while MATLAB is busy.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     P (1,1) struct
     state (1,1) string {mustBeMember(state, ["idle" "computing" "drawing" "drawn" "stale" "waiting" "skipped" "failed" "canceled"])}
     opts.Message (1,1) string = ""

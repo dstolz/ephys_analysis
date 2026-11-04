@@ -1,6 +1,6 @@
 classdef AppDialog
     %AppDialog  What the apps say when something stops: one voice for failures and for "no project yet".
-    %   EphysPipelineApp, EphysAnalysisApp and DatasetBrowser word their
+    %   EphysPipelineApp, EphysFigGenApp and DatasetBrowser word their
     %   failures the same way, so a person learns it once:
     %
     %     AppDialog.failure(ACTION, SUBJECT, MESSAGE, Try=, Details=)
@@ -25,7 +25,7 @@ classdef AppDialog
     %   Nothing here knows either app: the caller names the tab and the
     %   next step.
     %
-    %   See also EphysPipelineApp, EphysAnalysisApp, DatasetBrowser, uialert.
+    %   See also EphysPipelineApp, EphysFigGenApp, DatasetBrowser, uialert.
 
     methods (Static)
 

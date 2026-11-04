@@ -711,7 +711,7 @@ current settings find).
 
 Path: `<outputFolder>/<Name>_favorites.json`, beside the dataset's outputs, so
 it moves with them. Written by `DatasetFavorites` (the analysis app's star
-toggles: [Favorites](EphysAnalysisApp.md#favorites)) through `writeJsonFile`
+toggles: [Favorites](EphysFigGenApp.md#favorites)) through `writeJsonFile`
 each time a star changes, and deleted when the last star is unset. No file
 means no star.
 
@@ -744,7 +744,7 @@ means no star.
 Path: `<outputFolder>/<Name>_notes.json`, beside the dataset's outputs and its
 [stars](#favorites-name_favoritesjson), so it moves with them. Written by
 `DatasetNotes` (the analysis app's notepad:
-[Notes](EphysAnalysisApp.md#notes)) through `writeJsonFile` each time a note
+[Notes](EphysFigGenApp.md#notes)) through `writeJsonFile` each time a note
 changes, and deleted when the last note is emptied. No file means no note.
 These are not phy's notes: the "notes" label in `cluster_notes.tsv` (the
 pipeline app's Review tab) is another file.

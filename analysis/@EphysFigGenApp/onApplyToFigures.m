@@ -31,7 +31,7 @@ function onApplyToFigures(obj, opts)
 %   window's table sorts by its column headers and its filters (text,
 %   panel type, figure type, will change or has it) narrow the rows shown.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.Before = []
     opts.Control = []
     opts.Ticked (1,:) string = string(missing)

@@ -16,7 +16,7 @@ function buildRunTab(obj)
 %   copies' progress and Stop copying are the last row on the right
 %   (showTransferProgress, onStopTransfers). Copy files for the analysis
 %   app (the box under it) is the config's AnalysisCopy section: once the
-%   Run has made the files, the ones EphysAnalysisApp reads are copied with
+%   Run has made the files, the ones EphysFigGenApp reads are copied with
 %   the settings last used in File > Copy files for the analysis app...
 %   (copyAnalysisFilesAfterRun); the progress shares the last row.
 

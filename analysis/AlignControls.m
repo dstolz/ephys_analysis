@@ -1,5 +1,5 @@
 classdef AlignControls
-    %AlignControls  The event-reference, epoch-window and trial-selection controls of EphysAnalysisApp and DatasetBrowser.
+    %AlignControls  The event-reference, epoch-window and trial-selection controls of EphysFigGenApp and DatasetBrowser.
     %   One set of controls edits an event reference (eventRef), an epoch
     %   window (epochWindow) and a trial selection (trialSelection), event
     %   sequences included. The analysis app builds one set in its
@@ -47,7 +47,7 @@ classdef AlignControls
     %                   and the stop rows are hidden); default false
     %
     %   See also eventRef, epochWindow, trialSelection, eventRefLabel,
-    %   EpochDiagram, EphysAnalysisApp, DatasetBrowser.
+    %   EpochDiagram, EphysFigGenApp, DatasetBrowser.
 
     methods (Static)
         function C = build(parents, changed, opts)

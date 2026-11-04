@@ -8,7 +8,7 @@ function files = makePanelThumbnails(opts)
 %   (titles, labels, tick labels, legends, notes) so only the data and the
 %   axes are left, scales it down and writes
 %   analysis/icons/panels/<type>.png, which the analysis app's New panel
-%   window (EphysAnalysisApp, private/newPanelDialog) shows on each type's
+%   window (EphysFigGenApp, private/newPanelDialog) shows on each type's
 %   tile; a type without a picture gets a drawn placeholder there. FILES
 %   lists the files written. Run it again after a draw function's look
 %   changes, or when a panel type is added, and commit the PNGs.

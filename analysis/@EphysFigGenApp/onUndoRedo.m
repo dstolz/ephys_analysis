@@ -17,7 +17,7 @@ function onUndoRedo(obj, how)
 %   names the edit (Undid "Add panel".); with nothing to undo or redo it
 %   says so.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     how (1,1) string {mustBeMember(how, ["undo" "redo"])}
 end
 if how == "undo"

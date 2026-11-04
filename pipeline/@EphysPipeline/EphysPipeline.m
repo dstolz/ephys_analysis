@@ -23,7 +23,7 @@ classdef EphysPipeline < handle
     %     signals    runSignals         derived LFP/MUA/SPIKE/AUX .mat (toMat)
     %     spikes     runSpikeDetection  threshold-detected spikes .mat (spikesToMat)
     %     export     runExport          NWB 2 files (Export.Formats)
-    %     analysis   runAnalysis        an EphysAnalysisApp config's figures and report
+    %     analysis   runAnalysis        an EphysFigGenApp config's figures and report
     %                                   (Analysis.ConfigFile; needs the analysis folder)
     %   Each step method can be called directly (it then runs even if the
     %   step is disabled in the config); call checkRun() first for the checks

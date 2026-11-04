@@ -1,6 +1,6 @@
 function runAnalysis(obj, opts)
 %runAnalysis  Run the analysis config's figures on the selected datasets: figure files and report.
-%   Loads Analysis.ConfigFile, an EphysAnalysisApp config, when the step
+%   Loads Analysis.ConfigFile, an EphysFigGenApp config, when the step
 %   runs (EphysPipelineConfig.loadAnalysisConfig), so what is saved in the
 %   analysis app applies to the next run, and runs it with
 %   EphysAnalysisRunner over the selected datasets: its Source is replaced

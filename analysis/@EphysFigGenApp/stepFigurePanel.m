@@ -11,7 +11,7 @@ function stepFigurePanel(obj, how)
 %   shows it and the preview outlines it (markFigurePanel), with nothing
 %   computed or drawn again.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     how (1,1) string {mustBeMember(how, ["next" "previous" "up" "down" "left" "right"])}
 end
 k = obj.SelectedFigure;

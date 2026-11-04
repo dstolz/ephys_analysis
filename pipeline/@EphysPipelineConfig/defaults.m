@@ -237,7 +237,7 @@ switch section
             'OverwriteStale',  false);    % with Overwrite off, still write again a file made with other options than these (plan: "exists: stale")
 
     case "Analysis"
-        % An EphysAnalysisApp config run over the pipeline's selected
+        % An EphysFigGenApp config run over the pipeline's selected
         % datasets (EphysPipeline.runAnalysis); its own Source is not used.
         s = struct( ...
             'Enabled',    false, ...
@@ -258,7 +258,7 @@ switch section
             'Verify',      "size");        % "size" (and time) | "hash" (SHA-256 of each file and its copy)
 
     case "AnalysisCopy"
-        % Copy the files EphysAnalysisApp reads (AnalysisCopyDialog) once a Run
+        % Copy the files EphysFigGenApp reads (AnalysisCopyDialog) once a Run
         % has made them. What is copied and where is not here: it is the
         % settings last used in the copy window (AnalysisCopyDialog.settings).
         % Not a step; EphysPipelineApp acts on it.

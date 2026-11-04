@@ -38,7 +38,7 @@ function refreshFigureObservations(obj, opts)
 %   over 3 per site)."), and so does the Probe layout section's note. No
 %   ★ or ✎ marks; < and > are off (one entry).
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     opts.Force (1,1) logical = false
 end
 dd = obj.FigureObservationDropDown;

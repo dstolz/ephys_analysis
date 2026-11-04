@@ -4,7 +4,7 @@ function onDesignChosen(obj, name)
 %   that follows it (the preview too) is redrawn at once, and runs draw
 %   their figures in it. A design that cannot be read says why.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     name (1,1) string
 end
 try

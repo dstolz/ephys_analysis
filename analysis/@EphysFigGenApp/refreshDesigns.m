@@ -6,7 +6,7 @@ function refreshDesigns(obj)
 %   or deleted anywhere (a figure's right-click menu too). The menu ends
 %   with Data tip fields... (DataTipFieldsDialog).
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
 end
 if isempty(obj.DesignMenu) || ~isvalid(obj.DesignMenu); return; end
 T = PlotDesign.list();

@@ -24,7 +24,7 @@ function files = onExportPreview(obj)
 %
 %   See also onOpenFigureWindow, onGenerateFigure, EphysAnalysisRunner.runDataset.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
 end
 files = string.empty(1, 0);
 if obj.Running

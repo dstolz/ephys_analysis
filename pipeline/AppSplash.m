@@ -6,7 +6,7 @@ classdef AppSplash < handle
 %   startup steps in order; WEIGHTS (one each, the seconds the step takes,
 %   as measured) set the share of the bar each one fills, so the bar moves
 %   at an even pace. The app builds its own figure hidden meanwhile, then
-%   shows it and closes the splash (EphysPipelineApp, EphysAnalysisApp,
+%   shows it and closes the splash (EphysPipelineApp, EphysFigGenApp,
 %   ChannelMapperApp).
 %
 %   S.step(KEY, TEXT) starts step KEY: the bar jumps to the end of the
@@ -46,7 +46,7 @@ classdef AppSplash < handle
 %   splash opened, when the step started); the time spent in each step is
 %   what WEIGHTS should hold.
 %
-%   See also EphysPipelineApp, EphysAnalysisApp, ephysVersion.
+%   See also EphysPipelineApp, EphysFigGenApp, ephysVersion.
 
     properties (SetAccess = private)
         Name (1,1) string = ""

@@ -29,7 +29,7 @@ function onConfigChanged(obj, what, src)
 %   other figures and panels that can take it) and the preview waits for
 %   its answer instead of redrawing.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     what (1,1) string = ""
     src = []
 end

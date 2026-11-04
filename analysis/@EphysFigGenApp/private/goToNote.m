@@ -8,7 +8,7 @@ function goToNote(obj, e)
 %
 %   See also onSearchNotes, NoteSearch, goToFavorite.
 arguments
-    obj (1,1) EphysAnalysisApp
+    obj (1,1) EphysFigGenApp
     e table
 end
 if isempty(obj.Runner) || e.dataset < 1 || e.dataset > numel(obj.Runner.Keys); return; end

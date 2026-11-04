@@ -5,8 +5,8 @@ function onBrowseAnalysisConfig(obj)
 start = string(strtrim(obj.AnaConfigField.Value));
 if start == "" || ~isfile(start)
     start = "";
-    if AppPrefs.ispref('EphysAnalysisApp', 'LastConfigFile')
-        start = string(AppPrefs.getpref('EphysAnalysisApp', 'LastConfigFile'));
+    if AppPrefs.ispref('EphysFigGenApp', 'LastConfigFile')
+        start = string(AppPrefs.getpref('EphysFigGenApp', 'LastConfigFile'));
     end
 end
 if start == "" || ~isfile(start)

@@ -19,6 +19,7 @@ reproducible record of what was drawn.
 | What the assistant may do | **Edit figures**: add and change figures and panels through the config's own methods; each change is one Undo step. No MATLAB code execution. |
 | What may be sent to Anthropic | Config / figure JSON (paths removed), dataset metadata, and **preview PNGs** |
 | Where the chat lives | A **separate window**, opened from a menu item and a toolbar icon |
+| Which model | Settled by a **model evaluation** on the synthetic project before the window is built ([§7](#7-model-evaluation-chooses-the-default-model)) |
 
 ## What is required (summary)
 
@@ -33,6 +34,8 @@ reproducible record of what was drawn.
 5. Key storage outside the config, preferences, Log tab and issue reports.
 6. Tests that run with no network (an injected fake transport).
 7. Docs: reference page, guide, README Dependencies, CHANGELOG.
+8. A model evaluation on the synthetic project that sets the default model
+   and effort before the window is built.
 
 ## Design
 
@@ -127,8 +130,9 @@ raw signals, spike times or files. Stated in the window and in the docs.
   vault; **Set API key...** in the window calls `setSecret`), else the
   environment variable `ANTHROPIC_API_KEY`. Never written to the config,
   preferences, Log tab or `issueReport`.
-- `AppPrefs` group `EphysFigGenApp`: `AssistantModel` (default
-  `claude-opus-5-5`), `AssistantEffort` (`high`), `AssistantPosition`.
+- `AppPrefs` group `EphysFigGenApp`: `AssistantModel`, `AssistantEffort`,
+  `AssistantPosition`. The defaults are `claude-opus-5-5` and `high` until the
+  evaluation (§7) sets them.
 
 ### 6. Cost (estimate; the window shows actual usage)
 
@@ -170,21 +174,116 @@ measurements:
 **What the estimate leaves out:**
 - Output is about 50–57 % of the cost on every model, so the totals move
   almost in proportion to output tokens. Output depends on the model and the
-  effort setting, which the model does not vary.
+  effort setting, which the estimate does not vary.
 - Each validation rejection and retry adds roughly one request.
 - A cheaper model that misreads the config schema more often will need more
   rounds, which narrows the gap.
 - Validation catches invalid configs but not a valid figure that differs
   from what was asked (a wrong window or grouping). That risk depends on the
   model, not on price, and should decide the choice more than the cost does.
-- Measure before fixing the default: the window's usage line logs the actual
-  tokens per change for each model.
+- The default model and effort are set by the model evaluation (§7), which
+  measures these costs; after that, the window's usage line logs the actual
+  tokens per change.
+
+### 7. Model evaluation (chooses the default model)
+
+It runs once the tools work headlessly (step 2), before the window is built,
+and again whenever the system prompt, the tools or the models offered change.
+It spends money, so the owner approves each run first. It is not part of
+`run_all_tests` and never runs in CI.
+
+**Cases** (`tools/assistant_eval/cases.json`, written with the owner): 20–30
+requests a lab member would type. Each case has:
+- a starting config (`tools/assistant_eval/configs/`) on the synthetic test
+  project, so no lab data is sent during the evaluation;
+- the request text;
+- the expected result: the figure the owner accepts (JSON, with the fields
+  that matter listed in `check`), or `ask` when the request is ambiguous or
+  impossible and the right answer is a question.
+
+The cases cover:
+
+| Kind | About |
+| --- | --- |
+| Small edits (bin, smoothing, a toggle, a color) | 8 |
+| Alignment, window, trial selection, group by | 8 |
+| New figures with several panels | 6 |
+| Session and probe figures | 3 |
+| Ambiguous or impossible (a line or parameter the dataset lacks) | 4 |
+
+**Runner** (`tools/assistant_eval/runAssistantEval.m`):
+1. It builds the app headlessly on the synthetic project, as
+   `test_EphysFigGenApp` does.
+2. For each case, arm and trial, it loads the starting config and sends the
+   request through `ClaudeClient` and `FigureAssistantTools`, with no human
+   turn, until `end_turn` or the round cap.
+3. It keeps the transcript, the final config, the rounds, and the `usage` of
+   every request.
+
+**Grading** is done in code; no model judges. The resulting figure is compared
+with the expected one after `cfg.figureFor` resolves every `"default"`:
+- on the fields `check` names;
+- numbers compared as the config stores them, with no tolerance;
+- every other figure must be unchanged (`isequaln`).
+
+Each trial gets one outcome:
+
+| Outcome | Meaning |
+| --- | --- |
+| correct | matches the expected figure |
+| **valid but wrong** | passes `validate` but differs from the expected figure, or is an edit made on an `ask` case. This is the outcome that matters most. |
+| invalid | ends with validation errors, or with no edit |
+| asked | asks a question; correct only on an `ask` case |
+
+Recorded with each trial: rounds, validation rejections, input / cached /
+output tokens, and cost at the rates in §6.
+
+**Arms:** 3 trials per case for each arm.
+
+| Arm | Why |
+| --- | --- |
+| Opus 5.5, effort `high` | the plan's default |
+| Opus 5.5, effort `medium` | the larger model at lower effort may match a smaller model's cost with fewer errors |
+| Sonnet 5.5, effort `high` | |
+| Haiku 5.5, effort `high` | |
+
+**Cost of one run** (30 cases × 3 trials, at §6's typical-change estimate):
+
+| Arm | Estimated cost |
+| --- | --- |
+| Opus `high` | ≈ $15 |
+| Opus `medium` | ≤ $15 |
+| Sonnet | ≈ $7 |
+| Haiku | < $1 |
+| All four | about $40 at most |
+
+Before it sends anything, the runner prints its estimate and asks to go on.
+It stops at a spending cap given as an argument.
+
+**Report** (`tools/assistant_eval/results/<date>.md` and a CSV):
+- each arm's count of every outcome, with the case ids;
+- the cost per correct change;
+- every valid-but-wrong trial, with the field that differed and a link to its
+  transcript.
+
+**Decision:** the owner sets the default model and effort from the report.
+- Proposed bar: the cheapest arm with **no** valid-but-wrong trial, and a
+  correct count within a few cases of the best arm.
+- If no arm meets the bar, the tools are narrowed (an option tool that takes
+  only the values `panelTypes` lists, in place of a whole-figure JSON
+  rewrite), and the evaluation is run again.
+- If the system prompt or the tool descriptions are tuned by reading these
+  cases, a third of the cases are held out of that tuning, and the decision is
+  read on them.
 
 ## Files
 
 New: `analysis/ClaudeClient.m`, `analysis/FigureAssistantTools.m`,
 `analysis/FigureAssistant.m`, `pipeline/jsonSlice.m`, the toolbar SVG,
-`analysis/test_ClaudeClient.m`, `analysis/test_FigureAssistant.m`.
+`analysis/test_ClaudeClient.m`, `analysis/test_FigureAssistant.m`; the
+evaluation in `tools/assistant_eval/` (`cases.json`, `configs/`,
+`runAssistantEval.m`, the grader, `results/`) and its test
+`analysis/test_AssistantEval.m`.
 
 Changed: `analysis/@EphysFigGenApp/EphysFigGenApp.m` (property),
 `buildMenus.m`, `buildToolbar.m`, `onClose.m`, `helpURL.m`,
@@ -207,6 +306,10 @@ section, Menus, Toolbar, Preferences, Where the code is, Tests),
   unchanged; `get_dataset_info` / `get_state` contain no paths;
   `preview_figure` returns a PNG block or the skip reason; the key never
   appears in the Log tab or `issueReport`.
+- `test_AssistantEval` checks the grader without the API: a fake transport
+  replays canned conversations that end in a correct figure, a valid but
+  wrong figure, an invalid edit and a question, and the grader must give each
+  its outcome.
 - The sections of `test_EphysFigGenApp` that build the menus and toolbar and
   `onExportPreview`, plus `test_ClassdefDeclarations`, as `python
   .github/scripts/select_suites.py --worktree --sections --why --expect`
@@ -224,12 +327,16 @@ section, Menus, Toolbar, Preferences, Where the code is, Tests),
 
 1. `ClaudeClient` + `jsonSlice` + `test_ClaudeClient` (no UI).
 2. `FigureAssistantTools` + `test_FigureAssistant` (tools driven headlessly).
-3. `FigureAssistant` window, menu, toolbar, preferences, `onExportPreview(Show=)`.
-4. Docs, CHANGELOG, the gen_api group.
+3. Model evaluation (§7):
+   1. Write the cases with the owner.
+   2. Build the runner, the grader and `test_AssistantEval`.
+   3. Run it once the owner approves the spend.
+   4. The owner sets the default model and effort from the report.
+4. `FigureAssistant` window, menu, toolbar, preferences, `onExportPreview(Show=)`.
+5. Docs, CHANGELOG, the gen_api group.
 
-## Open items to settle during step 1
+## Open items
 
-- Whether `matlab.net.http` runs on a `backgroundPool` thread worker in
-  R2025a (decides background vs. synchronous with a progress dialog).
-- The effort default (`high` vs `medium`): measure on a few real requests via
-  the window's usage line before fixing the default.
+- Step 1: whether `matlab.net.http` runs on a `backgroundPool` thread worker
+  in R2025a (decides background vs. synchronous with a progress dialog).
+- Step 3: the default model and effort, from the evaluation.

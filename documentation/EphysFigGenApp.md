@@ -1344,7 +1344,9 @@ every figure. See [Plot aesthetics](EphysAnalysis.md#plot-aesthetics).
 heat map cell) for a data tip that says what it is, not a bare X and Y: the time
 from the event (*Time from Stim onset: 0.125 s*), the panel's quantity in its unit
 (*Rate: 42.1 Hz*, a z-score, µV, power), a heat map cell's value and its row (the
-unit, channel or epoch), a raster tick's trial and trial group, the unit or channel
+unit, channel or epoch), a raster tick's trial and trial group, a trial panel's
+point's trial, trial group, category and parameters, a significance bracket's test
+(*ranksum p = 0.004 (holm 0.012), n = 30 vs 12*), the unit or channel
 the trace draws, the layer, the panel (*psth_1 (PSTH)*), the observation and the
 dataset. Right-click the preview and pick **Data tip fields...** (also at the end of
 the **Design** menu) to choose what the tips show: a check box per field, grouped as
@@ -1356,6 +1358,16 @@ only), **Reset** (the defaults: all but Trial parameters and Part), **Cancel** a
 at once on the preview and every other figure on screen; figures drawn after use it
 too. The figures a run draws (invisible, for the files) have no tips; a figure you
 draw yourself with `renderFigure` into a visible window has them.
+
+**Trial data.** Right-click a trial panel (a trial distribution, histogram or
+scatter: its plot area, a point, a bar or a scatter's marginal strip) and pick
+**Copy data table** to put its values on the clipboard as tab-separated text with
+a header, ready to paste into a spreadsheet, or **Export data (CSV)...** to save
+them as a CSV file. One row per value: the figure, panel, layer and measure, the
+dataset and session, the trial, its trial group, category and series, the value,
+a scatter's x, the A and B events' times, and the trial parameters the panel
+reads ([The data table](EphysAnalysisConfig.md#trial-measures)). A figure opened
+with **Open in window** has the same items.
 
 **Plot designs.** A design is a whole look: the ground behind the figure, the
 group colors, the heat maps' colors, and fonts, axes, ticks, box, grid, lines and

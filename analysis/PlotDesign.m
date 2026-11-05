@@ -730,7 +730,7 @@ end
 
 function cols = groupColors(T)
 %groupColors  The color each group is drawn in, groups in the order they are drawn.
-roles = ["rate" "rateFill" "trace" "curve" "bar" "points" "box"];
+roles = ["rate" "rateFill" "trace" "curve" "bar" "points" "box" "distPoints" "distBox" "scatterPoints" "histBar"];
 T = T(ismember(T.Role, roles) & T.Group ~= "", :);
 cols = zeros(0, 3);
 for g = unique(T.Group, 'stable').'

@@ -382,7 +382,8 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   `ranksum`, `ttest2`, `kruskalwallis`, `anova1`, `prctile`, `corr`,
   `fitlm` and `predict` for the trial panels' statistics, `trialStats`:
   the group tests, the summary's quartiles, the correlations and the fits'
-  95% bands).
+  95% bands; `ecdf` for a trial histogram's cumulative distribution,
+  `drawTrialHistPanel`).
 - Image Processing Toolbox (`padarray` in the mTRF-Toolbox packaging,
   `mTRFExport.resample`, which mirrors a signal past its ends so that
   `resample` does not filter them against zeros; `imresize` in the analysis

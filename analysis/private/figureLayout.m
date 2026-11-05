@@ -21,7 +21,12 @@ function figureLayout(canvas, S)
 %              area), rect (Panel.rect), fixed (a legend panel: no insets),
 %              note (its note's settings), text (the note's text object; []
 %              = none), band (the hidden axes holding the text beside the
-%              panel; [] = in the axes)
+%              panel; [] = in the axes), layout (optional; [] = the axes
+%              stacked by shares; a trial scatter's struct('kind',
+%              "marginals", 'size', F, 'xStrip', 'yStrip'): its axes are
+%              the plot, its x strip and its y strip, figurePlace's
+%              split, and its insets on each side are the largest of its
+%              three axes' there: the strips' outer sides are the box's)
 %     title    the hidden axes whose title and subtitle are the figure's
 %              ([] = none)
 %     legend   [] (none) or the figure's legend: handle, mode and, for a
@@ -128,7 +133,7 @@ function [cells, deco, bars] = measure(S, bars)
 %   BARS (one per panel, a row per axes) is the room its color bars take
 %   ({} = measure it: reading a color bar is slow, and its room does not
 %   change with the axes' size). A legend panel (fixed) has no insets.
-cells = struct('rect', {}, 'inset', {}, 'band', {}, 'need', {}, 'shares', {}, 'fixed', {});
+cells = struct('rect', {}, 'inset', {}, 'band', {}, 'need', {}, 'shares', {}, 'fixed', {}, 'layout', {});
 n = numel(S.panels);
 deco = zeros(1, n);   % px the panel's labels take in its band (on the band's side)
 if isempty(bars)
@@ -144,8 +149,10 @@ for k = 1:n
     side = "";
     need = 0;
     ins = [0 0 0 0];
+    lay = [];
+    if isfield(P, 'layout'); lay = P.layout; end
     if ~P.fixed
-        ins = insetOf(P.axes, bars{k});
+        ins = insetOf(P.axes, bars{k}, lay);
         if ~isempty(P.band) && isgraphics(P.band) && ~isempty(P.text) && isgraphics(P.text)
             side = string(P.note.placement);
             i = find(side == ["left" "below" "right" "above"], 1);
@@ -157,20 +164,33 @@ for k = 1:n
             need = deco(k) + along + 12 * S.scale;
         end
     end
-    cells(k) = struct('rect', P.rect, 'inset', ins, 'band', side, 'need', need, 'shares', P.shares, 'fixed', P.fixed);
+    cells(k) = struct('rect', P.rect, 'inset', ins, 'band', side, 'need', need, 'shares', P.shares, 'fixed', P.fixed, ...
+        'layout', lay);
 end
 end
 
 
-function ins = insetOf(axs, bars)
+function ins = insetOf(axs, bars, lay)
 %insetOf  The room a panel's labels take round its plot area, [left bottom right top] px: its axes stacked top to bottom.
 %   Each side counts only where something sits (tick labels, an axis
 %   label, a title, a color bar outside): a tick label that reaches past a
 %   corner of the axes is no reason to keep its neighbor away. The top is
 %   the first axes', the bottom the last's, the sides the widest. BARS:
-%   the room each axes' color bar takes (colorbarRoom).
+%   the room each axes' color bar takes (colorbarRoom). LAY a scatter's
+%   marginals (figurePlace): every side the largest of the plot's and its
+%   strips' there (left: the plot's or the x strip's, bottom: the plot's
+%   or the y strip's, right and top: the strips' (a title on the top
+%   strip); the sides they face each other show nothing).
 ins = [0 0 0 0];
 n = numel(axs);
+if isstruct(lay) && isfield(lay, 'kind') && string(lay.kind) == "marginals"
+    for i = 1:n
+        ax = axs(i);
+        if ~strcmp(ax.Units, 'pixels'); ax.Units = 'pixels'; end
+        ins = max(ins, max(ax.TightInset .* sidesOf(ax), bars(i, :)));
+    end
+    return
+end
 for i = 1:n
     ax = axs(i);
     if ~strcmp(ax.Units, 'pixels'); ax.Units = 'pixels'; end   % (a property set makes the next read lay the figure out again)

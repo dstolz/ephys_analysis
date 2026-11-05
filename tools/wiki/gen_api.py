@@ -1110,6 +1110,7 @@ def main(do_splice=True):
         "DatasetNotes": pdir("analysis", "DatasetNotes.m"),
         "PlotDesign": pdir("analysis", "PlotDesign.m"),
         "FigureTemplate": pdir("analysis", "FigureTemplate.m"),
+        "TrialDataExport": pdir("analysis", "TrialDataExport.m"),
     }
     for n, p in simple.items():
         cls = load_class(p)

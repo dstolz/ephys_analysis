@@ -94,6 +94,19 @@ function test_EphysAnalysisFigures(opts)
 %   and heat map (diverging, 0-1), rate panels (bars, boxes of two
 %   layers with the inset's place, size and time span, points), tuning curves (a series, the inset), the waveforms'
 %   probe layout with the observed unit framed;
+%   the trial panels (section 7's Stim onset -> Platform offset delay): a
+%   swarm by Depth with brackets, an ECDF and a scatter with
+%   marginal histograms and a linear fit among the targets above;
+%   figurePlace's marginal split (and mirrored); the scatter's plot and
+%   strips inside its box, flush, a share of it each, linked limits, no
+%   strip tick labels, the title over the x strip, laid out again at a new
+%   size, at Scale 0.5, in place with Reuse, mirrored with its axes on top
+%   and right; the brackets (as many as the significant pairs, or all;
+%   none overlapping on a level; over the data), testShow's corner text,
+%   a log y axis, the five displays' roles and TrialRows; TrialDataExport
+%   (the columns, by id, tab-separated text, a CSV round trip through
+%   readtable, its errors) and the right-click items (once), a point's and
+%   a bracket's data tips;
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
 %   renderFigure Reuse (an edit of two panels draws those again, the
 %   third kept with its menu, the drawing as a whole one; a title of the
@@ -2752,8 +2765,8 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     tmC = tmD; tmC.measure.kind = "count"; tmC.measure.to = eventRef(line="Trough");
     tmP = tmD; tmP.measure.kind = "param"; tmP.measure.param = "RespLatency";
     cfg = cfg.addFigure(struct('panels', {{struct('id', "td", 'type', "trialDist", 'selection', tmSel, ...
-        'options', struct('categories', "groups", 'series', "layer"), 'layers', [tmD tmC tmP])}}), Id="trials");
-    tmSpec = cfg.figureFor("trials");
+        'options', struct('categories', "groups", 'series', "layer"), 'layers', [tmD tmC tmP])}}), Id="tmeas");
+    tmSpec = cfg.figureFor("tmeas");
     tmF = rn.computeFigure(src, tmSpec);
     tmL = tmF.panels(1).layers;
     [tmMask, tmG, tmGi] = selectTrials(src, tmSel);
@@ -2886,6 +2899,19 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     cfg = cfg.addFigure(fm);
     Fm = rn.computeFigure(src, cfg.figureFor("marks"), Observation=Tu(1, :));
 
+    % three trial panels on section 7's delay layer (tmD: Stim onset to Platform offset): a swarm by Depth (each value a
+    % category) with every pair bracketed, an ECDF, a scatter with marginal histograms and a linear fit
+    cfg = cfg.addFigure(struct('panels', {{struct('id', "tsw", 'type', "trialDist", 'selection', tmSel, 'options', ...
+        struct('categories', "param", 'categoryParam', "Depth", 'categoryBins', [], 'series', "layer", 'display', "swarm", ...
+        'testShow', "brackets", 'bracketPairs', "all"), 'layers', tmD)}}), Id="tswarm");
+    cfg = cfg.addFigure(struct('panels', {{struct('id', "tec", 'type', "trialHist", 'options', struct('display', "ecdf"), ...
+        'layers', tmD)}}), Id="tecdf");
+    cfg = cfg.addFigure(struct('panels', {{struct('id', "tsc", 'type', "trialScatter", 'title', "Delay by onset", 'options', ...
+        struct('fit', "linear", 'fitBand', true, 'corr', "pearson", 'marginals', true), 'layers', tmD)}}), Id="tscatter");
+    Ftsw = rn.computeFigure(src, cfg.figureFor("tswarm"));
+    Ftec = rn.computeFigure(src, cfg.figureFor("tecdf"));
+    Ftsc = rn.computeFigure(src, cfg.figureFor("tscatter"));
+
     % every panel type into every kind of target
     drawTargets();
     rcases = {
@@ -2916,7 +2942,10 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         "continuous trials only, 5 of them", Ftr5
         "a heat map of trials",             Fth
         "a PSTH with its own selection",    Fos
-        "one trial group's figure",         Fpg};
+        "one trial group's figure",         Fpg
+        "a trial swarm with brackets",      Ftsw
+        "a trial ECDF",                     Ftec
+        "a trial scatter: marginals, a linear fit", Ftsc};
     for k = 1:size(rcases, 1)
         Fk = rcases{k, 2};
         ids = [Fk.panels.id];
@@ -2958,6 +2987,183 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         if msgs ~= ""; msg = msg + " (" + msgs + ")"; end
         check(okAll, msg);
     end
+
+    % the trial panels (drawTrialDistPanel, drawTrialHistPanel, drawTrialScatterPanel): the scatter's marginal strips
+    % laid out in its box, the brackets, the corner's test, a log axis, the displays, the data table and its menu items
+    Lmg = figurePlace(A0, setfield(placeCell([0 0 1 1], [0 0 0 0]), 'layout', ...
+        struct('kind', "marginals", 'size', 0.25, 'xStrip', "top", 'yStrip', "right"))); %#ok<SFLD>
+    Lmm = figurePlace(A0, setfield(placeCell([0 0 1 1], [0 0 0 0]), 'layout', ...
+        struct('kind', "marginals", 'size', 0.25, 'xStrip', "bottom", 'yStrip', "left"))); %#ok<SFLD>
+    check(near(Lmg.panels(1).axes, [0 0 300 225; 0 225 300 75; 300 0 100 225]) ...
+        && near(Lmm.panels(1).axes, [100 75 300 225; 100 0 300 75; 0 75 100 225]), ...
+        ['figurePlace: a scatter''s marginals split its box, the plot (1 - f) of it each way, the x strip f high over it ' ...
+        '(under it when its x axis is on top), the y strip f wide right of it (left when its y axis is on the right), flush']);
+    drawTargets();
+    fMg = Ftsc.spec.panels(1).options.marginalSize;
+    clf(fig);
+    hMg = renderFigure(Ftsc, Ftsc.spec, fig);
+    drawnow;
+    [okMg, whyMg] = marginalsPlaced(hMg, fig, fMg);
+    SMg = getappdata(fig, 'FigureLayout');
+    aMg = hMg.panels(1).axes;
+    xMg = hMg.panels(1).extraAxes;
+    okMt = okMg && isstruct(SMg.panels(1).layout) && SMg.panels(1).layout.kind == "marginals" ...
+        && strjoin(string(xMg(1).Title.String), "") == "Delay by onset" && strjoin(string(aMg.Title.String), "") == "" ...
+        && isempty(xMg(1).XTickLabel) && isempty(xMg(2).YTickLabel) && ~isempty(aMg.XTickLabel) && ~isempty(aMg.YTickLabel) ...
+        && all(arrayfun(@(a) string(a.Tag) == "axes" && string(getappdata(a, 'PlotTile')) == "tsc", xMg));
+    aMg.XLim = aMg.XLim + [0 1];   % a zoom of the plot: the x strip follows
+    okLink = isequal(xMg(1).XLim, aMg.XLim);
+    check(okMt && okLink, sprintf(['a trial scatter''s marginals: three axes inside its box, the strips flush with the plot, %g of the ' ...
+        'box each, their limits linked to the plot''s, no tick labels, tagged as the panel''s tiles, the title over the x strip (%s)'], ...
+        fMg, whyMg));
+    fig.Position(3:4) = [600 640];
+    figureLayout(fig);   % (an invisible figure runs no SizeChangedFcn)
+    [okRs, whyRs] = marginalsPlaced(hMg, fig, fMg);
+    fig.Position(3:4) = [700 800];
+    hMs = renderFigure(Ftsc, Ftsc.spec, fig, Scale=0.5);
+    [okSc, whySc] = marginalsPlaced(hMs, fig, fMg);
+    check(okRs && okSc, sprintf('the marginals stay in place laid out again at a new size (%s) and drawn at Scale 0.5 (%s)', whyRs, whySc));
+    delete(ufig.Children);
+    pMg = uipanel(ufig, 'Units', 'pixels', 'Position', [1 1 690 790], 'BorderType', 'none');
+    renderFigure(Ftsc, Ftsc.spec, pMg, Reuse=true);
+    DMg = getappdata(pMg, 'FigureDrawing');
+    sMg = Ftsc.spec;
+    sMg.panels(1).rect = [0.1 0.1 0.6 0.6];
+    [hMr, howMr] = renderFigure(Ftsc, sMg, pMg, Reuse=true);
+    [okMr, whyMr] = marginalsPlaced(hMr, pMg, fMg);
+    sMg.panels(1).xSide = "top";
+    sMg.panels(1).ySide = "right";
+    hMf = renderFigure(Ftsc, sMg, pMg, Reuse=true);
+    [okMf, whyMf] = marginalsPlaced(hMf, pMg, fMg);
+    xF = hMf.panels(1).extraAxes;
+    aF = figureBox(hMf.panels(1).axes, ufig);
+    check(howMr == "inplace" && isequal(hMr.panels(1).extraAxes, DMg.extra{1}) && okMr && okMf ...
+        && figureBox(xF(1), ufig) * [0; 1; 0; 1] <= aF(2) + 0.5 && figureBox(xF(2), ufig) * [1; 0; 1; 0] <= aF(1) + 0.5 ...
+        && strcmp(hMf.panels(1).axes.XAxisLocation, 'top') && all(strcmp({xF.YAxisLocation}, 'right')), ...
+        sprintf(['Reuse: a new rect lays the plot and its strips out again in place (%s); its axes on top and right put the ' ...
+        'x strip under the plot and the y strip left of it (%s)'], whyMr, whyMf));
+    delete(pMg);
+
+    sBr = Ftsw.spec;
+    axOf = @(h) h.panels(1).axes;
+    RBr = Ftsw.panels(1).layers(1).R;
+    Pbr = RBr.stats.pairs;
+    nSig = nnz(Pbr.sig & isfinite(Pbr.pAdj));
+    nAll = nnz(isfinite(Pbr.p));
+    nTst = nnz(arrayfun(@(t) t.name ~= "none" && isfinite(t.p), RBr.stats.test));
+    sBr.panels(1).options.bracketPairs = "significant";
+    clf(fig);
+    nB1 = numel(findall(axOf(renderFigure(Ftsw, sBr, fig)), 'Tag', 'sigBracket'));
+    sBr.panels(1).options.bracketPairs = "all";
+    hBr = renderFigure(Ftsw, sBr, fig);
+    bBr = findall(axOf(hBr), 'Tag', 'sigBracket');
+    tBr = findall(axOf(hBr), 'Tag', 'sigText');
+    yv = RBr.values.value;
+    lvOk = true;   % brackets on one level do not overlap
+    for i = 1:numel(bBr)
+        for j = i + 1:numel(bBr)
+            if abs(max(bBr(i).YData) - max(bBr(j).YData)) < 1e-9 * max(abs(yv))
+                lvOk = lvOk && (max(bBr(i).XData) <= min(bBr(j).XData) || max(bBr(j).XData) <= min(bBr(i).XData));
+            end
+        end
+    end
+    yTopBr = max([bBr.YData]);
+    check(nB1 == nSig && numel(bBr) == nAll && numel(tBr) == nAll && nAll >= 1 && lvOk && min([bBr.YData]) > max(yv) ...
+        && ylim(axOf(hBr)) * [0; 1] >= yTopBr && all(arrayfun(@(b) isappdata(b, 'SigPair'), bBr)), ...
+        sprintf(['a trial distribution''s brackets: %d for the significant pairs (%d), %d for all (%d), each with its stars, ' ...
+        'over the data, none overlapping another on its level, the y axis grown to hold them'], nB1, nSig, numel(bBr), nAll));
+    nStat = zeros(1, 3);
+    nBrk = zeros(1, 3);
+    shows = ["brackets" "text" "off"];
+    for i = 1:3
+        sBr.panels(1).options.testShow = shows(i);
+        hS = renderFigure(Ftsw, sBr, fig);
+        nStat(i) = numel(findall(axOf(hS), 'Tag', 'statText'));
+        nBrk(i) = numel(findall(axOf(hS), 'Tag', 'sigBracket'));
+    end
+    check(nTst >= 1 && isequal(nStat, [1 1 0]) && isequal(nBrk, [nAll 0 0]), ...
+        sprintf('testShow: "brackets" the brackets and the omnibus p in the corner, "text" the p alone, "off" neither (%s; %s)', ...
+        mat2str(nStat), mat2str(nBrk)));
+    sLg = Ftsw.spec;
+    sLg.panels(1).options.yScale = "log";
+    lastwarn('');
+    hLg = renderFigure(Ftsw, sLg, fig);
+    [~, wLg] = lastwarn;
+    bLg = findall(axOf(hLg), 'Tag', 'sigBracket');
+    pLg = findall(axOf(hLg), 'Tag', 'distPoints');
+    check(strcmp(axOf(hLg).YScale, 'log') && string(wLg) == "" && sum(arrayfun(@(o) numel(o.YData), pLg)) == nnz(yv > 0) ...
+        && ~isempty(bLg) && min([bLg.YData]) > max(yv), ...
+        'yScale "log": a log y axis, every value over 0 drawn, the brackets stepped over the data, no warning');
+    want = struct('swarm', "distPoints", 'box', "distBox", 'violin', "distViolin", 'points', "distPoints", 'line', "distLine");
+    okD = exist('violinplot', 'file') == 2;   % (R2024b and later; R2025a has it)
+    whyD = strings(1, 0);
+    for d = string(fieldnames(want)).'
+        sD = Ftsw.spec;
+        sD.panels(1).options.display = d;
+        lastwarn('');
+        hD = renderFigure(Ftsw, sD, fig);
+        [~, wD2] = lastwarn;
+        hasRole = ~isempty(findall(axOf(hD), 'Tag', want.(d)));
+        summ = ~isempty(findall(axOf(hD), 'Tag', 'distSummary'));
+        ok = hasRole && string(wD2) == "" && summ == ismember(d, ["swarm" "points" "violin"]);
+        if ~ok; whyD(end+1) = d; end %#ok<AGROW>
+        okD = okD && ok;
+    end
+    pts = findall(axOf(renderFigure(Ftsw, Ftsw.spec, fig)), 'Tag', 'distPoints');
+    TR = cell2mat(arrayfun(@(o) reshape(double(o.YData), [], 1), pts, 'UniformOutput', false));
+    okRows = ~isempty(pts) && all(arrayfun(@(o) isappdata(o, 'TrialRows') && size(getappdata(o, 'TrialRows'), 1) == numel(o.YData), pts));
+    if okRows
+        rr = cell2mat(arrayfun(@(o) getappdata(o, 'TrialRows'), pts, 'UniformOutput', false));
+        okRows = isequal(sort(rr(:, 2)), (1:height(RBr.values)).') && max(abs(sort(RBr.values.value(rr(:, 2))) - sort(TR(:)))) < 1e-9;
+    end
+    check(okD && okRows, "a trial distribution draws as a swarm, boxes, violins, points or a line, each its own role, the summary " + ...
+        "marks over the swarm, points and violins; every point carries its row of R.values (TrialRows)" + ...
+        strjoin(" (failed: " + whyD + ")", ""));
+
+    TV = TrialDataExport.valuesTable(Ftsw);
+    lead = ["figure" "panel" "layer" "measure" "dataset" "session" "sessionKey" "trial" "group" "groupLabel" "category" ...
+        "categoryLabel" "series" "seriesLabel" "value" "x" "tA" "tB"];
+    vnT = string(TV.Properties.VariableNames);
+    RV = RBr.values;
+    okTV = numel(vnT) > 18 && isequal(vnT(1:18), lead) && height(TV) == height(RV) && isequal(TV.value, RV.value) ...
+        && isequal(TV.trial, RV.trial) && all(TV.figure == "tswarm") && all(TV.panel == "tsw") && all(TV.dataset == string(src.name)) ...
+        && ismember("Depth", vnT) && isequal(TV.categoryLabel, string(RBr.categories.label(RV.category))) ...
+        && isequaln(TrialDataExport.valuesTable(Ftsw, "tsw"), TV) && all(isnan(TV.x)) ...
+        && strcmp(errorId(@() TrialDataExport.valuesTable(F1, 1)), 'TrialDataExport:NotTrialPanel') ...
+        && strcmp(errorId(@() TrialDataExport.valuesTable(Ftsw, "nope")), 'TrialDataExport:NoPanel');
+    txT = splitlines(strip(TrialDataExport.tableText(TV), 'right'));
+    csvT = string(tempname) + ".csv";
+    TrialDataExport.export(Ftsw, [], csvT);
+    TR2 = readtable(csvT, 'TextType', 'string');
+    deleteQuiet(csvT);
+    TS = TrialDataExport.valuesTable(Ftsc);
+    check(okTV && numel(txT) == height(TV) + 1 && txT(1) == strjoin(vnT, char(9)) && height(TR2) == height(TV) ...
+        && isequal(string(TR2.Properties.VariableNames), vnT) && max(abs(TR2.value - TV.value)) < 1e-6 && all(TR2.figure == "tswarm") ...
+        && isequal(TR2.trial, TV.trial) && all(isfinite(TS.x)) && isequal(TS.x, Ftsc.panels(1).layers(1).R.values.x), ...
+        sprintf(['TrialDataExport: one row per value with the columns %s, then the trial parameters (Depth); tab-separated ' ...
+        'text with a header; written as CSV, readtable gives it back (%d rows); a scatter''s x; not a trial panel and no ' ...
+        'such panel are errors'], strjoin(lead, ", "), height(TR2)));
+    fT = figure('Visible', 'off', 'Position', [100 100 700 800]);   % (an editable drawing leaves its context on the figure)
+    renderFigure(Ftsw, Ftsw.spec, fT, Editable=true, DataTips=true);
+    hMn = renderFigure(Ftsw, Ftsw.spec, fT, Editable=true, DataTips=true);
+    pMn = findall(axOf(hMn), 'Tag', 'distPoints');
+    bMn = findall(axOf(hMn), 'Tag', 'sigBracket');
+    itA = string({PlotAesthetics.menuOf(axOf(hMn)).Children.Text});
+    itP = string({PlotAesthetics.menuOf(pMn(1)).Children.Text});
+    nAgain = TrialDataExport.attach(Ftsw, hMn);
+    itA2 = string({PlotAesthetics.menuOf(axOf(hMn)).Children.Text});
+    Lp = FigureDataTips.tipText(pMn(1), 1);
+    Lb = FigureDataTips.tipText(bMn(1), 1);
+    hMs2 = renderFigure(Ftsc, Ftsc.spec, fT, Editable=true);
+    itS = string({PlotAesthetics.menuOf(hMs2.panels(1).extraAxes(1)).Children.Text});
+    delete(fT);
+    items = ["Copy data table" "Export data (CSV)..."];
+    check(all(ismember(items, itA)) && all(ismember(items, itP)) && all(ismember(items, itS)) && nAgain == 0 ...
+        && nnz(itA2 == items(1)) == 1 && any(startsWith(Lp, "Trial: ")) && any(startsWith(Lp, "Depth: ")) ...
+        && any(startsWith(Lb, "Pair test: ranksum p = ")), ...
+        sprintf(['the trial panels'' right-click menus (their axes, points, a scatter''s strips) hold "Copy data table" and ' ...
+        '"Export data (CSV)...", once; a point''s tip names its trial and category (%s), a bracket''s its test (%s)'], ...
+        strjoin(Lp, " | "), strjoin(Lb, " | ")));
 
     % a panel's text note and overlays (phase 6): drawn on that panel, their looks as rules, the figure's own winning
     sN = F1.spec;
@@ -6422,6 +6628,34 @@ s = "";
 if ~isscalar(th); return; end
 t = strjoin(string(th.Title.String), " ");
 s = strjoin(string(th.Subtitle.String), " ");
+end
+
+
+function [ok, why] = marginalsPlaced(h, canvas, f)
+%marginalsPlaced  A trial scatter's plot and marginal strips (H.panels(1)) inside its laid-out box, flush, each strip a share F of it, the limits linked.
+%   The x strip over or under the plot, the y strip right or left of it (as its layout says); positions in CANVAS's pixels.
+ok = false;
+A = [h.panels(1).axes reshape(h.panels(1).extraAxes, 1, [])];
+if numel(A) ~= 3 || ~all(isgraphics(A)) || ~isappdata(canvas, 'FigureLayoutResult')
+    why = "no plot with two strips";
+    return
+end
+R = getappdata(canvas, 'FigureLayoutResult');
+b = R.panels(1).box;
+q = zeros(3, 4);
+for i = 1:3
+    u = A(i).Units;
+    A(i).Units = 'pixels';
+    q(i, :) = A(i).Position;
+    A(i).Units = u;
+end
+m = q(1, :); x = q(2, :); y = q(3, :);
+in = @(r) r(1) >= b(1) - 0.5 && r(2) >= b(2) - 0.5 && r(1) + r(3) <= b(1) + b(3) + 0.5 && r(2) + r(4) <= b(2) + b(4) + 0.5;
+xFlush = (abs(x(2) - m(2) - m(4)) < 0.5 || abs(x(2) + x(4) - m(2)) < 0.5) && abs(x(1) - m(1)) < 0.5 && abs(x(3) - m(3)) < 0.5;
+yFlush = (abs(y(1) - m(1) - m(3)) < 0.5 || abs(y(1) + y(3) - m(1)) < 0.5) && abs(y(2) - m(2)) < 0.5 && abs(y(4) - m(4)) < 0.5;
+ok = in(m) && in(x) && in(y) && xFlush && yFlush && abs(x(4) - f * b(4)) < 0.5 && abs(y(3) - f * b(3)) < 0.5 ...
+    && isequal(A(2).XLim, A(1).XLim) && isequal(A(3).YLim, A(1).YLim);
+why = sprintf('box %s, plot %s, x strip %s, y strip %s', mat2str(round(b)), mat2str(round(m)), mat2str(round(x)), mat2str(round(y)));
 end
 
 

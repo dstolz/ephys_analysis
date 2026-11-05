@@ -442,7 +442,25 @@ says how to cut a release.
   ...), validate rules, the constants `TrialMeasureKinds`, `TrialGroupings`, `TrialTests` and `TrialFits`, and the
   label variables `{Measure}` and `{MeasureX}`. A trial measure (`kind` delay, duration, count or param; `from`,
   `to`, `direction`, `maxGapSec`, `param`, `unit`, `label`) is named by the new `trialMeasureLabel` ("Stim onset →
-  Platform offset (ms)"). The panels are computed (below) and drawn with the next change.
+  Platform offset (ms)"). The panels are computed (below) and drawn (further below).
+- Figures: the trial panels are drawn. A distribution puts its categories along x and the series side by side, as a
+  swarm, boxes, violins (`violinplot`, R2024b and later), jittered points or a line of the summaries, with a summary
+  mark +/- its error; the significant pairs (or all) bracketed with stars, stacked so none overlap, and the omnibus
+  test in a corner, a line per series in its color. A histogram draws bars, an outline or the ECDF on one set of bins
+  (automatic, a count or a width; log-spaced on a log axis) with a line at each series' summary. A scatter draws its
+  points, each series' fit over its 95% band and its correlation in the legend, and with `marginals` histograms of x
+  and y in two strips flush with the plot, their limits linked: a draw function may now return `extraLayout`
+  (`figDrawResult`), which `renderFigure`, `figureLayout` and `figurePlace` follow to split a panel's box. Log axes
+  (values at or below 0 left out and counted). New aesthetics roles `distPoints`, `distBox`, `distViolin`,
+  `distSummary`, `distLine`, `sigBracket`, `sigText`, `statText`, `histBar`, `histLine`, `histSummary`,
+  `scatterPoints`, `fitLine`, `fitBand` and `marginalBar` (with their editor settings, `figureRoleSettings`; a design
+  captures its palette from the points, boxes and bars). Data tips name a point's trial, trial group, category and
+  parameters, and a bracket's test. The caption says what each trial panel draws and tests.
+- Analysis: `TrialDataExport`, the trial panels' values as one table (`valuesTable`: figure, panel, layer, measure,
+  dataset, session, trial, group, category, series, value, x, tA, tB and the trial parameters), as tab-separated text
+  (`tableText`, `copy`) or a CSV file (`export`); the analysis app's (and any visible figure's) right-click menu of a
+  trial panel has **Copy data table** and **Export data (CSV)...** (`attach`). See
+  [EphysAnalysisConfig](documentation/EphysAnalysisConfig.md#trial-measures).
 - Analysis: `trialMeasure(src, m, mask)`, one number per trial from its events or parameters: the delay from an
   event A to the first (last, n-th, every) event B after or before it, found as a stop event is (so its delays are
   `eventLatency`'s), dropped beyond `maxGapSec`; how long A's interval lasts; how many B events follow A up to the

@@ -530,6 +530,36 @@ the panel, `categories` and `series` (index, label, color, n, value) and
 the end of a dataset's compute and again after a session figure's datasets
 are merged.
 
+### Drawing and the data table
+
+`renderFigure` draws the trial panels (`drawTrialDistPanel`,
+`drawTrialHistPanel`, `drawTrialScatterPanel`): a distribution as a swarm,
+boxes, violins, jittered points or a line per series, with the significant
+pairs bracketed and starred and the omnibus p in a corner; a histogram as
+bars, an outline or an ECDF; a scatter with its fits, correlations in the
+legend and, optionally, marginal histograms in strips beside the plot. What
+each option draws, and the parts' roles, are in
+[Trial measures](EphysAnalysisConfig.md#trial-measures). A point's data tip
+names its trial, trial group, category and parameters; a bracket's its test.
+
+`TrialDataExport` turns the values into one table, a row per value, for a
+spreadsheet or a script (the right-click **Copy data table** and **Export data
+(CSV)...** of every trial panel do the same):
+
+```matlab
+F = runner.computeFigure(src, cfg.figureFor("Dist trials"));
+T = TrialDataExport.valuesTable(F);           % every trial panel of F; (F, k) panel k, by index or id
+TrialDataExport.export(F, [], "delays.csv");  % writetable; "" opens a save dialog
+txt = TrialDataExport.tableText(T);           % tab-separated, the header first
+TrialDataExport.copy(F);                      % that text on the clipboard
+```
+
+`T`'s columns: `figure`, `panel`, `layer`, `measure`, `dataset`, `session`,
+`sessionKey`, `trial`, `group`, `groupLabel`, `category`, `categoryLabel`,
+`series`, `seriesLabel`, `value`, `x`, `tA`, `tB`, then the trial parameters
+the values carry. `TrialDataExport.attach(F, h)` (`renderFigure` calls it in
+a visible figure) puts the two menu items on a drawn figure's trial panels.
+
 ## Response statistics
 
 `[T, info] = responseStats(st, E, Baseline=[b0 b1], Window=[w0 w1], Param=,
@@ -1060,7 +1090,12 @@ count, the window length, tiled or sliding) and, given `Auroc=CALLS` (one
 `figureAurocCalls(F)` result per observation: the first auROC result a figure's
 panels hold), what the cutoff called, summed over the observations (*units called
 over [0 0.5] s by the 95% CI cutoff (+/-0.043): Hit 5 up, 2 down; ... (of 6
-units)*; none with the cutoff `"none"`).
+units)*; none with the cutoff `"none"`). A [trial panel](#trial-measures) says what it
+draws: *a distribution of Stim onset → Platform offset (ms) per trial by
+TrialType (mean +/- SEM); rank-sum (2 levels) or Kruskal-Wallis tests across the
+categories in each series, all pairs adjusted by Holm, alpha 0.05* (its measures,
+categories and series, summary and error, test, pairs, adjustment and `testAlpha`,
+a scatter's x measure, fit and correlation, its log axes).
 
 ### Unit waveforms
 
@@ -1111,7 +1146,13 @@ logic levels, baselines and group bands (`eventBar`, `eventTick`, `eventLevel`, 
 trace, bars, error bars, boxes, points and mean bars, a tuning curve, an
 image, probe sites (with and without a value), site and shank labels,
 unit positions, and a unit waveform's box, spikes, mean and amplitude
-label; and, in a result [merged across sessions](#across-sessions), each member
+label; a trial panel's points, boxes, violins, summary marks and lines
+(`distPoints`, `distBox`, `distViolin`, `distSummary`, `distLine`),
+significance brackets, their stars and the corner's tests (`sigBracket`,
+`sigText`, `statText`), histogram bars, outlines and summary lines (`histBar`,
+`histLine`, `histSummary`), scatter points, fit lines and bands
+(`scatterPoints`, `fitLine`, `fitBand`) and a scatter's marginal histograms
+(`marginalBar`); and, in a result [merged across sessions](#across-sessions), each member
 session's pale line under its summary (`memberLine`, "Session line") and a
 heatmap's divider between sessions (`sessionDivider`). The group is the trial
 group's label, a tuning

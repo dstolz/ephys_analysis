@@ -1830,6 +1830,94 @@ and `"trialScatter"` are one panel with one trials layer (Stim onset → Trial
 offset; a scatter's x Trial onset → Stim onset), and their figures' automatic
 ids read *Dist trials*, *Hist trials* and *Scatter trials*.
 
+**Drawing.** A trial panel draws every computed layer's values together, each
+series in its color: the figure's trial groups' colors for `series "groups"`, a
+layer's own `color` (else the palette's) for `"layer"`, and the palette for
+`"param"` and `"session"` (a [plot design](EphysAnalysis.md#plot-designs)'s
+sequential colors for a numeric parameter's ordered levels).
+
+- A **distribution** puts its categories along x, each labeled (with `showN
+  "ticks"` its trial count, *Hit (n = 12)*; past 8 categories the labels turn
+  45 degrees; with `ordinalX` a line's or points' numeric categories at their
+  values), and the series side by side in each category's slot. `display`:
+  `"swarm"` (the points spread by their density, `swarmchart`), `"points"`
+  (jittered over `jitter` of the slot, the same pattern every time), `"box"`
+  (`boxchart`), `"violin"` (`violinplot`, MATLAB R2024b or later; an older
+  MATLAB draws boxes and says so in the panel; a series without spread draws
+  its points) or `"line"` (each series' summary per category with its error
+  bars, joined, in the layer's line style). With `showSummary` the swarm,
+  points and violins get a mark at each slot's summary with its error.
+  `yScale "log"` draws a log axis; values at or below 0 are left out and a
+  note in the panel counts them.
+- **Tests.** With `testShow "brackets"` the pairs (`bracketPairs
+  "significant"`: those below `testAlpha` after the adjustment; `"all"`: every
+  pair with a p) are drawn as brackets over the data, each with its stars
+  (`*` below 0.05, `**` 0.01, `***` 0.001, adjusted; `n.s.` a point smaller):
+  two categories of one series in that series' slot (in its color when there
+  are several series), two series side by side when there is one category. A
+  bracket takes the lowest level free of the others, the shortest pairs first
+  (pairs that only share an end share a level), the levels stepped by a factor
+  on a log axis; the y axis grows to hold them unless its limits are fixed
+  (`yLimMode "fixed"` or `"batch"`). The omnibus tests go in the top-left
+  corner, a line per series in its color (*Depth 0-0.5: Kruskal-Wallis p =
+  0.003*; a p below `testAlpha` in bold). `testShow "text"` writes those lines
+  alone, `"off"` neither; the report's caption
+  ([`figureCaption`](EphysAnalysis.md#reports)) says what was tested either way.
+- A **histogram** counts every series on one set of edges (`binMode`:
+  `histcounts`' rule, `binCount` bins or `binWidth`; log-spaced with `xScale
+  "log"`, the values at or below 0 left out; covering `xLim` when set) and
+  draws bars at `alpha` (as `normalization` says: counts, probabilities or a
+  density), a stair outline, or the empirical cumulative distribution
+  (`ecdf`, 0 to 1). `showSummary` draws a dotted line at each series'
+  summary. Its test goes in the top-right corner (top left over an ECDF).
+- A **scatter** draws a point per trial, its y measure against its x
+  (`markerSize`, `alpha`), each series' fit over its 95% band (`fitBand`, the
+  polynomial fits; behind the points), and lists each series in the legend
+  with its correlation, *Hit (r = 0.42, p = 0.01)* (ρ for Spearman's). With
+  `marginals` its box holds three axes: the plot, a strip of x histograms over
+  it and a strip of y histograms right of it, flush, each `marginalSize` of
+  the box, the strips' limits linked to the plot's and showing no tick
+  labels (a histogram per series, as probabilities, on one set of edges).
+  With the panel's x axis on top (`xSide`) the x strip goes under the plot,
+  with its y axis on the right (`ySide`) the y strip goes to its left. The
+  layout splits the panel's box so at every layout ([renderFigure](#renderfigure)),
+  the panel's title sits over the top strip, and **Arrange** moves the three
+  together. A scatter drawn into a single axes has no strips.
+
+The parts' [aesthetics roles](EphysAnalysis.md#plot-aesthetics) are
+`distPoints`, `distBox`, `distViolin`, `distSummary`, `distLine`,
+`sigBracket`, `sigText` (a bracket's stars), `statText` (the corner's tests),
+`histBar`, `histLine` (an outline or an ECDF), `histSummary`, `scatterPoints`,
+`fitLine`, `fitBand` and `marginalBar`; their group is the series' label (a
+bracket's "a vs b", with the series when there are several). A design captures
+its palette from the points, boxes and bars. A point's
+[data tip](EphysFigGenApp.md#figures-tab) names its trial, trial group,
+category and the trial's parameters; a bracket's its pair's test (*ranksum p =
+0.004 (holm 0.012), n = 30 vs 12*).
+
+**The data table.** In the analysis app's preview, and in any visible figure
+`renderFigure` draws, a right-click on a trial panel (its axes, a point, a bar,
+a strip) offers **Copy data table** (tab-separated text with a header, to paste
+into a spreadsheet) and **Export data (CSV)...** (a save dialog, then
+`writetable`). From a script `TrialDataExport` gives the same table:
+
+```matlab
+F = runner.computeFigure(src, cfg.figureFor("Dist trials"));
+T = TrialDataExport.valuesTable(F);          % every trial panel; (F, "trialDist_1") one, by id or index
+TrialDataExport.export(F, [], "delays.csv");  % writetable; "" opens a save dialog
+txt = TrialDataExport.tableText(T);          % what Copy data table puts on the clipboard (TrialDataExport.copy)
+```
+
+One row per value, a layer's rows after another's, with the columns `figure`,
+`panel`, `layer`, `measure` (the label, with its unit), `dataset`, `session`,
+`sessionKey`, `trial` (the row of the dataset's trials), `group` and
+`groupLabel` (the trial group), `category` and `categoryLabel`, `series` and
+`seriesLabel`, `value` (in the measure's unit), `x` (a scatter's x measure;
+NaN elsewhere), `tA` and `tB` (the events' times, s), then the trial
+parameters the values carry (the selection's `groupBy`, a category or series
+parameter). `TrialDataExport:NoPanel` for a panel the figure lacks,
+`TrialDataExport:NotTrialPanel` for one that is no trial panel.
+
 ### Panel options
 
 A panel's `options` are the type's (`panelTypes().DefaultOptions`); a field
@@ -2274,8 +2362,13 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
     with its labels: the plot area is the rect, kept in the area, less the
     labels' room and the padding on each side with labels;
   - a panel's note's band (below) comes off its plot area, and a coherence
-    panel's phase strip takes the bottom third of what is left; a legend panel
-    has no labels and is never moved for any;
+    panel's phase strip takes the bottom third of what is left; a trial
+    scatter's marginal strips (its draw's `extraLayout`, kind `"marginals"`)
+    split it instead: the plot `1 - marginalSize` of it each way, the x strip
+    over it (under it with the x axis on top) and the y strip right of it
+    (left with the y axis on the right), flush, its labels' room the largest
+    of the three axes' on each side; a legend panel has no labels and is never
+    moved for any;
   - it measures again at the new sizes (an axes' size can change its tick
     labels) and places again when the room changed; then the legend (below)
     and the notes;
@@ -2297,7 +2390,7 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   the components, the tiles by panel id; the figure adds the roles `eventLine`,
   `eventRug`, `eventSpan`, `layerNote` and the event-trace panel's `eventBar`,
   `eventTick`, `eventLevel`, `eventBaseline` and `eventGroupBand`, and a continuous panel's per-trial traces are the
-  role `trialTrace` ("Trial traces").
+  role `trialTrace` ("Trial traces"); the trial panels' roles are listed under [Trial measures](#trial-measures).
 - **Notes and overlays.** A panel's `overlays` are drawn on its axes after its
   layers (`drawOverlays`: every one of them, a panel having no raster / data
   choice; a coherence panel's x overlays also go on its phase strip, which shares
@@ -2372,7 +2465,8 @@ grid layout, holding the panels' axes, the hidden axes of the title and the note
 bands and the legend; `[]` for an axes target), `axes` (the panels'
 axes drawn, in panel order), `panels` (one per panel of the spec: `id`, `type`,
 `axes`, empty when not drawn, and `extraAxes`, the phase axes of a coherence panel
-drawn under its magnitude, dressed with the type's looks; empty for
+drawn under its magnitude, or a trial scatter's marginal strips (the x strip, then
+the y strip), dressed with the type's looks; empty for
 every other panel; `note`, the text object of its note, empty without one; and
 `overlays`, the lines and patches drawn on it) and `title` (the title text).
 `renderFigure:Mismatch` when `F`'s panels are not the spec's, `renderFigure:BadTarget`
@@ -3538,7 +3632,13 @@ baseline per group, the legend's groups once, one group overlaid, a second
 layer in the rows), an auROC PSTH (a 0-1 axis, the chance line, the modulation
 window, the calls; stacked too) and heat map (the diverging colormap, 0-1),
 rate panels (bars, boxes of two layers, points), tuning curves (a series, the
-inset), the waveforms probe layout with the observed unit framed, faint and only trial traces (a
+inset), the waveforms probe layout with the observed unit framed, the trial panels (a swarm by Depth with
+brackets, an ECDF, a scatter with marginal histograms and a linear fit among the targets; `figurePlace`'s marginal
+split, mirrored with the axes on top and right; the plot and its strips inside its box, flush, a share each, linked,
+without tick labels, the title over the top strip, at a new size, at `Scale` 0.5 and in place with `Reuse`; as many
+brackets as the significant pairs or all, none overlapping on a level, over the data; `testShow`'s corner text; a log
+y axis; the five displays' roles and `TrialRows`; `TrialDataExport`'s columns, text, CSV round trip and errors; the
+right-click items once; a point's and a bracket's data tips), faint and only trial traces (a
 `trialTrace` line per group, no mean or band for `only`, the legend's groups), a heat map of trials (a row
 per epoch in its order, the group strip, the `Epoch (by ...)` label), a panel on a selection of its own
 (titled `all trials`, its own legend inside it, the figure's legend the raster's groups), a per-group

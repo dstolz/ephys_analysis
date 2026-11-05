@@ -14,9 +14,15 @@ function hk = figDrawResult(ax)
 %   values' units, [lo hi], where its axes do not show it (a stack's rows:
 %   the reach of them all); [NaN NaN] = its axes' y limits say it
 %   (renderFigure's H.panels(k).yExtent, a run's batch range:
-%   figureYExtents).
+%   figureYExtents), and extraLayout: how the extra axes share the
+%   panel's plot area, [] (default: under its axes, stacked, the axes two
+%   shares to each extra axes' one: a coherence panel's phase strip) or
+%   struct('kind', "marginals", 'size', F, 'xStrip', "top" | "bottom",
+%   'yStrip', "right" | "left") (a trial scatter's marginal histograms:
+%   extraAxes = [x strip, y strip], each a share F of the box beside the
+%   plot; figurePlace places them so at every layout).
 %
-%   See also renderFigure, figurePanelRegistry.
+%   See also renderFigure, figurePanelRegistry, figurePlace.
 hk = struct('axes', ax, 'legendHandles', gobjects(1, 0), 'legendLabels', strings(1, 0), ...
-    'legendGroup', false(1, 0), 'yName', "", 'extraAxes', gobjects(1, 0), 'yExtent', [NaN NaN]);
+    'legendGroup', false(1, 0), 'yName', "", 'extraAxes', gobjects(1, 0), 'yExtent', [NaN NaN], 'extraLayout', []);
 end

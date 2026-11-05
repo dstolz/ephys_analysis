@@ -1840,6 +1840,19 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     nC2 = numel(rnC.FigureCache);
     rnC.computeFigure(srcC, spec, Observation=Tu(1, :));   % a run's compute: nothing kept
     nC3 = numel(rnC.FigureCache);
+    % CacheOnly: the cache alone, or figureCompute:CacheMiss with the cache untouched
+    FC3 = rnC.computeFigure(srcC, sl, Observation=Tu(1, :), Reuse=true, CacheOnly=true);
+    cacheBefore = rnC.FigureCache;
+    missId = '';
+    try
+        rnC.computeFigure(srcC, sd, Observation=Tu(1, :), Reuse=true, CacheOnly=true);
+    catch me
+        missId = me.identifier;
+    end
+    FC4 = rnC.computeFigure(srcC, sl, Observation=Tu(1, :), Reuse=true, CacheOnly=true);
+    check(isequaln(FC3.panels, FC1.panels) && strcmp(missId, 'figureCompute:CacheMiss') && isequaln(rnC.FigureCache, cacheBefore) ...
+        && isequaln(FC4.panels, FC1.panels), ...
+        'computeFigure CacheOnly: a cached spec returns the same figure, a changed panel throws figureCompute:CacheMiss, the cache serves the first spec after');
     rnC.clearSources();
     check(nC == numel(K1) && nC2 == nC && nC3 == nC && isempty(rnC.FigureCache) && isequaln(FC2.panels, FC1.panels) ...
         && isequaln(arrayfun(@noCreated, FC1.panels, 'UniformOutput', false), arrayfun(@noCreated, Fr1.panels, 'UniformOutput', false)) && rnC.FigureCacheMB > 0, ...

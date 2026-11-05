@@ -87,6 +87,7 @@ for k = 1:min(numel(panels), numel(spec.panels))
                 key = struct('rows', rows, 'opts', trialOpts);
                 [hit, v, C] = figureReuse(C, "latency", key);
                 if ~hit
+                    missCheck(C, "latency");
                     v = trialOf(R, u, trialOpts);
                     C = figureKeep(C, "latency", key, v);
                 end
@@ -98,6 +99,7 @@ for k = 1:min(numel(panels), numel(spec.panels))
                 key = struct('rows', rows, 'opts', onsetOpts);
                 [hit, v, C] = figureReuse(C, "onset", key);
                 if ~hit
+                    missCheck(C, "onset");
                     v = onsetOf(R, u, onsetOpts);
                     C = figureKeep(C, "onset", key, v);
                 end
@@ -119,6 +121,14 @@ for k = 1:min(numel(panels), numel(spec.panels))
 end
 S = struct('settings', L0, 'entries', rmfield(E, 'rows'));
 if ~keepK; C = C0; end
+end
+
+
+function missCheck(C, kind)
+%missCheck  figureCompute's CacheOnly: a step the cache lacks throws instead of being computed.
+if isfield(C, 'cacheOnly') && C.cacheOnly
+    error('figureCompute:CacheMiss', 'CacheOnly: a unit''s %s is not in the cache.', kind);
+end
 end
 
 

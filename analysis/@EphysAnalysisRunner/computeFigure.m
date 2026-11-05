@@ -16,6 +16,10 @@ function F = computeFigure(obj, src, spec, opts)
 %   panel. The runner keeps them in FigureCache, the most recently used
 %   first, up to FigureCacheMB; clearSources (and datasets) forgets them.
 %   A run does not reuse: each observation's data is its own.
+%   CacheOnly=true (with Reuse=true) computes nothing and sets no
+%   checkpoint: a step FigureCache lacks throws figureCompute:CacheMiss
+%   and FigureCache stays as it was (the app's no-card pass tries it
+%   first, and takes the busy path on the error).
 %
 %   See also figureCompute, figureObservations,
 %   figureSkipReason, renderFigure.
@@ -26,14 +30,21 @@ arguments
     spec (1,1) struct
     opts.Observation = []
     opts.Reuse (1,1) logical = false
+    opts.CacheOnly (1,1) logical = false
 end
 
 chk = [];   % the checkpoint the long steps call, while the app's preview polls (PollFcn)
 if ~isempty(obj.PollFcn); chk = @() obj.checkpoint(); end
+if opts.CacheOnly
+    if ~opts.Reuse
+        error('EphysAnalysisRunner:CacheOnlyNeedsReuse', 'CacheOnly needs Reuse=true.');
+    end
+    chk = [];   % nothing long runs
+end
 if ~opts.Reuse
     F = figureCompute(src, spec, Observation=opts.Observation, Check=chk);
     return
 end
-[F, K] = figureCompute(src, spec, Observation=opts.Observation, Check=chk, Reuse=obj.FigureCache);
+[F, K] = figureCompute(src, spec, Observation=opts.Observation, Check=chk, Reuse=obj.FigureCache, CacheOnly=opts.CacheOnly);
 obj.keepFigureCache(K);
 end

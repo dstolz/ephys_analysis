@@ -112,7 +112,11 @@ function [F, K] = figureCompute(src, spec, opts)
 %   passes its own checkpoint while PollFcn is set, the app's preview:
 %   after cancel() it throws EphysAnalysisRunner:Canceled). Latency=false
 %   leaves the latencies out (figureSessionCompute takes them once, on the
-%   rows merged across the sessions). Errors:
+%   rows merged across the sessions). CacheOnly=true (with Reuse) computes
+%   nothing: a step the cache lacks (the epochs, a panel's layers, a
+%   unit's latency or onset) throws figureCompute:CacheMiss, naming it
+%   (the skip reasons, cheap, are still taken); the app tries it first, so
+%   an edit that needs no compute shows at once. Errors:
 %   EphysAnalysisRunner:FigureSkipped, EphysAnalysisRunner:NoObservation
 %   (OBS omitted and the dataset offers none), and epochTable's for the
 %   figure's own epochs.
@@ -128,13 +132,14 @@ arguments
     opts.Check = []
     opts.Reuse = []
     opts.Latency (1,1) logical = true
+    opts.CacheOnly (1,1) logical = false
 end
 
 chk = opts.Check;   % the checkpoint the long steps call ([] = none)
 tick(chk);
 asked = spec;
 asked.enabled = true;   % a disabled figure is still computed when asked (the preview)
-C = struct('on', nargout > 1 || ~isempty(opts.Reuse), 'pool', opts.Reuse, 'dataset', "", ...
+C = struct('on', nargout > 1 || ~isempty(opts.Reuse), 'pool', opts.Reuse, 'dataset', "", 'cacheOnly', opts.CacheOnly, ...
     'K', struct('kind', {}, 'dataset', {}, 'key', {}, 'value', {}, 'bytes', {}, 'from', {}));   % what is reused and kept
 if C.on
     C.dataset = string(src.key) + "|" + string(src.folder);
@@ -233,6 +238,9 @@ for k = 1:np
         [hit, P.layers, C] = figureReuse(C, "panel", key);
     end
     if ~hit
+        if C.cacheOnly
+            error('figureCompute:CacheMiss', 'CacheOnly: panel "%s" is not in the cache.', string(p.id));
+        end
         ctx = struct('check', [], 'checkpoint', @() tick(chk), 'observation', obs, 'observe', spec.observe, ...
             'ref', p.ref, 'window', p.window, 'selection', selectionOf(p, spec), 'style', spec.style, 'spec', spec, 'skips', skips);
         ctx.check = chk;
@@ -387,6 +395,9 @@ if C.on
         G = v{2};
         return
     end
+end
+if C.cacheOnly
+    error('figureCompute:CacheMiss', 'CacheOnly: the epochs are not in the cache.');
 end
 [E, G] = epochTable(src, ref, Window=win, Selection=sel, Baseline=base, Columns=cols);
 if C.on; C = figureKeep(C, "epochs", key, {E, G}); end

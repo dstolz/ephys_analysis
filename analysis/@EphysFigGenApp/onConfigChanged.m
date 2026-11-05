@@ -1,6 +1,7 @@
 function onConfigChanged(obj, what, src)
 %onConfigChanged  A control changed: re-gather the config and refresh what depends on it.
-%   WHAT says which part changed: "name", "source", "ticks", "defaults"
+%   WHAT says which part changed: "name", "source", "ticks", "filter"
+%   (the Data tab's filter: Source.Filter, its table already filtered), "defaults"
 %   (the Alignment tab), "figure" (the Figures tab's editor), "figuresize"
 %   (its Size rows: a "figure" edit that changes how the figure is drawn,
 %   not what it is computed from) or "export" (the Panels section's
@@ -68,8 +69,8 @@ end
 switch what
     case "source"
         obj.syncSourceEnable();
-        if ~isempty(obj.Runner) && ~isempty(fieldnames(obj.ScannedSource)) && ~isequaln(rmfield(cfg.Source, {'Selection', 'Datasets'}), ...
-                rmfield(obj.ScannedSource, {'Selection', 'Datasets'}))
+        if ~isempty(obj.Runner) && ~isempty(fieldnames(obj.ScannedSource)) && ~isequaln(rmfield(cfg.Source, {'Selection', 'Datasets', 'Filter'}), ...
+                rmfield(obj.ScannedSource, {'Selection', 'Datasets', 'Filter'}))
             obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
         end
     case "defaults"

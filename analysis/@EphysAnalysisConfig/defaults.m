@@ -42,7 +42,14 @@ switch section
             'Recordings',  "concatenate", ...       % Open Ephys sessions with several recordings: "concatenate" | "separate" | "single" (the pipeline config's Acquisition.OpenEphys.Recordings)
             'Selection',   "all", ...               % "all" | "list"
             'Datasets',    string.empty(1,0), ...   % root-relative keys when "list"
-            'Folders',     string.empty(1,0));      % output folders (Mode "folders")
+            'Folders',     string.empty(1,0), ...   % output folders (Mode "folders")
+            'Filter',      struct( ...              % the analysis app's Data tab filter (which rows show; never what runs): datasetFilter's options, "" = off
+                'Subjects',        "", ...          % comma-separated, * ? wildcards
+                'ExcludeSubjects', "", ...
+                'Tags',            "", ...          % comma-separated
+                'TagMode',         "any", ...       % "any" | "all" of Tags
+                'ExcludeTags',     "", ...
+                'Search',          ""));            % words that must all appear in the name, key, subject or tags
 
     case "Defaults"
         s = struct( ...

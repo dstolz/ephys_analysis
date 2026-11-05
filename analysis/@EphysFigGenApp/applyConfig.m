@@ -47,7 +47,7 @@ end
 clear restore
 if ~isempty(obj.Runner)
     obj.Runner.Config = cfg;
-    if ~isequaln(cfg.Source, obj.ScannedSource)
+    if ~isequaln(withoutFilter(cfg.Source), withoutFilter(obj.ScannedSource))   % the filter only shows some of the datasets scanned
         obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
     end
 end
@@ -63,6 +63,11 @@ end
 obj.refreshAlignPreview();
 obj.refreshEpochDiagram();
 obj.updateTitle();
+end
+
+
+function S = withoutFilter(S)
+if isfield(S, 'Filter'); S = rmfield(S, 'Filter'); end
 end
 
 

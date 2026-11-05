@@ -139,7 +139,8 @@ recordings in the pipeline app (`ofc`, `cohort-3`, `pilot`). Here, on the
 Data tab, the **Tags** column shows them, and the **Tags** filter above the
 table shows just the recordings with a tag (*any of* or *all of* several),
 or leaves some out (**not**). **Tick shown only** then ticks exactly that
-group for a run. The reports show each recording's tags in its header and
+group for a run. Save the config and the filter is saved with it: the next
+time you open the config, the table shows the same group. The reports show each recording's tags in its header and
 tables, so a figure is never far from what the recording was. Tag your
 recordings in the pipeline app's Project tab; it takes seconds, and it is
 the quickest way to draw the same figures for one group of recordings.

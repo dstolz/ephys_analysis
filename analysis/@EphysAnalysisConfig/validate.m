@@ -6,7 +6,8 @@ function issues = validate(obj, opts)
 %
 %   Checked
 %     Source    Mode; Root exists (project) or every folder does (folders);
-%               NamePattern parses; a "list" selection names datasets
+%               NamePattern parses; a "list" selection names datasets;
+%               Filter.TagMode is "any" or "all"
 %     Defaults  the event reference, window and selection are valid (a
 %               filter that does not parse is a warning: it is checked
 %               against each dataset's trials when it runs)
@@ -219,6 +220,9 @@ else
             if ~isfolder(f); add("Source", "Folders", "error", "Folder not found: " + f); end
         end
     end
+end
+if ~ismember(S.Filter.TagMode, ["any" "all"])
+    add("Source", "Filter.TagMode", "error", "Filter.TagMode must be ""any"" or ""all"".");
 end
 
 % --- Defaults ------------------------------------------------------------------------

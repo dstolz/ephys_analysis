@@ -64,13 +64,14 @@ obj.FilterLabel.Layout.Row = 7; obj.FilterLabel.Layout.Column = [3 4];
 % Tags (any / all of, and "not" these) in two rows (refreshDatasetsTable
 % applies it, lists the subjects and tags in use and says above how many rows
 % show; the rows it hides keep their ticks), and the Run ticks from what it
-% shows (onTickDatasets).
+% shows (onTickDatasets). The filter is the config's Source.Filter
+% (gatherSourceSection): a change is a config edit.
 fb = uigridlayout(left, [2 1]);
 fb.Layout.Row = 8; fb.Layout.Column = [1 4];
 fb.RowHeight = {30, 30};
 fb.RowSpacing = 4;
 fb.Padding = [0 0 0 0];
-refilter = @(~,~) obj.refreshDatasetsTable();
+refilter = @(~,~) filterChanged(obj);
 r1 = uigridlayout(fb, [1 6], "ColumnWidth", {'fit', 120, 'fit', 120, 'fit', '1x'}, "RowHeight", {30}, "Padding", [0 0 0 0]);
 uilabel(r1, "Text", "Subject");
 obj.SubjectFilterDropDown = uidropdown(r1, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
@@ -127,6 +128,13 @@ obj.LinesTable = uitable(rg, "RowName", {}, ...
 obj.BehaviorLabel = uilabel(rg, "Text", "", "WordWrap", "on");
 obj.ParamsTable = uitable(rg, "RowName", {}, "ColumnName", {'Parameter', 'Values'}, "ColumnWidth", {120, 'auto'}, "ColumnSortable", true);
 obj.UnitsTable = uitable(rg, "RowName", {}, "ColumnName", {'Class', 'Shank', 'Units', 'Spikes'}, "ColumnWidth", 'auto', "ColumnSortable", true);
+end
+
+
+function filterChanged(obj)
+%filterChanged  A filter control changed: the table shows what passes, and the config holds the filter.
+obj.refreshDatasetsTable();
+obj.onConfigChanged("filter");
 end
 
 

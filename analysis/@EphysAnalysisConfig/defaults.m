@@ -28,12 +28,31 @@ function s = defaults(section)
 %                     of its panels; options from panelTypes) and Layer
 %                     (one entry of a panel's layers)
 %
+%   Each section is built once and kept: it is made of constants alone,
+%   and normalizing a figure asks for its sections hundreds of times.
+%   (A struct is a value: a caller that changes the one it gets changes
+%   its copy, never the kept one.)
+%
 %   See also EphysAnalysisConfig, EphysAnalysisConfig.normalizeSection.
 
 arguments
     section (1,1) string
 end
 
+persistent cache   % section -> its defaults, built on first use (pure: constants and other sections only)
+if isempty(cache); cache = containers.Map('KeyType', 'char', 'ValueType', 'any'); end
+key = char(section);
+if isKey(cache, key)
+    s = cache(key);
+    return
+end
+s = build(section);
+cache(key) = s;
+end
+
+
+function s = build(section)
+%build  The defaults of SECTION, made anew (defaults keeps them).
 switch section
     case "Source"
         s = struct( ...

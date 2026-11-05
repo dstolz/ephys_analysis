@@ -202,9 +202,18 @@ function T = panelTypes()
 %   "bottom": where the legend sits in its rect when smaller) and columns
 %   (0 = automatic from the rect's shape, else that many).
 %
+%   The table is built once and kept (it holds constants and defaults
+%   only): the figure editor and the normalizers ask for it dozens of
+%   times per edit.
+%
 %   See also EphysAnalysisConfig.sourceCategories, EphysAnalysisConfig.categoryOf,
 %   EphysAnalysisConfig.defaultLayer.
 
+persistent cached   % the table, once built (the function is pure: the same table every call)
+if ~isempty(cached)
+    T = cached;
+    return
+end
 bins = struct('BinSec', 0.01, 'SmoothSec', 0.01);              % SmoothSec: Gaussian SD (0 = none)
 smoothLine = struct('enabled', false, 'smoothSec', 0.025);     % psth: a smoothed line over the histogram, its own Gaussian SD (s)
 baseline = struct('Mode', "none", 'Window', [-0.2 0]);
@@ -529,4 +538,5 @@ for k = 1:n
     DefaultOptions{k} = opts.(Type(k));
 end
 T = table(Type, Label, Short, Categories, Aligned, SharesTime, OneGroup, MultiLayer, DefaultBinding, Description, DefaultOptions);
+cached = T;
 end

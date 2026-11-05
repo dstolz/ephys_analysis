@@ -1,4 +1,4 @@
-function T = changeTargets(F, D, k, j, changes)
+function T = changeTargets(F, D, k, j, changes, opts)
 %changeTargets  The other figures (or panels) that can take the changes made to figure K, with their values now.
 %   T = EphysAnalysisConfig.changeTargets(F, D, K, J, CHANGES), F the
 %   figures (Config.Figures) after an edit of figure K with its panel J
@@ -18,7 +18,9 @@ function T = changeTargets(F, D, k, j, changes)
 %   row, figure K's too, when it takes each of them: an option it has
 %   and its type takes (panelTakes); the figure settings go to the
 %   panel's figure with it. A target without one of the paths (a
-%   panel of another type) is not a row.
+%   panel of another type) is not a row. AnyType=true passes on to
+%   panelTakes: an option goes to a panel of another type that has it
+%   (the panels selected together in the analysis app).
 %
 %   See also EphysAnalysisConfig.figureEditChanges, EphysAnalysisConfig.applyChanges,
 %   EphysAnalysisConfig.panelTakes.
@@ -29,6 +31,7 @@ arguments
     k (1,1) double
     j (1,1) double
     changes struct
+    opts.AnyType (1,1) logical = false
 end
 T = struct('figure', {}, 'panel', {}, 'figureId', {}, 'panelId', {}, 'panelType', {}, 'current', {}, 'same', {});
 if isempty(changes) || k < 1 || k > numel(F); return; end
@@ -47,7 +50,7 @@ for i = 1:numel(F)
     end
     for q = 1:numel(fig.panels)
         if i == k && q == j; continue; end
-        if ~takesAll(P, fig.panels(q), changes); continue; end
+        if ~takesAll(P, fig.panels(q), changes, opts.AnyType); continue; end
         [cur, ok] = currentValues(fig, q, changes, D);
         if ok; T(end+1) = row(fig, i, q, cur, changes); end %#ok<AGROW>
     end
@@ -71,12 +74,12 @@ r = struct('figure', i, 'panel', q, 'figureId', fig.id, 'panelId', pid, 'panelTy
 end
 
 
-function tf = takesAll(P, Q, changes)
-%takesAll  Whether panel Q takes each of panel P's changed options (panelTakes); its other settings it has.
+function tf = takesAll(P, Q, changes, anyType)
+%takesAll  Whether panel Q takes each of panel P's changed options (panelTakes, AnyType=ANYTYPE); its other settings it has.
 tf = true;
 for c = changes([changes.scope] == "panel")
     if startsWith(c.path, "options.")
-        tf = EphysAnalysisConfig.panelTakes(P, Q, extractAfter(c.path, "options."));
+        tf = EphysAnalysisConfig.panelTakes(P, Q, extractAfter(c.path, "options."), AnyType=anyType);
         if ~tf; return; end
     end
 end

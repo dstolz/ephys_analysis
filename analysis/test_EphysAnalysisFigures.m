@@ -4939,6 +4939,33 @@ if S.sec("12", "config: one edit given to other figures (figureEditChanges, chan
     F5(1).panels(2).rect = [0 0 0.5 0.5];
     check(isempty(EphysAnalysisConfig.figureEditChanges(ca.Figures(1), F5(1), 2)), ...
         'a figure''s id and title, a panel''s title, place (rect), layers and note text are each one''s own: no change to give');
+    % several panels selected together in the app (AnyType, Labels): an option a panel of another type has goes to it,
+    % its value still one its type takes; a panel's title and axis labels are compared too
+    Ra = F2(1).panels(1);   % rp's raster
+    Ra.options.onsetLine = "groups";
+    Ps = F2(1).panels(2);   % rp's PSTH
+    tfA = EphysAnalysisConfig.panelTakes(Ra, Ps, "onsetLine");
+    tfB = EphysAnalysisConfig.panelTakes(Ra, Ps, "onsetLine", AnyType=true);
+    Ci = F2(3).panels(1);
+    Ci.options.errorType = "iqr";
+    [tfC, kC] = EphysAnalysisConfig.panelTakes(Ci, Ps, "errorType", AnyType=true);
+    Ci.options.errorType = "std";
+    tfD = EphysAnalysisConfig.panelTakes(Ci, Ps, "errorType", AnyType=true);
+    [tfE, kE] = EphysAnalysisConfig.panelTakes(Pz, F2(3).panels(1), "baseline.Mode", AnyType=true);
+    F8 = F2;
+    F8(1).panels(1) = Ra;
+    C8 = EphysAnalysisConfig.figureEditChanges(F2(1), F8(1), 1);
+    T8 = EphysAnalysisConfig.changeTargets(F8, D, 1, 1, C8);
+    T8a = EphysAnalysisConfig.changeTargets(F8, D, 1, 1, C8, AnyType=true);
+    F9 = F2;
+    F9(1).panels(2).yLabel = "Rate, {Line}";
+    C9 = EphysAnalysisConfig.figureEditChanges(F2(1), F9(1), 2, Labels=true);
+    check(~tfA && tfB && ~tfC && kC == "errorType" && tfD && ~tfE && kE == "baseline" && isscalar(C8) ...
+        && C8.path == "options.onsetLine" && isempty(T8) && numel(T8a) == 2 && all(string({T8a.panelType}) == "psth") ...
+        && isempty(EphysAnalysisConfig.figureEditChanges(F2(1), F9(1), 2)) && isscalar(C9) && C9.path == "yLabel", ...
+        ['AnyType: a raster''s onset line goes to a PSTH (not otherwise: no shared option), a continuous panel''s "iqr" ' ...
+        'error does not (kept "errorType"), its "std" does, a zscore baseline still not to a continuous panel; ' ...
+        'Labels: a panel''s Y label is a change too']);
     F6 = ca.Figures;
     F6(1).ref = D.EventRef;
     ca.Figures = F6;

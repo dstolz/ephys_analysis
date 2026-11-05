@@ -17,7 +17,12 @@ function onPanelTypeChanged(obj)
 %   layer's aggregate the new type does not offer it is "each"
 %   (EphysAnalysisConfig.aggregates). With none left the type's default layer is
 %   added (a legend panel has none: it draws the figure's legend entries).
-%   A type not aligned to events uses the figure's event and window. A
+%   A type not aligned to events uses the figure's event and window, and
+%   the figure's trial selection but for a trial distribution, histogram or
+%   scatter (TrialPanelTypes), which keeps the panel's own (they take one).
+%   A trial panel's error type, opacity and test display start from the
+%   new type's defaults where the old values are not the new type's (an
+%   event trace's automatic opacity, a distribution's brackets). A
 %   second legend panel is refused (the drop-down goes back): "The figure
 %   already has a legend panel (legend_1)." The status bar says what
 %   changed.
@@ -47,7 +52,7 @@ for i = 1:numel(p.layers)
     keep(i) = EphysAnalysisConfig.categoryOf(p.layers(i).source, new) ~= "";
 end
 dropped = strings(1, 0);
-for i = find(~keep); dropped(end+1) = layerLabel(p.layers(i)); end %#ok<AGROW>
+for i = find(~keep); dropped(end+1) = layerLabel(p.layers(i), old); end %#ok<AGROW>
 L = p.layers(keep);
 follows = strings(1, 0);   % the layers that follow the observation now
 for i = 1:numel(L)
@@ -63,7 +68,7 @@ end
 added = "";
 if isempty(L)
     L = EphysAnalysisConfig.defaultLayer(new);   % a legend panel: none
-    if ~isempty(L); added = "; added its default layer (" + layerLabel(L) + ")"; end
+    if ~isempty(L); added = "; added its default layer (" + layerLabel(L, new) + ")"; end
 end
 p.layers = L;
 
@@ -82,6 +87,10 @@ for f = string(fieldnames(op)).'
     if ismember(f, ["display" "trials"]) || (f == "waveform" && ~insets) || ~isfield(p.options, f); continue; end
     v = p.options.(f);
     if f == "baseline" && ~ismember(v.Mode, modes); v.Mode = "none"; end
+    if f == "errorType" && ~ismember(v, errorTypesOf(new)); continue; end   % e.g. a continuous panel's iqr on a PSTH
+    if f == "alpha" && ~(isscalar(v) && isfinite(v)); continue; end   % an event trace's automatic (NaN) opacity: a histogram's or scatter's is a number
+    if f == "testShow" && v == "brackets" && new ~= "trialDist"; continue; end   % a distribution's brackets: the others show the p alone
+    if f == "series" && isfield(op, 'categories') && ~isfield(p.options, 'categories') && v == op.categories; continue; end   % a distribution's series may not repeat its categories
     if f == "stack" && ~ismember(v, EphysAnalysisConfig.stackModes(new)); v = op.stack; end   % e.g. a continuous panel's "items"
     op.(f) = v;
 end
@@ -89,7 +98,7 @@ p.options = op;
 if ~PT.Aligned(row)
     p.ref = "default";
     p.window = "default";
-    p.selection = "default";
+    if ~ismember(new, EphysAnalysisConfig.TrialPanelTypes); p.selection = "default"; end   % a trial panel keeps its own trial selection
 end
 p.type = new;
 fig.panels(j) = p;
@@ -101,6 +110,13 @@ msg = p.id + " is now a " + word(PT.Label(row)) + " panel (was a " + was + " pan
 if ~isempty(dropped); msg = msg + "; dropped " + strjoin(dropped, ", "); end
 if ~isempty(follows); msg = msg + "; its " + strjoin(follows, " and ") + " layer now follows the observation"; end
 commitFigureEdit(obj, cfg, msg + added + ".", Action="Panel type");
+end
+
+
+function types = errorTypesOf(type)
+%errorTypesOf  The error types a panel of TYPE draws (panelTakes): AuxErrorTypes for a continuous or trial panel, else PanelErrorTypes.
+types = EphysAnalysisConfig.PanelErrorTypes;
+if ismember(type, ["continuous" EphysAnalysisConfig.TrialPanelTypes]); types = EphysAnalysisConfig.AuxErrorTypes; end
 end
 
 

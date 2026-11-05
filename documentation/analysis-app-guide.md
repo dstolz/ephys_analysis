@@ -115,8 +115,40 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysFigGenApp.md#notes)) |
 | reuse a figure's panels in other figures | select it and press **Save as panel type...** under the figure list. In any figure, **New panel...** then lists it under **Saved figures**: pick it, and all its panels go into the free space or beside the selected panel, arranged as they were (see [Saved figures as panel types](EphysFigGenApp.md#figures-as-panel-types)) |
+| plot the time between two events per trial and compare groups | see [Compare a time per trial across groups](#compare-a-time-per-trial-across-groups) below |
 | draw the same figures every time the pipeline runs | save the config, then choose it on the pipeline app's Analysis tab |
 | draw the same figures from a script | **File → Generate script** |
+
+### Compare a time per trial across groups
+
+To plot, for example, how long each trial took from the stimulus to the
+animal leaving the platform, and whether that differs between trial groups:
+
+1. In the Figures tab, press **Add** (or **New panel...** in a figure you
+   have). Pick **Trial distribution**. Under **Key parameters**, set
+   **Measure** to *Delay from an event to another*, **From (A)** to *Stim*
+   *onset* and **To (B)** to *Platform* *offset*. Press **OK**: the panel
+   draws one dot per trial.
+2. To change the measure later, find the **Layers** section and press
+   **Edit...** beside **Measure**. The *Trial measure* window shows both events
+   with every option the Alignment tab has (which one, its scope, a sequence).
+   The gray line at the bottom shows the name the measure will get. Press
+   **OK**.
+3. In **Options**, pick what goes along the x axis in **Categories**: *trial
+   groups* (the groups of the figure's trial selection, such as *Depth*), *a
+   trial parameter* (type its name, and the number of bins beside it), or
+   *measure (layer)* to put several measures side by side. **Display** draws
+   the values as a swarm, boxes, violins, points or a line.
+4. The group test is drawn with the panel: brackets with stars over the pairs
+   that differ, and the overall p in a corner. **Test** picks the test (*auto*
+   chooses for you), **Show tests** how much is drawn. The same numbers are in
+   the figure's caption and the report.
+5. Right-click the plot and choose **Copy data table** to paste the
+   per-trial numbers into a spreadsheet, or **Export data (CSV)...** to save
+   them.
+
+For one measure against another, pick **Trial scatter** instead (its **X
+measure** is the x axis); for the shape of one measure, **Trial histogram**.
 
 ## Labels that follow the data
 

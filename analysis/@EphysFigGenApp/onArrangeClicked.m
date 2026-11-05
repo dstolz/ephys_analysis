@@ -16,20 +16,24 @@ function onArrangeClicked(obj, id, evt)
 %     Shift+click   adds the panel to the selection (it becomes the
 %                   primary: the one the editor shows), or takes a
 %                   selected one out of it (the primary too, when others
-%                   are selected: the one added last is the primary then)
+%                   are selected: the one added last is the primary then),
+%                   as a Shift+click on the panel in the preview does
+%                   (togglePanelSelection)
 %     right-click   selects the panel, keeping a selection it is part of
 %                   (its menu's Remove panel removes them all)
 %   The selection is SelectedPanel (the primary, the last one clicked)
-%   and FigureArrangeExtra (the others: arrangeSelection); every selected
-%   box is blue, the primary's line thicker (syncArrangeOverlay). A click
-%   on the page between the boxes leaves the primary alone selected.
+%   and FigurePanelExtra (the others: selectedPanelIds), the same with
+%   Arrange on or off; every selected box is blue, the primary's line
+%   thicker (syncArrangeOverlay), and the editor shows the settings the
+%   selected panels share (syncFigureEditor). A click on the page between
+%   the boxes leaves the primary alone selected.
 %   EVT.SelectionType ("shift", or "extend") or the window's Shift
 %   (CurrentModifier) makes it a Shift+click; "right" (or "alt") a
 %   right-click. A drag that Escape canceled is over with the next click.
 %   While Set corners waits for its clicks (FigureArrangeMode "corners")
 %   the click is one of them (cornerClick), wherever it lands on the page.
 %
-%   See also EphysFigGenApp.syncArrangeOverlay, EphysFigGenApp.nudgePanel, EphysFigGenApp.startCornerMode, arrangeSelection.
+%   See also EphysFigGenApp.syncArrangeOverlay, EphysFigGenApp.nudgePanel, EphysFigGenApp.startCornerMode, selectedPanelIds.
 arguments
     obj (1,1) EphysFigGenApp
     id (1,1) string = ""
@@ -45,9 +49,9 @@ arrangeClickDone(obj);   % (an earlier press's wait for its release, if it is st
 [shift, right] = clickKind(obj, evt);
 if id == ":legend"; return; end
 if id == ""
-    if ~shift && ~isempty(obj.FigureArrangeExtra)   % the page: the primary alone
-        obj.FigureArrangeExtra = strings(1, 0);
-        obj.syncArrangeOverlay();
+    if ~shift && ~isempty(obj.FigurePanelExtra)   % the page: the primary alone
+        obj.FigurePanelExtra = strings(1, 0);
+        obj.syncFigureEditor();   % (the editor's rows are the primary's alone again; its box alone blue)
     end
     return
 end
@@ -56,26 +60,15 @@ if k < 1 || k > numel(obj.Config.Figures) || isempty(obj.Config.Figures(k).panel
 ids = [obj.Config.Figures(k).panels.id];
 j = find(ids == id, 1);
 if isempty(j); return; end
-sel = arrangeSelection(obj);
+sel = selectedPanelIds(obj);
 primary = "";
 if ~isempty(sel); primary = sel(1); end
 extra = sel(2:end);
 if shift
-    if id == primary
-        if isempty(extra); return; end   % (the primary alone stays selected)
-        next = extra(end);
-        obj.FigureArrangeExtra = extra(1:end-1);
-        obj.onPanelSelected(find(ids == next, 1));
-    elseif any(extra == id)
-        obj.FigureArrangeExtra = extra(extra ~= id);
-        obj.syncArrangeOverlay();
-    else
-        obj.FigureArrangeExtra = [extra primary];
-        obj.onPanelSelected(j);
-    end
+    togglePanelSelection(obj, id);   % (as a Shift+click on the panel in the preview)
 elseif any(sel == id) && numel(sel) > 1   % one of several: they stay selected for a drag
     if id ~= primary
-        obj.FigureArrangeExtra = [extra(extra ~= id) primary];
+        obj.FigurePanelExtra = [extra(extra ~= id) primary];
         obj.onPanelSelected(j);
     end
     if ~right
@@ -83,9 +76,12 @@ elseif any(sel == id) && numel(sel) > 1   % one of several: they stay selected f
         obj.Fig.WindowButtonUpFcn = @(~, ~) released(obj);
     end
 else
-    obj.FigureArrangeExtra = strings(1, 0);
+    many = ~isempty(obj.FigurePanelExtra);
+    obj.FigurePanelExtra = strings(1, 0);
     if j ~= obj.SelectedPanel
         obj.onPanelSelected(j);
+    elseif many
+        obj.syncFigureEditor();   % (the editor's rows are this panel's alone again)
     else
         obj.syncArrangeOverlay();
     end
@@ -116,7 +112,7 @@ if ~isvalid(obj); return; end
 C = obj.FigureArrangeClick;
 arrangeClickDone(obj);
 if ~isstruct(C) || obj.FigureArrangeMode == "drag"; return; end
-obj.FigureArrangeExtra = strings(1, 0);
-obj.syncArrangeOverlay();
+obj.FigurePanelExtra = strings(1, 0);
+obj.syncFigureEditor();   % (the editor's rows are this panel's alone again; its box alone blue)
 end
 

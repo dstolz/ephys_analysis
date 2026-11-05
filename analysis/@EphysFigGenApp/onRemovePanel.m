@@ -1,18 +1,25 @@
 function onRemovePanel(obj)
-%onRemovePanel  Remove the selected panel; the other panels keep their places (removePanel).
-%   The space it held is left free (New panel's Largest empty space finds
-%   it). The panel drawn after it is selected, else the one before. One
-%   undo step, "Remove panel".
+%onRemovePanel  Remove the selected panel, or all the panels selected (Shift+click); the other panels keep their places (removePanel).
+%   The space a panel held is left free (New panel's Largest empty space
+%   finds it). The panel drawn after the shown one is selected, else the
+%   one before, alone. One undo step, "Remove panel", or "Remove panels"
+%   with several selected (selectedPanelIds: the Panels section's button
+%   then reads "Remove 3 panels"; Arrange's box menu removes them too).
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end
 j = obj.SelectedPanel;
 if j < 1 || j > numel(obj.Config.Figures(k).panels); return; end
+sel = selectedPanelIds(obj);
 cfg = obj.gatherConfig();
 fig = cfg.Figures(k);
-id = fig.panels(j).id;
-fig = EphysAnalysisConfig.removePanel(fig, id);
+for id = sel
+    fig = EphysAnalysisConfig.removePanel(fig, id);
+end
 cfg.Figures(k) = fig;
+obj.FigurePanelExtra = strings(1, 0);
 obj.SelectedPanel = min(j, numel(fig.panels));
 obj.SelectedLayer = 1;
-commitFigureEdit(obj, cfg, "Removed " + id + ".", Action="Remove panel");
+action = "Remove panel";
+if numel(sel) > 1; action = "Remove panels"; end
+commitFigureEdit(obj, cfg, "Removed " + strjoin(sel, ", ") + ".", Action=action);
 end

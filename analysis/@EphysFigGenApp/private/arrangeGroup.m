@@ -15,7 +15,7 @@ function [rect, rects] = arrangeGroup(rect0, rect, rects0, minSize)
 %              wide and high (the edge that moved gives way)
 %   RECTS0 empty: RECT as it is.
 %
-%   See also EphysFigGenApp.onArrangeMoving, EphysFigGenApp.nudgePanel, arrangeSelection.
+%   See also EphysFigGenApp.onArrangeMoving, EphysFigGenApp.nudgePanel, selectedPanelIds.
 if nargin < 4; minSize = 0.01; end
 rects = rects0;
 if isempty(rects0); return; end

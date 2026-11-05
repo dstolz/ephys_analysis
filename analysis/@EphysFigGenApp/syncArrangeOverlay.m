@@ -11,7 +11,7 @@ function [shown, why] = syncArrangeOverlay(obj, opts)
 %   rect; it is put over the drawing again (uistack). It holds a widget per
 %   panel (private/arrangeWidget: Tag "arrangeBox:<id>", at the panel's
 %   rect as the config holds it; the selected panels' blue, the primary's
-%   line thicker: arrangeSelection), and a dashed
+%   line thicker: selectedPanelIds), and a dashed
 %   one for a legend floating in free space (legendMode "float", no
 %   legend panel: Tag "arrangeBox:legend"), which a drag makes a legend
 %   panel (onArrangeMoved). The widgets are kept by id and moved, made
@@ -22,9 +22,9 @@ function [shown, why] = syncArrangeOverlay(obj, opts)
 %   onArrangeMoved; its right-click menu is private/arrangeMenu's. The
 %   smart guides (private/arrangeCues) live in the overlay too.
 %   The panels selected with Shift+click besides the primary
-%   (FigureArrangeExtra) are forgotten when the figure's panels change (one
-%   added, removed or renamed) and when the overlay goes (Arrange off,
-%   another figure).
+%   (FigurePanelExtra) are the editor's selection, the same with Arrange
+%   on or off: syncFigureEditor lets them go when the figure's panels
+%   change (one added, removed or renamed) or another figure shows.
 %   Arrange off, or the preview showing anything else, takes the overlay
 %   away (with Set corners or a drag under way: cancelArrange); when it
 %   was there with Arrange on, the status bar says why (WHY, from
@@ -32,7 +32,7 @@ function [shown, why] = syncArrangeOverlay(obj, opts)
 %   preview computes or draws nothing changes: the drawing calls this
 %   again when done. SHOWN: the overlay shows now.
 %   The Panels section's Set corners is on while the preview shows the
-%   selected figure and a panel is selected.
+%   selected figure and one panel is selected.
 %   Called by markFigurePanel (after a preview is drawn, laid out again in
 %   place or drawn again; the selection, an edit: syncFigureEditor;
 %   another figure's container: syncFigureView) and setFigurePreviewState
@@ -66,7 +66,7 @@ k = obj.SelectedFigure;
 E = obj.FigureEditor;
 if isfield(E, 'setCorners') && isvalid(E.setCorners)
     hasPanel = k >= 1 && k <= numel(obj.Config.Figures) && obj.SelectedPanel >= 1 && obj.SelectedPanel <= numel(obj.Config.Figures(k).panels);
-    E.setCorners.Enable = matlab.lang.OnOffSwitchState(ok && hasPanel);
+    E.setCorners.Enable = matlab.lang.OnOffSwitchState(ok && hasPanel && numel(selectedPanelIds(obj)) < 2);   % (one panel's place)
 end
 if ~obj.FigureArrange || ~ok
     if isstruct(O)
@@ -91,8 +91,7 @@ uistack(ax, 'top');   % over the drawing (a drawing kept in part reorders the ca
 fig = obj.Config.Figures(k);
 ids = strings(1, 0);
 if ~isempty(fig.panels); ids = [fig.panels.id]; end
-if ~isequal(O.ids, ids); obj.FigureArrangeExtra = strings(1, 0); end   % another figure, a panel added or removed: the primary alone
-sel = arrangeSelection(obj);   % the primary first, then the others selected with Shift+click
+sel = selectedPanelIds(obj);   % the primary first, then the others selected with Shift+click
 locked = obj.FigureArrangeMode == "corners";
 W = O.widgets;
 for key = string(W.keys)
@@ -185,7 +184,6 @@ if obj.FigureArrangeMode ~= ""
 end
 O = obj.FigureArrangeOverlay;
 obj.FigureArrangeOverlay = [];
-obj.FigureArrangeExtra = strings(1, 0);   % (the selection is the editor's panel alone again)
 arrangeClickDone(obj);
 if ~isstruct(O); return; end
 if ~isempty(O.timer) && isvalid(O.timer); stop(O.timer); end   % (it deletes itself when stopped)

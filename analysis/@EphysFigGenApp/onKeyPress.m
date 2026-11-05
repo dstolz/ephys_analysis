@@ -18,6 +18,9 @@ function onKeyPress(obj, evt)
 %     Ctrl+Alt+arrows       the panel above, below, left or right of the
 %                           selected one, by the panels' rects
 %                           (stepFigurePanel)
+%     Escape                with several panels selected (Shift+click):
+%                           the shown one alone (after a search's and an
+%                           Arrange drag's Escape)
 %     Arrows (Arrange)      with Arrange on and its overlay clicked last
 %                           (FigureArrangeFocus): nudge the selected
 %                           panel by the snap step; Shift+arrows ten
@@ -93,6 +96,13 @@ if bare && obj.FigureSearchState ~= "" && ismember(key, ["return" "escape" "down
                 return
             end
     end
+end
+if bare && key == "escape" && ~isempty(obj.FigurePanelExtra)   % several panels selected: the shown one alone
+    obj.FigurePanelExtra = strings(1, 0);
+    obj.syncFigureEditor();
+    sel = selectedPanelIds(obj);
+    if ~isempty(sel); obj.setStatus("Selected " + sel(1) + " alone."); end
+    return
 end
 if bare && any(key == ["pageup" "pagedown"])
     if ~ismember(obj.FigurePreviewState, ["computing" "drawing"])

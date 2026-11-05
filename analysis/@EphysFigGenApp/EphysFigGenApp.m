@@ -54,7 +54,11 @@ classdef EphysFigGenApp < handle
     %                onArrangeMoving / onArrangeMoved, nudged by the arrow
     %                keys, nudgePanel, or placed by two corner clicks,
     %                onSetCorners / startCornerMode), the selected panel (type, title,
-    %                box, group shown), the figure's event reference, epoch window and
+    %                box, group shown; Shift+click more panels in the
+    %                preview, or their boxes in Arrange, to select several:
+    %                togglePanelSelection, the editor then shows the
+    %                settings they share and an edit goes to all of them,
+    %                spreadPanelEdit; each one is outlined), the figure's event reference, epoch window and
     %                trial selection ("Use default" for the Alignment tab's),
     %                the panel's own event and window ("Same as the figure"),
     %                its layers (each follows the observation or is fixed),
@@ -146,7 +150,9 @@ classdef EphysFigGenApp < handle
     %   Shift+F6 to the next and previous column (focusFigurePane), Ctrl+]
     %   and Ctrl+[ to the next and previous panel, Ctrl+Alt+arrows to the
     %   panel above, below, left or right (stepFigurePanel; the preview
-    %   outlines it: markFigurePanel). Page Up and Page Down step to the
+    %   outlines it: markFigurePanel); Ctrl+Click on a panel in the preview
+    %   selects it, Shift+Click adds it to the selected panels or takes it
+    %   out (onFigurePanelClicked), Escape keeps the first alone. Page Up and Page Down step to the
     %   previous and next observation (onFigureObservationStep). Ctrl+P,
     %   Ctrl+R, Ctrl+U, Ctrl+T, Ctrl+K, Ctrl+E and Ctrl+W press Preview,
     %   Redraw All, Test report (the Export tab's), Auto, Export preview,
@@ -408,7 +414,8 @@ classdef EphysFigGenApp < handle
         FigureArrangeMode (1,1) string = "" % what Arrange is doing: "" | "drag" | "canceled" (a drag Escape canceled, until its release) | "corners" (Set corners: two clicks); cancelArrange ends it
         FigureCorners = []                  % Set corners: struct what ("set", "new", "block"), payload (the panel's id, or onNewPanel's options) and first (the first corner, [] until clicked), else []
         FigureArrangeFocus (1,1) logical = false   % the overlay was clicked last: the arrow keys nudge the selected panel (cleared by an editor edit)
-        FigureArrangeExtra (1,:) string = strings(1, 0)   % Arrange: the panels selected with Shift+click besides SelectedPanel (the primary); moved, resized, nudged and removed with it (arrangeSelection); cleared with Arrange off, another figure, a panel added or removed
+        FigurePanelExtra (1,:) string = strings(1, 0)   % the panels selected with Shift+click (on the preview, or Arrange's boxes) besides SelectedPanel (the primary): the editor shows the rows they share, an edit goes to them all (spreadPanelEdit), Arrange moves, resizes, nudges and removes them with it (selectedPanelIds); cleared by a click selecting one panel, Escape, another figure, a panel added, removed or renamed
+        FigurePanelIds (1,:) string = strings(1, 0)     % the selected figure's panel ids when the editor last showed them (syncFigureEditor): a change lets FigurePanelExtra go
         FigureArrangeClick = []             % Arrange: a click on one of several selected boxes waiting for its release (id, the window's oldUp): no drag, and that one alone is selected (onArrangeClicked)
         FigureRectUnits (1,1) string = "cm"  % the Panels section's units for a rect, padding and snap step (EphysAnalysisConfig.RectUnits; pref FigureRectUnits)
         FigureSnap (1,1) logical = true     % Arrange snaps the panels to edges, centers and the step (pref FigureSnap)
@@ -416,7 +423,7 @@ classdef EphysFigGenApp < handle
         FigureSearchIndex struct = struct([])   % the editor's searchable rows, as built (figureSearchIndex)
         FigureSearchState (1,1) string = ""     % "typing" (the search field), "list" (its matches), "" (Enter, arrows and Escape are left alone)
         FigureFlash = []                    % the row gotoFigureRow highlights: struct(handles, saved, timer), else []
-        FigurePanelMark = []                % the preview's outline of the selected panel (markFigurePanel): four strips, else []
+        FigurePanelMark = []                % the preview's outlines of the selected panels (markFigurePanel): four strips per panel (a 4 x n array, the primary's first), else []
         FigurePanelMarkAxes = []            % the preview's axes its listeners follow (re-laid out on a resize)
         FigurePanelMarkListeners = []       % those listeners (Position PostSet)
         FigureFocusPane (1,1) double = 0    % the column F6 last went to: 1 the figure list, 2 the editor, 3 the preview
@@ -441,6 +448,9 @@ classdef EphysFigGenApp < handle
         % switch back shows it at once; beyond this many the least recently shown one is dropped (drawn again when
         % it is shown). A constant, not a preference: about what eight heavy figures cost in memory and handles.
         MaxFigureViews = 8
+        % several panels selected (Shift+click): the editor's banner and the Panel header take this blue, a darker
+        % one than the preview's outlines and Arrange's boxes, so white text reads on it (contrast 5.4)
+        SelectionColor = [0.04 0.40 0.85]
     end
 
     methods
@@ -647,7 +657,7 @@ classdef EphysFigGenApp < handle
         showFigureSize(obj, z)
         fitFigureViews(obj)
         ok = redrawFigurePreview(obj)
-        onFigurePanelClicked(obj, id, panel, ctrl, fromWindow)
+        onFigurePanelClicked(obj, id, panel, ctrl, fromWindow, shift)
         files = onExportPreview(obj)
         txt = onFigureCode(obj, file)
         setFigurePreviewState(obj, state, opts)

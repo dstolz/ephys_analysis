@@ -542,7 +542,8 @@ below move within them. The **?** button right of the search field (also
 | **Ctrl+T** | **Auto**, ticked or unticked |
 | **Ctrl+K** | **Export preview** |
 | **Ctrl+E**, **Ctrl+W** | **Export code**, **Open in window** |
-| **Escape** | cancels an Arrange drag (the box goes back) or Set corners; clears the search |
+| **Escape** | cancels an Arrange drag (the box goes back) or Set corners; clears the search; with several panels selected, keeps only the one the editor shows |
+| **Shift+Click** a panel in the preview | adds it to the selected panels, or takes it out ([Several panels at once](#several-panels-at-once)) |
 | **Arrows**, **Shift+Arrows**, **Ctrl+Arrows**, **Alt+Arrows** | with Arrange on, after a click on the preview: nudge the selected panel by the snap step, ten steps, one preview pixel; resize it (its right or top edge) by a step, **Alt+Shift** ten. A burst of presses is one undo step ([Arranging panels on the preview](#arranging-panels-on-the-preview)) |
 | **Alt** held while dragging a box | no snapping (Arrange) |
 | **Ctrl+Z** | undo the last edit of the figures (**Edit → Undo**: [Undo and redo](#undo-and-redo)) |
@@ -596,21 +597,22 @@ plot areas share the edge and the raster's time labels are dropped. Pick a
 panel with **Ctrl+Click** on it in the preview, **Ctrl+]** and **Ctrl+[**, or
 **Ctrl+Alt+arrows** (the panel above, below, left or right, by the rects); the
 sections from Selected panel to Options then show it, and the preview outlines
-it. The preview's **Arrange** button (on the template row) moves and resizes
+it. **Shift+Click** more panels to select several and edit them together
+([Several panels at once](#several-panels-at-once)). The preview's **Arrange** button (on the template row) moves and resizes
 the panels over the preview with the mouse, snapping them to one another
 ([Arranging panels on the preview](#arranging-panels-on-the-preview)).
 
 | Control | Effect |
 | --- | --- |
 | **New panel...** | opens the [New panel window](#the-new-panel-window): the new panel's type, name, title, place and key parameters. *Largest empty space* puts it in the largest rectangle of the page no panel covers (`EphysAnalysisConfig.freeRect`; with none left, below the selected panel). *Below*, *Above*, *Right of* or *Left of* the selected panel cuts that panel in two flush halves: it keeps the half next to the new panel, which takes the other; nothing else moves. The first panel of a figure fills the page. The new panel holds the type's default layer, so it draws at once (a *Coherence* panel two, the observed unit and its channel's LFP, a spike-field coherence; a *Legend* panel none), and is selected ([Placing panels](EphysAnalysisConfig.md#placing-panels)) |
-| **Selected panel** | the panel's id, type, size and place in the units picked: *psth_1 (PSTH): 10.2 x 6.0 cm at 0, 0* (its bottom-left corner, from the page's) |
+| **Selected panel** | the panel's id, type, size and place in the units picked: *psth_1 (PSTH): 10.2 x 6.0 cm at 0, 0* (its bottom-left corner, from the page's); with several selected, their ids (*2 panels: raster_1, psth_1*) |
 | **Units** | how the place, the padding and the snap step are shown and typed: *normalized* (0-1 of the page), *%* of the page, *cm*, *in* or *px* (at the Export tab's dpi). A preference for every figure, not part of the config: switching converts the fields shown, nothing else (`FigureRectUnits`) |
 | **Position (x, y)**, **Size (w, h)** | the selected panel's rect in those units, from the page's bottom-left corner. A value typed is one undo step named after its field (*Undo Panel x*, *Undo Panel width*); the rect is kept on the page: a position that would take the panel past an edge moves it back, a size is cut at the edge (*"... Kept on the page."*), and a width or height of 0 or less is refused. A field shows its value rounded (2 decimals in cm, whole px, ...); a value it cannot show is kept as stored until you type in the field (`rect`) |
 | **Boxes mean** | what a rect is, for the whole figure: *plot area (labels kept clear)*: the axes themselves, their labels kept clear of the neighbors and the page edge; *outer box (labels inside)*: the panel with its labels, as a box on a slide (`layout.boxesMean`) |
 | **Padding** | the clear space between a panel's labels and its neighbors or the page edge (outer box: between the rect's edge and the labels), in the units picked, stored in cm (`layout.padding`; 0.15 cm by default) |
 | **Snap**, **every** | Arrange snaps a panel moved or resized to the other panels' edges and centers, the page and a grid of this step; the arrow keys nudge the selected panel by the step (Shift: ten). Preferences, not part of the config: no undo step (`FigureSnap`, `FigureSnapStep`) |
 | **Set corners** | sets the selected panel's rect with two clicks on the preview: one corner, then the opposite one (snapped as Arrange snaps; Escape or a click off the page cancels). Arrange switches on for it; on while the preview shows the figure. One undo step, *Set corners* |
-| **Remove panel** | removes the panel; the other panels keep their places, and the space it held is left free (*"Removed psth_1."*) |
+| **Remove panel** | removes the panel; the other panels keep their places, and the space it held is left free (*"Removed psth_1."*). With several panels selected it reads **Remove 3 panels** and removes them all, one undo step (*Remove panels*) |
 | **Bring forward**, **Send back** | the drawing order: the panel is drawn after the next panel (over it where they overlap) or before the one drawn before it; each is off at its end of the order. One undo step, *Reorder panel* |
 
 Under the buttons a gray line recalls Arrange: *Arrange (over the preview)
@@ -635,7 +637,7 @@ drawn in every tile), there are no boxes and the status bar says why
 | Do | Effect |
 | --- | --- |
 | click a box | selects its panel alone: the editor shows it |
-| **Shift**+click a box | adds its panel to the selection (it becomes the one the editor shows), or takes a selected one out. Every selected box is blue, the editor's panel's line thicker. A drag of any selected box moves them all by the same amount (the group stays on the page); a resize changes every one's width or height by the same amount about the same edge (dragging the right edge widens each; a corner changes both); the arrow keys nudge them all; one undo step, *Move panels* or *Resize panels*. A plain click on one of them (without dragging) selects it alone; a click on the page between the boxes leaves the editor's panel alone. Arrange off, another figure, or a panel added or removed ends the selection |
+| **Shift**+click a box | adds its panel to the selection (it becomes the one the editor shows), or takes a selected one out, as **Shift+Click** on the preview does ([Several panels at once](#several-panels-at-once): the editor then shows the settings they share). Every selected box is blue, the editor's panel's line thicker; the selection stays when Arrange goes off. A drag of any selected box moves them all by the same amount (the group stays on the page); a resize changes every one's width or height by the same amount about the same edge (dragging the right edge widens each; a corner changes both); the arrow keys nudge them all; one undo step, *Move panels* or *Resize panels*. A plain click on one of them (without dragging) selects it alone; a click on the page between the boxes leaves the editor's panel alone. Arrange off, another figure, or a panel added or removed ends the selection |
 | drag a box | moves the panel: its plots go with the box, and the Position fields follow, as you drag; the figure takes the place when you let go, one undo step, *Move panel* (*"Moved psth_1: 9.0 x 6.0 cm at 0, 6."*) |
 | drag a handle (a corner or an edge of the box) | resizes the panel: *Resize panel* |
 | hold **Alt** while dragging | no snapping: the box goes exactly where the pointer puts it |
@@ -1056,6 +1058,49 @@ a Ctrl+Click as the same button, so the click is told apart by the Ctrl key
 panel is not an edit: no undo step is made, and the Ctrl held for the click does not
 open **Apply to figures** (that follows an edit made with Ctrl down). In a
 window of its own the click also brings the app forward on the Figures tab.
+
+<a name="several-panels-at-once"></a>
+
+**Several panels at once.** **Shift+Click** panels in the preview (or their
+boxes with **Arrange** on, or in an **Open in window** figure) to select
+several: each Shift+Click adds a panel, or takes a selected one out. The last
+one added is the one the editor shows; the others are selected with it. You
+can tell at once that several are selected:
+
+- the preview outlines each one (the panel the editor shows with a wider
+  frame); with Arrange on, their boxes are blue
+- the Panel supersection's header turns blue and names them (*PANEL 2
+  SELECTED: raster_1, psth_1*), and a blue banner over the Selected panel
+  rows says what an edit does
+- the section titles count them (*2 selected panels*, *PSTH options (2
+  panels)*, *Options the 3 panels share*), **Remove panel** reads **Remove 2
+  panels**, and the status bar names them
+
+The editor then shows only the settings every selected panel has, each judged
+by its own type and values (`syncFigureEditor`: a raster and a PSTH share
+their title, axis labels, box, **Onset line** and **Mask after the stop**, but
+not the PSTH's bins or the raster's tick rows). The rows show the values of
+the panel the editor shows. What belongs to one panel is hidden: its type, its
+place (**Position**, **Size**; Arrange moves the selected panels together),
+**Bring forward**, **Send back**, **Set corners**, Options' and Panel
+alignment's **Apply to all panels**, and the Layers, Text note and Overlays
+sections. Panel alignment shows while every selected panel is aligned to
+events. The search says why a row is hidden (*"... is hidden while 2 panels
+are selected"*).
+
+An edit then goes to every selected panel (`private/spreadPanelEdit`): only
+the setting you changed, so their other settings stay their own. It is one
+undo step, named for the panels (*Undo Onset line (2 panels)*), and the status
+bar says where it went (*"Onset line (2 panels) went to raster_1, psth_1."*).
+A panel whose type does not take the value keeps its own, and the status bar
+says so (*"continuous_1 kept its own: its type does not take it."*: a
+continuous panel has no z-score baseline), by the rule of [Apply a change to
+other figures](#apply-a-change-to-other-figures) (`EphysAnalysisConfig.changeTargets`).
+The panel's title and axis labels go too.
+
+**Escape**, a Ctrl+Click on one panel, **Ctrl+]** / **Ctrl+[**,
+**Ctrl+Alt+arrows**, another figure, or a panel added or removed select one
+panel again.
 
 #### The page a figure is exported on
 
@@ -2277,6 +2322,7 @@ results, on the Log tab and in the report.
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy settings...**: `private/copySettingsDialog`, then `analysis/copyFigureSettings` over `analysis/figureSettingItems` and `analysis/figureSettingParts`, or `analysis/figureLookToDesign` into a design) |
 | remembered panel options, color swatches | `private/rememberPanelOptions` (called by `private/recordFigureEdit`), `private/rememberedPanelOptions` (read by `onNewPanel` and the New panel window), `onResetPanelOptions`, `onForgetPanelOptions`; `private/colorSwatch`, `private/syncColorSwatches` (`buildFiguresTab`, `syncFigureEditor`, `private/latencyDialog`) |
 | label variables | the **{x}** buttons `private/labelVariableButton` (`buildFiguresTab`), their values `labelVariableValues`, the list window `onLabelVariables` (Help → Label variables); the variables themselves are `analysis/figureLabelVariables`, filled in by `analysis/private/figureLabelFill` in `renderFigure` and `renderProbeFigure` |
+| several panels selected | `private/togglePanelSelection` (Shift+Click: `onFigurePanelClicked`, from `renderFigure`'s `OnSelect` over `analysis/private/figurePickable`; `onArrangeClicked`), `private/selectedPanelIds` (`FigurePanelExtra`), the rows they share `syncFigureEditor` (its `panelRowsShown`), the outlines `markFigurePanel`, the header `layoutFigureEditor`, an edit given to each `private/spreadPanelEdit` (`onConfigChanged`, `private/latencyDialog`, the own trial selection) |
 | one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change and the Apply last change button: the undo history, the button's state and tooltip set by `private/refreshEditMenu`), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
 | figure templates | `refreshTemplates` (the Template list), `onApplyTemplate` (its window `private/applyTemplateDialog`, then `analysis/copyFigureSettings` from the template's figure), `onFigureTemplate` (Save as, Update, Remove, Import, Export, the folder, the issue window; the name window `private/askTemplateName`); the templates themselves: `analysis/FigureTemplate.m` |
 | plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
@@ -2467,7 +2513,20 @@ PSTH's waveform inset to the raster while the continuous panel keeps its
 baseline (it takes no *zscore*), the status bar says both, applying the
 values back restores the raster and a second press finds nothing to copy;
 own options leave **Re-link all panels** off; Ctrl+7 and Ctrl+9 go to Panel
-alignment and Options. *Max units* shrinks the picker and *Inf*
+alignment and Options. Section 5d.multi selects several panels with
+Shift+Click: the preview outlines each (8 strips for two, 12 for three), the
+Panel header turns blue and names them, the banner, the section title, the
+Selected panel line and the status bar say so; the editor shows the rows a
+raster and a PSTH share (title, Y label, onset line, mask) and none of one's
+own (type, bins, y ticks, place, Layers, Text note, Overlays); an onset line
+and a Y label edited go to both, one undo step each (*... (2 panels)*), the
+continuous panel unchanged, and Undo puts them back with the selection kept;
+a third panel narrows the rows, Shift+Click takes panels out (the shown one
+too); a *zscore* baseline goes to the PSTH while the continuous panel keeps
+its own and the status bar says so; the search says why the Type row is
+hidden; Escape, Ctrl+Click and Ctrl+] select one panel again; Arrange shows
+both boxes blue and keeps the selection when it goes off; **Remove 2 panels**
+removes both, one undo step. *Max units* shrinks the picker and *Inf*
 restores it. Changing a PSTH panel to a heat map keeps its units layer
 (fixed) and the shared bins, shows the heat map's rows and says so in the
 status bar, shows its Waveform section with only the note on why a heat map

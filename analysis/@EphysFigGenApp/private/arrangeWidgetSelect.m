@@ -2,7 +2,7 @@ function arrangeWidgetSelect(w, level)
 %arrangeWidgetSelect  Draw an Arrange widget (arrangeWidget) as selected or not: LEVEL 2 (or true) the primary (blue, a 2 px line), 1 another selected panel (blue, 1 px), 0 (or false) none.
 %   The floating legend's (dashed) keeps its gray.
 %
-%   See also arrangeWidget, arrangeSelection.
+%   See also arrangeWidget, selectedPanelIds.
 if ~isvalid(w); return; end
 if islogical(level); level = 2 * level; end
 legend = isequal(w.StripeColor, [1 1 1]);

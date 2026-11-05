@@ -5,7 +5,7 @@ function cm = arrangeMenu(obj, id)
 %   Each item selects the panel first (onPanelSelected), then does what
 %   the Panels section's button of that name does: onSetCorners,
 %   onPanelOrder(1), onPanelOrder(-1), onRemovePanel; with several panels
-%   selected (Shift+click, arrangeSelection) and ID one of them, Remove
+%   selected (Shift+click, selectedPanelIds) and ID one of them, Remove
 %   panel removes them all (one undo step, "Remove panels"), the others
 %   act on the primary (the one right-clicked). ID ":legend" (the
 %   floating legend's box) has one item, Make it a legend panel here,
@@ -26,25 +26,13 @@ end
 
 
 function removeSelected(obj, id)
-%removeSelected  Remove panel: the panel ID, or with several selected (ID one of them) all of them, one undo step "Remove panels".
-sel = arrangeSelection(obj);
-if numel(sel) < 2 || ~any(sel == id)
-    obj.FigureArrangeExtra = strings(1, 0);
+%removeSelected  Remove panel: the panel ID, or with several selected (ID one of them) all of them, one undo step "Remove panels" (onRemovePanel).
+if any(selectedPanelIds(obj) == id)
+    obj.onRemovePanel();   % the panels selected, this one among them
+else
+    obj.FigurePanelExtra = strings(1, 0);   % another panel: it alone
     act(obj, id, @() obj.onRemovePanel());
-    return
 end
-k = obj.SelectedFigure;
-cfg = obj.Config;
-fig = cfg.Figures(k);
-j = obj.SelectedPanel;
-for r = sel
-    fig = EphysAnalysisConfig.removePanel(fig, r);
-end
-cfg.Figures(k) = fig;
-obj.FigureArrangeExtra = strings(1, 0);
-obj.SelectedPanel = min(j, numel(fig.panels));
-obj.SelectedLayer = 1;
-commitFigureEdit(obj, cfg, "Removed " + strjoin(sel, ", ") + ".", Action="Remove panels");
 end
 
 

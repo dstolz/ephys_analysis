@@ -11,7 +11,7 @@ function nudgePanel(obj, dx, dy, how)
 %                  out (positive) or in: Alt+Arrows
 %     "resizeTen"  ten steps: Alt+Shift+Arrows
 %   The panel stays on the page (a resize keeps a width and height of at
-%   least 0.01). The others selected with Shift+click (arrangeSelection)
+%   least 0.01). The others selected with Shift+click (selectedPanelIds)
 %   go along: the same shift, the group kept on the page, or the same
 %   change of size (arrangeGroup), in the same step ("Move panels",
 %   "Resize panels"). Each press is an edit of the figure (commitFigureEdit,
@@ -54,7 +54,7 @@ else
     r(1:2) = min(max(r(1:2) + [dx dy] .* s, 0), 1 - r(3:4));
     action = "Move panel";
 end
-sel = arrangeSelection(obj);   % the others selected with Shift+click go along
+sel = selectedPanelIds(obj);   % the others selected with Shift+click go along
 pids = [obj.Config.Figures(k).panels.id];
 qs = zeros(1, 0);
 for o = sel(2:end); qs(end+1) = find(pids == o, 1); end %#ok<AGROW>

@@ -69,7 +69,7 @@ pos = getpixelposition(h);
 renderFigure(F, spec, h, Scale=previewScale(app, spec, pos(3)), Editable=true, OnRemember=@(rules) rememberIfOpen(app, id, rules), ...
     OnGoto=@(role, panel) gotoIfOpen(app, id, role, panel), ...
     OnAxisEdit=@(panel, change) axisEdited(app, id, F, spec, h, panel, change), ...
-    OnSelect=@(panel, ctrl) selectIfOpen(app, id, panel, ctrl));
+    OnSelect=@(panel, ctrl, shift) selectIfOpen(app, id, panel, ctrl, shift));
 end
 
 
@@ -98,10 +98,10 @@ end
 end
 
 
-function selectIfOpen(app, id, panel, ctrl)
-%selectIfOpen  Select the Ctrl+Clicked panel in the figure editor while the app is open.
+function selectIfOpen(app, id, panel, ctrl, shift)
+%selectIfOpen  Select the Ctrl+Clicked panel (Shift+Click: add it to the selected panels, or take it out) in the figure editor while the app is open.
 if isvalid(app) && ~isempty(app.Fig) && isvalid(app.Fig)
-    app.onFigurePanelClicked(id, panel, ctrl, true);
+    app.onFigurePanelClicked(id, panel, ctrl, true, shift);
 end
 end
 

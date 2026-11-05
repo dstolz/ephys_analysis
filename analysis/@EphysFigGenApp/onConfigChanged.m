@@ -26,7 +26,10 @@ function onConfigChanged(obj, what, src)
 %   (recordFigureEdit), named after the control SRC it came from (the
 %   editor's controls pass themselves, else a string names the step, else
 %   the callback object, gcbo: figureEditLabel), its edits in a burst one
-%   step. Made with Ctrl (Cmd) held (CtrlHeld: onKeyPress), an editor
+%   step. With several panels selected (Shift+click) the edit of the
+%   panel shown goes to the others too (spreadPanelEdit: those whose type
+%   takes it), in the same step ("Stack (3 panels)"), and the status bar
+%   says where it went. Made with Ctrl (Cmd) held (CtrlHeld: onKeyPress), an editor
 %   control's edit also opens Apply to figures (onApplyToFigures: the
 %   other figures and panels that can take it) and the preview waits for
 %   its answer instead of redrawing.
@@ -45,13 +48,17 @@ catch ME
     obj.setStatus("Config: " + string(ME.message));
     return
 end
-trackFigureIds(obj, cfg);   % an automatic figure id that follows the edit
 spread = false;
+shared = "";
 if what == "figure" || what == "figuresize"
     if isempty(src); src = gcbo; end
     spread = obj.CtrlHeld && ~isempty(src) && ~isstring(src) && ~ischar(src);   % an editor control used with Ctrl down
     before = obj.Config.Figures;
-    recordFigureEdit(obj, cfg, figureEditLabel(obj, src), Key=src);
+    [cfg, label, shared] = spreadPanelEdit(obj, cfg, figureEditLabel(obj, src));   % several panels selected: to all of them
+    trackFigureIds(obj, cfg);   % an automatic figure id that follows the edit
+    recordFigureEdit(obj, cfg, label, Key=src);
+else
+    trackFigureIds(obj, cfg);
 end
 fresh = what == "figuresize" && figureViewFresh(obj);   % the preview drawn is the figure as it was: only its size changes
 obj.Config = cfg;
@@ -76,6 +83,7 @@ switch what
         showFigureId(obj);   % an automatic id follows the panels and data
         obj.refreshFigureList();
         obj.syncFigureEditor();
+        if shared ~= ""; obj.setStatus(shared); end   % where an edit of several panels went
         obj.refreshFigureObservations();   % again only when its observe block, alignment or sorting changed
         obj.refreshEpochDiagram();
         if what == "figuresize"; obj.fitFigureViews(); end   % the preview takes the new page's shape at once

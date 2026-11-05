@@ -26,6 +26,8 @@ function onArrangeMoved(obj, id, evt)
 %   A press that selected the box (selectLightly: FigureSelectPending)
 %   has the editor's rows filled now, however the drag ends
 %   (finishPendingSelect; a move's commitFigureEdit fills them itself).
+%   The panels' rects are set on the figures once (cfg.Figures = F), as
+%   each assignment of Figures normalizes the figure it changes.
 %   ID ":legend", the floating legend's box (dragged or resized, or its
 %   menu's Make it a legend panel here, EVT []): a legend panel is added
 %   at the box (onNewPanel, Type "legend", Where "rect": "Add panel"), so
@@ -104,12 +106,14 @@ if all(abs(rect - C.rect0) < 1e-12)
 end
 resize = any(abs(rect(3:4) - C.rect0(3:4)) > 1e-9);
 cfg = obj.Config;   % the config as it is, the rects alone changed (the editor's fields showed the drag, not an edit)
-cfg.Figures(C.k).panels(C.j).rect = rect;
-ids = [cfg.Figures(C.k).panels.id];
+F = cfg.Figures;   % (set once: each assignment of Figures normalizes the figure changed)
+F(C.k).panels(C.j).rect = rect;
+ids = [F(C.k).panels.id];
 for i = 1:numel(G)
     q = find(ids == G(i).id, 1);
-    if ~isempty(q); cfg.Figures(C.k).panels(q).rect = R(i, :); end
+    if ~isempty(q); F(C.k).panels(q).rect = R(i, :); end
 end
+cfg.Figures = F;
 if resize
     [action, verb] = deal("Resize panel", "Resized ");
 else

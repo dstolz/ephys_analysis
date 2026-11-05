@@ -22,7 +22,14 @@ function commitFigureEdit(obj, cfg, msg, opts)
 %   Arrange=true (a panel placed in Arrange: a drag released, an arrow
 %   key, Set corners): the preview is laid out at the new rects whatever
 %   Auto and the time gate say, and drawn again only when it must and may
-%   (arrangedPreview) in place of autoFigurePreview.
+%   (arrangedPreview) in place of autoFigurePreview. Since only rects
+%   changed, the editor refills the panel's rows alone (applyFigureEditor
+%   Scope "panel": the Position and Size fields, the rows of a panel a
+%   press selected), and the figure list (no rect in it; its marks follow
+%   in arrangedPreview) and the epoch diagram (no rect in it) are left
+%   as they are -- unless the figure's automatic id follows the move (its
+%   panels' reading order: EphysAnalysisConfig.autoFigureId), which
+%   refills them all as any edit does.
 %   The preview settles first, before the editor is refilled: with Auto
 %   on, the figure is drawn from the runner's cache with no busy card,
 %   the panels an edit left alone kept (quickFigurePreview) -- when the
@@ -57,6 +64,7 @@ if k >= 1 && k <= numel(cfg.Figures) && numel(cfg.Figures) == numel(obj.Config.F
     end
 end
 kept = keepsPanels(obj.Config, cfg, k);   % panels removed or reordered, nothing else: every panel left may be kept
+renamed = k < 1 || k > numel(cfg.Figures) || k > numel(obj.Config.Figures) || cfg.Figures(k).id ~= obj.Config.Figures(k).id;
 trackFigureIds(obj, cfg);   % an automatic id that follows the edit
 recordFigureEdit(obj, cfg, opts.Action, Key=opts.Key);
 obj.Config = cfg;
@@ -70,10 +78,15 @@ if ~opts.Arrange
         if open || kept; drew = quickFigurePreview(obj, KeptOnly=~open); end   % no busy card: from the cache, the panels left alone kept
     end
 end
-obj.refreshFigureList();
-obj.applyFigureEditor();
-obj.refreshFigureObservations();
-obj.refreshEpochDiagram();
+if opts.Arrange && ~renamed   % the rects alone: the figure's rows, the list and the epoch diagram show none of them
+    obj.applyFigureEditor(Scope="panel");
+    obj.refreshFigureObservations();
+else
+    obj.refreshFigureList();
+    obj.applyFigureEditor();
+    obj.refreshFigureObservations();
+    obj.refreshEpochDiagram();
+end
 clear guard   % the editor shows the config now: its callbacks may run (the status bar's paint, a busy preview's polls)
 if msg ~= ""; obj.setStatus(msg); end
 if drew

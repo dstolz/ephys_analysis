@@ -72,8 +72,10 @@ if all(abs(r - C.rect0) < 1e-12) && all(abs(R - R0) < 1e-12, 'all')
     return
 end
 cfg = obj.Config;   % the rects alone changed
-cfg.Figures(k).panels(j).rect = r;
-for i = 1:numel(qs); cfg.Figures(k).panels(qs(i)).rect = R(i, :); end
+F = cfg.Figures;   % (set once: each assignment of Figures normalizes the figure changed)
+F(k).panels(j).rect = r;
+for i = 1:numel(qs); F(k).panels(qs(i)).rect = R(i, :); end
+cfg.Figures = F;
 verb = ternary(resize, "Resized ", "Moved ");
 msg = verb + id + ": " + rectText(r, obj.FigureRectUnits, C.pageCm, C.dpi) + ".";
 if ~isempty(qs)

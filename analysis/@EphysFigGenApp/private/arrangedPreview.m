@@ -9,11 +9,18 @@ function arrangedPreview(obj, msg)
 %       (inPlaceFigurePreview: renderFigure's in-place path)
 %     - drawn, and the move changes which panels touch which (a time
 %       stack's labels) or the top-left panel, so a whole drawing is due:
-%       laid out at the new places first (renderFigure LayoutOnly, nothing
-%       drawn); then, with Auto on and the drawing quick enough (previewCost
-%       under autoRedrawLimit), drawn again (refreshFigurePreview);
-%       else marked out of date and the status bar says MSG and "Laid
-%       out; press Preview (or switch Arrange off) to redraw the labels."
+%       with Auto on and the drawing quick enough (previewCost under
+%       autoRedrawLimit), drawn again from the runner's cache with no
+%       busy card when it holds every step (quickFigurePreview: the panels
+%       moved drawn again, since a drawing starts from its place, the
+%       others kept and the time stack dressed anew over them); else laid
+%       out at the new places first (renderFigure LayoutOnly, nothing
+%       drawn), then drawn as any preview (refreshFigurePreview, the busy
+%       card) with Auto on and the drawing quick enough, else marked out
+%       of date and the status bar says MSG and "Laid out; press Preview
+%       (or switch Arrange off) to redraw the labels." (quickFigurePreview
+%       is not tried with KeptOnly when the drawing is not quick enough:
+%       the panel placed always starts elsewhere, so it is never kept.)
 %     - out of date already (an edit Auto did not draw, a slow preview):
 %       laid out at the new places all the same (LayoutOnly); it stays out
 %       of date, the status bar saying so
@@ -32,12 +39,20 @@ if state0 == "drawn" && inPlaceFigurePreview(obj)   % only the places changed: l
     markFigureTree(obj);
     return
 end
-laid = layoutPreview(obj);
-note = " Laid out; press Preview (or switch Arrange off) to redraw the labels.";
+open = false;
 if state0 == "drawn"   % a whole drawing is due: the panels touch others now, or another one is top-left
     limit = autoRedrawLimit(obj);
     auto = ~isempty(obj.Tabs) && obj.Tabs.SelectedTab == obj.TabFigures && limit > 0;
-    if auto && previewCost(obj) < limit   % (a place is a look: the drawing's time)
+    open = auto && previewCost(obj) < limit;   % (a place is a look: the drawing's time)
+    if open && quickFigurePreview(obj)   % from the cache, no busy card: the panels moved drawn, the rest kept and dressed anew
+        markFigureTree(obj);
+        return
+    end
+end
+laid = layoutPreview(obj);
+note = " Laid out; press Preview (or switch Arrange off) to redraw the labels.";
+if state0 == "drawn"
+    if open   % a step not in the cache: computed and drawn with the busy card
         obj.refreshFigurePreview();
         markFigureTree(obj);
         return

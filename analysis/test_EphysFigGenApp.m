@@ -3819,13 +3819,31 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     ax1 = findPanelAxes(P, "psth_1");
     axR = findPanelAxes(P, "raster_1");
     r1 = rectOf5("psth_1");
+    busy0 = app.FigurePreviewBusyCount;
     app.onArrangeMoving("psth_1", roiMove(r1, [0 0 0.45 0.4]));
     app.onArrangeMoved("psth_1", roiMove(r1, [0 0 0.45 0.4]));
     check(rectIs(rectOf5("psth_1"), [0 0 0.45 0.4]) && app.FigureHistory.undoLabel() == "Resize panel" && app.FigurePreviewState == "drawn" ...
-        && ~isvalid(ax1) && isvalid(axR) && rectIs(arrangeBox(app, "psth_1").Position, [0 0 0.45 0.4]), ...
-        'psth_1 resized off the raster (no longer flush): the preview is drawn again (psth_1 drawn anew, the raster kept), the boxes kept');
+        && ~isvalid(ax1) && isvalid(axR) && rectIs(arrangeBox(app, "psth_1").Position, [0 0 0.45 0.4]) && app.FigurePreviewBusyCount == busy0, ...
+        ['psth_1 resized off the raster (no longer flush): the preview is drawn again from the cache with no busy card ' ...
+        '(psth_1 drawn anew, the raster kept), the boxes kept']);
     app.onUndoRedo("undo");
     check(rectIs(rectOf5("psth_1"), r1) && rectIs(arrangeBox(app, "psth_1").Position, r1), 'Undo: the rect and its box back');
+    % a move that snaps psth_2 flush against psth_1: the panels touch now, so the preview is drawn again from the cache
+    % with no busy card (psth_2, which moved, drawn anew; the raster kept)
+    app.FigureSnap = true;
+    r2 = rectOf5("psth_2");
+    axR = findPanelAxes(P, "raster_1");
+    ax1 = findPanelAxes(P, "psth_1");
+    ax2 = findPanelAxes(P, "psth_2");
+    busy0 = app.FigurePreviewBusyCount;
+    app.onArrangeMoving("psth_2", roiMove(r2, [0.45 + px2(1), 0, 0.45, 0.5]));
+    app.onArrangeMoved("psth_2", roiMove(r2, [0.45 + px2(1), 0, 0.45, 0.5]));
+    check(rectIs(rectOf5("psth_2"), [0.45 0 0.45 0.5]) && app.FigurePreviewState == "drawn" && app.FigurePreviewBusyCount == busy0 ...
+        && isvalid(axR) && findPanelAxes(P, "raster_1") == axR && ~isvalid(ax2) && rectIs(arrangeBox(app, "psth_2").Position, [0.45 0 0.45 0.5]), ...
+        sprintf(['psth_2 snapped flush against psth_1: drawn again from the cache with no busy card, psth_2 drawn anew, ' ...
+        'the raster kept (psth_1 kept %d; state %s, busy +%d)'], isvalid(ax1), app.FigurePreviewState, app.FigurePreviewBusyCount - busy0));
+    app.onUndoRedo("undo");
+    app.FigureSnap = false;
 
     % a slow preview (the time gate exceeded): a release lays the drawing out at the new rect all the same; one that parts
     % the stack leaves it out of date (laid out, saying so); out of date, a release still lays it out

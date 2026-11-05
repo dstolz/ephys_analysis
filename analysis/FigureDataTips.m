@@ -136,8 +136,8 @@ classdef FigureDataTips
                     end
                 end
             end
-            if n == 0 || isempty(fig); return; end
-            useUpdateFcn(fig);
+            if isempty(fig); return; end
+            if n > 0; useUpdateFcn(fig); end   % (n == 0: every panel was kept, its tips stay; the menus are still added)
             addMenus(fig, [h.panels.axes]);
         end
 

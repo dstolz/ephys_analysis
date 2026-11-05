@@ -258,7 +258,7 @@ classdef EphysAnalysisConfig
         function obj = set.Defaults(obj, s); obj.Defaults = EphysAnalysisConfig.normalizeSection("Defaults", s); end
         function obj = set.Export(obj, s);   obj.Export   = EphysAnalysisConfig.normalizeSection("Export", s);   end
         function obj = set.Report(obj, s);   obj.Report   = EphysAnalysisConfig.normalizeSection("Report", s);   end
-        function obj = set.Figures(obj, f);  obj.Figures  = EphysAnalysisConfig.normalizeFigures(f);             end
+        function obj = set.Figures(obj, f);  obj.Figures  = EphysAnalysisConfig.normalizeFigures(f, obj.Figures); end   % (the figures it has: those unchanged are kept as they are)
 
         %% --- struct / JSON --------------------------------------------------
         function s = toStruct(obj)
@@ -549,8 +549,15 @@ classdef EphysAnalysisConfig
             F = repmat(EphysAnalysisConfig.defaults("Figure"), 1, 0);
         end
 
-        function [F, unknown] = normalizeFigures(v)
+        function [F, unknown] = normalizeFigures(v, prior)
             %normalizeFigures  Figures from a struct array, a cell array (jsondecode) or [].
+            %   [F, UNKNOWN] = EphysAnalysisConfig.normalizeFigures(V, PRIOR):
+            %   PRIOR (optional) the figures already normalized, as the config
+            %   holds them: an entry of V equal to the one at its place in
+            %   PRIOR is kept as it is, not normalized again (set.Figures
+            %   passes the config's own, so an edit of one figure normalizes
+            %   that one alone, not every figure of a long config). The id
+            %   pass below runs over every entry all the same.
             %   Every entry is normalized (normalizeFigure); an entry with
             %   autoId false and no id gets "figure_<n>"; two such entries
             %   with one id raise EphysAnalysisConfig:DuplicateFigureId.
@@ -561,6 +568,7 @@ classdef EphysAnalysisConfig
             %   automatic id or "<it> (n)" and no figure before it (or with
             %   an id of its own) has it, so only the figures whose content
             %   changed are renamed; the others take the next free id.
+            if nargin < 2 || ~isstruct(prior); prior = EphysAnalysisConfig.emptyFigures(); end
             F = EphysAnalysisConfig.emptyFigures();
             unknown = string.empty(1, 0);
             if isempty(v); return; end
@@ -573,8 +581,12 @@ classdef EphysAnalysisConfig
                 if ~isstruct(v{k})
                     error('EphysAnalysisConfig:BadValue', 'Figures(%d) must be a struct.', k);
                 end
-                [f, u] = EphysAnalysisConfig.normalizeFigure(v{k}, "Figures(" + k + ")");
-                unknown = [unknown, u]; %#ok<AGROW>
+                if k <= numel(prior) && isequaln(v{k}, prior(k))
+                    f = prior(k);   % normalized already, and unchanged (no unknown fields: it has the schema's alone)
+                else
+                    [f, u] = EphysAnalysisConfig.normalizeFigure(v{k}, "Figures(" + k + ")");
+                    unknown = [unknown, u]; %#ok<AGROW>
+                end
                 F(1, end+1) = f; %#ok<AGROW>
             end
             ids = [F.id];

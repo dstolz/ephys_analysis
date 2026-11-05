@@ -25,9 +25,11 @@ switch how
     case "toggle"
         now(ks) = ~now(ks);
 end
+F = cfg.Figures;
 for k = find(now ~= was)
-    cfg.Figures(k).enabled = now(k);
+    F(k).enabled = now(k);
 end
+cfg.Figures = F;   % one assignment: the config normalizes (set.Figures) once, not once per figure
 changed = now(now ~= was);
 if ~isempty(changed)
     words = ["Disable" "Enable"];

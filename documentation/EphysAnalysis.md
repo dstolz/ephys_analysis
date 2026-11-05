@@ -919,7 +919,7 @@ figure looks, the target's size). Only the other panels are drawn again. The
 kept ones go back to their ticks, fonts, titles and labels as they were drawn,
 and the time stack, tick sizes, blanked axes, the top-left panel's observation,
 legend, title, looks and layout are done again over all of them. So the figure
-is the one a whole drawing makes whichever panels went or moved: the panel above
+is the one a whole drawing makes whichever panels went or moved (a renamed figure keeps its panels: its id is not part of what a panel is kept by): the panel above
 a removed bottom panel gets its time labels back, and the observation moves to
 the new top-left panel (a kept color bar may sit within a pixel of a new one's
 place). When every panel is kept the second output, `how`, says `"kept"`; with

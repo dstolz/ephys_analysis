@@ -81,6 +81,8 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
      resize it. The box snaps to the other panels and the page (hold **Alt**
      to stop that), and magenta lines and distances show what lines up. Arrange
      needs the Image Processing Toolbox; without it, type the numbers below.
+   - To remove a panel, select it and press **Remove panel**. It leaves the
+     preview at once and the other panels stay where they are.
    - To place a panel exactly, type its **Position** and **Size** in the
      **Panels** section, in the **Units** you pick (cm, inches, pixels, %).
      Or press **Set corners** and click two opposite corners on the preview.

@@ -1162,14 +1162,21 @@ itself: nothing is computed or drawn again and no busy card shows, however
 long the last preview took (`renderFigure` `InPlaceOnly=true`); the badge stays
 **Drawn**. A label or title that shows nothing before or after (a panel's first
 title of its own, one cleared) is drawn as any other edit.
-When everything an edit needs was computed already (Undo, Redo, a panel
-removed or reordered, most edits of the looks), the preview is drawn from it
-with no busy card, the panels the edit left alone kept. A panel removed goes
-from the preview at once and Bring forward / Send back restack it at once,
-whatever Auto says; with Auto on the rest settles without the card (even when
-the slider's limit would wait, as long as every panel left is kept), and with
-Auto off the preview says *Out of date*. A removal that changes the epochs
-(the panel widened the baseline window) computes with the card as before.
+A panel removed or reordered shows at once, whatever the **Auto** slider says
+(about 0.2 s): **Remove panel** takes the panel off the preview and the other
+panels stay where they were, and **Bring forward** / **Send back** restack
+them. With Auto above 0 the preview then settles within about a second: the
+tick labels, the time stack's labels, the observation's title and the legend
+catch up, and nothing is computed, so no *Computing* card shows. The same
+holds for any edit whose data was computed already (Undo and Redo of such an
+edit, an axis side, an overlay): it is drawn from what the app has, the panels
+the edit left alone kept. With the slider at 0 (off) the removed panel is gone
+at once and the badge says *Out of date* until you press **Preview**. A panel
+that is no longer alone in its column, or whose neighbor was removed, is drawn
+again only when its own look depends on that (a heat map's color bar); the
+others are kept. **Preview** and **Redraw all** always compute and draw, with
+the card. A removal that changes what has to be computed (a panel that widened
+the baseline window) computes with the card as before.
 
 The line under the preview names the figure, the observation, the dataset and
 the time taken (*"figure_1, su12  ch 7  -320 µm on subj1_day1 (0.4 s);

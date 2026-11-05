@@ -79,8 +79,9 @@ classdef EphysFigGenApp < handle
     %                figureObservations, EphysAnalysisRunner.computeFigure,
     %                renderFigure; a session figure across its datasets:
     %                computeSessionFigure; a probe figure every tile:
-    %                computeProbeFigure; Auto while a preview takes under
-    %                2 s), with its own badge (setFigurePreviewState), drawn
+    %                computeProbeFigure; the Auto slider: an edit redraws it
+    %                while that is predicted to take under the slider's
+    %                limit, autoFigurePreview), with its own badge (setFigurePreviewState), drawn
     %                in the design picked above it (Design, PlotDesign; Save
     %                look as design...: onSaveDesign); each figure keeps its
     %                preview in a container of its own (syncFigureView: a
@@ -155,7 +156,8 @@ classdef EphysFigGenApp < handle
     %   out (onFigurePanelClicked), Escape keeps the first alone. Page Up and Page Down step to the
     %   previous and next observation (onFigureObservationStep). Ctrl+P,
     %   Ctrl+R, Ctrl+U, Ctrl+T, Ctrl+K, Ctrl+E and Ctrl+W press Preview,
-    %   Redraw All, Test report (the Export tab's), Auto, Export preview,
+    %   Redraw All, Test report (the Export tab's), Auto (off, or back to
+    %   where it was: pressFigureButton), Export preview,
     %   Export code and Open in window (pressFigureButton). With Arrange on
     %   and its overlay clicked, the arrows nudge the selected panel by the
     %   snap step (Shift: ten, Ctrl: a pixel, Alt: resize; nudgePanel).
@@ -166,8 +168,9 @@ classdef EphysFigGenApp < handle
     %   Preferences (getpref group 'EphysFigGenApp'): FigurePosition,
     %   LastConfigFile, RecentConfigs, ScriptFolder,
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
-    %   button), FigureAutoPreview (the Figures tab's Auto, on by default:
-    %   one observation is quick), FigureSectionsCollapsed and
+    %   button), FigureAutoRedraw (the Figures tab's Auto slider, 0 to 1:
+    %   0 off, 1 every edit redraws; AutoRedrawDefault, 0.5 = under 2 s,
+    %   when not set), FigureSectionsCollapsed and
     %   FigureSupersectionsCollapsed (its editor's collapsed sections and
     %   supersections), FigureGroupBy and FigureGroupsCollapsed (how
     %   its figure tree groups, and its collapsed groups), FigureRectUnits,
@@ -312,7 +315,7 @@ classdef EphysFigGenApp < handle
         FigureOpenButton       matlab.ui.control.Button         % Open in window: the figure as previewed in a figure() of its own (onOpenFigureWindow)
         FigureCodeButton       matlab.ui.control.Button         % Export code: the code behind the preview (its data in its epochs, the drawing), in the editor (onFigureCode)
         FigureExportPreviewButton matlab.ui.control.Button      % Export preview under the preview: the observation picked written as a run writes it (onExportPreview)
-        FigureAutoCheckBox     matlab.ui.control.CheckBox       % auto-preview (pref FigureAutoPreview, on by default)
+        FigureAutoSlider       matlab.ui.control.Slider         % Auto: the threshold 0-1 of the edits' redraw (autoRedrawLimit; pref FigureAutoRedraw, AutoRedrawDefault)
         FigureArrangeButton    matlab.ui.control.StateButton    % Arrange, on the template row: panels moved and resized over the preview (onArrangeToggled)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
         SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
@@ -392,8 +395,9 @@ classdef EphysFigGenApp < handle
         FigureIdRenames = []                % figures renamed (an automatic id that followed an edit): containers.Map, old id -> new (trackFigureIds)
         FigurePreviewResult = []            % the shown figure's last preview result (computeFigure's F)
         FigurePreviewDrawn = []             % what the shown figure's preview was drawn from (figureViewKey), once drawn
-        FigurePreviewSeconds (1,1) double = 0   % time the shown figure's last preview took (auto-preview under AutoPreviewSeconds)
-        FigureViews struct = struct([])     % one preview container per figure kept (syncFigureView): Id, Panel, State, Result, Drawn, Seconds, Sessions, Label, Used; "" = none selected
+        FigurePreviewSeconds (1,1) double = 0   % time the shown figure's last preview took (0: forgotten, the next edit redraws; Inf: failed, canceled or waiting)
+        FigurePreviewCost (1,1) struct = struct('compute', 0, 'draw', 0, 'key', {[]})   % its two parts, s, and the data key computed (previewDataKey): what previewCost predicts from
+        FigureViews struct = struct([])     % one preview container per figure kept (syncFigureView): Id, Panel, State, Result, Drawn, Seconds, Cost, Sessions, Label, Used; "" = none selected
         FigureViewId (1,1) string = ""      % the figure whose container shows: its State, Result, ... are the FigurePreview* properties meanwhile
         FigureViewTick (1,1) double = 0     % counts the containers shown (FigureViews.Used: the least recently used goes over MaxFigureViews)
         FigurePreviewGeneration (1,1) double = 0   % a scan adds one: every preview drawn before is out of date (figureViewKey)
@@ -401,7 +405,7 @@ classdef EphysFigGenApp < handle
         FigureEditorStates = []             % the editor as each figure left it: containers.Map, figure id -> its sections, scroll, panel and layer (saveFigureEditorState)
         FigurePickers = []                  % each figure's last observation list: containers.Map, figure id -> the picker's items, key and table (keepFigurePicker)
         FigurePreviewWarm (1,1) logical = false % a figure was drawn already: the first one's time (graphics loading) is not counted
-        FigureAutoPreviewSeconds (1,1) double = 2   % edits redraw the figure preview while the last one took under this (AutoPreviewSeconds; tests raise it)
+        FigureAutoLast (1,1) double = 0.5   % the Auto slider's last setting above 0: Ctrl+T turns Auto on again at it (pressFigureButton)
         FigurePreviewState (1,1) string = "idle"   % what the figure preview's badge says (setFigurePreviewState)
         FigurePreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
         FigureAddSource (1,1) string = "units"     % the source Add layer adds, when the panel's type draws it
@@ -443,7 +447,11 @@ classdef EphysFigGenApp < handle
         PrefGroup = 'EphysFigGenApp'
         WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"
         RepoURL = "https://github.com/dstolz/ephys_analysis"        % the repository the issue items file against
-        AutoPreviewSeconds = 2
+        % the Figures tab's Auto slider (autoRedrawLimit): an edit redraws the preview while that is predicted to take
+        % under AutoRedrawScale * T / (1 - T) s at the slider's threshold T (0 = off, 1 = always); the default, 0.5,
+        % is AutoRedrawScale itself: 2 s, most edits of one observation
+        AutoRedrawDefault = 0.5
+        AutoRedrawScale = 2
         % the figure previews kept drawn (syncFigureView): each holds its computed result and its graphics, so a
         % switch back shows it at once; beyond this many the least recently shown one is dropped (drawn again when
         % it is shown). A constant, not a preference: about what eight heavy figures cost in memory and handles.
@@ -647,7 +655,7 @@ classdef EphysFigGenApp < handle
         refreshFigurePreview(obj, opts)
         switched = syncFigureView(obj)
         autoFigurePreview(obj)
-        onFigureAutoPreviewToggled(obj)
+        onFigureAutoRedrawChanged(obj, t)
         onCancelFigurePreview(obj)
         R = onGenerateFigure(obj, opts)
         S = onRedrawAllFigures(obj)

@@ -33,7 +33,10 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            PSTH, continuous, spectrum, coherence or tuning panel with
 %            options.stack -- which has one on each side); xLabel and yLabel, when set, replace the labels
 %            drawn. A color bar outside on the side an axis moves to goes
-%            to the opposite side.
+%            to the opposite side. Last of all (after the time stack),
+%            xShow and yShow blank what the panel leaves out: "ticks" its
+%            label, "label" its ticks (marks and numbers), "none" both
+%            (blankAxes; every y axis of a yyaxis).
 %   Time     every panel sharing the figure's time axis (sharesTime; a
 %            spectrogram, a coherogram on the epochs too) shows
 %            [SPEC.window.pre post] (set on each: no linkaxes);
@@ -503,6 +506,9 @@ if multi; labelSize = style.FontSize; end
 sided = false(1, np);   % a band left or right of a panel's axes: narrower than its rect
 for k = 1:np; sided(k) = isempty(ax0) && sideNote(panels(k)); end
 hidden = figureTimeStack(axs, panels, isTime, labelSize, sided);
+for k = find(drawn & ~isLeg)   % what each panel's axes leave out (xShow, yShow), over what the stack and its type drew
+    blankAxes([axs(k) reshape(extra{k}, 1, [])], panels(k));
+end
 
 % title: the figure's, or what it shows; the top-left panel names the observation under a title of the figure's own
 [txt, named] = figureAutoTitle(F, spec, titleVars);
@@ -724,6 +730,33 @@ end
 end
 
 
+function blankAxes(A, p)
+%blankAxes  Blank what a panel's axes leave out: P.xShow, P.yShow "ticks" (the label goes), "label" (the ticks go), "none" (both).
+%   A: the panel's axes (a coherence panel's phase strip with its
+%   magnitude). The ticks go with their marks and numbers; the axis line
+%   stays. Every y axis of a yyaxis goes alike.
+A = A(isgraphics(A));
+for a = reshape(A, 1, [])
+    if hidesPart(p.xShow, "label"); a.XLabel.String = ''; end
+    if hidesPart(p.xShow, "ticks"); a.XTick = []; end
+    for r = reshape(a.YAxis, 1, [])
+        if hidesPart(p.yShow, "label"); r.Label.String = ''; end
+        if hidesPart(p.yShow, "ticks"); r.TickValues = []; end
+    end
+end
+end
+
+
+function tf = hidesPart(show, part)
+%hidesPart  True when an axis showing SHOW (EphysAnalysisConfig.PanelAxisShows) leaves out PART ("label" or "ticks").
+if part == "label"
+    tf = ismember(show, ["ticks" "none"]);
+else
+    tf = ismember(show, ["label" "none"]);
+end
+end
+
+
 function h = inPlace(F, spec, target, keys, opts, own, design, follows, raw, titleVars)
 %inPlace  Make the drawing TARGET keeps (Reuse) the one SPEC draws by setting text on it and laying it out again: H as renderFigure returns it; [] = it cannot be.
 %   Only when SPEC differs from the spec drawn in text and places alone --
@@ -796,7 +829,9 @@ for k = find(drawn)
     p = P(k);
     q = Q(k);
     L = D.labels{k};
-    if p.xLabel ~= q.xLabel
+    if p.xLabel ~= q.xLabel && hidesPart(p.xShow, "label")   % blanked (blankAxes): it stays so
+        tips(k) = true;
+    elseif p.xLabel ~= q.xLabel
         if keys.panels{k}.isTime   % figureTimeStack names it, or hides it
             if ~isempty(D.extra{k}); return; end
             if D.hidden(k)   % it shows nothing; its interpreter as panelAxes left it
@@ -814,7 +849,9 @@ for k = find(drawn)
         end
         tips(k) = true;
     end
-    if p.yLabel ~= q.yLabel
+    if p.yLabel ~= q.yLabel && hidesPart(p.yShow, "label")
+        tips(k) = true;
+    elseif p.yLabel ~= q.yLabel
         [s, i] = ownOr(p.yLabel, L.yAuto);
         if ~isgraphics(L.y); return; end
         lab = L.y.YAxis(1).Label;

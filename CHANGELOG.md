@@ -10,6 +10,14 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis app: the Figures tab's **Auto** box is a slider, 0 (off) to 1 (every edit redraws, however slow), from
+  which an edit redraws the preview while that is predicted to take under 2 s x T / (1 - T) (the default 0.5: 2 s,
+  the old limit; the tooltip and the status bar say the limit). The prediction comes from the figure's last preview,
+  timed in two parts: an edit of the looks (colors, fonts, labels, places), whose data the runner reuses, counts the
+  drawing alone, an edit of the data the compute too; so a slow-to-compute figure still redraws an edit of its looks.
+  Ctrl+T turns Auto off and on again where it was. The preference `FigureAutoRedraw` (0-1) replaces
+  `FigureAutoPreview`; the app's `FigureAutoPreviewSeconds` and `AutoPreviewSeconds` are gone (`AutoRedrawScale`,
+  `AutoRedrawDefault`). `figureDataSpec` (what a figure's compute depends on) is public.
 - Figures: a layer has `measure` and `xMeasure` (each a `TrialMeasure`, `defaults("TrialMeasure")`): what a `trials`
   layer reads per trial, and a trial scatter's x. `EphysAnalysisConfig.FigureSources` gains `"trials"`, and
   `sourceCategories` the `trial` category (source `trials`, not aligned). A trial panel may hold a `selection` of its

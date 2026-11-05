@@ -5,7 +5,8 @@ function onRectUnitsChanged(obj)
 %   every figure, not part of the config: nothing is edited and no undo
 %   step is made. The selected panel's Position and Size, the Padding and
 %   the snap step are shown again in the new units (showPanelPlace; the
-%   step keeps its length, or its share of the page: snapStepIn). The
+%   step keeps its length, or its share of the page: snapStepIn), and so
+%   are Arrange's size labels on the preview (arrangeSizeLabels). The
 %   panels stay stored as 0-1 of the page.
 %
 %   See also showPanelPlace, figureRectConvert, EphysFigGenApp.onSnapChanged.
@@ -17,6 +18,7 @@ if ~ismember(u, EphysAnalysisConfig.RectUnits); return; end
 obj.FigureSnapStep = snapStepIn(obj.FigureSnapStep, u, pageCm, dpi);
 obj.FigureRectUnits = u;
 showPanelPlace(obj);
+arrangeSizeLabels(obj);   % (Arrange's labels in the new units)
 obj.savePreferences();
 names = struct('normalized', "0-1 of the page", 'pct', "% of the page", 'cm', "cm", 'in', "inches", ...
     'px', sprintf("px (at %g dpi)", dpi));

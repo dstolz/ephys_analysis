@@ -140,7 +140,9 @@ function buildFiguresTab(obj)
 %           figure's files for every observation are the File menu's
 %           Generate selected figure, onGenerateFigure), Export preview (the
 %           observation picked, written as a run writes it into a preview
-%           folder and shown: onExportPreview), Auto, and < and > on a row
+%           folder and shown: onExportPreview), Auto (a slider from off
+%           to every edit: how slow a redraw an edit may start,
+%           autoRedrawLimit, onFigureAutoRedrawChanged), and < and > on a row
 %           (Page Up / Page Down) -- beside the dataset, the observation
 %           picked (figureObservations' labels) and the Favorites
 %           (buildFavorites: a filter and every starred dataset, channel
@@ -801,6 +803,16 @@ E.panelYLabel = uieditfield(yg, "text", "Placeholder", "automatic", "ValueChange
 E.panelYSide = uidropdown(yg, "Items", ["left" "right"], "ItemsData", EphysAnalysisConfig.PanelYSides, ...
     "ValueChangedFcn", changed, "Tooltip", "Where the y axis' ticks and label go: left or right of the panel " + ...
     "(a color bar beside it moves to the other side).");
+[S, r] = formRow(S, ["panelXShow" "panelYShow"], "Show (x, y):");
+shg = subgrid(S.Body, r, {'1x', '1x'});
+showItems = ["label and ticks" "ticks, no label" "label, no ticks" "neither"];
+E.panelXShow = uidropdown(shg, "Items", showItems, "ItemsData", EphysAnalysisConfig.PanelAxisShows, "Value", "all", ...
+    "ValueChangedFcn", changed, "Tooltip", "What the x axis shows: its label and ticks, or with its label or its " + ...
+    "ticks (marks and numbers) blanked, or neither (the axis line alone). A blank label or ticks leave their room " + ...
+    "to the plot.");
+E.panelYShow = uidropdown(shg, "Items", showItems, "ItemsData", EphysAnalysisConfig.PanelAxisShows, "Value", "all", ...
+    "ValueChangedFcn", changed, "Tooltip", "What the y axis shows: its label and ticks, or with its label or its " + ...
+    "ticks (marks and numbers) blanked, or neither (the axis line alone). A stacked line panel's two y axes go alike.");
 [S, r] = formRow(S, "group", "Group shown:");
 E.group = uispinner(S.Body, "Limits", [1 100], "Step", 1, "Value", 1, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
     "Tooltip", "The trial group a heat map or a unit correlation map draws (1 = the first of the figure's groups).");
@@ -1677,7 +1689,7 @@ obj.FigureSearchIndex = figureSearchIndex(obj.FigureSections, U);   % the rows a
 % template row (and Apply last change) above the preview. Ctrl is Cmd on a Mac (onKeyPress).
 pg = uigridlayout(g, [7 5]);
 pg.RowHeight = {46, 46, 46, 34, '1x', 30, 20};
-pg.ColumnWidth = {90, 'fit', '1x', 'fit', 125};
+pg.ColumnWidth = {110, 'fit', '1x', 'fit', 125};   % (110: Export preview unclipped, room for Auto's slider)
 pg.ColumnSpacing = 6;
 pg.Padding = [0 0 0 0];
 bg = uigridlayout(pg, [5 1], "RowHeight", {30, 30, 30, 24, 30}, "ColumnWidth", {'1x'}, "RowSpacing", 3, "Padding", [0 0 0 0]);
@@ -1701,10 +1713,13 @@ obj.FigureExportPreviewColumnButton = uibutton(bg, "Text", "Export preview", "En
     "run writes it (size, formats, dpi, file name) into a preview folder -- not the figure folder -- and shown in a " + ...
     "window. (" + cmdKey + "+K)", "ButtonPushedFcn", @(~,~) obj.onExportPreview());
 obj.FigureExportPreviewColumnButton.Layout.Row = 3;
-obj.FigureAutoCheckBox = uicheckbox(bg, "Text", "Auto", "Value", true, ...
-    "Tooltip", "Redraw on every change while a preview takes under " + obj.AutoPreviewSeconds + " s (one observation is quick). (" + cmdKey + "+T)", ...
-    "ValueChangedFcn", @(~,~) obj.onFigureAutoPreviewToggled());
-obj.FigureAutoCheckBox.Layout.Row = 4;
+% Auto: how slow a redraw an edit may start, 0 (off) to 1 (every edit); the limit in its tooltip (showAutoRedraw)
+ag = uigridlayout(bg, [1 2], "ColumnWidth", {'fit', '1x'}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
+ag.Layout.Row = 4;
+uilabel(ag, "Text", "Auto");
+obj.FigureAutoSlider = uislider(ag, "Limits", [0 1], "Value", obj.AutoRedrawDefault, "MajorTicks", [], "MinorTicks", [], ...
+    "ValueChangedFcn", @(~,~) obj.onFigureAutoRedrawChanged(), "ValueChangingFcn", @(~, e) obj.onFigureAutoRedrawChanged(e.Value));
+showAutoRedraw(obj);
 kg = uigridlayout(bg, [1 2], "ColumnWidth", {'1x', '1x'}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
 kg.Layout.Row = 5;
 obj.FigureObsPrevButton = uibutton(kg, "Text", "<", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(-1), ...

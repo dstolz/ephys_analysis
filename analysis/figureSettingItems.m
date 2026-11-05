@@ -31,7 +31,7 @@ function T = figureSettingItems(fig)
 %   continuous"), "layout" (what the panels' boxes mean and the padding
 %   between them, layout.boxesMean and layout.padding) and "page" (the
 %   figure's page size, figureExportSize). Panel settings, per panel:
-%   Axes and limits (box, axis sides, yLimMode, yLim, cLim, yTicks,
+%   Axes and limits (box, axis sides, what the axes show, yLimMode, yLim, cLim, yTicks,
 %   scale, a trial panel's xScale, yScale and xLim), Colors and lines,
 %   Display and stacks, Marks and insets (first spike, latency box, onset
 %   line, waveform, a trial panel's summary mark, counts and tests), Data
@@ -85,6 +85,7 @@ for j = 1:numel(fig.panels)
     pa = @(group, name, label, paths, value) add("panel", [head group], name, label, "panel", j, paths, false, value);
     pa("Axes and limits", "box", "Box", "box", p.box);
     pa("Axes and limits", "sides", "Axis sides", ["xSide" "ySide"], p.xSide + ", " + p.ySide);
+    pa("Axes and limits", "shows", "What the axes show", ["xShow" "yShow"], p.xShow + ", " + p.yShow);
     for f = string(fieldnames(p.options)).'
         pa(optionGroup(f), "options." + f, word(f, optionLabels()), "options." + f, p.options.(f));
     end

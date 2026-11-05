@@ -35,7 +35,7 @@ switch state
     case "drawing";   [word, c, tip] = deal("Drawing", blue, "Drawing the computed figure.");
     case "drawn";     [word, c, tip] = deal("Drawn", green, "The preview is the figure as it is now.");
     case "stale";     [word, c, tip] = deal("Out of date", amber, "The figure changed since this preview was drawn, " + ...
-            "and it was not redrawn (Auto is off, or the last preview took " + obj.AutoPreviewSeconds + " s or more): press Preview.");
+            "and it was not redrawn (Auto is off, or the redraw would take longer than Auto allows): press Preview.");
     case "waiting";   [word, c, tip] = deal("Press Preview", blue, "The extract is large, so it is read only when you press Preview.");
     case "skipped";   [word, c, tip] = deal("Cannot draw", gray, "The active dataset cannot draw this figure (the line below says why).");
     case "failed";    [word, c, tip] = deal("Failed", red, "The preview failed (the line below and the Log tab say why).");

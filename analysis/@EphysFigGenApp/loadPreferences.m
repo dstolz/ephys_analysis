@@ -2,9 +2,9 @@ function loadPreferences(obj, openLast)
 %loadPreferences  Restore the app's preferences; OPENLAST: reopen the last config.
 %   Group EphysFigGenApp: FigurePosition, LastConfigFile, RecentConfigs,
 %   ScriptFolder, PreviewMaxMB (signal previews of larger extracts wait
-%   for the Preview button), FigureAutoPreview, FigureSectionsCollapsed and
-%   FigureSupersectionsCollapsed (the Figures tab's Auto box, on by
-%   default, and its editor's collapsed sections and supersections),
+%   for the Preview button), FigureAutoRedraw, FigureSectionsCollapsed and
+%   FigureSupersectionsCollapsed (the Figures tab's Auto slider, 0 to 1,
+%   AutoRedrawDefault when not set, and its editor's collapsed sections and supersections),
 %   FigureGroupBy and FigureGroupsCollapsed (the figure tree's
 %   grouping and collapsed groups), FigureRectUnits, FigureSnap and
 %   FigureSnapStep (the Panels section's units, Snap box and step:
@@ -35,7 +35,14 @@ if AppPrefs.ispref(g, 'PreviewMaxMB')
     v = AppPrefs.getpref(g, 'PreviewMaxMB');
     if isnumeric(v) && isscalar(v) && v > 0; obj.PreviewMaxMB = v; end
 end
-if AppPrefs.ispref(g, 'FigureAutoPreview'); obj.FigureAutoCheckBox.Value = isequal(AppPrefs.getpref(g, 'FigureAutoPreview'), true); end
+if AppPrefs.ispref(g, 'FigureAutoRedraw')
+    t = AppPrefs.getpref(g, 'FigureAutoRedraw');
+    if isnumeric(t) && isscalar(t) && t >= 0 && t <= 1
+        obj.FigureAutoSlider.Value = t;
+        if t > 0; obj.FigureAutoLast = t; end
+        showAutoRedraw(obj);
+    end
+end
 if AppPrefs.ispref(g, 'FigureGroupBy')
     by = string(AppPrefs.getpref(g, 'FigureGroupBy'));
     if isscalar(by) && ismember(by, string(obj.FigureGroupDropDown.ItemsData))

@@ -407,6 +407,12 @@ for k = 1:numel(obj.Figures)
         if ~ismember(pj.ySide, EphysAnalysisConfig.PanelYSides)
             add("Figures", p0 + ".ySide", "error", "A panel's ySide is left or right.");
         end
+        for f = ["xShow" "yShow"]
+            if ~ismember(pj.(f), EphysAnalysisConfig.PanelAxisShows)
+                add("Figures", p0 + "." + f, "error", "A panel's " + f + " is " + ...
+                    strjoin(EphysAnalysisConfig.PanelAxisShows, ", ") + ".");
+            end
+        end
         trow = FT.Type == pj.type;
         if ~any(trow)
             add("Figures", p0 + ".type", "error", "Unknown panel type """ + pj.type + """ (types: " + strjoin(FT.Type, ", ") + ").");

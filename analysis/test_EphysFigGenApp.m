@@ -756,7 +756,7 @@ if S.sec("2", "Alignment: group by Depth")
 end
 
 if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch diagram, an event sequence")
-    app.FigureAutoPreviewSeconds = Inf;   % a preview slowed by a loaded machine must not leave the next one out of date
+    autoAlways(app);   % a preview slowed by a loaded machine must not leave the next one out of date
     restoreAutoLimit3 = onCleanup(@() resetAutoLimit(app));
     app.selectTab(app.TabFigures);
     app.onAddFigure("psth");
@@ -789,9 +789,9 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FigureTemplateDropDown.Parent.Parent == pgrid && app.FigureTemplateDropDown.Parent.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1 ...
         && app.FigurePreviewHost.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 2, ...
         'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the template row under that, the preview (the figures'' containers) under it');
-    % the buttons in a column of their own left of those rows: Preview, Redraw All, Export preview, Auto, < > (a row each)
+    % the buttons in a column of their own left of those rows: Preview, Redraw All, Export preview, Auto (its label and slider), < > (a row each)
     bgrid = app.FigurePreviewButton.Parent;
-    btnCol = [app.FigurePreviewButton app.FigureRedrawAllButton app.FigureExportPreviewColumnButton app.FigureAutoCheckBox app.FigureObsPrevButton.Parent];
+    btnCol = [app.FigurePreviewButton app.FigureRedrawAllButton app.FigureExportPreviewColumnButton app.FigureAutoSlider.Parent app.FigureObsPrevButton.Parent];
     check(bgrid.Parent == pgrid && isequal(bgrid.Layout.Column, 1) && isequal(bgrid.Layout.Row, [dsg.Layout.Row app.FigureFavorites.Grid.Layout.Row]) ...
         && all(arrayfun(@(h) h.Parent == bgrid, btnCol)) && isequal(arrayfun(@(h) h.Layout.Row, btnCol), 1:5) ...
         && app.FigureObsNextButton.Parent == app.FigureObsPrevButton.Parent ...
@@ -813,7 +813,7 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FigureCodeButton.Layout.Column == app.FigureOpenButton.Layout.Column - 1, ...
         'Export code sits left of Open in window under the preview, on with a figure selected');
     % every button of the preview has its key in its tooltip, and the key presses it: Ctrl+W opens the window, Ctrl+T toggles Auto, Ctrl+P previews
-    btnKeys = {app.FigurePreviewButton "+P"; app.FigureRedrawAllButton "+R"; app.FigureExportPreviewColumnButton "+K"; app.FigureAutoCheckBox "+T"; app.FigureCodeButton "+E"; ...
+    btnKeys = {app.FigurePreviewButton "+P"; app.FigureRedrawAllButton "+R"; app.FigureExportPreviewColumnButton "+K"; app.FigureAutoSlider "+T"; app.FigureCodeButton "+E"; ...
         app.FigureExportPreviewButton "+K"; app.TestReportButton "+U"; ...
         app.FigureOpenButton "+W"; app.FigureObsPrevButton "Page Up"; app.FigureObsNextButton "Page Down"};
     inTip = cellfun(@(h, k) contains(string(h.Tooltip), k), btnKeys(:, 1), btnKeys(:, 2));
@@ -826,11 +826,11 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
     figs1 = findall(groot, 'Type', 'figure');
     check(numel(figs1) == nFigs + 1, 'Ctrl+W opens the figure in a window of its own, as Open in window does');
     delete(setdiff(figs1, figs0));
-    auto0 = app.FigureAutoCheckBox.Value;
+    auto0 = app.FigureAutoSlider.Value;
     app.onKeyPress(pressed('t', mods));
-    check(app.FigureAutoCheckBox.Value == ~auto0, 'Ctrl+T toggles Auto');
+    check(auto0 > 0 && app.FigureAutoSlider.Value == 0 && contains(app.StatusBar.Text, "off"), 'Ctrl+T turns Auto off');
     app.onKeyPress(pressed('t', mods));
-    check(app.FigureAutoCheckBox.Value == auto0, 'Ctrl+T toggles Auto back');
+    check(app.FigureAutoSlider.Value == auto0, 'Ctrl+T turns Auto on again where its slider was');
     app.setFigurePreviewState("stale");
     app.onKeyPress(pressed('p', mods));
     check(app.FigurePreviewState == "drawn", 'Ctrl+P previews, as Preview does');
@@ -1061,7 +1061,7 @@ end
 
 if S.sec("5d.add", "the Figures tab: a figure from the rasterPsth template, the observation picker and its preview (drawn at once), < and > and Page Up")
     noFigures();
-    app.FigureAutoPreviewSeconds = Inf;   % Auto is on here: a preview slowed by a loaded machine must not leave the next one out of date
+    autoAlways(app);   % Auto is on here: a preview slowed by a loaded machine must not leave the next one out of date
     restoreAutoLimit = onCleanup(@() resetAutoLimit(app));
     app.selectTab(app.TabFigures);
     check(isempty(app.Config.Figures) && isempty(findall(app.FiguresTree, 'Type', 'uitreenode')) && ~shown(FE.id) && shown(FE.summary) ...
@@ -1094,12 +1094,12 @@ if S.sec("5d.add", "the Figures tab: a figure from the rasterPsth template, the 
         '> draws the next unit: the title names it, and the figure remembers its pick');
     app.onKeyPress(pressed('pageup', {}));
     check(app.FigureObservationDropDown.Value == 1 && contains(figTitle(), T.label(1)), 'Page Up (<) goes back to the first unit');
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit from here on: a section refreshes the preview before reading it (Auto on again only where it is itself under test)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit from here on: a section refreshes the preview before reading it (Auto on again only where it is itself under test)
     clear restoreAutoLimit
 end
 
 if S.sec("5d.observe", "Observe: the data types, what the active dataset holds first; the rows under it follow the choice")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     srcA = app.Runner.source(app.ActiveIdx);
     types = EphysAnalysisConfig.ObserveData;
     held = [srcA.hasUnits srcA.hasDetected arrayfun(@(s) srcA.signals.(s), types(3:6)) true];
@@ -1138,9 +1138,9 @@ if S.sec("5d.observe", "Observe: the data types, what the active dataset holds f
 end
 
 if S.sec("5d.layers", "a continuous panel below (drawn at once); its layers: AUX fixed; an events layer on the raster, as marks and as spans")
-    app.FigureAutoPreviewSeconds = Inf;   % Auto is on for the panel added: a preview slowed by a loaded machine must not leave it out of date
+    autoAlways(app);   % Auto is on for the panel added: a preview slowed by a loaded machine must not leave it out of date
     restoreAutoLimit = onCleanup(@() resetAutoLimit(app));
-    app.FigureAutoCheckBox.Value = true;   % the automatic preview itself: the panel added is drawn at once
+    app.FigureAutoSlider.Value = 1;   % the automatic preview itself: the panel added is drawn at once
     app.onPanelSelected(2);
     app.onNewPanel(Type="continuous", Where="below");
     fg = app.Config.Figures(1);
@@ -1155,7 +1155,7 @@ if S.sec("5d.layers", "a continuous panel below (drawn at once); its layers: AUX
         && contains(app.StatusBar.Text, "below psth_1 (psth_1 halved)"), ...
         'Continuous signal, Below: psth_1 halved, the new panel flush under it, its LFP layer following the observed unit');
     check(app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, 'the three panels drawn at once');
-    app.FigureAutoCheckBox.Value = false;   % Auto off again: no redraw per edit
+    app.FigureAutoSlider.Value = 0;   % Auto off again: no redraw per edit
     check(string(FE.panelType.Value) == "continuous" && shown(FE.stack) && shown(FE.errorType) && shown(FE.layerFollows) ...
         && isequal(string(FE.stack.ItemsData), ["off" "groups" "items"]) ...
         && ~shown(FE.binMs) && ~shown(FE.histStyle) && ~shown(FE.rasterSort) && ~shown(FE.evLine) && ~shown(FE.group) ...
@@ -1405,13 +1405,13 @@ if S.wants("5d.search")   % the search, continued: a shown row gone to (its supe
 end
 
 if S.sec("5d.stale", "Out of date with Auto off; Cancel on the busy card")
-    app.FigureAutoPreviewSeconds = Inf;   % Auto is on here: a preview slowed by a loaded machine must not leave the next one out of date
+    autoAlways(app);   % Auto is on here: a preview slowed by a loaded machine must not leave the next one out of date
     restoreAutoLimit = onCleanup(@() resetAutoLimit(app));
-    app.FigureAutoCheckBox.Value = false;
+    app.FigureAutoSlider.Value = 0;
     FE.title.Value = 'Unit card';
     app.onConfigChanged("figure");
     stale = app.FigurePreviewState == "stale" && string(app.FigurePreviewBadge.Text.Text) == "Out of date" && app.Config.Figures(1).title == "Unit card";
-    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoSlider.Value = 1;
     app.refreshFigurePreview(Force=true);
     check(stale && app.FigurePreviewState == "drawn" && contains(figTitle(), "Unit card"), ...
         'with Auto off an edit leaves the preview Out of date; Preview draws it with the new title');
@@ -1430,11 +1430,44 @@ if S.sec("5d.stale", "Out of date with Auto off; Cancel on the busy card")
     app.refreshFigurePreview(Force=true);
     check(canceled && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, sprintf(['an edit does not redraw a canceled preview; ' ...
         'Preview does (canceled after the edit: %d; then %s, %d axes)'], canceled, app.FigurePreviewState, numel(figAxes())));
+    % the Auto slider: the limit it gives, in steps of 0.05 (0.9: under 18 s); Ctrl+T off and on again where it was
+    mods5 = {'control'};
+    if ismac; mods5 = {'command'}; end
+    app.FigureAutoSlider.Value = 0.92;
+    app.onFigureAutoRedrawChanged();
+    said = app.FigureAutoSlider.Value == 0.9 && contains(app.StatusBar.Text, "under 18 s") ...
+        && contains(string(app.FigureAutoSlider.Tooltip), "under 18 s");
+    app.onKeyPress(pressed('t', mods5));
+    saidOff = app.FigureAutoSlider.Value == 0 && contains(app.StatusBar.Text, "off") && contains(string(app.FigureAutoSlider.Tooltip), "is off");
+    app.onKeyPress(pressed('t', mods5));
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % Ctrl let go: the edits below stay with their figure
+    check(said && saidOff && app.FigureAutoSlider.Value == 0.9, sprintf(['the Auto slider says its limit (0.92 to 0.9: under 18 s), ' ...
+        'Ctrl+T turns it off and on again at 0.9 (status bar: "%s")'], app.StatusBar.Text));
+    % the redraw predicted from the last preview's two parts (previewCost): with computing its data taking 100 s, an edit of
+    % the looks redraws (the data reused: the drawing alone, under 18 s), one of the data waits; undone, it is drawn again
+    app.refreshFigurePreview(Force=true);
+    app.FigurePreviewCost.compute = 100;
+    app.FigurePreviewSeconds = 100 + app.FigurePreviewCost.draw;
+    fg5 = app.Config.Figures(1);
+    app.onFigureAxisEdited(fg5.id, fg5.panels(end).id, struct('ySide', "right"));   % a look, drawn again (not text alone): a y axis on the right
+    lookDrawn = app.FigurePreviewState == "drawn" && app.FigurePreviewSeconds < 100 && app.FigurePreviewCost.compute == 100 ...
+        && contains(app.FigurePreviewLabel.Text, "slow to compute");
+    FA.Edge.Value = 'offset';
+    app.onFigureAlignEdited("ref");   % the data: the figure's own event
+    dataWaits = app.FigurePreviewState == "stale" && app.Config.Figures(1).ref.edge == "offset";
+    app.onUndoRedo("undo");
+    undoDrawn = app.FigurePreviewState == "drawn" && isequal(app.Config.Figures(1).ref, "default");
+    app.onUndoRedo("undo");
+    check(lookDrawn && dataWaits && undoDrawn, sprintf(['with computing taking 100 s and Auto under 18 s, an edit of the looks ' ...
+        'redraws (%d: "%s"), an edit of the data waits for Preview (%d), and undone it is drawn again (%d)'], ...
+        lookDrawn, app.FigurePreviewLabel.Text, dataWaits, undoDrawn));
+    app.FigureAutoSlider.Value = 1;
+    app.refreshFigurePreview(Force=true);
     clear restoreAutoLimit
 end
 
 if S.sec("5d.align", "the figure's own event, a panel's own window: locked while linked, Apply to all panels, Re-link all panels")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     FA.Edge.Value = 'offset';
     app.onFigureAlignEdited("ref");
     app.refreshFigurePreview(Force=true);
@@ -1501,7 +1534,7 @@ if S.sec("5d.align", "the figure's own event, a panel's own window: locked while
 end
 
 if S.sec("5d.filter", "a tightened unit filter, one nothing passes, a listing error")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     n0 = height(app.FigureObservations);
     FE.obsMaxUnits.Value = '1';
     app.onConfigChanged("figure");
@@ -1534,7 +1567,7 @@ if S.sec("5d.filter", "a tightened unit filter, one nothing passes, a listing er
 end
 
 if S.sec("5d.pergroup", "Per trial group: the picker lists every unit and group, the preview draws one group")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     groupedBy("Depth");
     n0 = height(app.FigureObservations);   % the units listed (5d.filter's n0)
     FE.obsPerGroup.Value = true;
@@ -1558,7 +1591,7 @@ if S.sec("5d.pergroup", "Per trial group: the picker lists every unit and group,
 end
 
 if S.sec("5d.ownsel", "a panel's own trial selection: locked while linked, copied when unticked, re-linked, applied to all")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     groupedBy("Depth");
     app.onPanelSelected(2);   % the PSTH
     lockedSel = FE.panelSameSel.Value && FE.panelSameSel.Enable == "on" && FP.Group1.Enable == "off" && FP.Filter.Enable == "off";
@@ -1601,7 +1634,7 @@ if S.sec("5d.ownsel", "a panel's own trial selection: locked while linked, copie
 end
 
 if S.sec("5d.conttrials", "a continuous panel's Trials row: the Options rows reach the config, the traces are drawn")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     app.onPanelSelected(3);
     offRows = shown(FE.contTrials) && ~shown(FE.heatRows) && FE.maxTrials.Enable == "off";
     FE.contTrials.Value = "faint";
@@ -1619,7 +1652,7 @@ if S.sec("5d.conttrials", "a continuous panel's Trials row: the Options rows rea
 end
 
 if S.sec("5d.type", "a type change: the PSTH's bins, a heat map and its rows, back to a PSTH; a layer's binding")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     app.onPanelSelected(2);
     openBins = FE.binMs.Enable == "on" && FE.histStyle.Enable == "on" && FE.binMs.Value == 10;
     FE.binMs.Value = 20;
@@ -1688,7 +1721,7 @@ if S.sec("5d.type", "a type change: the PSTH's bins, a heat map and its rows, ba
 end
 
 if S.sec("5d.applyall", "Apply to all panels (Options), Re-link all panels (Panel alignment)")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     app.onPanelSelected(2);   % the PSTH
     FE.binMs.Value = 10;
     FE.waveMode.Value = "mean";
@@ -1720,7 +1753,7 @@ if S.sec("5d.applyall", "Apply to all panels (Options), Re-link all panels (Pane
 end
 
 if S.sec("5d.multi", "several panels selected with Shift+click: each outlined, the Panel header and a banner say so, the editor shows the rows they share, an edit goes to each one that takes it (one undo step), Remove panels; Escape, Ctrl+Click, a step, Arrange and the search")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     app.FigureHistory = FigureEditHistory();   % the steps counted below start here (the sections before may have filled its Depth, 100)
     rowShown = @(key) any(arrayfun(@(sc) any(cellfun(@(kk) any(kk == key), sc.Keys) & sc.Shown), app.FigureSections));
     secShown = @(name) app.FigureSections([app.FigureSections.Name] == name).Visible;
@@ -1832,7 +1865,7 @@ if S.sec("5d.multi", "several panels selected with Shift+click: each outlined, t
 end
 
 if S.sec("5d.look", "the gather / apply round trip, a remembered look and Forget, data tips")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     app.onPanelSelected(2);   % the PSTH, as 5d.applyall leaves it
     s1 = app.gatherConfig();
     app.applyConfig(s1);
@@ -1871,12 +1904,12 @@ if S.sec("5d.otherconfig", "another config opened; sizes the spinners cannot sho
     other = other.addFigure("continuous", Id="figure_1");
     cfgB = cfgA;
     cfgB.Figures = other.Figures;
-    app.FigureAutoCheckBox.Value = false;
+    app.FigureAutoSlider.Value = 0;
     app.applyConfig(cfgB, MarkSaved=true);
     check(app.FigurePreviewState == "stale" && isempty(app.FigurePreviewResult) && isempty(figAxes()) ...
         && ~isappdata(app.FigurePreviewPanel, PlotAesthetics.ContextKey), ...
         'another config opened: the last config''s drawing and its look editor are dropped; the preview is Out of date');
-    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoSlider.Value = 1;
     app.applyConfig(cfgA);
     app.SavedConfigStruct = saved0;
     app.updateTitle();
@@ -1901,7 +1934,7 @@ if S.sec("5d.otherconfig", "another config opened; sizes the spinners cannot sho
 end
 
 if S.sec("5d.remove", "Remove panel, Duplicate, Remove")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     app.onPanelSelected(3);
     app.onRemovePanel();
     app.refreshFigurePreview(Force=true);
@@ -1924,7 +1957,7 @@ if S.sec("5d.remove", "Remove panel, Duplicate, Remove")
 end
 
 if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where (the first fills the page, below / above / right / left, the free space, a rect), Remove, the rect's fields in each unit (typed, refused, kept on the page), the units switched, Boxes mean and Padding, Bring forward / Send back, Snap and its step, Arrange's button and Escape, layer and figure Up and Down (Auto off: nothing here needs drawing)")
-    app.FigureAutoCheckBox.Value = false;
+    app.FigureAutoSlider.Value = 0;
     app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5d.outline), let go: an edit stays with its figure
     units5a = app.FigureRectUnits;
     app.onAddFigure("blank");
@@ -2079,13 +2112,13 @@ if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where
     check(movedUp && isequal([app.Config.Figures.id], ids0) && app.SelectedFigure == 2 && app.DownFigureButton.Enable == "off", ...
         sprintf('figure Up and Down reorder the list (the ids stay: %s); the figure stays selected', strjoin(ids0, " | ")));
     app.onRemoveFigure();
-    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoSlider.Value = 1;
     unitsTo(units5a);
     check(isscalar(app.Config.Figures) && app.SelectedFigure == 1, 'the blank figure removed again');
 end
 
 if S.sec("5d.newpanel", "Add: a blank figure, then the New panel window (answered from a timer); every type at every place; one legend panel; the Id row")
-    app.FigureAutoCheckBox.Value = false;
+    app.FigureAutoSlider.Value = 0;
     PTn = EphysAnalysisConfig.panelTypes();
     answerDialog('New panel', @(D) press(D, "Cancel"));
     app.onAddFigure();
@@ -2197,12 +2230,12 @@ if S.sec("5d.newpanel", "Add: a blank figure, then the New panel window (answere
         && isscalar(app.Config.Figures(2).aesthetics), ...
         'auto ticked again: the automatic id is back; the observation picked and a look remembered under the old id follow the figure');
     app.onRemoveFigure();
-    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoSlider.Value = 1;
     check(isscalar(app.Config.Figures) && app.SelectedFigure == 1, 'that figure removed again');
 end
 
 if S.sec("5d.follow", "a panel made from a heat map or a probe map follows the observation: one unit, not all of them")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     for pair = ["heatmap" "psth"; "probemap" "raster"].'
         app.onAddFigure(pair(1));
         FE.panelType.Value = pair(2);
@@ -2220,7 +2253,7 @@ if S.sec("5d.follow", "a panel made from a heat map or a probe map follows the o
 end
 
 if S.sec("5d.probemap", "a probe map's rows: Unit labels, the Waveform section (Off = circles, its glyphs' rows, the band with a mean), round trip")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     app.onAddFigure("probemap");
     check(shown(FE.unitLabels) && ~FE.unitLabels.Value && shown(FE.waveMode) && string(FE.waveMode.Value) == "off" ...
         && FE.waveMode.Items{1} == "Off (a circle per unit)" && any(string(FE.waveMode.ItemsData) == "template") ...
@@ -2243,7 +2276,7 @@ if S.sec("5d.probemap", "a probe map's rows: Unit labels, the Waveform section (
 end
 
 if S.sec("5d.eventtrace", "an event-trace panel: its template, its Options rows (those its display does not use grayed out), the preview")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     app.onAddFigure("eventTrace");
     app.refreshFigurePreview(Force=true);
     etRows = shown(FE.etDisplay) && shown(FE.etTrials) && shown(FE.etBaseline) && shown(FE.etRowSpacing) && ~shown(FE.binMs) ...
@@ -2266,9 +2299,9 @@ if S.sec("5d.eventtrace", "an event-trace panel: its template, its Options rows 
 end
 
 if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; Firing rate and Tuning curve panels (drawn at once); a type change's display and stack")
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     groupedBy("Depth");
-    app.FigureAutoPreviewSeconds = Inf;   % Auto is on for the panels added: a preview slowed by a loaded machine must not leave them out of date
+    autoAlways(app);   % Auto is on for the panels added: a preview slowed by a loaded machine must not leave them out of date
     restoreAutoLimit = onCleanup(@() resetAutoLimit(app));
     app.onFigureSelected(1);
     app.onPanelSelected(2);   % the PSTH
@@ -2361,7 +2394,7 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
     nAx = numel(figAxes());
     check(any(string(FE.panelType.ItemsData) == "rate") && any(string(FE.panelType.ItemsData) == "tuning") && app.FigurePreviewState == "drawn", ...
         'the panel type drop-down offers Firing rate and Tuning curve');
-    app.FigureAutoCheckBox.Value = true;   % the automatic preview itself: the panels added are drawn at once
+    app.FigureAutoSlider.Value = 1;   % the automatic preview itself: the panels added are drawn at once
     app.onNewPanel(Type="rate", Where="below");
     pr = app.Config.Figures(1).panels(end);
     check(pr.type == "rate" && isscalar(pr.layers) && pr.layers.source == "units" && pr.layers.binding == "observation" ...
@@ -2402,7 +2435,7 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
         && shown(FE.param) && shown(FE.waveMode) && ~shown(FE.rateDisplay) ...
         && app.FigureSections([app.FigureSections.Name] == "options").Title == "Tuning curve options", ...
         'Tuning curve, Below: drawn at once over the figure''s group-by parameter (Depth), its Parameter rows shown');
-    app.FigureAutoCheckBox.Value = false;   % Auto off again: no redraw per edit
+    app.FigureAutoSlider.Value = 0;   % Auto off again: no redraw per edit
     FE.param.Value = 'Depth';
     FE.seriesParam.Value = 'TrialType';
     app.onConfigChanged("figure");
@@ -2473,8 +2506,8 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     savedConfig();
     app.onFigureSectionToggled("options");
     app.onFigureSuperToggled("look");
-    app.FigureAutoCheckBox.Value = false;
-    app.onFigureAutoPreviewToggled();
+    app.FigureAutoSlider.Value = 0.35;
+    app.onFigureAutoRedrawChanged();
     workersDefault = app.WorkersSpinner.Value;
     app.WorkersSpinner.Value = 2;
     app.WorkersSpinner.ValueChangedFcn(app.WorkersSpinner, []);
@@ -2492,7 +2525,8 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
         'Splash=true: the splash window shows the steps (the last config opened, its scan, the first dataset) and closes when the window shows');
     kept = isscalar(app2.Config.Figures) && isequaln(app2.Config.Figures, app.Config.Figures) && app2.SelectedFigure == 1 ...
         && string(figureNode(app2.FiguresTree, 1).Text) == app.Config.Figures(1).id + "  (2 panels)";
-    restored = ~app2.FigureAutoCheckBox.Value && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...
+    restored = abs(app2.FigureAutoSlider.Value - 0.35) < 1e-9 && app2.FigureAutoLast == app2.FigureAutoSlider.Value ...
+        && contains(string(app2.FigureAutoSlider.Tooltip), "under 1.1 s") && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...
         && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded ...
         && isequal([app2.FigureSupers.Expanded], [true true false]) && ~shown(app2.FigureEditor.fontSize);
     workersKept = app2.WorkersSpinner.Value;
@@ -2505,15 +2539,15 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     app.WorkersSpinner.Value = workersDefault;
     app.WorkersSpinner.ValueChangedFcn(app.WorkersSpinner, []);
     check(~startsWith(app.Fig.Name, "*") && kept, 'saved and opened again, the config keeps the figure');
-    check(restored, 'a new app restores the Figures tab''s Auto, collapsed section and collapsed supersection (Look)');
+    check(restored, 'a new app restores the Figures tab''s Auto (0.35: under 1.1 s), collapsed section and collapsed supersection (Look)');
     check(snapKept, 'a new app restores the Panels section''s Units (in), Snap (off) and its step (0.25 in)');
     FE.rectUnits.Value = units0;
     FE.rectUnits.ValueChangedFcn(FE.rectUnits, []);
     FE.snap.Value = true;
     FE.snapStep.Value = 0.5;
     FE.snapStep.ValueChangedFcn(FE.snapStep, []);
-    app.FigureAutoCheckBox.Value = true;
-    app.onFigureAutoPreviewToggled();
+    app.FigureAutoSlider.Value = 1;
+    app.onFigureAutoRedrawChanged();
     app.onFigureSectionToggled("options");
     app.onFigureSuperToggled("look");
     app.onRemoveFigure();
@@ -2526,7 +2560,7 @@ end
 if S.sec("5d.spectrum", "a spectrum panel and a spectrogram panel (Chronux: the bundled copy, on the path for these checks only)")
     savedConfig();
     noFigures();
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     spPath = "";
     if ~ChronuxDataset.hasChronux() && isfolder(fullfile(repo, 'toolboxes', 'chronux'))
         spPath = string(genpath(fullfile(repo, 'toolboxes', 'chronux')));
@@ -2617,7 +2651,7 @@ if S.sec("5d.spectrum", "a spectrum panel and a spectrogram panel (Chronux: the 
         app.onSaveConfig();
     end
     if spPath ~= ""; rmpath(spPath); end
-    app.FigureAutoCheckBox.Value = true;   % the automatic preview on again at the end of 5d, as the tab starts
+    app.FigureAutoSlider.Value = 1;   % the automatic preview on again at the end of 5d, as the tab starts
     app.onSaveConfig();
     app.Tabs.SelectedTab = app.TabData;
 end
@@ -2625,9 +2659,9 @@ end
 if S.sec("5e", "Copy settings... for figures: one setting, one figure onto another (out of date, not drawn), the window (From, the tree, Find, the figures ticked), Undo, into a design")
     savedConfig();
     noFigures();
-    app.FigureAutoPreviewSeconds = Inf;   % a preview slowed by a loaded machine must not leave the next one out of date
+    autoAlways(app);   % a preview slowed by a loaded machine must not leave the next one out of date
     restoreAutoLimit = onCleanup(@() resetAutoLimit(app));
-    app.FigureAutoCheckBox.Value = true;   % the automatic preview, as 5d leaves it
+    app.FigureAutoSlider.Value = 1;   % the automatic preview, as 5d leaves it
     app.selectTab(app.TabFigures);
     app.CopyUnticked = string.empty(1, 0);
     app.CopyTargets = string.empty(1, 0);
@@ -2703,14 +2737,14 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
     savedConfig();
     noFigures();
     exported();
-    app.FigureAutoPreviewSeconds = Inf;   % a preview slowed by a loaded machine must not leave the next one out of date
+    autoAlways(app);   % a preview slowed by a loaded machine must not leave the next one out of date
     restoreAutoLimit = onCleanup(@() resetAutoLimit(app));
-    app.FigureAutoCheckBox.Value = true;   % the automatic preview, as 5d leaves it
+    app.FigureAutoSlider.Value = 1;   % the automatic preview, as 5d leaves it
     app.selectTab(app.TabFigures);
     bcol = app.FigurePreviewButton.Parent;   % the column of buttons, left of the Dataset, Observation and Favorites rows
     check(app.FigureRedrawAllButton.Enable == "off" && app.GenerateFigureMenu.Enable == "off" && app.FigureExportPreviewColumnButton.Enable == "off" ...
         && app.TestReportButton.Enable == "off" ...
-        && app.FigureRedrawAllButton.Parent == bcol && app.FigureExportPreviewColumnButton.Parent == bcol && app.FigureAutoCheckBox.Parent == bcol ...
+        && app.FigureRedrawAllButton.Parent == bcol && app.FigureExportPreviewColumnButton.Parent == bcol && app.FigureAutoSlider.Parent.Parent == bcol ...
         && isequal(app.FigurePreviewButton.Layout.Row, 1) && isequal(app.FigureRedrawAllButton.Layout.Row, 2) && isequal(app.FigureExportPreviewColumnButton.Layout.Row, 3) ...
         && isequal(app.FigureRedrawAllButton.BackgroundColor, app.FigurePreviewButton.BackgroundColor) ...
         && app.GenerateFigureMenu.Parent == app.FileMenu && app.GenerateFigureMenu.Accelerator == "G" ...
@@ -2890,9 +2924,9 @@ if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the 
     savedConfig();
     noFigures();
     groupedBy("Depth");
-    app.FigureAutoPreviewSeconds = Inf;   % a preview slowed by a loaded machine must not leave the next one out of date
+    autoAlways(app);   % a preview slowed by a loaded machine must not leave the next one out of date
     restoreAutoLimit = onCleanup(@() resetAutoLimit(app));
-    app.FigureAutoCheckBox.Value = true;   % the automatic preview, as 5d leaves it
+    app.FigureAutoSlider.Value = 1;   % the automatic preview, as 5d leaves it
     app.selectTab(app.TabFigures);
     app.onAddFigure("rasterPsth");
     kS = app.SelectedFigure;
@@ -3016,9 +3050,9 @@ end
 
 if S.sec("5h", "the figure tree, a panel's note and overlays")
     savedConfig();
-    app.FigureAutoPreviewSeconds = Inf;   % as in 5d-5f: a preview slowed by a loaded machine must not leave the next one out of date
+    autoAlways(app);   % as in 5d-5f: a preview slowed by a loaded machine must not leave the next one out of date
     restoreAutoLimit5h = onCleanup(@() resetAutoLimit(app));
-    app.FigureAutoCheckBox.Value = true;   % the automatic preview, as 5d leaves it
+    app.FigureAutoSlider.Value = 1;   % the automatic preview, as 5d leaves it
     app.selectTab(app.TabFigures);
     ftree = app.FiguresTree;
     noFigures();
@@ -3194,6 +3228,15 @@ if S.sec("5h", "the figure tree, a panel's note and overlays")
     check(axRows && pAx.yLabel == "Rate" && pAx.ySide == "right" && pAx.xSide == "bottom" && app.FigurePreviewState == "drawn" ...
         && strcmp(axP.YAxisLocation, 'right') && string(axP.YLabel.String) == "Rate", ...
         'the X axis and Y axis rows show for the selected panel; its y label and side reach the panel, and the preview draws them');
+    showRow = shown(FE.panelXShow) && shown(FE.panelYShow) && string(FE.panelXShow.Value) == "all" && string(FE.panelYShow.Value) == "all";
+    FE.panelYShow.Value = "ticks";
+    app.onConfigChanged("figure");
+    axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    check(showRow && app.Config.Figures(1).panels(2).yShow == "ticks" && app.Config.Figures(1).panels(2).xShow == "all" ...
+        && app.FigurePreviewState == "drawn" && strjoin(string(axP.YLabel.String), "") == "" && ~isempty(axP.YTick), ...
+        'the Show (x, y) row shows for the selected panel; "ticks, no label" on y reaches the panel and blanks the preview''s y label');
+    FE.panelYShow.Value = "all";
+    app.onConfigChanged("figure");
     FE.stack.Value = "groups";
     app.onConfigChanged("figure");
     stackOff = FE.panelYSide.Enable == "off";
@@ -3257,8 +3300,8 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % (no Ctrl held from an earlier section)
     app.selectTab(app.TabFigures);
     groupedBy("Depth");   % trial groups: the figure has a legend, floating in free space when there is room
-    app.FigureAutoCheckBox.Value = true;
-    app.FigureAutoPreviewSeconds = Inf;   % Auto draws (and lays out in place) whatever the machine's load
+    app.FigureAutoSlider.Value = 1;
+    autoAlways(app);   % Auto draws (and lays out in place) whatever the machine's load
     restore5ha = onCleanup(@() resetAutoLimit(app));
     units5ha = app.FigureRectUnits;
     snap5ha = {app.FigureSnap, app.FigureSnapStep};
@@ -3293,6 +3336,11 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         && contains(app.FigurePreviewHint.Text, "Arrange") && contains(app.StatusBar.Text, "drag") && FE.setCorners.Enable == "on", ...
         ['Arrange on: a hidden overlay axes over the page (0-1 both ways), a box per panel at its rect, the selected one blue ' ...
         'and thicker, the outline hidden; the line under the preview and the status bar say how; Set corners on']);
+    rR = rectOf5("raster_1");
+    S0 = visibleSizes(app);
+    check(numel(S0.texts) == 1 && S0.texts == sprintf("%.2f x %.2f cm", rR(3) * pageCm5(1), rR(4) * pageCm5(2)) ...
+        && abs(S0.pos(1, 1) - (rR(1) + rR(3) / 2)) < 1e-9 && S0.pos(1, 2) < rR(2), ...
+        sprintf('the selected raster_1''s width x height under its box, in cm, with no drag under way (%s)', strjoin(S0.texts, " | ")));
 
     % a resize of psth_1 (Snap off: exact): the box and its fields follow, the figure only on release, laid out in place
     app.FigureSnap = false;
@@ -3303,7 +3351,13 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.onArrangeMoving("psth_1", roiMove(r0, cur));
     during = app.SelectedPanel == 2 && app.FigureArrangeMode == "drag" && rectIs(wP.Position, cur) && rectIs(rectOf5("psth_1"), r0) ...
         && FE.rectW.Value == round(0.45 * pageCm5(1), 2) && numel(app.FigureHistory.Undo) == nUndo;
+    sizesDuring = visibleSizes(app).texts;
     app.onArrangeMoved("psth_1", roiMove(r0, cur));
+    S1 = visibleSizes(app);
+    check(isempty(sizesDuring) && numel(S1.texts) == 1 && S1.texts == sprintf("%.2f x %.2f cm", 0.45 * pageCm5(1), 0.5 * pageCm5(2)) ...
+        && S1.pos(1, 2) > 0.5, ...
+        sprintf(['the size label hides during the drag (the readout has it) and comes back on release with the new size, ' ...
+        'above psth_1 (on the page''s bottom edge) (%s)'], strjoin(S1.texts, " | ")));
     lines1 = findall(figAxes(), 'Type', 'line');
     check(during && rectIs(rectOf5("psth_1"), cur) && numel(app.FigureHistory.Undo) == nUndo + 1 && app.FigureHistory.undoLabel() == "Resize panel" ...
         && app.FigurePreviewState == "drawn" && ~isempty(lines0) && all(isvalid(lines0)) && numel(lines1) == numel(lines0) ...
@@ -3412,7 +3466,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
 
     % a slow preview (the time gate exceeded): a release lays the drawing out at the new rect all the same; one that parts
     % the stack leaves it out of date (laid out, saying so); out of date, a release still lays it out
-    app.FigureAutoPreviewSeconds = 0;
+    app.FigureAutoSlider.Value = 1e-6;   % Auto on, under 2 microseconds: no redraw fits
     app.FigureSnap = false;
     nUndo = numel(app.FigureHistory.Undo);
     lines0 = findall(figAxes(), 'Type', 'line');
@@ -3435,17 +3489,17 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         'nothing drawn, the preview out of date and the status bar saying "Laid out ..."; then psth_2 moved over the out-of-date ' ...
         'preview is laid out there too (x %.0f px)'], out1(4), R.page(4), out2(1)));
     % Arrange off: with Auto off the preview stays as laid out; with Auto on it is drawn again, whatever the time gate
-    app.FigureAutoCheckBox.Value = false;
+    app.FigureAutoSlider.Value = 0;
     arrangeToggle(app, false);
     offNoAuto = app.FigurePreviewState == "stale" && all(isvalid(lines0));
     arrangeToggle(app, true);
-    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoSlider.Value = 1e-6;   % Auto on again, the time gate still exceeded
     arrangeToggle(app, false);
     offAuto = app.FigurePreviewState == "drawn" && ~all(isvalid(lines0)) && contains(app.StatusBar.Text, "drawn again");
     check(offNoAuto && offAuto, ...
         'Arrange off with Auto off: the preview stays laid out and out of date; with Auto on it is drawn again (the time gate exceeded), labels and stacks caught up');
     arrangeToggle(app, true);
-    app.FigureAutoPreviewSeconds = Inf;
+    autoAlways(app);
     app.onUndoRedo("undo");
     app.onUndoRedo("undo");
     app.refreshFigurePreview(Force=true);
@@ -3686,7 +3740,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     end
 
     % out of date: the boxes stay, at the rects as edited
-    app.FigureAutoCheckBox.Value = false;
+    app.FigureAutoSlider.Value = 0;
     app.onPanelSelected(2);
     FE.rectX.Value = 1;
     FE.rectX.ValueChangedFcn(FE.rectX, []);
@@ -3701,7 +3755,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     [shownP, whyP] = app.syncArrangeOverlay();
     app.onRemoveFigure();
     app.onFigureSelected(k5);
-    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoSlider.Value = 1;
     app.refreshFigurePreview(Force=true);
     back5 = isstruct(app.FigureArrangeOverlay) && app.FigureArrangeOverlay.panel == app.FigurePreviewPanel;
     check(~shownO && contains(whyO, "first (Ctrl+P)") && ~shownP && contains(whyP, "probe figure") && back5, ...
@@ -3729,9 +3783,9 @@ end
 if S.sec("5i", "favorites: stars on datasets, units and channels; the Favorites lists")
     savedConfig();
     noFigures();
-    app.FigureAutoPreviewSeconds = Inf;   % as in 5d-5f
+    autoAlways(app);   % as in 5d-5f
     restoreAutoLimit5i = onCleanup(@() resetAutoLimit(app));
-    app.FigureAutoCheckBox.Value = true;   % the automatic preview, as 5d leaves it
+    app.FigureAutoSlider.Value = 1;   % the automatic preview, as 5d leaves it
     app.selectDataset(kF1);
     favDD = app.FigureFavorites.DropDown;
     check(numel(app.Favorites) == 2 && isa(app.Favorites, 'DatasetFavorites') && ~any([app.Favorites.Dataset]) ...
@@ -3921,9 +3975,9 @@ end
 if S.sec("5j", "notes: the notepad on datasets, units and channels; the ✎ marks; Search notes")
     savedConfig();
     noFigures();
-    app.FigureAutoPreviewSeconds = Inf;   % as in 5i
+    autoAlways(app);   % as in 5i
     restoreAutoLimit5j = onCleanup(@() resetAutoLimit(app));
-    app.FigureAutoCheckBox.Value = true;   % the automatic preview, as 5d leaves it
+    app.FigureAutoSlider.Value = 1;   % the automatic preview, as 5d leaves it
     yellow = [1 0.88 0.45];
     app.selectTab(app.TabFigures);
     app.selectDataset(kF1);
@@ -4048,8 +4102,8 @@ if S.sec("5k", "Edit menu: undo and redo of the figure editor")
     savedConfig();
     noFigures();
     app.onSaveConfig();   % the saved figures: none, which undoing every edit below comes back to
-    app.FigureAutoCheckBox.Value = false;   % no preview drawn: undo is about the config and the editor
-    restoreAuto5k = onCleanup(@() set(app.FigureAutoCheckBox, 'Value', true));
+    app.FigureAutoSlider.Value = 0;   % no preview drawn: undo is about the config and the editor
+    restoreAuto5k = onCleanup(@() set(app.FigureAutoSlider, 'Value', 1));
     menus = flip(findobj(app.Fig.Children, 'flat', 'Type', 'uimenu'));
     app.selectTab(app.TabData);
     H = app.FigureHistory;
@@ -4179,7 +4233,7 @@ if S.sec("5l", "a raster's First-spike marks... and a PSTH's Latency box plot...
     noFigures();
     groupedBy("Depth");
     app.selectTab(app.TabFigures);
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit: the preview is drawn once, at the end
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit: the preview is drawn once, at the end
     restoreAuto5l = onCleanup(@() autoBoxOn(app));
     app.onAddFigure("rasterPsth");
     app.onPanelSelected(1);   % the raster
@@ -4270,8 +4324,8 @@ end
 if S.sec("5m", "each figure's own preview container: kept drawings, the tree's marks, the editor's state, the observation lists, the cap, Redraw All and its Cancel, Remove, Undo / Redo")
     noFigures();
     app.selectTab(app.TabFigures);
-    app.FigureAutoCheckBox.Value = true;
-    app.FigureAutoPreviewSeconds = Inf;   % Auto draws every figure shown here, however loaded the machine
+    app.FigureAutoSlider.Value = 1;
+    autoAlways(app);   % Auto draws every figure shown here, however loaded the machine
     restore5m = onCleanup(@() resetAutoLimit(app));
     tree = app.FiguresTree;
     lookOf = @(k) app.FigureTreeMarks.look([app.FigureTreeMarks.nodes.NodeData] == k);
@@ -4298,7 +4352,7 @@ if S.sec("5m", "each figure's own preview container: kept drawings, the tree's m
         && all(app.FigureTreeMarks.look == "fresh") && height(st) == 1 && st.Style(1).FontWeight == "bold" ...
         && isequal(st.TargetIndex{1}, figureNode(tree, 1)), ...
         'the tree selects the figure shown and marks it bold; both previews are current, so nothing else is marked');
-    app.FigureAutoCheckBox.Value = false;
+    app.FigureAutoSlider.Value = 0;
     FE.title.Value = 'Kept apart';
     app.onConfigChanged("figure", FE.title);
     check(app.FigurePreviewState == "stale" && lookOf(1) == "stale" && lookOf(2) == "fresh" ...
@@ -4386,7 +4440,7 @@ if S.sec("5m", "each figure's own preview container: kept drawings, the tree's m
     check(numel(app.FigureViews) == app.MaxFigureViews + 1 && ~isvalid(P1) && all(isvalid([app.FigureViews.Panel])) ...
         && lookOf(1) == "none" && numel(app.FigurePreviewHost.Children) == app.MaxFigureViews + 1, ...
         sprintf('past %d containers the one shown least recently goes (the first figure''s): the tree marks it not drawn', app.MaxFigureViews));
-    app.FigureAutoCheckBox.Value = true;
+    app.FigureAutoSlider.Value = 1;
     app.onFigureSelected(1);
     check(app.FigurePreviewState == "drawn" && numel(figAxes()) == 2 && lookOf(1) == "fresh", 'shown again, it is drawn again (Auto)');
 
@@ -4434,15 +4488,15 @@ if S.sec("5m", "each figure's own preview container: kept drawings, the tree's m
     check(numel(app.FigureViews) == 1 && app.FigureViews.Id == "" && app.FigurePreviewPanel.Visible == "on", ...
         'every figure removed: only the empty container is left');
     clear restore5m
-    app.FigureAutoCheckBox.Value = false;
+    app.FigureAutoSlider.Value = 0;
     app.Tabs.SelectedTab = app.TabData;
 end
 
 if S.sec("5n", "Apply to figures: an edit made with Ctrl held given to other figures, the window, its ticks remembered, Edit > Apply last change, Replot, Cancel, Undo")
     noFigures();
     app.selectTab(app.TabFigures);
-    app.FigureAutoCheckBox.Value = true;
-    app.FigureAutoPreviewSeconds = Inf;   % Auto draws every figure shown here, however loaded the machine
+    app.FigureAutoSlider.Value = 1;
+    autoAlways(app);   % Auto draws every figure shown here, however loaded the machine
     restore5n = onCleanup(@() resetAutoLimit(app));
     app.ApplyTicked = string.empty(1, 0);
     app.ApplySeen = string.empty(1, 0);
@@ -4532,7 +4586,7 @@ if S.sec("5n", "Apply to figures: an edit made with Ctrl held given to other fig
     app.onConfigChanged("figure", FE.title);
     noFigures();
     clear restore5n
-    app.FigureAutoCheckBox.Value = false;
+    app.FigureAutoSlider.Value = 0;
     app.Tabs.SelectedTab = app.TabData;
 end
 
@@ -4540,8 +4594,8 @@ if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like 
     noFigures();
     app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5k), let go: edits stay with their figure
     app.selectTab(app.TabFigures);
-    app.FigureAutoCheckBox.Value = true;
-    app.FigureAutoPreviewSeconds = Inf;   % Auto draws every figure shown here, however loaded the machine
+    app.FigureAutoSlider.Value = 1;
+    autoAlways(app);   % Auto draws every figure shown here, however loaded the machine
     restore5o = onCleanup(@() resetAutoLimit(app));
     app.onAddFigure("rasterPsth");
     app.onAddFigure("psth");
@@ -4667,14 +4721,14 @@ if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like 
     delete(h);
     noFigures();
     clear restore5o
-    app.FigureAutoCheckBox.Value = false;
+    app.FigureAutoSlider.Value = 0;
     app.Tabs.SelectedTab = app.TabData;
 end
 
 if S.sec("5p", "remembered panel options: a new panel starts from the last set, Reset panel options, Forget, the preference; the color fields' swatches (the chooser replaced)")
     noFigures();
     app.selectTab(app.TabFigures);
-    app.FigureAutoCheckBox.Value = false;   % nothing here needs drawing
+    app.FigureAutoSlider.Value = 0;   % nothing here needs drawing
     restoreAuto5p = onCleanup(@() autoBoxOn(app));
     restorePicker5p = onCleanup(@() pickerBack(app));
     app.onForgetPanelOptions();
@@ -4792,7 +4846,7 @@ end
 if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into figures or as a new one, Update, Export, Remove, Import, the issue window) and the Apply last change button")
     noFigures();
     app.selectTab(app.TabFigures);
-    app.FigureAutoCheckBox.Value = false;   % nothing here needs drawing
+    app.FigureAutoSlider.Value = 0;   % nothing here needs drawing
     restoreAuto5q = onCleanup(@() autoBoxOn(app));
     app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5k), let go: edits stay with their figure
     app.FigureHistory = FigureEditHistory();   % the steps counted below start here (the sections before may have filled its Depth)
@@ -4941,7 +4995,7 @@ if S.sec("5u", "the figure's First-spike latency section: one block for every pa
     noFigures();
     groupedBy("Depth");
     app.selectTab(app.TabFigures);
-    app.FigureAutoCheckBox.Value = false;   % the preview is drawn when asked
+    app.FigureAutoSlider.Value = 0;   % the preview is drawn when asked
     restoreAuto5u = onCleanup(@() autoBoxOn(app));
     app.onAddFigure("rasterPsth");
     app.onPanelSelected(1);   % the raster: its marks on
@@ -5025,8 +5079,8 @@ end
 if S.sec("5s", "an edit of text alone (a label, a panel title) set on the drawn preview: nothing computed or drawn again, the drawing a whole one's; a side drawn again")
     noFigures();
     app.selectTab(app.TabFigures);
-    app.FigureAutoCheckBox.Value = true;
-    app.FigureAutoPreviewSeconds = Inf;   % Auto draws here, however loaded the machine
+    app.FigureAutoSlider.Value = 1;
+    autoAlways(app);   % Auto draws here, however loaded the machine
     restore5s = onCleanup(@() resetAutoLimit(app));
     app.onAddFigure("rasterPsth");
     app.refreshFigurePreview(Force=true);
@@ -5073,9 +5127,9 @@ if S.sec("5v", "a figure on the probe: the Probe layout section's rows wired to 
     savedConfig();
     noFigures();
     exported();
-    app.FigureAutoPreviewSeconds = Inf;   % a preview slowed by a loaded machine must not leave the next one out of date
+    autoAlways(app);   % a preview slowed by a loaded machine must not leave the next one out of date
     restore5v = onCleanup(@() resetAutoLimit(app));
-    app.FigureAutoCheckBox.Value = false;   % no redraw per edit: the preview is pressed below
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit: the preview is pressed below
     app.selectTab(app.TabFigures);
     app.onAddFigure("rasterPsth");
     kP = app.SelectedFigure;
@@ -5214,8 +5268,8 @@ end
 if S.sec("5w", "label variables: the {x} button beside each label's text, its menu adding one as a named edit, filled in on the preview; the list and Help > Label variables")
     noFigures();
     app.selectTab(app.TabFigures);
-    app.FigureAutoCheckBox.Value = true;
-    app.FigureAutoPreviewSeconds = Inf;   % Auto draws here, however loaded the machine
+    app.FigureAutoSlider.Value = 1;
+    autoAlways(app);   % Auto draws here, however loaded the machine
     restore5w = onCleanup(@() resetAutoLimit(app));
     app.onAddFigure("rasterPsth");
     app.refreshFigurePreview(Force=true);
@@ -5542,15 +5596,21 @@ app.CancelButton.ButtonPushedFcn(app.CancelButton, []);   % the Export tab's Can
 end
 
 
+function autoAlways(app)
+%autoAlways  Auto, when on, redrawing after every edit (its slider at 1): a preview slowed by a loaded machine must not leave the next one out of date.
+if app.FigureAutoSlider.Value > 0; app.FigureAutoSlider.Value = 1; end
+end
+
+
 function resetAutoLimit(app)
-%resetAutoLimit  The figure preview's auto limit back to AutoPreviewSeconds (5d-5f raise it), while the app lives.
-if isvalid(app); app.FigureAutoPreviewSeconds = app.AutoPreviewSeconds; end
+%resetAutoLimit  Auto, when on, back to its default threshold (AutoRedrawDefault; autoAlways raised it), while the app lives.
+if isvalid(app) && isvalid(app.FigureAutoSlider) && app.FigureAutoSlider.Value > 0; app.FigureAutoSlider.Value = app.AutoRedrawDefault; end
 end
 
 
 function autoBoxOn(app)
-%autoBoxOn  Auto ticked again, if the app is still there (a section's cleanup).
-if isvalid(app) && isvalid(app.FigureAutoCheckBox); app.FigureAutoCheckBox.Value = true; end
+%autoBoxOn  Auto on again, redrawing after every edit, if the app is still there (a section's cleanup).
+if isvalid(app) && isvalid(app.FigureAutoSlider); app.FigureAutoSlider.Value = 1; end
 end
 
 
@@ -5723,6 +5783,18 @@ types = string(get(h, 'Type'));
 G.lines = h(types == "line");
 t = h(types == "text");
 if ~isempty(t); G.texts = reshape(string(get(t, 'String')), [], 1); end
+end
+
+
+function S = visibleSizes(app)
+%visibleSizes  Arrange's size labels showing over the preview: their strings and positions (a row each).
+S = struct('texts', strings(0, 1), 'pos', zeros(0, 3));
+O = app.FigureArrangeOverlay;
+if ~isstruct(O) || ~isvalid(O.axes); return; end
+h = findall(O.axes, 'Tag', 'arrangeSize', 'Visible', 'on');
+if isempty(h); return; end
+S.texts = reshape(string(get(h, 'String')), [], 1);
+S.pos = reshape(vertcat(h.Position), [], 3);
 end
 
 

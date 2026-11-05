@@ -57,7 +57,9 @@ classdef EphysAnalysisConfig
     %               (defaults("Panel")): id, type, title, box (the axes'
     %               box: "auto" = the design's, "on", "off"), xLabel and
     %               yLabel ("" = automatic), xSide ("bottom" | "top") and
-    %               ySide ("left" | "right"), rect ([x y width height],
+    %               ySide ("left" | "right"), xShow and yShow (what the
+    %               axis shows: "all", "ticks" = no label, "label" = no
+    %               ticks, "none"), rect ([x y width height],
     %               0-1 of the page from its bottom-left corner; the later
     %               of two overlapping panels is drawn on top), ref,
     %               window, selection (its own:
@@ -207,6 +209,9 @@ classdef EphysAnalysisConfig
         % The sides a panel's x and y axes take, their ticks and label (panel.xSide, panel.ySide).
         PanelXSides   = ["bottom" "top"]
         PanelYSides   = ["left" "right"]
+        % What a panel's x or y axis shows (panel.xShow, panel.yShow): its label and ticks, its ticks only (the label
+        % blanked), its label only (the tick marks and numbers blanked), or neither (the axis line alone).
+        PanelAxisShows = ["all" "ticks" "label" "none"]
         % What a panel's overlays (defaults("Overlay")) choose from: the layer, a line's style.
         OverlayLayers     = ["over" "under"]
         OverlayLineStyles = ["-" "--" ":" "-."]

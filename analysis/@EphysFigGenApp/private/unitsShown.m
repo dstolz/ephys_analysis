@@ -1,4 +1,4 @@
-function [v, digits] = unitsShown(v, from, units, pageCm, dpi, axis)
+function [v, digits, tail] = unitsShown(v, from, units, pageCm, dpi, axis)
 %unitsShown  Values as the Panels section shows them in UNITS: converted, and rounded to its fields' precision.
 %   V = unitsShown(V, FROM, UNITS, PAGECM, DPI, AXIS) converts V from the
 %   units FROM to UNITS (EphysAnalysisConfig.RectUnits) on the page PAGECM
@@ -11,6 +11,8 @@ function [v, digits] = unitsShown(v, from, units, pageCm, dpi, axis)
 %   edit).
 %   [V, DIGITS] = unitsShown(...) also gives that number of decimals;
 %   [~, DIGITS] = unitsShown([], "", UNITS) gives it alone.
+%   [V, DIGITS, TAIL] = unitsShown(...) also gives what follows a value
+%   in UNITS: "" for normalized, " %", " cm", " in", " px".
 %
 %   See also figureRectConvert, showPanelPlace, rectText.
 arguments
@@ -27,6 +29,8 @@ switch units
     case "px",         digits = 0;
     otherwise,         digits = 2;   % % and cm
 end
+tail = "";
+if units ~= "normalized"; tail = " " + units; end
 if isempty(v); return; end
 v = round(figureRectConvert(v, from, units, pageCm, dpi, axis), digits);
 v(v == 0) = 0;   % no -0

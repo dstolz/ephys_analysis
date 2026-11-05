@@ -41,9 +41,7 @@ ax = O.axes;
 px = max(ax.Position(3:4), 1);   % the page in px: a few px of offset in its 0-1
 u = obj.FigureRectUnits;
 [pageCm, dpi] = figurePage(obj);
-[~, d] = unitsShown([], "", u);
-tails = struct('normalized', "", 'p', " %", 'cm', " cm", 'in', " in", 'px', " px");
-tail = tails.(strrep(char(u), '%', 'p'));
+[~, d, tail] = unitsShown([], "", u);
 on = false(size(objs));
 
 % the alignment lines

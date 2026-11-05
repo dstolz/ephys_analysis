@@ -17,12 +17,12 @@ function onArrangeToggled(obj)
 %   images.roi.Rectangle): without a license the button goes back off and
 %   the status bar says so.
 %   Off, any drag or Set corners under way ends (cancelArrange), the
-%   boxes go and the preview is as usual again. With Auto ticked, the
-%   preview of the figure (drawn, or out of date: laid out by the drags)
-%   is then drawn again, whatever the time a preview takes
+%   boxes go and the preview is as usual again. With Auto on (its slider
+%   off the left end), the preview of the figure (drawn, or out of date:
+%   laid out by the drags) is then drawn again, whatever Auto's limit
 %   (refreshFigurePreview, Force), so the time stacks' labels and the
 %   ticks catch up with the new places; nothing kept is computed again.
-%   With Auto unticked it stays as laid out (out of date if it was).
+%   With Auto off it stays as laid out (out of date if it was).
 %
 %   See also EphysFigGenApp.syncArrangeOverlay, EphysFigGenApp.cancelArrange, EphysFigGenApp.onSnapChanged.
 b = obj.FigureArrangeButton;
@@ -40,7 +40,7 @@ if ~on
     obj.cancelArrange("");
     obj.FigureArrangeFocus = false;
     k = obj.SelectedFigure;
-    redraw = ~noLicense && obj.FigureAutoCheckBox.Value && k >= 1 && k <= numel(obj.Config.Figures) ...
+    redraw = ~noLicense && autoRedrawLimit(obj) > 0 && k >= 1 && k <= numel(obj.Config.Figures) ...
         && ~obj.Config.Figures(k).sessions.enabled && previewShowsFigure(obj);   % (a session figure waits for Preview)
 end
 [shown, why] = obj.syncArrangeOverlay();

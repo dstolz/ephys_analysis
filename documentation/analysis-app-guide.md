@@ -76,7 +76,8 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
      the selected panel in two, flush: the new panel takes the half on that
      side.
    - To move or resize a panel, press **Arrange** above the preview. Every
-     panel gets a box. Drag a box to move it; drag a corner or an edge to
+     panel gets a box. Click a box to select its panel: its width and height
+     show under it. Drag a box to move it; drag a corner or an edge to
      resize it. The box snaps to the other panels and the page (hold **Alt**
      to stop that), and magenta lines and distances show what lines up. Arrange
      needs the Image Processing Toolbox; without it, type the numbers below.
@@ -85,7 +86,8 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
      Or press **Set corners** and click two opposite corners on the preview.
    - The preview on the right draws the figure for the unit picked above it.
      Step through the units to look at them one by one. Right-click the plot
-     to change colors, fonts and labels.
+     to change colors, fonts and labels. After a change it draws again on
+     its own when that is quick enough for the **Auto** slider left of it.
 4. **Export.** Tick the formats (png, svg, pdf), press **Run**, then **Open
    report**.
 5. **File → Save config** keeps it all: the alignment, the figures and the
@@ -101,12 +103,14 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | draw a figure across several recordings | tick **Across datasets** in the figure's Sessions section |
 | draw a small figure at every unit's place on the probe | tick **On the probe** in the figure's Probe layout section |
 | check one unit's figures before a long run | Export tab: **Test report** |
+| choose when the preview redraws after a change | drag the **Auto** slider left of the preview. Left end: never, press **Preview**. Right end: after every change, however slow. In between, the further right, the slower a redraw it starts on its own (the middle: under 2 s; point at the slider to see its limit). A change of colors, fonts or labels only redraws, so it is quick even when computing the figure is slow. **Ctrl+T** turns Auto off and on |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
 | move or resize a panel | press **Arrange** above the preview and drag the panel's box (a corner or an edge resizes it); after a click on the preview the arrow keys nudge it. Or pick it (Ctrl+Click it in the preview) and type its **Position** and **Size** in the Panels section; **Units** picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [Arranging panels on the preview](EphysFigGenApp.md#arranging-panels-on-the-preview)) |
 | change a setting on several panels at once | **Shift+Click** the panels in the preview: each is outlined, and the Panel header turns blue and names them. The editor shows only the settings they all have; what you change goes to all of them (one Undo takes it back). **Esc** goes back to one panel (see [Several panels at once](EphysFigGenApp.md#several-panels-at-once)) |
 | move or resize several panels together | **Shift+Click** them, then press **Arrange** (or press Arrange and **Shift**+click their boxes), then drag one of them: all move by the same amount (resizing one resizes each by the same amount); the arrow keys nudge them all |
 | put the legend where you want it | with **Arrange** on, drag the legend's dashed box where you want it: it becomes a legend panel there. Or **New panel...** → *Legend*: a panel of its own that holds the figure's legend; place and size it as any panel. Appearance → **Legend** picks *Auto*, *Inside* or *None*; the legend never makes a plot smaller |
 | keep labels from running into the next panel, or make a rect mean the whole panel with its labels | in the **Panels** section, **Padding** is the clear space kept around labels, and **Boxes mean** says whether a rect is the plot area (labels kept clear) or the outer box (labels inside it) |
+| hide a panel's axis label or tick numbers (say, on the inner panels of a grid) | select the panel, and in **Selected panel** set **Show (x, y)** to *ticks, no label*, *label, no ticks* or *neither* for that axis |
 | copy a change to the other figures | **Edit → Apply last change to figures...** |
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysFigGenApp.md#notes)) |
@@ -162,6 +166,10 @@ the quickest way to draw the same figures for one group of recordings.
   signal: switch on LFP in the pipeline's Signals tab and run it*, *No paired
   trials: approve the pairing on the pipeline's Trials tab*, and so on. See
   [Why is my figure skipped?](EphysFigGenApp.md#why-is-my-figure-skipped)
+- **The preview says *Out of date*.** The figure changed and was not drawn
+  again: **Auto** is off, or the redraw would take longer than Auto allows
+  (the line under the preview says *slow*). Press **Preview**, or drag the
+  **Auto** slider to the right.
 - **The Export tab's Plan** lists every recording and figure that would run,
   and why any would be skipped, with a *What to do* column, before you run
   anything. Double-click a row to see that figure.

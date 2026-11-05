@@ -8,9 +8,11 @@ function refreshFigurePreview(obj, opts)
 %   the dataset cannot draw says why (a layer it cannot draw says so in
 %   its panel); a signal extract a layer reads above PreviewMaxMB is only
 %   read when Force is set (the Preview button). The time taken decides
-%   whether edits redraw it (autoFigurePreview, under AutoPreviewSeconds);
-%   the first figure drawn after the app starts is not counted, since it
-%   also loads the graphics. A right-click on the preview opens the
+%   whether edits redraw it (autoFigurePreview, under the Auto slider's
+%   limit): it is kept in two parts (FigurePreviewCost: computing, with
+%   the data key computed, previewDataKey; drawing), from which
+%   previewCost predicts the next edit's; the first figure drawn after the
+%   app starts is not counted, since it also loads the graphics. A right-click on the preview opens the
 %   aesthetics editor; what it remembers for the figure comes back through
 %   rememberFigureAesthetics, an axis label's own text or side (its menu)
 %   through onFigureAxisEdited. The selected panel is outlined in the
@@ -42,8 +44,8 @@ function refreshFigurePreview(obj, opts)
 %   runner's checkpoints between the tiles) and draws them on one page
 %   (renderFigure hands the result to renderProbeFigure; Reuse off); the
 %   status line reads "<id> on <dataset>: 23 tiles, 3 left out (4.2 s);
-%   ...". The auto-preview rule (the seconds it took) applies as for any
-%   figure.
+%   ...". The Auto slider's rule (the seconds its parts took) applies as
+%   for any figure.
 %   It draws into the selected figure's own container (FigurePreviewPanel,
 %   syncFigureView: shown first when it is not yet), and keeps the key it
 %   drew with (FigurePreviewDrawn: figureViewKey, so the tree and a switch
@@ -148,6 +150,7 @@ if ~istable(T) || height(T) == 0 || ~isnumeric(i) || i < 1 || i > height(T)
 end
 obs = T(i, :);
 drawnKey = figureViewKey(obj, k);   % what it is drawn from (FigurePreviewDrawn once drawn)
+dataKey = previewDataKey(obj, k);   % what its data are computed from (FigurePreviewCost)
 if ~opts.Force
     mb = signalMB(spec, src);
     if mb > obj.PreviewMaxMB
@@ -158,7 +161,7 @@ if ~opts.Force
     end
 end
 if spec.probe.enabled   % every tile on one page
-    probePreview(obj, spec, src, drawnKey);
+    probePreview(obj, spec, src, drawnKey, dataKey);
     return
 end
 what = spec.id + " (" + obs.label + ")";
@@ -173,6 +176,7 @@ polling = onCleanup(@() stopPolling(rn));
 try
     F = rn.computeFigure(src, spec, Observation=obs, Reuse=true);   % what an earlier preview computed on the same data is taken again (a look-only edit computes nothing)
     rn.PollFcn = [];
+    secsCompute = toc(t0);
     obj.FigurePreviewResult = F;
     L.Text = "Drawing " + what + " ...";
     obj.setFigurePreviewState("drawing", Message="Drawing " + what + " ...");
@@ -202,19 +206,18 @@ catch ME
     return
 end
 secs = toc(t0);
+keepCost(obj, dataKey, secsCompute, secs - secsCompute);
 obj.FigurePreviewSeconds = secs;
 if ~obj.FigurePreviewWarm   % the first figure drawn also loads the graphics: its time does not stop auto-preview
     obj.FigurePreviewSeconds = 0;
+    obj.FigurePreviewCost = struct('compute', 0, 'draw', 0, 'key', {dataKey});   % (nor its parts)
     obj.FigurePreviewWarm = true;
 end
 obj.FigurePreviewDrawn = drawnKey;
 obj.setFigurePreviewState("drawn");
 if obj.FigurePreviewRedo; obj.setFigurePreviewState("stale"); end
 L.Text = sprintf("%s, %s on %s (%.1f s); right-click to change colors, lines and fonts", spec.id, obs.label, src.name, secs);
-if obj.FigurePreviewSeconds >= obj.FigureAutoPreviewSeconds && obj.FigureAutoCheckBox.Value
-    L.Text = L.Text + ": slow, so edits wait for Preview";
-end
-L.Text = L.Text + batchNote(spec);
+L.Text = L.Text + slowNote(obj) + batchNote(spec);
 end
 
 
@@ -341,14 +344,15 @@ L.Text = txt + "; right-click to change colors, lines and fonts" + batchNote(spe
 end
 
 
-function probePreview(obj, spec, src, drawnKey)
+function probePreview(obj, spec, src, drawnKey, dataKey)
 %probePreview  A probe figure: every tile computed (the card counting them, Cancel between them), then drawn on one page.
 %   EphysAnalysisRunner.computeProbeFigure, with what earlier previews
 %   computed taken again (Reuse: the figure's epochs are one step every
 %   tile shares; a look-only edit computes nothing), then renderFigure,
 %   which hands the result (PF, kind "probeFigure") to renderProbeFigure:
 %   drawn whole each time (Reuse off). The status line says how many tiles
-%   and how many observations were left out.
+%   and how many observations were left out. Timed in two parts as a
+%   figure is (keepCost).
 L = obj.FigurePreviewLabel;
 what = spec.id + " on the probe";
 L.Text = "Computing " + what + " ...";
@@ -363,6 +367,7 @@ try
     PF =rn.computeProbeFigure(src, spec, Reuse=true, ProgressFcn=@(i, n, lab) obj.setFigurePreviewState("computing", ...
         Message=sprintf("Computing tile %d/%d (%s) on %s ...", i, n, lab, src.name)));
     rn.PollFcn = [];
+    secsCompute = toc(t0);
     obj.FigurePreviewResult = PF;
     L.Text = "Drawing " + what + " ...";
     obj.setFigurePreviewState("drawing", Message="Drawing " + what + " (" + PF.nTiles + " tiles) ...");
@@ -393,9 +398,11 @@ catch ME
 end
 clear polling
 secs = toc(t0);
+keepCost(obj, dataKey, secsCompute, secs - secsCompute);
 obj.FigurePreviewSeconds = secs;
 if ~obj.FigurePreviewWarm   % the first figure drawn also loads the graphics: its time does not stop auto-preview
     obj.FigurePreviewSeconds = 0;
+    obj.FigurePreviewCost = struct('compute', 0, 'draw', 0, 'key', {dataKey});   % (nor its parts)
     obj.FigurePreviewWarm = true;
 end
 obj.FigurePreviewDrawn = drawnKey;
@@ -409,9 +416,39 @@ if isfield(PF, 'left') && isstruct(PF.left)
 end
 txt = sprintf("%s on %s: %d tile%s", spec.id, src.name, PF.nTiles, repmat('s', 1, PF.nTiles ~= 1));
 if nLeft > 0; txt = txt + sprintf(", %d left out", nLeft); end
-L.Text = txt + sprintf(" (%.1f s); right-click to change colors, lines and fonts", secs);
-if obj.FigurePreviewSeconds >= obj.FigureAutoPreviewSeconds && obj.FigureAutoCheckBox.Value
-    L.Text = L.Text + ": slow, so edits wait for Preview";
+L.Text = txt + sprintf(" (%.1f s); right-click to change colors, lines and fonts", secs) + slowNote(obj);
+end
+
+
+function keepCost(obj, key, secsCompute, secsDraw)
+%keepCost  The two parts of the preview just drawn (FigurePreviewCost), which previewCost predicts the next one from.
+%   KEY is the data key it computed (previewDataKey). The compute's time
+%   is kept when the data were computed: another key, or a time longer
+%   than the one kept (the runner had forgotten them). A preview of the
+%   same data reused them and took next to no time to compute, which
+%   says nothing of what the next edit of the data costs: the time kept
+%   stays. The drawing's time is always the last one.
+C = obj.FigurePreviewCost;
+if ~isequaln(C.key, key) || secsCompute > C.compute
+    C.compute = secsCompute;
+end
+C.key = key;
+C.draw = max(secsDraw, 0);
+obj.FigurePreviewCost = C;
+end
+
+
+function t = slowNote(obj)
+%slowNote  The status line's word when the Auto slider's limit leaves edits of the figure just drawn waiting for Preview.
+%   "" when Auto is off or always redraws, or the time was not counted.
+t = "";
+limit = autoRedrawLimit(obj);
+if limit == 0 || isinf(limit) || obj.FigurePreviewSeconds == 0; return; end
+C = obj.FigurePreviewCost;
+if C.draw >= limit
+    t = ": slow to draw, so edits wait for Preview";
+elseif C.compute + C.draw >= limit
+    t = ": slow to compute, so only edits of the look (colors, fonts, labels, places) redraw; the others wait for Preview";
 end
 end
 

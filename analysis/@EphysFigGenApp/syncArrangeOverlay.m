@@ -20,7 +20,10 @@ function [shown, why] = syncArrangeOverlay(obj, opts)
 %   (FigureArrangeMode "corners"). A click on the overlay's empty part,
 %   or on a box, calls onArrangeClicked; a box's drag onArrangeMoving and
 %   onArrangeMoved; its right-click menu is private/arrangeMenu's. The
-%   smart guides (private/arrangeCues) live in the overlay too.
+%   smart guides (private/arrangeCues) live in the overlay too, and so do
+%   the selected panels' size labels ("9.00 x 6.00 cm" under each selected
+%   box, always while it is selected, hidden during a drag:
+%   private/arrangeSizeLabels).
 %   The panels selected with Shift+click besides the primary
 %   (FigurePanelExtra) are the editor's selection, the same with Arrange
 %   on or off: syncFigureEditor lets them go when the figure's panels
@@ -53,7 +56,10 @@ shown = false;
 why = "";
 O = obj.FigureArrangeOverlay;
 if opts.Follow
-    if isstruct(O) && isvalid(O.axes) && isvalid(O.panel); followCanvas(O.axes, O.panel); end
+    if isstruct(O) && isvalid(O.axes) && isvalid(O.panel)
+        followCanvas(O.axes, O.panel);
+        arrangeSizeLabels(obj);   % (their offsets are px)
+    end
     shown = isstruct(O);
     return
 end
@@ -141,6 +147,7 @@ O.legendRect = lr;
 O.ids = ids;
 O.widgets = W;
 obj.FigureArrangeOverlay = O;
+arrangeSizeLabels(obj);   % the selected panels' sizes by their boxes
 shown = true;
 end
 
@@ -165,7 +172,7 @@ ax = axes(P, 'Units', 'pixels', 'Position', [1 1 10 10], 'XLim', [0 1], 'YLim', 
 disableDefaultInteractivity(ax);
 ax.Toolbar.Visible = 'off';
 O = struct('axes', ax, 'panel', P, 'widgets', containers.Map('KeyType', 'char', 'ValueType', 'any'), 'legend', [], ...
-    'legendRect', [], 'guides', [], 'band', [], 'timer', [], 'ids', []);
+    'legendRect', [], 'guides', [], 'sizes', [], 'band', [], 'timer', [], 'ids', []);
 end
 
 

@@ -1746,6 +1746,10 @@ if S.sec("6", "config: validate")
     bx2 = b; bx2.Figures(1).panels(2).xSide = "left"; bx2.Figures(1).panels(2).ySide = "top";
     check(isempty(figIssues(bx)) && has(bx2, "figure_1.psth_1.xSide", "error") && has(bx2, "figure_1.psth_1.ySide", "error"), ...
         'a panel''s xSide is bottom or top, its ySide left or right (anything else is an error); a label is any text');
+    bx = b; bx.Figures(1).panels(2).xShow = "ticks"; bx.Figures(1).panels(2).yShow = "none";
+    bx2 = b; bx2.Figures(1).panels(2).yShow = "labels";
+    check(isempty(figIssues(bx)) && has(bx2, "figure_1.psth_1.yShow", "error"), ...
+        'a panel''s xShow / yShow is one of PanelAxisShows (anything else is an error)');
     nb.placement = "nowhere"; nb.align = "justify"; nb.valign = "up"; nb.interpreter = "latex"; nb.rotation = NaN;
     nb.fontSize = -1; nb.color = "plaid";
     b2 = b; b2.Figures(1).panels(2).note = nb;
@@ -3190,6 +3194,31 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     drawnow;
     check(xshown(hAx.panels(1).axes) && xshown(hAx.panels(2).axes), ...
         'x axes facing away from each other (the top panel''s on top, the bottom one''s at the bottom) both keep their ticks');
+    % what a panel's axes show (xShow, yShow): the label, the ticks or both blanked, after the time stack named the label
+    sSh = F1.spec;
+    sSh.panels(2).xShow = "ticks";    % the PSTH tells the time: its ticks without "Time (s)"
+    sSh.panels(2).yShow = "label";    % its y label without ticks
+    sSh.panels(1).yShow = "none";     % the raster's y axis bare
+    clf(fig);
+    hSh = renderFigure(F1, sSh, fig, Reuse=true);
+    drawnow;
+    [ra, pa] = deal(hSh.panels(1).axes, hSh.panels(2).axes);
+    labelOf = @(lab) strjoin(string(lab.String), "");
+    check(~isempty(pa.XTick) && ~isempty(pa.XTickLabel) && labelOf(pa.XLabel) == "" && isempty(pa.YTick) ...
+        && labelOf(pa.YLabel) ~= "" && isempty(ra.YTick) && labelOf(ra.YLabel) == "" && ~xshown(ra), ...
+        'xShow "ticks" blanks the label a time stack names; yShow "label" blanks the ticks, "none" the label and ticks');
+    sSh2 = sSh;
+    sSh2.panels(2).xLabel = "Latency (s)";   % a text edit while the label is blanked: drawn in place, still blank
+    [hSh2, howSh] = renderFigure(F1, sSh2, fig, Reuse=true);
+    drawnow;
+    check(howSh == "inplace" && labelOf(hSh2.panels(2).axes.XLabel) == "", ...
+        sprintf('a new xLabel on a panel whose label is blanked keeps it blank (drawn: %s)', howSh));
+    sSh3 = sSh2;
+    sSh3.panels(2).xShow = "all";
+    hSh3 = renderFigure(F1, sSh3, fig, Reuse=true);
+    drawnow;
+    check(labelOf(hSh3.panels(2).axes.XLabel) == "Latency (s)" && ~isempty(hSh3.panels(2).axes.XTickLabel), ...
+        'xShow back to "all" draws the panel''s own label and ticks again');
     clf(fig);   % the note-band checks below use the figure drawn with the notes
     hN = renderFigure(F1, sN, fig);
     drawnow;

@@ -12,7 +12,7 @@ end
 AppPrefs.setpref(g, 'RecentConfigs', cellstr(obj.RecentConfigs));
 AppPrefs.setpref(g, 'ScriptFolder', char(obj.ScriptFolder));
 AppPrefs.setpref(g, 'PreviewMaxMB', obj.PreviewMaxMB);
-AppPrefs.setpref(g, 'FigureAutoPreview', logical(obj.FigureAutoCheckBox.Value));
+AppPrefs.setpref(g, 'FigureAutoRedraw', double(obj.FigureAutoSlider.Value));
 AppPrefs.setpref(g, 'FigureGroupBy', char(obj.FigureGroupDropDown.Value));
 AppPrefs.setpref(g, 'FigureGroupsCollapsed', cellstr(obj.FigureGroupsCollapsed));
 AppPrefs.setpref(g, 'FigureRectUnits', char(obj.FigureRectUnits));

@@ -13,6 +13,8 @@ function v = newFigureView(obj, id)
 %     Result    computeFigure's F drawn there ([] = none)
 %     Drawn     what it was drawn from (figureViewKey; [] = not drawn)
 %     Seconds   how long its last preview took (autoFigurePreview)
+%     Cost      its parts, computing and drawing, and the data key
+%               computed (FigurePreviewCost: previewCost)
 %     Sessions  a session figure's kept results (FigureSessionResults)
 %     Label     the status line under the preview while it shows
 %     Used      when it was last shown (FigureViewTick; the cap drops the
@@ -32,5 +34,5 @@ else
     uilabel(g, "Text", msg, "WordWrap", "on", "HorizontalAlignment", "center", "FontColor", [0.4 0.4 0.4]);
 end
 v = struct('Id', string(id), 'Panel', P, 'State', "idle", 'Result', [], 'Drawn', [], 'Seconds', 0, ...
-    'Sessions', [], 'Label', msg, 'Used', 0);
+    'Cost', struct('compute', 0, 'draw', 0, 'key', {[]}), 'Sessions', [], 'Label', msg, 'Used', 0);
 end

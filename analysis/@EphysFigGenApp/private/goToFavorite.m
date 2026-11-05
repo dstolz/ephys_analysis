@@ -18,9 +18,9 @@ end
 if isempty(obj.Runner) || e.dataset < 1 || e.dataset > numel(obj.Runner.Keys); return; end
 moved = e.dataset ~= obj.ActiveIdx;
 if moved
-    auto = obj.FigureAutoCheckBox.Value;
-    if e.level ~= "dataset"; obj.FigureAutoCheckBox.Value = false; end   % the unit or channel is drawn below, not the first one first
-    restore = onCleanup(@() set(obj.FigureAutoCheckBox, 'Value', auto));
+    auto = obj.FigureAutoSlider.Value;
+    if e.level ~= "dataset"; obj.FigureAutoSlider.Value = 0; end   % the unit or channel is drawn below, not the first one first
+    restore = onCleanup(@() set(obj.FigureAutoSlider, 'Value', auto));
     obj.selectDataset(e.dataset);
     clear restore
 end

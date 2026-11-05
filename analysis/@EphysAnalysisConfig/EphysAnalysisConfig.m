@@ -68,7 +68,8 @@ classdef EphysAnalysisConfig
     %               (a Note) and overlays (Overlays drawn on
     %               its own axes: their panel is always "all"); a layer
     %               (defaults("Layer")): name, enabled, source, binding,
-    %               units, channels, aggregate, event, eventsAs, color,
+    %               units, channels, aggregate, event, eventsAs, measure,
+    %               xMeasure (a trials layer's TrialMeasures), color,
     %               lineStyle. Figure ids are a
     %               namespace of their own (DuplicateFigureId), panel ids
     %               one per figure (DuplicatePanelId); figureFor(id) is the
@@ -143,9 +144,24 @@ classdef EphysAnalysisConfig
         Sections = ["Source" "Defaults" "Export" "Report"]
         SpikeSources  = ["units" "detected"]
         SignalSources = ["LFP" "MUA" "SPIKE" "AUX"]
-        % What a figure layer reads (Layer.source): spike times, a digital / derived line's events, or a signal;
-        % sourceCategories groups them, panelTypes says which categories each panel type draws.
-        FigureSources = ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX"]
+        % What a figure layer reads (Layer.source): spike times, a digital / derived line's events, a signal, or one
+        % number per trial (a trial measure, Layer.measure); sourceCategories groups them, panelTypes says which
+        % categories each panel type draws.
+        FigureSources = ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX" "trials"]
+        % The panel types that draw trial measures (trials layers only, one value per trial): a distribution per
+        % category, a histogram, a scatter of two measures.
+        TrialPanelTypes = ["trialDist" "trialHist" "trialScatter"]
+        % What a trial measure is (TrialMeasure.kind): the delay from A to B, A's interval's duration, the count of B
+        % events after A, or a trial parameter's value.
+        TrialMeasureKinds = ["delay" "duration" "count" "param"]
+        % What a trial panel groups its values by (options.categories, options.series): the figure's trial groups, a
+        % trial parameter's levels (binned or not), the session, or the layer (each its own measure).
+        TrialGroupings = ["groups" "param" "session" "layer"]
+        % A trial panel's group test (options.test): auto (ranksum for two levels, kruskalwallis for more), none, or
+        % the test named.
+        TrialTests = ["auto" "none" "ranksum" "ttest2" "kruskalwallis" "anova1"]
+        % A trial scatter's fit per series (options.fit): none, a polynomial of degree 1-3, or a moving mean / median.
+        TrialFits = ["none" "linear" "poly2" "poly3" "movmean" "movmedian"]
         % What a figure is drawn for (Figure.observe.data): each sorted unit, each channel's detections, each channel of
         % a signal's extract, or the dataset once (observeKind: "unit", "channel" or "dataset").
         ObserveData   = ["units" "detected" "LFP" "MUA" "SPIKE" "AUX" "dataset"]
@@ -605,7 +621,10 @@ classdef EphysAnalysisConfig
             %   every panel that shares the time axis (raster, psth,
             %   continuous, heatmap, spectrogram: marks or latency lines), whatever its
             %   categories, and "" elsewhere. An event-trace panel draws
-            %   events layers only: any other source is "" there.
+            %   events layers only: any other source is "" there. A trials
+            %   layer is "trial" on a trial distribution, histogram or
+            %   scatter panel (TrialPanelTypes), which draw no other
+            %   source, and "" elsewhere.
             cat = "";
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
@@ -673,7 +692,9 @@ classdef EphysAnalysisConfig
             %   with the first source of the type's first category (units
             %   for raster / psth / heatmap / waveforms / probemap /
             %   corrmap, LFP for continuous; an events layer, fixed, for
-            %   eventTrace) and the
+            %   eventTrace; a trials layer, fixed, for the trial panels:
+            %   its measure Stim onset -> Trial offset, a scatter's x
+            %   measure Trial onset -> Stim onset) and the
             %   type's DefaultBinding, so a new panel draws at once. A type
             %   that draws no layers (a legend panel: no Categories) gets
             %   none: a 1 x 0 Layer struct.
@@ -717,7 +738,15 @@ classdef EphysAnalysisConfig
             %   own; a spectrogram's baseline is chronuxNormalize's). The
             %   stack options and yLimMode mean the same on every type
             %   (stackModes, YLimModes); yLim itself (in the type's units)
-            %   goes only to panels of the same type.
+            %   goes only to panels of the same type. The trial panels
+            %   (TrialPanelTypes) share, among series, seriesParam,
+            %   seriesBins, summary, errorType, errorResamples, test,
+            %   testPairs, adjust, testAlpha, testShow, xScale, yScale and
+            %   yLimMode in that order, those their options have: a trial
+            %   distribution all but xScale, a histogram all but yScale and
+            %   yLimMode, a scatter all; their categories (a distribution's
+            %   x axis) are their own, and yLimMode is the one they share
+            %   with the other types.
             f = string.empty(1, 0);
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
@@ -725,6 +754,10 @@ classdef EphysAnalysisConfig
             names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform" "stack" "stackSpacing" "yLimMode"];
             if ismember(string(type), ["waveforms" "probemap"]); names(names == "waveform") = []; end
             if ismember(string(type), ["spectrum" "spectrogram" "coherence"]); names = ["stack" "stackSpacing" "yLimMode"]; end
+            if ismember(string(type), EphysAnalysisConfig.TrialPanelTypes)
+                names = ["series" "seriesParam" "seriesBins" "summary" "errorType" "errorResamples" "test" "testPairs" ...
+                    "adjust" "testAlpha" "testShow" "xScale" "yScale" "yLimMode"];
+            end
             f = names(isfield(T.DefaultOptions{row}, cellstr(names)));
         end
 
@@ -740,7 +773,8 @@ classdef EphysAnalysisConfig
             %   None on a raster (it lists its groups in blocks already), a
             %   firing rate panel (its groups go along x), a waveforms, probe
             %   map or unit correlation panel (no trial groups over a shared
-            %   axis) or an event-trace panel (a row per line already). One
+            %   axis), an event-trace panel (a row per line already) or a
+            %   trial panel (its groups are categories or series). One
             %   list for validate, the figure editor (syncFigureEditor,
             %   figureRowReason) and adoptPanelOptions.
             arguments
@@ -765,8 +799,9 @@ classdef EphysAnalysisConfig
             %   panel or a unit correlation map none or subtract; a rate or
             %   tuning panel firingRate's none, subtract, ratio or zscore;
             %   a spectrogram chronuxNormalize's none, db, percent, zscore
-            %   or ratio (adoptPanelOptions copies that one as is). SOURCE
-            %   (default "") only matters to a heat map.
+            %   or ratio (adoptPanelOptions copies that one as is); "none"
+            %   for every other type (a trial panel's values are as
+            %   measured). SOURCE (default "") only matters to a heat map.
             %   One list for validate, the figure editor (figureEditorChoices)
             %   and adoptPanelOptions.
             arguments
@@ -799,7 +834,8 @@ classdef EphysAnalysisConfig
             %   "each" or "magnitude" (the channels as one: their vector
             %   magnitude, each channel's static part out first, as
             %   figureChronuxLayer reads it, e.g. a 3-axis accelerometer's
-            %   AUX channels); any other "each". One list for validate and
+            %   AUX channels); any other (a trial panel's trials layer: one
+            %   measure) "each". One list for validate and
             %   the figure editor (figureEditorChoices).
             arguments
                 type (1,1) string

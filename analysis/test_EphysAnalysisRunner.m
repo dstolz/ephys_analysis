@@ -35,7 +35,9 @@ function test_EphysAnalysisRunner()
 %   entry with its caption (and its own <FileName>_sessions report with
 %   PerDataset), the run record, the data file with Export.Data.Enabled,
 %   Overwrite off, a cancel between observations, and the standalone
-%   script (figureSessionCompute) writing the same pixels.
+%   script (figureSessionCompute) writing the same pixels; a trial
+%   figure (trialDist): its caption's statistics (trialStatsText) and, as
+%   a session figure, its data file with both sessions' merged values.
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -338,7 +340,7 @@ check(isfile(compactFile) && isfile(standaloneFile) && contains(txtC, "EphysAnal
     && contains(txtC, "EphysAnalysisRunner(cfg)"), 'both scripts written; the compact one loads the config and runs the runner');
 check(~contains(txtS, "EphysAnalysisRunner") && ~contains(txtS, "EphysAnalysisConfig.load(") && contains(txtS, "fspec1 = struct();") ...
     && ~contains(txtS, "fspec7") && contains(txtS, "fres = figureCompute(src, fspec, Observation=obsT(i, :));") ...
-    && contains(txtS, "renderFigure(fres, fspec, fig)") && contains(txtS, "Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls)") ...
+    && contains(txtS, "renderFigure(fres, fspec, fig)") && contains(txtS, "Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls, Results={fres})") ...
     && contains(txtS, "ac = figureAurocCalls(fres);") ...
     && contains(txtS, "fspec1.ref.line = ""Stim"";") && contains(txtS, '"schema": "ephys-analysis-config"') ...
     && ~contains(txtS, ["plotFor" "renderPlot" "computePlot"]) && ~any(startsWith(splitlines(txtS), "spec1 = struct();")), ...
@@ -737,7 +739,7 @@ sgFile = fullfile(root, 'scripts', 'run_session_figures.m');
 txtSG = EphysAnalysisScript.standalone(cfgSG, File=sgFile);
 check(~contains(txtSG, "EphysAnalysisRunner") && contains(txtSG, "sfspec1 = struct();") && contains(txtSG, "figureSessionObservations(sources, fspec)") ...
     && contains(txtSG, "figureSessionCompute(sources, sessions, fspec, Observation=obsT(i, :))") ...
-    && contains(txtSG, "Caption=figureCaption(fspec, obsT(E(q).rows, :), Sessions=E(q).F.sessions)") ...
+    && contains(txtSG, "Caption=figureCaption(fspec, obsT(E(q).rows, :), Sessions=E(q).F.sessions, Results={E(q).F})") ...
     && contains(txtSG, "%% Session figures") && contains(txtSG, "writeAnalysisData(dfile, S,"), ...
     'the standalone script writes the session figure''s spec, merges it with figureSessionCompute and writes its data file, never the runner');
 mSG = checkcode(sgFile, '-id');
@@ -748,6 +750,52 @@ check(~contains(outSGt, "FAILED") && contains(outSGt, "card done") && isfile(ful
 if contains(outSGt, "FAILED"); disp(outSGt); end
 [samePixG, nga] = samePngs(fullfile(outG, 'sessions'), fullfile(outSG, 'sessions'));
 check(samePixG, sprintf('the script''s %d session figure PNGs are pixel-identical to the runner''s (the same tolerance)', numel(nga)));
+
+fprintf('\n== 10. a trial figure: its caption''s statistics, and across sessions its data file ==\n');
+outT = fullfile(root, 'outTrial');
+cfgT = EphysAnalysisConfig();
+cfgT.Name = "trial figure test";
+cfgT.Source.Root = F.proj;
+cfgT.Defaults.EventRef.line = "Stim";
+cfgT.Defaults.Selection.groupBy = "Depth";
+tmT = EphysAnalysisConfig.defaults("TrialMeasure");
+tmT.from = eventRef(line="Stim");
+tmT.to = eventRef(line="Platform", edge="offset");
+cfgT = cfgT.addFigure("trialDist", Id="tdist");
+cfgT.Figures(1).observe.data = "dataset";
+cfgT.Figures(1).panels(1).layers(1).measure = tmT;
+cfgT.Figures(1).panels(1).options.categories = "groups";
+cfgT.Export.Folder = fullfile(outT, "{Name}");
+cfgT.Export.SessionsFolder = fullfile(outT, "sessions");
+cfgT.Export.Formats = "png";
+cfgT.Export.Dpi = 50;
+cfgT.Report.Folder = outT;
+cfgT.Report.Format = "html";
+rT = EphysAnalysisRunner(cfgT, LogFcn=[]);
+RT = rT.run(Datasets=1);
+eT = [rT.Report.datasets.entries];
+eT = eT([eT.plot] == "tdist");
+check(height(RT) == 1 && RT.Status == "done" && isscalar(eT) && contains(eT.caption, "trial measure: " + trialMeasureLabel(tmT)) ...
+    && contains(eT.caption, "categories by Depth") ...
+    && contains(eT.caption, "trialDist_1: ") && contains(eT.caption, " p = ") && contains(eT.caption, "(n = "), ...
+    "a trial figure's caption names its measure, grouping and test, and appends its statistics (trialStatsText): " + eT.caption);
+cfgTS = cfgT;
+cfgTS.Figures(1).sessions.enabled = true;
+cfgTS.Figures(1).panels(1).options.categories = "session";
+cfgTS.Export.Data.Enabled = true;
+cfgTS.Export.Data.Folder = fullfile(outT, "data");
+cfgTS.Report.Folder = fullfile(outT, "sessionsReport");
+rTS = EphysAnalysisRunner(cfgTS, LogFcn=[]);
+RTS = rTS.run();
+dT = string(fullfile(outT, "data", "all_tdist.mat"));
+LdT = load(dT);
+RdT = LdT.results(1).F.panels(1).layers(1).R;
+eTS = rTS.Report.datasets(end).entries;
+eTS = eTS([eTS.plot] == "tdist");
+check(height(RTS) == 1 && RTS.Status == "done" && isfile(dT) && LdT.schema == "ephys-analysis-session-figure/1" && LdT.figure == "tdist" ...
+    && height(LdT.sessions) == 2 && RdT.kind == "trialDist" && isequal(unique(RdT.values.session).', [1 2]) && height(RdT.categories) == 2 ...
+    && isscalar(eTS) && contains(eTS.caption, "across 2 sessions") && contains(eTS.caption, " p = "), ...
+    "a session run of a trial figure: its data file holds the merged values of both sessions; the caption its statistics: " + eTS.caption);
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

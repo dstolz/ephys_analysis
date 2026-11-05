@@ -11,7 +11,8 @@ function ch = figureEditorChoices(type, source, rows, opts)
 %                    tuning or coherence panel takes none): a spectrum or
 %                    coherence panel units, detected, LFP, MUA, SPIKE, AUX;
 %                    a spectrogram the signals, units, detected and events;
-%                    an event-trace panel events only
+%                    an event-trace panel events only; a trial distribution,
+%                    histogram or scatter panel trials only
 %     SourceLabels   their names in the app ("units (sorted)", ...)
 %     Bindable       a layer of SOURCE on this type may follow the
 %                    observation (spikes or a signal, on a raster, PSTH,
@@ -20,7 +21,9 @@ function ch = figureEditorChoices(type, source, rows, opts)
 %                    of trials); otherwise it is fixed. AUX records no
 %                    amplifier channel (figureLayerItems): under a figure
 %                    observing units or another signal an AUX layer is
-%                    fixed, and under one observing AUX so is every other
+%                    fixed, and under one observing AUX so is every other;
+%                    an events or trials layer is always fixed (it names
+%                    its line or its measure)
 %     Aggregates, AggregateLabels  how a fixed layer of SOURCE draws its
 %                    items (EphysAnalysisConfig.aggregates): "each unit" or
 %                    "each channel" and "their mean" on a raster, PSTH,
@@ -63,8 +66,8 @@ if any(row)
     if type == "eventTrace"; srcs = "events"; end   % its only source (categoryOf)
 end
 srcs = unique(srcs, 'stable');
-names = dictionary(["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX"], ...
-    ["units (sorted)" "detected spikes" "events (a line)" "LFP" "MUA" "SPIKE" "AUX"]);
+names = dictionary(["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX" "trials"], ...
+    ["units (sorted)" "detected spikes" "events (a line)" "LFP" "MUA" "SPIKE" "AUX" "trials (a value per trial)"]);
 labels = srcs;
 known = isKey(names, srcs);
 labels(known) = names(srcs(known));

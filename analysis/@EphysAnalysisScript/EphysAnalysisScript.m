@@ -838,17 +838,19 @@ classdef EphysAnalysisScript
                 drawn = "Files=E(q).files";
                 if withImages; drawn = drawn + ", Images=E(q).images"; end
                 if withPages; drawn = drawn + ", Pages=E(q).pages"; end
-                C(end+1, 1) = "    report = addReportFigure(report, rspec, E(q).F, " + drawn + ", Caption=figureCaption(fspec, obsT(E(q).rows, :), Sessions=E(q).F.sessions" + yArg + "));";
+                C(end+1, 1) = "    report = addReportFigure(report, rspec, E(q).F, " + drawn + ", Caption=figureCaption(fspec, obsT(E(q).rows, :), Sessions=E(q).F.sessions" + yArg + ", Results={E(q).F}));";
             end
             C(end+1, 1) = "    fprintf('sessions: %s: %s done (%d observation(s), %d file(s))\n', E(q).label, fspec.id, E(q).done, numel(E(q).files));";
             C(end+1, 1) = "end";
             if withData
                 C(end+1, 1) = "% --- the data file (Export.Data): every observation's merged and per-dataset figures ---";
                 C(end+1, 1) = "if any([E.done] > 0)";
+                % the same variables as EphysAnalysisRunner.runSessionFigure writes; keep them in step
                 C(end+1, 1) = "    try";
                 C(end+1, 1) = "        S = struct('schema', ""ephys-analysis-session-figure/1"", 'figure', fspec.id, 'spec', fspec, 'sessions', lastSessions, ...";
                 C(end+1, 1) = "            'observations', obsT, 'results', results, 'perSession', {perSession}, 'config', config, ...";
                 C(end+1, 1) = "            'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));";
+                C(end+1, 1) = "        S.values = TrialDataExport.resultsTable(results);   % the trial panels' per-trial values, observation first";
                 C(end+1, 1) = "        dname = figureFileName(exportOpts.Data.FilenamePattern, struct('Name', ""all"", 'Plot', fspec.id, 'Kind', ""figure"", ...";
                 C(end+1, 1) = "            'Group', ""all"", 'Unit', ""all"", 'Index', 1));";
                 C(end+1, 1) = "        dfile = fullfile(figureFileName(exportOpts.Data.Folder, tokens, Kind=""folder""), dname + "".mat"");";
@@ -946,7 +948,7 @@ classdef EphysAnalysisScript
                 if withImages; drawn = drawn + ", Images=images"; end
                 if withPages; drawn = drawn + ", Pages=pages"; end
                 B(end+1, 1) = "        report = addReportFigure(report, fspecKind, fres, " + drawn + ", Observations=obsT, ...   % each page's observation: Report.Order";
-                B(end+1, 1) = "            Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls" + yArg + "));";
+                B(end+1, 1) = "            Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls" + yArg + ", Results={fres}));";
             end
             B(end+1, 1) = "        fprintf('%s: %s done (%d observation(s), %d file(s))\n', name, fspec.id, nObs, numel(files));";
             B(end+1, 1) = "    catch ME";

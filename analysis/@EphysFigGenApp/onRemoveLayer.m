@@ -9,7 +9,7 @@ if i < 1 || i > numel(obj.Config.Figures(k).panels(j).layers); return; end
 cfg = obj.gatherConfig();
 fig = cfg.Figures(k);
 p = fig.panels(j);
-what = layerLabel(p.layers(i));
+what = layerLabel(p.layers(i), p.type);
 p.layers(i) = [];
 fig.panels(j) = p;
 cfg.Figures(k) = fig;

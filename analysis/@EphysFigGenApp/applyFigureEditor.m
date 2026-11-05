@@ -5,7 +5,10 @@ function applyFigureEditor(obj)
 %   the panel's (SelectedPanel: type, title, its own event and window or
 %   the figure's, its type's options, its unit waveform, its layers) and the layer's
 %   (SelectedLayer), and the panel's text note and overlays (the first
-%   picked). The line and parameter lists come from the active
+%   picked); a trial panel's rows (applyTrial) and a trials layer's
+%   measures by name (trialMeasureLabel), and a Trial measure window open
+%   on another figure, panel or layer closes (closeTrialMeasureDialog).
+%   The line and parameter lists come from the active
 %   dataset, and so does the Observe list's order: what the dataset
 %   holds first, a type it lacks after the dataset, marked "(not in
 %   <dataset>)". syncFigureEditor then shows the rows they use, and the
@@ -18,6 +21,7 @@ if k < 1 || k > numel(obj.Config.Figures)
     obj.SelectedLayer = 0;
     obj.FigureEditorPanel.Title = "Figure";
     showFigureId(obj);
+    closeTrialMeasureDialog(obj);
     obj.syncFigureEditor();
     return
 end
@@ -158,6 +162,7 @@ else
     set(E.layerList, "Items", {}, "ItemsData", []);
     overlayList(E, repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), 0);
 end
+closeTrialMeasureDialog(obj);   % a Trial measure window open on a layer not shown now goes
 obj.syncFigureEditor();
 end
 
@@ -238,6 +243,10 @@ if isfield(op, 'latencyBox'); E.latencyBox.Text = latencySummary(op.latencyBox, 
 if isfield(op, 'onsetLine'); E.onsetLine.Value = char(pickFrom(op.onsetLine, EphysAnalysisConfig.OnsetLines, "off")); end
 if isfield(op, 'trialCount'); E.trialCount.Value = char(pickFrom(op.trialCount, string(E.trialCount.ItemsData), "off")); end
 if isfield(op, 'maskAfterStop'); E.maskAfterStop.Value = op.maskAfterStop; end
+if isfield(op, 'smoothLine')
+    E.smoothLine.Value = op.smoothLine.enabled;
+    E.smoothLineMs.Value = max(0, 1000 * op.smoothLine.smoothSec);
+end
 if isfield(op, 'histStyle')
     offerItems(E.histStyle, ["bar" "line"], op.histStyle);
     E.fill.Value = op.fill;
@@ -316,6 +325,9 @@ end
 if p.type == "eventTrace"
     applyEventTrace(E, op);
 end
+if ismember(p.type, EphysAnalysisConfig.TrialPanelTypes)
+    applyTrial(E, op, p.type, params);
+end
 
 % its text note and overlays
 applyNote(E, p.note);
@@ -329,7 +341,7 @@ if nl == 0
     set(E.layerList, "Items", {}, "ItemsData", []);
 else
     labels = strings(1, nl);
-    for i = 1:nl; labels(i) = layerLabel(p.layers(i)); end
+    for i = 1:nl; labels(i) = layerLabel(p.layers(i), p.type); end
     set(E.layerList, "Items", cellstr(labels), "ItemsData", 1:nl, "Value", obj.SelectedLayer);
 end
 add = obj.FigureAddSource;
@@ -458,6 +470,82 @@ E.evSpanWidth.Value = min(E.evSpanWidth.Limits(2), max(E.evSpanWidth.Limits(1), 
 E.evSpanAlpha.Value = min(1, max(0, ev.spanAlpha));
 offerItems(E.layerColor, string(E.layerColor.Items), pick(L.color, "auto"));
 E.layerLineStyle.Value = char(pickFrom(pick(L.lineStyle, "auto"), string(E.layerLineStyle.ItemsData), "auto"));
+% a trials layer's measures, by name (the Trial measure window edits them: trialMeasureDialog)
+for f = ["measure" "xMeasure"]
+    ctl = E.trMeasure;
+    if f == "xMeasure"; ctl = E.trXMeasure; end
+    try
+        txt = trialMeasureLabel(L.(f));
+    catch ME
+        txt = "(" + string(ME.message) + ")";
+    end
+    set(ctl, "Text", txt, "Tooltip", txt);
+end
+end
+
+
+function applyTrial(E, op, type, params)
+%applyTrial  A trial distribution's, histogram's or scatter's rows (its options OP of TYPE; PARAMS the dataset's trial parameters).
+%   Its error and y limits are shown with every type's (applyPanel). Show
+%   tests offers a distribution brackets, the others the corner p and
+%   off (syncFigureEditor's trialEnable keeps the same lists).
+groupings = EphysAnalysisConfig.TrialGroupings;
+if isfield(op, 'categories')
+    E.trCategories.Value = char(pickFrom(op.categories, groupings, "groups"));
+    offerItems(E.trCategoryParam, ["" params], op.categoryParam);
+    E.trCategoryBins.Value = listText(op.categoryBins);
+end
+E.trSeries.Value = char(pickFrom(op.series, groupings, "layer"));
+offerItems(E.trSeriesParam, ["" params], op.seriesParam);
+E.trSeriesBins.Value = listText(op.seriesBins);
+E.trSummary.Value = char(pickFrom(op.summary, ["mean" "median"], "mean"));
+E.trTest.Value = char(pickFrom(op.test, EphysAnalysisConfig.TrialTests, "auto"));
+E.trPairs.Value = char(pickFrom(op.testPairs, ["all" "first"], "all"));
+E.trAdjust.Value = char(pickFrom(op.adjust, string(E.trAdjust.ItemsData), "holm"));
+if isfinite(op.testAlpha) && op.testAlpha > 0 && op.testAlpha < 1; E.trAlpha.Value = op.testAlpha; else; E.trAlpha.Value = 0.05; end
+shows = ["text" "off"];
+labels = ["the p in a corner" "off (the caption only)"];
+if type == "trialDist"
+    shows = ["brackets" shows];
+    labels = ["brackets, stars and the p" labels];
+end
+setChoices(E.trTestShow, labels, shows, pickFrom(op.testShow, shows, shows(1)));
+clip = @(c, x) min(c.Limits(2), max(c.Limits(1), x));
+switch type
+    case "trialDist"
+        E.trBracketPairs.Value = char(pickFrom(op.bracketPairs, ["significant" "all"], "significant"));
+        E.trDisplay.Value = char(pickFrom(op.display, string(E.trDisplay.ItemsData), "swarm"));
+        E.trOrdinalX.Value = logical(op.ordinalX);
+        E.trMarker.Value = clip(E.trMarker, op.markerSize);
+        E.trJitter.Value = clip(E.trJitter, op.jitter);
+        E.trShowSummary.Value = logical(op.showSummary);
+        E.trShowN.Value = op.showN == "ticks";
+        E.trYScale.Value = char(pickFrom(op.yScale, ["linear" "log"], "linear"));
+        E.trXScale.Value = 'linear';   % (a distribution's x is its categories: grayed out)
+    case "trialHist"
+        E.trHistDisplay.Value = char(pickFrom(op.display, string(E.trHistDisplay.ItemsData), "bars"));
+        E.trNormalization.Value = char(pickFrom(op.normalization, string(E.trNormalization.ItemsData), "count"));
+        E.trBins.Value = char(pickFrom(op.binMode, string(E.trBins.ItemsData), "auto"));
+        E.trBinCount.Value = clip(E.trBinCount, round(op.binCount));
+        if isfinite(op.binWidth) && op.binWidth > 0; E.trBinWidth.Value = op.binWidth; end
+        E.trOpacity.Value = clip(E.trOpacity, op.alpha);
+        E.trShowSummary.Value = logical(op.showSummary);
+        E.trXScale.Value = char(pickFrom(op.xScale, ["linear" "log"], "linear"));
+        E.trYScale.Value = 'linear';   % (a histogram's y is its counts: grayed out)
+        E.trXLim.Value = listText(op.xLim);
+    case "trialScatter"
+        E.trFit.Value = char(pickFrom(op.fit, EphysAnalysisConfig.TrialFits, "none"));
+        E.trFitBand.Value = logical(op.fitBand);
+        E.trFitWindow.Value = clip(E.trFitWindow, round(op.fitWindow));
+        E.trCorr.Value = char(pickFrom(op.corr, ["pearson" "spearman" "none"], "pearson"));
+        E.trMarginals.Value = logical(op.marginals);
+        E.trMarginalSize.Value = clip(E.trMarginalSize, op.marginalSize);
+        E.trMarker.Value = clip(E.trMarker, op.markerSize);
+        E.trOpacity.Value = clip(E.trOpacity, op.alpha);
+        E.trXScale.Value = char(pickFrom(op.xScale, ["linear" "log"], "linear"));
+        E.trYScale.Value = char(pickFrom(op.yScale, ["linear" "log"], "linear"));
+        E.trXLim.Value = listText(op.xLim);
+end
 end
 
 

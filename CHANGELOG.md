@@ -18,6 +18,11 @@ says how to cut a release.
   Ctrl+T turns Auto off and on again where it was. The preference `FigureAutoRedraw` (0-1) replaces
   `FigureAutoPreview`; the app's `FigureAutoPreviewSeconds` and `AutoPreviewSeconds` are gone (`AutoRedrawScale`,
   `AutoRedrawDefault`). `figureDataSpec` (what a figure's compute depends on) is public.
+- Figures: a layer has `measure` and `xMeasure` (each a `TrialMeasure`, `defaults("TrialMeasure")`): what a `trials`
+  layer reads per trial, and a trial scatter's x. `EphysAnalysisConfig.FigureSources` gains `"trials"`, and
+  `sourceCategories` the `trial` category (source `trials`, not aligned). A trial panel may hold a `selection` of its
+  own although it is not aligned. `eventRefLabel` takes `Detail=true` (which "last" / "nth" and the shifts, as
+  `eventLatency` names an event).
 - Figures: the error is each panel's own. A PSTH's, firing rate panel's and tuning curve's error is its own
   `options.errorType` (`"off"` | `"sem"` | `"std"` | `"ci95"`, `EphysAnalysisConfig.PanelErrorTypes`) with
   `options.errorResamples` (a continuous panel takes `errorResamples` beside its `errorType`), and the bands' look is the
@@ -427,9 +432,82 @@ says how to cut a release.
   shape loads with its unknown fields dropped and named in `LoadWarnings`, and `validate` refuses a retired export
   format), manifest schema `intan-dataset-manifest/1` (`ManifestSchemasAccepted` is the current schema only) and
   `DatasetTracker`'s reading of a run with results but no status file as `"done"` (its `State` is empty).
+- `combineSessions`' merge of version-1 `behavior` results (`mergeBehavior`): no figure makes them since figures
+  replaced plots.
 
 ### Added
 
+- Figures: trial-measure panels, one number per trial. A trials layer's measure (a delay between two events, an
+  interval's duration, a count of events or a trial parameter) is grouped by trial group, parameter, session or layer,
+  summarized, tested and drawn as a distribution, a histogram or a scatter, and its values go to a spreadsheet or a
+  script. See [EphysAnalysisConfig](documentation/EphysAnalysisConfig.md#trial-measures),
+  [EphysAnalysis](documentation/EphysAnalysis.md#trial-measures),
+  [EphysFigGenApp](documentation/EphysFigGenApp.md#the-trial-measure-window) and the guide's [Compare a time per trial
+  across groups](documentation/analysis-app-guide.md#compare-a-time-per-trial-across-groups). The layer's `measure`
+  and `xMeasure` fields are under Changed.
+  - Three panel types over one number per trial, `trialDist` (*Trial distribution*), `trialHist` (*Trial histogram*)
+    and `trialScatter` (*Trial scatter*), `EphysAnalysisConfig.TrialPanelTypes`, with their options (categories and
+    series by trial group, parameter, session or layer; summary and error; group tests, pairs, adjustment and
+    `testAlpha`, the significance level (`alpha` is the opacity of a histogram's bars and a scatter's points);
+    display, bins, fits, correlation, marginal histograms, log scales), templates (*Dist trials*, ...), validate
+    rules, the constants `TrialMeasureKinds`, `TrialGroupings`, `TrialTests` and `TrialFits`, and the label variables
+    `{Measure}` and `{MeasureX}`. A trial measure (`kind` delay, duration, count or param; `from`, `to`, `direction`,
+    `maxGapSec`, `param`, `unit`, `label`) is named by the new `trialMeasureLabel` ("Stim onset → Platform offset
+    (ms)").
+  - `trialMeasure(src, m, mask)`, one number per trial from its events or parameters: the delay from an event A to the
+    first (last, n-th, every) event B after or before it, found as a stop event is (so its delays are
+    `eventLatency`'s), dropped beyond `maxGapSec`; how long A's interval lasts; how many B events follow A up to the
+    trial's end; or a numeric trial column. Values in ms (or s), with the drops counted (`nNoB`, `nNoValue`); errors
+    `trialMeasure:NoValues`, `:NoParam`, `:BadParam`. The trial panels' statistics (`trialStats`): per category and
+    series n, mean or median with its error band, quartiles; group tests (`ranksum` / `kruskalwallis`, or `ttest2` /
+    `anova1`) with pairwise tests adjusted by `pAdjust`, starred, and significant below the panel's `testAlpha`;
+    linear, polynomial and moving fits with 95% bands and Pearson or Spearman correlations, in log10 units on a log
+    axis. Suite `test_TrialMeasure`.
+  - Drawing: a distribution puts its categories along x and the series side by side, as a swarm, boxes, violins
+    (`violinplot`, R2024b and later), jittered points or a line of the summaries, with a summary mark +/- its error;
+    the significant pairs (or all) bracketed with stars, stacked so none overlap, and the omnibus test in a corner, a
+    line per series in its color. A histogram draws bars, an outline or the ECDF on one set of bins (automatic, a
+    count or a width; log-spaced on a log axis) with a line at each series' summary. A scatter draws its points, each
+    series' fit over its 95% band and its correlation in the legend, and with `marginals` histograms of x and y in two
+    strips flush with the plot, their limits linked: a draw function may now return `extraLayout` (`figDrawResult`),
+    which `renderFigure`, `figureLayout` and `figurePlace` follow to split a panel's box. Log axes (values at or below
+    0 left out and counted). New aesthetics roles `distPoints`, `distBox`, `distViolin`, `distSummary`, `distLine`,
+    `sigBracket`, `sigText`, `statText`, `histBar`, `histLine`, `histSummary`, `scatterPoints`, `fitLine`, `fitBand`
+    and `marginalBar` (with their editor settings, `figureRoleSettings`; a design captures its palette from the
+    points, boxes and bars). Data tips name a point's trial, trial group, category and parameters, and a bracket's
+    test. The caption says what each trial panel draws and tests.
+  - `TrialDataExport`, the trial panels' values as one table (`valuesTable`: figure, panel, layer, measure, dataset,
+    session, trial, group, category, series, value, x, tA, tB and the trial parameters), as tab-separated text
+    (`tableText`, `copy`) or a CSV file (`export`); the analysis app's (and any visible figure's) right-click menu of
+    a trial panel has **Copy data table** and **Export data (CSV)...** (`attach`). A session
+    figure's data file gains a `values` table of the merged figures' trial values (`resultsTable`, an `observation`
+    column first).
+  - In the analysis app's Figures tab: a trials layer's **Measure** row (a trial scatter's **X measure** too) names
+    its measure, and **Edit...** opens the modal **Trial measure** window: the kind, A's and B's event rows as the
+    Alignment tab has them (sequences included), the direction, the gap, the parameter, the unit and the label, its
+    automatic name shown as you edit; **OK** is one undo step (*Trial measure*). The Options section has the trial
+    panels' rows (**Categories**, **Series**, **Summary** with the **Error** row, **Test**, **P adjustment**, **Show
+    tests**, a distribution's **Display**, **Points** and **Show**, a histogram's **Draw as**, **Bins** and
+    **Opacity**, a scatter's **Fit**, **Correlation** and **Marginals**, **Scales (x, y)**, **X limits**), those a
+    value does not use grayed out. Panel alignment shows a trial panel its trial selection alone. The New panel window
+    gives the trial panels the measure's **Measure** (kind), **From (A)**, **To (B)** and **Parameter** and their
+    display (`onNewPanel(Measure=...)` for scripts). The epoch diagram drops its leftover `behavior` lines.
+  - Session figures: the trial panels are merged across sessions (`combineSessions` kinds `trialDist`, `trialHist`,
+    `trialScatter`): every session's per-trial values in one table, each in its series (the sessions under
+    `trialGroups "pool"`, a figure per trial group under `"each"`, session x trial group under `"combine"`), and
+    `figureSessionCompute` makes the categories, series and tests again over the merged values, so the `"session"`
+    grouping has the sessions as its levels.
+  - Reports: a figure with trial panels says in its caption what each measures, how it groups, summarizes and tests
+    (`figureCaption`), and `figureCaption(..., Results=)` appends their statistics; the runner and the standalone
+    script pass each figure's computed result. The new `trialStatsText(F)` writes them, a line per trial panel: each
+    category's center ± error and n, the overall p, the pairs' adjusted p with stars, a scatter's r and fit R², and
+    the values left out.
+- Figures: a PSTH's smoothed line. `options.smoothLine` (`enabled`, `smoothSec`: a Gaussian SD, 0.025 s by default)
+  draws a line over each trial group's trace, the PSTH smoothed on its own from the unsmoothed bins, so
+  `bins.SmoothSec` smooths the histogram alone and neither changes the other; stacked, in each row; role
+  `smoothLine`, with a legend entry *Smoothed (SD 25 ms)*. A change of it only redraws. `spikePSTH` returns
+  `R.rateUnsmoothed` (the rate without `SmoothSec`), which `combineSessions` merges. Analysis app: the PSTH's
+  **Smoothed line** row (**Draw**, **SD (ms)**).
 - Pipeline app, Project tab: **Copy manifests** in the Tools panel puts the manifest files of its datasets (the active
   one, or the ticked ones) on the clipboard as files, to paste into a folder, an e-mail or a chat, and lists in a
   message the files the clipboard holds and any not copied (`copyFilesToClipboard`, Windows).
@@ -439,10 +517,10 @@ says how to cut a release.
   set by hand.
 - Figures: label variables. A figure's title, a panel's title, X and Y axis labels and note, and a layer's name
   (the legend) may name variables in braces, filled in for each figure drawn: `"Time (s) re {Line} {Edge}"`,
-  `"{Response} trials"`, `"{Unit}"`, `"n = {Epochs}"`. 22 variables, by topic: alignment (`Line`, `Edge`, `Event`,
+  `"{Response} trials"`, `"{Unit}"`, `"n = {Epochs}"`. 24 variables, by topic: alignment (`Line`, `Edge`, `Event`,
   `Window`), trials (`Response`, `Filter`, `GroupBy`, `Group`, `Epochs`), the observation (`Unit`, `Observation`,
   `Channel`, `Shank`, `Depth`), the data (`Name`, `Subject`, `Sessions`) and the figure (`Figure`, `Panel`, `Bin`,
-  `Smooth`, `Date`); each panel takes its own alignment and trial selection's values. `figureLabelVariables` lists
+  `Smooth`, `Measure`, `MeasureX`, `Date`); each panel takes its own alignment and trial selection's values. `figureLabelVariables` lists
   them and gives their values, `figureFileName(text, V, Kind="label")` fills a text; `renderFigure` and
   `renderProbeFigure` fill the texts (a TeX note's values escaped); a name in braces that is no variable is drawn
   as typed and Validate warns of it (*did you mean {Line}?*). A title naming `{Unit}` or `{Observation}` keeps the

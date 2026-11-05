@@ -8,7 +8,11 @@ function d = figureDataSpec(spec)
 %     each panel's   title, box, xLabel, yLabel, xSide, ySide, xShow, yShow,
 %                    rect, note and overlays, and the options of LookOptions (the draw
 %                    functions' alone: the compute functions read none of
-%                    them); a PSTH's latencyBox and onsetLine count only as
+%                    them; a trial panel keeps its testAlpha, xScale, yScale
+%                    and display: the stars are computed, a scatter fits in
+%                    the scale drawn, and a display change computes again,
+%                    cheaply); a PSTH's latencyBox
+%                    and onsetLine count only as
 %                    on or off (they keep its raster rows: their looks are
 %                    the drawing's), a raster's onsetLine not at all
 %     each layer's   color and lineStyle
@@ -28,7 +32,10 @@ LookFigure = ["id" "autoId" "enabled" "title" "layout" "aesthetics" "style"];
 LookPanel = ["title" "box" "xLabel" "yLabel" "xSide" "ySide" "xShow" "yShow" "rect" "note" "overlays"];
 LookLayer = ["color" "lineStyle"];
 LookOptions = ["tickColor" "tickWidth" "backColor" "yTicks" "firstSpike" "fill" "fillAlpha" "histStyle" "normalize" ...
-    "stack" "stackSpacing" "yLimMode" "yLim" "colormap" "cLim" "group" "order" "colorBy" "height" "alpha" "trialCount" "band"];
+    "stack" "stackSpacing" "yLimMode" "yLim" "colormap" "cLim" "group" "order" "colorBy" "height" "alpha" "trialCount" "band" ...
+    "testShow" "bracketPairs" "ordinalX" "showSummary" "markerSize" "jitter" "showN" "binMode" "binCount" "binWidth" ...
+    "normalization" "marginals" "marginalSize" "xLim" ...
+    "smoothLine"];   % smoothLine: drawPsthPanel smooths R.rateUnsmoothed itself
 
 d = drop(spec, LookFigure);
 if isfield(d, 'probe') && isstruct(d.probe) && isfield(d.probe, 'enabled')

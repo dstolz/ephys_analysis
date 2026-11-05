@@ -232,7 +232,8 @@ needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d
     "5d.filter" "5d.add"; "5d.pergroup" "5d.add"; "5d.ownsel" "5d.add"; "5d.conttrials" "5d.layers"; ...
     "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.multi" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
     "5d.quick" "5d.layers"; "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
-    "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; "5d.saveprefs" "5d.remove"];
+    "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.trialmeasure" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; ...
+    "5d.saveprefs" "5d.remove"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
 timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a failure on the way
 
@@ -2380,6 +2381,242 @@ if S.sec("5d.eventtrace", "an event-trace panel: its template, its Options rows 
     app.onRemoveFigure();
 end
 
+if S.sec("5d.trialmeasure", "trial panels: a trial distribution's rows and Panel alignment (its trial selection alone), the Trial measure window (OK one undo step, Cancel, refused), a scatter's and a histogram's rows, the rows' round trip, New panel with a measure; after the p3 merge: the preview, the data menu and export")
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % (no Ctrl held from an earlier section: each edit stays with this figure)
+    app.onAddFigure("trialDist");
+    kT = app.SelectedFigure;
+    pD = app.Config.Figures(kT).panels(1);
+    fid = @() app.Config.Figures(kT).id;
+    distRows = pD.type == "trialDist" && pD.layers(1).source == "trials" && pD.layers(1).binding == "fixed" ...
+        && shown(FE.trCategories) && shown(FE.trSeries) && shown(FE.trDisplay) && shown(FE.trTest) && shown(FE.trMarker) ...
+        && shown(FE.errorType) && any(string(FE.errorType.ItemsData) == "iqr") && shown(FE.yLim) ...
+        && ~shown(FE.binMs) && ~shown(FE.trFit) && ~shown(FE.trBins) && ~shown(FE.trXLim) && ~shown(FE.trOpacity) && ~shown(FE.etDisplay) ...
+        && FE.trCategoryParam.Enable == "off" && FE.trJitter.Enable == "off" && FE.trXScale.Enable == "off" && FE.trBracketPairs.Enable == "on" ...
+        && isequal(string(FE.trTestShow.ItemsData), ["brackets" "text" "off"]) && isequal(string(FE.addSource.ItemsData), "trials");
+    layerRows = shown(FE.trMeasure) && shown(FE.trMeasureEdit) && ~shown(FE.trXMeasure) && ~shown(FE.evLine) && shown(FE.layerColor) ...
+        && FE.layerBinding.Enable == "off" && string(FE.trMeasure.Text) == trialMeasureLabel(pD.layers(1).measure) ...
+        && string(FE.layerList.Items{1}) == "trials: " + trialMeasureLabel(pD.layers(1).measure);
+    palignRows = secOf("palign").Visible && FP.RefGrid.Visible == "off" && FP.WindowGrid.Visible == "off" ...
+        && FP.SelectionGrid.Visible == "on" && FE.panelSame.Visible == "off" && FE.panelSameSel.Enable == "on" ...
+        && contains(string(FE.palignNote.Text), "Trial panels use no event or window") ...
+        && secOf("selection").Visible && ~secOf("ref").Visible && ~secOf("window").Visible;
+    check(distRows && layerRows && palignRows, ['a trial distribution: its Options rows (categories, display, the Error row ' ...
+        'with the interquartile range, y limits; what its values do not use grayed out), its trials layer''s Measure row, ' ...
+        'the Panel alignment''s trial selection alone with its note, and the figure''s Trial selection section']);
+    FE.panelSameSel.Value = false;
+    FE.panelSameSel.ValueChangedFcn(FE.panelSameSel, []);
+    pD = app.Config.Figures(kT).panels(1);
+    check(isstruct(pD.selection) && isequal(pD.ref, "default") && isequal(pD.window, "default") && FP.Filter.Enable == "on", ...
+        'a trial panel takes a trial selection of its own (its rows open); its event and window stay the figure''s');
+    % the Trial measure window: modal, on the layer; Kind, A and B, the live label; OK one undo step
+    app.FigureHistory = FigureEditHistory();   % the steps counted below start here
+    FE.trXMeasureEdit.ButtonPushedFcn(FE.trXMeasureEdit, []);
+    refusedX = isempty(findall(groot, 'Type', 'figure', 'Tag', 'trialMeasureDialog')) && contains(app.StatusBar.Text, "trial scatter");
+    FE.trMeasureEdit.ButtonPushedFcn(FE.trMeasureEdit, []);
+    dM = findall(groot, 'Type', 'figure', 'Tag', 'trialMeasureDialog');
+    DM = dM.UserData;
+    opened = isscalar(dM) && string(dM.WindowStyle) == "modal" && DM.Which == "measure" && DM.PanelId == pD.id && DM.LayerIndex == 1 ...
+        && all(dM.Position(3:4) <= [1280 740]) && string(DM.Kind.Value) == "delay" && string(DM.A.Line.Value) == "Stim" ...
+        && string(DM.B.Line.Value) == "Trial" && DM.B.RefGrid.Parent.Visible == "on" && DM.Direction.Enable == "on" ...
+        && DM.Param.Enable == "off" && string(DM.Preview.Text) == "Label: " + trialMeasureLabel(pD.layers(1).measure);
+    DM.Kind.Value = "duration";
+    DM.Kind.ValueChangedFcn(DM.Kind, []);
+    duration = DM.B.RefGrid.Parent.Visible == "off" && DM.Direction.Enable == "off" && DM.MaxGap.Enable == "off" ...
+        && DM.Unit.Enable == "on" && contains(string(DM.Preview.Text), "duration");
+    DM.Kind.Value = "delay";
+    DM.Kind.ValueChangedFcn(DM.Kind, []);
+    DM.A.Line.Value = 'Stim';
+    DM.A.Edge.Value = 'onset';
+    DM.B.Line.Value = 'Platform';
+    DM.B.Edge.Value = 'offset';
+    DM.B.Line.ValueChangedFcn(DM.B.Line, []);   % the label line follows every edit
+    want = EphysAnalysisConfig.defaults("TrialMeasure");
+    want.to.line = "Platform";
+    want.to.edge = "offset";
+    live = string(DM.Preview.Text) == "Label: " + trialMeasureLabel(want);
+    DM.Ok.ButtonPushedFcn(DM.Ok, []);
+    mNow = app.Config.Figures(kT).panels(1).layers(1).measure;
+    check(refusedX && opened && duration && live && ~isvalid(dM) && mNow.kind == "delay" && mNow.from.line == "Stim" ...
+        && mNow.from.edge == "onset" && mNow.to.line == "Platform" && mNow.to.edge == "offset" ...
+        && numel(app.FigureHistory.Undo) == 1 && app.FigureHistory.undoLabel() == "Trial measure" ...
+        && string(FE.trMeasure.Text) == trialMeasureLabel(want) && contains(string(FE.layerList.Items{1}), "Platform offset"), ...
+        sprintf(['Trial measure: X measure refused on a distribution; Edit... opens the modal window on the layer (A, B, ' ...
+        'the live label; a duration hides B); OK gives the layer Stim onset to Platform offset as one undo step "%s", ' ...
+        'and the Measure row says "%s"'], app.FigureHistory.undoLabel(), FE.trMeasure.Text));
+    FE.trMeasureEdit.ButtonPushedFcn(FE.trMeasureEdit, []);
+    dM = findall(groot, 'Type', 'figure', 'Tag', 'trialMeasureDialog');
+    DM = dM.UserData;
+    shownBack = string(DM.B.Line.Value) == "Platform" && string(DM.B.Edge.Value) == "offset";
+    DM.MaxGap.Value = 'soon';
+    DM.Ok.ButtonPushedFcn(DM.Ok, []);
+    refused = isvalid(dM) && startsWith(string(DM.Preview.Text), "Cannot apply") && contains(string(DM.Preview.Text), "Max gap");
+    DM.Kind.Value = "count";
+    DM.Cancel.ButtonPushedFcn(DM.Cancel, []);
+    check(shownBack && refused && ~isvalid(dM) && isequaln(app.Config.Figures(kT).panels(1).layers(1).measure, mNow) ...
+        && numel(app.FigureHistory.Undo) == 1, ...
+        'the window opens on the layer''s measure; a gap that is no number is refused in red (the window stays); Cancel changes nothing');
+    % the distribution's rows: gathered into its options, shown back
+    FE.trCategories.Value = "param";
+    FE.trCategoryParam.Value = 'Depth';
+    FE.trCategoryBins.Value = '3';
+    FE.trSeries.Value = "groups";
+    FE.trSummary.Value = "median";
+    FE.errorType.Value = "iqr";
+    FE.trTest.Value = "kruskalwallis";
+    FE.trPairs.Value = "first";
+    FE.trAdjust.Value = "bh";
+    FE.trAlpha.Value = 0.01;
+    FE.trBracketPairs.Value = "all";
+    FE.trDisplay.Value = "points";
+    FE.trOrdinalX.Value = true;
+    FE.trMarker.Value = 6;
+    FE.trJitter.Value = 0.5;
+    FE.trShowSummary.Value = false;
+    FE.trShowN.Value = true;
+    FE.trYScale.Value = "log";
+    FE.yLimMode.Value = "fixed";
+    FE.yLim.Value = '1 1000';
+    app.onConfigChanged("figure", FE.trCategories);
+    oD = app.Config.Figures(kT).panels(1).options;
+    gathered = oD.categories == "param" && oD.categoryParam == "Depth" && isequal(oD.categoryBins, 3) && oD.series == "groups" ...
+        && oD.summary == "median" && oD.errorType == "iqr" && oD.test == "kruskalwallis" && oD.testPairs == "first" ...
+        && oD.adjust == "bh" && oD.testAlpha == 0.01 && oD.testShow == "brackets" && oD.bracketPairs == "all" ...
+        && oD.display == "points" && oD.ordinalX && oD.markerSize == 6 && oD.jitter == 0.5 && ~oD.showSummary ...
+        && oD.showN == "ticks" && oD.yScale == "log" && oD.yLimMode == "fixed" && isequal(oD.yLim, [1 1000]) ...
+        && FE.trCategoryParam.Enable == "on" && FE.trJitter.Enable == "on" && FE.trOrdinalX.Enable == "on" ...
+        && FE.trShowSummary.Enable == "on";
+    FE.trCategoryBins.Value = '';
+    FE.trDisplay.Value = "box";
+    FE.trAlpha.Value = 0.2;
+    FE.trShowN.Value = false;
+    app.applyFigureEditor();
+    shownD = string(FE.trCategoryBins.Value) == "3" && string(FE.trDisplay.Value) == "points" && FE.trAlpha.Value == 0.01 && FE.trShowN.Value ...
+        && string(FE.trCategoryParam.Value) == "Depth" && string(FE.errorType.Value) == "iqr";
+    I = app.Config.validate(CheckPaths=false);
+    clean = ~any(startsWith(I.Field, fid() + ".") & I.Severity == "error");
+    check(gathered && shownD && clean, 'a distribution''s rows reach its options (categories by Depth in 3 bins, the test, its pairs and adjustment, the display) and are shown back; Validate has no error for it');
+    % a type change to a scatter: its x measure and its rows; the layer, its measure and the trial selection kept
+    FE.panelType.Value = "trialScatter";
+    app.onPanelTypeChanged();
+    pS = app.Config.Figures(kT).panels(1);
+    check(pS.type == "trialScatter" && isscalar(pS.layers) && isequaln(pS.layers(1).measure, mNow) && isstruct(pS.selection) ...
+        && pS.options.testShow == "text" && pS.options.errorType == "iqr" && shown(FE.trXMeasure) && shown(FE.trFit) ...
+        && shown(FE.trCorr) && shown(FE.trMarginals) && shown(FE.trOpacity) && shown(FE.trXLim) && shown(FE.yLim) ...
+        && ~shown(FE.trCategories) && ~shown(FE.trDisplay) && ~shown(FE.trBins) && FE.trFitBand.Enable == "off" ...
+        && FE.trFitWindow.Enable == "off" && FE.trMarginalSize.Enable == "off" && FE.trBracketPairs.Enable == "off" ...
+        && isequal(string(FE.trTestShow.ItemsData), ["text" "off"]) && FE.trXScale.Enable == "on" ...
+        && string(FE.trXMeasure.Text) == trialMeasureLabel(pS.layers(1).xMeasure) && contains(string(FE.layerList.Items{1}), " vs "), ...
+        'a type change to a trial scatter keeps the layer, its measure and the trial selection; its X measure and its rows show (a distribution''s brackets become the corner p)');
+    FE.trXMeasureEdit.ButtonPushedFcn(FE.trXMeasureEdit, []);
+    dX = findall(groot, 'Type', 'figure', 'Tag', 'trialMeasureDialog');
+    DX = dX.UserData;
+    DX.Kind.Value = "param";
+    DX.Kind.ValueChangedFcn(DX.Kind, []);
+    paramRows = DX.Which == "xMeasure" && DX.A.RefGrid.Parent.Visible == "off" && DX.B.RefGrid.Parent.Visible == "off" ...
+        && DX.Param.Enable == "on" && DX.Unit.Enable == "off";
+    DX.Param.Value = 'Depth';
+    DX.Ok.ButtonPushedFcn(DX.Ok, []);
+    xm = app.Config.Figures(kT).panels(1).layers(1).xMeasure;
+    check(paramRows && ~isvalid(dX) && xm.kind == "param" && xm.param == "Depth" && app.FigureHistory.undoLabel() == "Trial x measure" ...
+        && string(FE.trXMeasure.Text) == "Depth" && isequaln(app.Config.Figures(kT).panels(1).layers(1).measure, mNow), ...
+        'X measure: the window on the scatter''s x, a trial parameter (A and B hidden): Depth, one step "Trial x measure"');
+    FE.trFit.Value = "movmean";
+    FE.trFitWindow.Value = 5;
+    FE.trCorr.Value = "spearman";
+    FE.trMarginals.Value = true;
+    FE.trMarginalSize.Value = 0.3;
+    FE.trOpacity.Value = 0.4;
+    FE.trXScale.Value = "log";
+    FE.trXLim.Value = '10 1000';
+    FE.trMarker.Value = 7;
+    app.onConfigChanged("figure", FE.trFit);
+    oS = app.Config.Figures(kT).panels(1).options;
+    FE.trXLim.Value = '';
+    FE.trFit.Value = "none";
+    app.applyFigureEditor();
+    check(oS.fit == "movmean" && oS.fitWindow == 5 && oS.corr == "spearman" && oS.marginals && abs(oS.marginalSize - 0.3) < 1e-12 ...
+        && oS.alpha == 0.4 && oS.xScale == "log" && isequal(oS.xLim, [10 1000]) && oS.markerSize == 7 ...
+        && string(FE.trXLim.Value) == "10 1000" && string(FE.trFit.Value) == "movmean" && FE.trFitWindow.Enable == "on" ...
+        && FE.trFitBand.Enable == "off" && FE.trMarginalSize.Enable == "on", ...
+        'a scatter''s rows (a moving-mean fit and its window, Spearman, marginals and their size, opacity, a log x and its limits) reach its options and are shown back');
+    % a histogram's rows
+    FE.panelType.Value = "trialHist";
+    app.onPanelTypeChanged();
+    histRows = shown(FE.trHistDisplay) && shown(FE.trBins) && shown(FE.trOpacity) && shown(FE.trShowSummary) && shown(FE.trXLim) ...
+        && ~shown(FE.yLim) && ~shown(FE.trXMeasure) && ~shown(FE.trMarker) && ~shown(FE.trFit) && FE.trBinCount.Enable == "off" ...
+        && FE.trBinWidth.Enable == "off" && FE.trYScale.Enable == "off" && FE.trShowN.Enable == "off";
+    FE.trHistDisplay.Value = "ecdf";
+    FE.trBins.Value = "width";
+    FE.trBinWidth.Value = 25;
+    FE.trShowSummary.Value = false;
+    app.onConfigChanged("figure", FE.trBins);
+    oH = app.Config.Figures(kT).panels(1).options;
+    check(histRows && app.Config.Figures(kT).panels(1).type == "trialHist" && oH.display == "ecdf" && oH.binMode == "width" ...
+        && oH.binWidth == 25 && ~oH.showSummary && oH.alpha == 0.4 && oH.xScale == "log" && FE.trNormalization.Enable == "off" ...
+        && FE.trBinWidth.Enable == "on" && FE.trBinCount.Enable == "off", ...
+        'a trial histogram: its rows (draw as, bins, opacity, the summary line, x limits; no y limits), an ECDF of 25-ms bins reaching its options');
+    % New panel with a measure, of each trial type; then the New panel window's trial parameters (answered from a timer)
+    badNew = strings(1, 0);
+    for t = EphysAnalysisConfig.TrialPanelTypes
+        app.onPanelSelected(1);
+        app.onNewPanel(Type=t, Where="right", Measure=struct('kind', "count", 'from', struct('line', "Stim"), ...
+            'to', struct('line', "Trough", 'edge', "onset")));
+        pN = app.Config.Figures(kT).panels(end);
+        mN = pN.layers(1).measure;
+        if ~(numel(app.Config.Figures(kT).panels) == 2 && pN.type == t && pN.layers(1).source == "trials" && mN.kind == "count" ...
+                && mN.from.line == "Stim" && mN.from.edge == "onset" && mN.to.line == "Trough" && mN.to.edge == "onset" ...
+                && mN.to.which == "first" && isequal(pN.ref, "default"))
+            badNew(end+1) = t; %#ok<AGROW>
+        end
+        app.onUndoRedo("undo");
+    end
+    app.onPanelSelected(1);
+    answerDialog('New panel', @trialPanelAnswer);
+    app.onNewPanel();
+    seenT = getappdata(groot, 'trialPanelSeen');
+    if isappdata(groot, 'trialPanelSeen'); rmappdata(groot, 'trialPanelSeen'); end
+    pW = app.Config.Figures(kT).panels(end);
+    check(isempty(badNew) && isstruct(seenT) && all(ismember(["Kind" "From" "FromEdge" "To" "ToEdge" "Param" "Display"], seenT.params)) ...
+        && ~any(ismember(["Source" "Binding"], seenT.params)) && seenT.toEnable == "off" && seenT.paramEnable == "off" ...
+        && pW.type == "trialDist" && pW.layers(1).measure.kind == "duration" && pW.layers(1).measure.from.line == "Platform" ...
+        && pW.options.display == "box", ...
+        sprintf(['New panel with a Measure= adds each trial type with its measure%s; the New panel window offers a trial ' ...
+        'panel the measure''s Kind, From, To (grayed out for a duration) and Parameter, no Reads or Binding'], strjoin(", not: " + badNew, "")));
+    app.onUndoRedo("undo");
+
+    % ---- after the p3 merge: the trial panels' real drawing, their data menu and TrialDataExport (skipped before it) ----
+    if exist('TrialDataExport', 'file')
+        groupedBy("Depth");   % the figure's trial groups: two or more categories to test
+        app.onAddFigure("trialDist");
+        kP = app.SelectedFigure;
+        FE.trBracketPairs.Value = "all";   % every pair bracketed, significant or not
+        app.onConfigChanged("figure", FE.trBracketPairs);
+        app.FigureAutoSlider.Value = 1;
+        app.refreshFigurePreview(Force=true);
+        pid = app.Config.Figures(kP).panels(1).id;
+        pts = findall(app.FigurePreviewPanel, 'Tag', 'distPoints');
+        brk = findall(app.FigurePreviewPanel, 'Tag', 'sigBracket');
+        axT = findPanelAxes(app.FigurePreviewPanel, pid);
+        mT = string({PlotAesthetics.menuOf(axT).Children.Text});
+        csv = [tempname '.csv'];
+        TrialDataExport.export(app.FigurePreviewResult, 1, csv);
+        written = isfile(csv);
+        nRows = 0;
+        if written; nRows = height(readtable(csv)); delete(csv); end
+        check(app.FigurePreviewState == "drawn" && ~isempty(pts) && ~isempty(brk) && any(mT == "Copy data table") ...
+            && any(mT == "Export data (CSV)...") && written && nRows > 0, ...
+            sprintf(['the preview of a trial distribution draws its points and brackets; its axes'' right-click menu has ' ...
+            'Copy data table and Export data (CSV)...; TrialDataExport.export writes the values (%d rows)'], nRows));
+        app.FigureAutoSlider.Value = 0;
+        app.onRemoveFigure();
+    else
+        fprintf('  SKIP: the trial panels'' preview, data menu and export (TrialDataExport is not on the path before the p3 merge)\n');
+    end
+    app.onFigureSelected(kT);
+    app.onRemoveFigure();
+end
+
 if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; Firing rate and Tuning curve panels (drawn at once); a type change's display and stack")
     app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     groupedBy("Depth");
@@ -4394,6 +4631,20 @@ if S.sec("5l", "a raster's First-spike marks... and a PSTH's Latency box plot...
     check(shownTc && app.Config.Figures(1).panels(2).options.trialCount == "text" && string(app.UndoMenu.Text) == "Undo Trial count" ...
         && app.FigurePreviewState == "drawn" && numel(txP) == height(app.FigurePreviewResult.groups), ...
         sprintf('Trial count: text gives the PSTH "n = <trials>" per group (%d) as one named step', numel(txP)));
+    % the PSTH's Smoothed line row: Draw, and its SD (grayed out until Draw)
+    shownSl = shown(FE.smoothLine) && ~FE.smoothLine.Value && FE.smoothLineMs.Value == 25 && string(FE.smoothLineMs.Enable) == "off";
+    FE.smoothLine.Value = true;
+    app.onConfigChanged("figure", FE.smoothLine);
+    FE.smoothLineMs.Value = 40;
+    app.onConfigChanged("figure", FE.smoothLineMs);
+    app.refreshFigurePreview(Force=true);
+    slP = findall(app.FigurePreviewPanel, 'Tag', 'smoothLine');
+    slP = slP(arrayfun(@(h) any(isfinite(h.YData)), slP));   % not the legend's entry
+    slO = app.Config.Figures(1).panels(2).options.smoothLine;
+    check(shownSl && slO.enabled && abs(slO.smoothSec - 0.04) < 1e-12 && string(FE.smoothLineMs.Enable) == "on" ...
+        && string(app.UndoMenu.Text) == "Undo Smoothed line" && app.FigurePreviewState == "drawn" ...
+        && numel(slP) == height(app.FigurePreviewResult.groups), ...
+        sprintf('Smoothed line: Draw and SD (ms) give the PSTH a line per group (%d), "Undo Smoothed line"', numel(slP)));
     app.onPanelSelected(1);   % the raster
     offered = any(string(FE.rasterSort.Items) == "latency");
     FE.rasterSort.Value = "latency";
@@ -5579,6 +5830,20 @@ D.Name.ValueChangedFcn(D.Name, []);
 D.Title.Value = 'Its LFP';
 P.Stack.Value = "items";
 setappdata(groot, 'newPanelSeen', seen);
+press(D, "Ok");
+end
+
+
+function trialPanelAnswer(D)
+%trialPanelAnswer  In the New panel window: pick Trial distribution, a duration (note its parameters and what is grayed out: appdata trialPanelSeen), of Platform, as boxes, OK.
+D.Pick("trialDist");
+P = D.Params();
+P.Kind.Value = "duration";
+P.Kind.ValueChangedFcn(P.Kind, []);
+seen = struct('params', string(fieldnames(P)).', 'toEnable', string(P.To.Enable), 'paramEnable', string(P.Param.Enable));
+P.From.Value = 'Platform';
+P.Display.Value = "box";
+setappdata(groot, 'trialPanelSeen', seen);
 press(D, "Ok");
 end
 

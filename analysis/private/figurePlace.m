@@ -18,6 +18,14 @@ function L = figurePlace(A, panels, opts)
 %     fixed   (optional; default false) a legend panel: its insets count
 %             as 0 (its axes are hidden), so it never moves a neighbor, and
 %             no neighbor's labels move it
+%     layout  (optional; default []: the axes stacked by shares) a trial
+%             scatter's marginal strips, struct('kind', "marginals",
+%             'size', F, 'xStrip', "top" | "bottom", 'yStrip', "right" |
+%             "left"): its three axes are the plot, the x strip and the y
+%             strip; of the plot area [x y w h] the plot takes
+%             (1-F)w x (1-F)h, the x strip (1-F)w x F h over it (or under
+%             it), flush, the y strip F w x (1-F)h right (or left) of it,
+%             flush; the corner between the strips stays empty
 %
 %   Mode "plot" (the default; Figure.layout.boxesMean "plot"): a rect is
 %   the panel's plot area, moved in only as far as its labels need. Every
@@ -51,7 +59,8 @@ function L = figurePlace(A, panels, opts)
 %     5. Steps 1-4 again on the moved boxes while any shortfall is over
 %        0.5 px, at most 3 times.
 %     6. A note's band, at most half the box, comes off the side its note
-%        is on, and the axes share what is left top to bottom.
+%        is on, and the axes share what is left top to bottom (a
+%        scatter's marginals: split as its layout says).
 %   Mode "outer" ("outer"): a rect encloses the panel with its labels: the
 %   plot area is the rect, clipped to A.area, less inset + Padding on each
 %   side with an inset (flush pairs' facing sides have none, so they stay
@@ -70,7 +79,8 @@ function L = figurePlace(A, panels, opts)
 %     page, area, title  A's
 %     panels   one per PANELS: outer (its rect in px, flush edges snapped),
 %              box (its plot area; without the note's band), axes (one row
-%              per share: each axes' plot box, top to bottom), band (its
+%              per share: each axes' plot box, top to bottom; marginals:
+%              the plot's, the x strip's, the y strip's), band (its
 %              note's band; [] = none), nudged ([left bottom right top]: px
 %              each side was moved in), clipped (true when MinSize stopped
 %              a move)
@@ -178,20 +188,43 @@ for k = 1:n
             band = [box(1) + box(3) - b, box(2), b, box(4)];
             box(3) = box(3) - b;
     end
-    f = 1;
-    if isfield(panels, 'shares'); f = reshape(double(panels(k).shares), 1, []); end
-    if isempty(f) || any(~(f > 0)); f = 1; end
-    f = f / sum(f);
-    X = zeros(numel(f), 4);
-    yTop = box(2) + box(4);
-    for i = 1:numel(f)
-        hi = box(4) * f(i);
-        X(i, :) = [box(1), yTop - hi, box(3), hi];
-        yTop = yTop - hi;
+    lay = [];
+    if isfield(panels, 'layout'); lay = panels(k).layout; end
+    if isstruct(lay) && isfield(lay, 'kind') && string(lay.kind) == "marginals"
+        X = marginalBoxes(box, lay);
+    else
+        f = 1;
+        if isfield(panels, 'shares'); f = reshape(double(panels(k).shares), 1, []); end
+        if isempty(f) || any(~(f > 0)); f = 1; end
+        f = f / sum(f);
+        X = zeros(numel(f), 4);
+        yTop = box(2) + box(4);
+        for i = 1:numel(f)
+            hi = box(4) * f(i);
+            X(i, :) = [box(1), yTop - hi, box(3), hi];
+            yTop = yTop - hi;
+        end
     end
     L.panels(k) = struct('outer', outer(k, :), 'box', box, 'axes', X, 'band', band, 'nudged', Nd(k, :), 'clipped', clipped(k));
 end
 L.neighbors = figureNeighbors(outer, tol);
+end
+
+
+function X = marginalBoxes(box, lay)
+%marginalBoxes  A scatter's plot area split for its marginal strips: [plot; x strip; y strip], each strip a share LAY.size of the box.
+f = min(max(double(lay.size), 0), 0.9);
+sw = f * box(3);
+sh = f * box(4);
+mw = box(3) - sw;
+mh = box(4) - sh;
+x0 = box(1) + (string(lay.yStrip) == "left") * sw;
+y0 = box(2) + (string(lay.xStrip) == "bottom") * sh;
+xs = [x0, box(2), mw, sh];
+if string(lay.xStrip) ~= "bottom"; xs(2) = y0 + mh; end
+ys = [box(1), y0, sw, mh];
+if string(lay.yStrip) ~= "left"; ys(1) = x0 + mw; end
+X = [x0 y0 mw mh; xs; ys];
 end
 
 

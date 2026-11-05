@@ -15,11 +15,13 @@ function [tf, kept] = panelTakes(P, Q, path, opts)
 %   - a "fixed" yLimMode goes to a panel of another type only when it
 %     has limits of its own (its yLim, in its type's units)
 %   - an error type (errorType) is one Q's type draws (PanelErrorTypes;
-%     a continuous panel's AuxErrorTypes add "iqr"), and a waveform
+%     a continuous or trial panel's AuxErrorTypes add "iqr"), a trial
+%     panel's testShow one Q's type takes (brackets only on a trial
+%     distribution), and a waveform
 %     (waveform, waveform.mode, waveform.ampScale) one Q's type offers
 %     (a waveforms panel has no "off"; an inset no "common" range)
 %   KEPT names the rule that refused it ("baseline", "stack",
-%   "yLimMode", "errorType" or "waveform"; "" when Q lacks the option or
+%   "yLimMode", "errorType", "testShow" or "waveform"; "" when Q lacks the option or
 %   does not share it).
 %   AnyType=true lets an option go to a panel of another type that has
 %   it, shared or not (its value still one Q's type takes, as above): the
@@ -69,11 +71,15 @@ if ~same && path == "yLimMode" && P.options.yLimMode == "fixed" && isempty(Q.opt
 end
 if ~same && path == "errorType"
     types = EphysAnalysisConfig.PanelErrorTypes;
-    if Q.type == "continuous"; types = EphysAnalysisConfig.AuxErrorTypes; end
+    if ismember(Q.type, ["continuous" EphysAnalysisConfig.TrialPanelTypes]); types = EphysAnalysisConfig.AuxErrorTypes; end
     if ~ismember(string(P.options.errorType), types)
-        kept = "errorType";   % e.g. a continuous panel's "iqr"
+        kept = "errorType";   % e.g. a continuous or trial panel's "iqr"
         return
     end
+end
+if ~same && path == "testShow" && ~ismember(string(P.options.testShow), trialTestShows(Q.type))
+    kept = "testShow";   % a trial distribution's "brackets": a histogram or scatter has no categories to bracket
+    return
 end
 if ~same && ismember(path, ["waveform" "waveform.mode" "waveform.ampScale"]) && isstruct(P.options.waveform)
     w = P.options.waveform;
@@ -86,4 +92,11 @@ if ~same && ismember(path, ["waveform" "waveform.mode" "waveform.ampScale"]) && 
     end
 end
 tf = true;
+end
+
+
+function s = trialTestShows(type)
+%trialTestShows  The options.testShow values a trial panel type takes: a distribution's brackets too.
+s = ["text" "off"];
+if type == "trialDist"; s = ["brackets" "text" "off"]; end
 end

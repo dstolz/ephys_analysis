@@ -18,7 +18,11 @@ function files = makePanelThumbnails(opts)
 %   Behavior, Signals (LFP, MUA, AUX) and Spikes steps (the sorted units
 %   are the ground-truth sorting); aligned to Stim onset, -0.2 to 0.8 s,
 %   grouped by TrialType. The spectral types need Chronux: toolboxes/chronux
-%   is put on the path. Takes about a minute or two.
+%   is put on the path. The trial panels (trialDist, trialHist,
+%   trialScatter) draw the delay from Stim onset to Platform offset, which
+%   varies from trial to trial (their templates' Trial offset is the same
+%   in every synthetic trial), the histogram in 8 bins, the scatter with a
+%   linear fit. Takes about a minute or two.
 %     matlab -batch "addpath('C:\src\ephys_analysis\tools'); makePanelThumbnails()"
 %
 %   Options
@@ -77,6 +81,7 @@ cfg.Defaults.Selection.groupBy = "TrialType";
 for t = opts.Types
     cfg = cfg.addFigure(t, Id=t);
 end
+cfg = trialPictures(cfg, opts.Types);
 runner = EphysAnalysisRunner(cfg, LogFcn=[]);
 src = runner.source(1);
 ws = [warning('off', 'unitWaveforms:Templates') warning('off', 'unitWaveforms:NoWaveforms')];
@@ -108,6 +113,22 @@ for t = opts.Types
     files(end+1) = out; %#ok<AGROW>
     clear closeIt
     fprintf('%s\n', out);
+end
+end
+
+
+function cfg = trialPictures(cfg, types)
+%trialPictures  The trial panels' figures on a measure that varies: Stim onset to Platform offset; the histogram in 8 bins, the scatter with a linear fit.
+m = EphysAnalysisConfig.defaults("TrialMeasure");
+m.from = eventRef(line="Stim");
+m.to = eventRef(line="Platform", edge="offset");
+for t = reshape(intersect(types, EphysAnalysisConfig.TrialPanelTypes, 'stable'), 1, [])
+    k = cfg.figureIndex(t);
+    f = cfg.Figures(k);
+    f.panels(1).layers(1).measure = m;
+    if t == "trialScatter"; f.panels(1).options.fit = "linear"; end
+    if t == "trialHist"; f.panels(1).options.binMode = "count"; f.panels(1).options.binCount = 8; end
+    cfg.Figures(k) = f;
 end
 end
 

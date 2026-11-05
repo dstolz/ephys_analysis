@@ -35,7 +35,16 @@ function [res, sessions, Fs] = figureSessionCompute(sources, sessions, spec, opt
 %                        A layer's aggregate "mean" is taken again over the
 %                        merged tiles (figureLayerMean). An event-trace
 %                        layer holds every session's epochs, as a raster
-%                        does, each in its series
+%                        does, each in its series. A trial panel's layers
+%                        (trialDist, trialHist, trialScatter) hold every
+%                        session's per-trial values, each in its series
+%                        (no tiles); then trialPanelStats runs again over
+%                        the panel's merged layers: the categories, series
+%                        and tests are over every session's values, and
+%                        the "session" grouping has the sessions
+%                        (R.sessions) as its levels. trialPanelStats thus
+%                        runs twice for a session figure (per session in
+%                        computeTrialPanel, then here); keep both
 %   Not merged, with the reason as the layer's (or panel's) skip: events
 %   drawn as marks ("event marks are not drawn across sessions"), the
 %   rings of a waveforms panel's probe layout, a heat map of trials, and
@@ -286,6 +295,9 @@ for k = 1:numel(F0.panels)
             && isequaln(p.selection, spec.selection);
         if isempty(first) && onFig && isfield(R, 'epochs') && istable(R.epochs); first = R; end
     end
+    if ismember(p.type, EphysAnalysisConfig.TrialPanelTypes)
+        P.layers = trialStatsMerged(P.layers, p);
+    end
     if all(arrayfun(@(l) l.skip ~= "", P.layers)) && ~isempty(P.layers)
         P.skip = "";   % each layer says why
     end
@@ -369,6 +381,19 @@ if isfield(R1, 'trialMatrix')
     return
 end
 ss = spec.sessions;
+if ismember(kind, EphysAnalysisConfig.TrialPanelTypes)
+    % per-trial values, as an event trace's intervals: no tiles to match (combineSessions' match "none"), no unit or
+    % channel to map; the statistics are made again over the merged values (trialStatsMerged, in mergeFigure)
+    try
+        R = combineSessions(Rs, S, Series=ss.series, Error=ss.error, MinSessions=max(1, ss.minSessions), ...
+            ColorOrder=ss.colorOrder, Group=grp, TrialGroups=pass);
+        R.dataset = string(R.dataset);
+    catch ME
+        R = [];
+        why = string(ME.message);
+    end
+    return
+end
 plotKind = "";
 if p.type == "heatmap"; plotKind = "heatmap"; end
 if kind == "waveforms"; grp = 0; pass = "pool"; end   % one group, "all"
@@ -405,6 +430,23 @@ if L.aggregate == "mean" && isfield(R1, 'layerMean')
     R.layerMean = layerMeanOf(R, R1.layerMean, p);
 end
 if ~one; name = ""; end
+end
+
+
+function layers = trialStatsMerged(layers, p)
+%trialStatsMerged  A trial panel's categories, series and tests over its merged layers (trialPanelStats, a second time).
+%   Each session's figure ran trialPanelStats on its own values; this run is
+%   over every session's values (the session grouping needs the merged
+%   table and R.sessions), so it must stay. An error skips the merged layers
+%   with its message, as computeTrialPanel does.
+try
+    layers = trialPanelStats(layers, p);
+catch ME
+    reason = figureLayerError(ME);
+    for j = 1:numel(layers)
+        if layers(j).skip == ""; layers(j).skip = reason; layers(j).R = []; layers(j).meta = []; end
+    end
+end
 end
 
 
@@ -482,12 +524,26 @@ end
 
 function L = groupLabels(Fs)
 %groupLabels  The union of the session figures' trial group labels, in first-seen order.
+%   A figure's groups (F.groups), else, for a figure of trial panels alone
+%   (no epochs, so no F.groups), its trial layers' (R.groups).
 L = strings(0, 1);
 for k = 1:numel(Fs)
     F = Fs{k};
-    if isempty(F) || ~istable(F.groups); continue; end
-    lab = string(F.groups.label(:));
-    L = [L; lab(~ismember(lab, L))]; %#ok<AGROW>
+    if isempty(F); continue; end
+    G = {F.groups};
+    if ~istable(F.groups)
+        G = {};
+        for P = reshape(F.panels, 1, [])
+            if ~ismember(P.type, EphysAnalysisConfig.TrialPanelTypes); continue; end
+            for lay = reshape(P.layers, 1, [])
+                if lay.skip == "" && isstruct(lay.R) && isfield(lay.R, 'groups') && istable(lay.R.groups); G{end+1} = lay.R.groups; end %#ok<AGROW>
+            end
+        end
+    end
+    for i = 1:numel(G)
+        lab = string(G{i}.label(:));
+        L = [L; lab(~ismember(lab, L))]; %#ok<AGROW>
+    end
 end
 end
 

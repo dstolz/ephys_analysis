@@ -12,15 +12,19 @@ classdef FigureDataTips
     %
     %   Fields (FigureDataTips.fields: Key, Label, Section, Default, Description)
     %     Point   x, y (the axes' quantities and units; a time panel's x
-    %             is the time from its event), value (a heat map cell's or
+    %             is the time from its event; a trial distribution's x its
+    %             point's category), value (a heat map cell's or
     %             a probe site's, in its color bar's unit; a PSTH's latency
     %             box plot part: its median, quartiles, whiskers, outliers
     %             and n; a response onset's line: the onset and the
-    %             CUSUM's settings), row (a heat map row's label: unit, channel or
-    %             epoch)
+    %             CUSUM's settings; a significance bracket's pair test:
+    %             "ranksum p = 0.004 (holm 0.012), n = 30 vs 12"), row (a
+    %             heat map row's label: unit, channel or epoch)
     %     Trial   trial (a raster tick's, stop dot's, first-spike mark's or
     %             mark's trial, a
-    %             heat map row of trials'), trialGroup (that trial's group,
+    %             heat map row of trials', a trial panel's point's: its
+    %             appdata TrialRows, [layer row] into that layer's
+    %             R.values), trialGroup (that trial's group,
     %             or the trace's), parameters (the trial's parameter values)
     %     Source  series (the unit, channel or event a trace draws), layer,
     %             panel (its id and type), observation, dataset, part (what
@@ -309,6 +313,16 @@ end
 if startsWith(role, "latency")   % a PSTH's latency box plot: its height is a lane, not a rate
     I.showY = false;
 end
+if C.type == "trialDist"   % categories along x: a point's position says nothing (its category row does)
+    I.showX = false;
+end
+if isappdata(o, 'SigPair')   % a significance bracket: where it sits says nothing, its pair's test does
+    I.showX = false;
+    I.showY = false;
+end
+if isa(o, 'matlab.graphics.chart.primitive.ViolinPlot')   % its tips are its density's: MATLAB's own rows
+    I.template = false;
+end
 if I.kind == "image"
     I.showY = false;
     I.showValue = true;
@@ -316,7 +330,8 @@ if I.kind == "image"
     I.rowName = I.y.name;
     if I.rowName == "Y"; I.rowName = "Row"; end
     I.rowLabels = imageRowLabels(o, ax);
-elseif isa(o, 'matlab.graphics.chart.primitive.Scatter') && numel(o.CData) == numel(o.XData) && numel(o.XData) > 1
+elseif isa(o, 'matlab.graphics.chart.primitive.Scatter') && numel(o.CData) == numel(o.XData) && numel(o.XData) > 1 ...
+        && ~isequal(size(o.CData), [1 3])   % (a color for every point is no value: three points of one color)
     I.showValue = true;
     I.value = unitOnly(colorbarQty(ax), C.type);
 end
@@ -334,6 +349,8 @@ end
 if layerName == ""; layerName = layerOf(C.layers, series); end
 seriesLabel = "Unit / channel";
 if ismember(role, ["rasterEvent" "eventLine" "eventRug"]); seriesLabel = "Event"; end
+if ismember(C.type, EphysAnalysisConfig.TrialPanelTypes); seriesLabel = "Series"; end   % a trial panel's colors: its series
+if ismember(role, ["sigBracket" "sigText"]); seriesLabel = "Pair"; end
 I.const = addConst(I.const, "trialGroup", "Trial group", tg);
 I.const = addConst(I.const, "series", seriesLabel, series);
 I.const = addConst(I.const, "layer", "Layer", layerName);
@@ -345,10 +362,15 @@ if isappdata(o, 'LatencyStats')   % a latency box plot's part: its statistics, i
     I.const = addConst(I.const, "value", "First-spike latency", latencyText(getappdata(o, 'LatencyStats')));
 elseif isappdata(o, 'LatencyOnset')   % a response onset's line: the onset and how the CUSUM found it
     I.const = addConst(I.const, "value", "Response onset", onsetText(getappdata(o, 'LatencyOnset')));
+elseif isappdata(o, 'SigPair')   % a significance bracket or its stars: the pair's test
+    I.const = addConst(I.const, "value", "Pair test", sigPairText(getappdata(o, 'SigPair')));
 end
 
-% per point: a raster part's trials, a heat map of trials' rows
-if ismember(role, ["rasterTicks" "rasterStop" "rasterEvent" "firstSpike"])
+% per point: a trial panel's values, a raster part's trials, a heat map of trials' rows
+if isappdata(o, 'TrialRows')   % [layer row] per point, into that layer's R.values
+    I.point = trialValueRows(getappdata(o, 'TrialRows'), C, I);
+    I.const = I.const([I.const.key] ~= "trialGroup");   % the point's own group
+elseif ismember(role, ["rasterTicks" "rasterStop" "rasterEvent" "firstSpike"])
     [ep, unitLabel, lay] = rasterEpochs(o, role, C.layers, group);
     if ~isempty(ep)
         I.point = trialRows(ep, lay, C);
@@ -382,7 +404,8 @@ function q = unitOnly(q, type)
 if q.unit ~= "" || q.name == "" || ~(contains(q.name, "/") || ismember(q.name, ["Hz" "s" "ms" "µV" "uV" "mV" "dB" "spikes" "%"]))
     return
 end
-names = struct('psth', "Rate", 'rate', "Rate", 'tuning', "Rate", 'continuous', "Amplitude", 'spectrum', "Power");
+names = struct('psth', "Rate", 'rate', "Rate", 'tuning', "Rate", 'continuous', "Amplitude", 'spectrum', "Power", ...
+    'trialDist', "Value", 'trialHist', "Count", 'trialScatter', "Value");
 name = "Value";
 if isvarname(type) && isfield(names, type); name = names.(type); end
 q = qty(name, q.name);
@@ -629,6 +652,86 @@ end
 end
 
 
+function s = sigPairText(S)
+%sigPairText  A significance bracket's pair test as one line: "ranksum p = 0.004 (holm 0.012), n = 30 vs 12".
+s = string(S.test) + " p = " + string(sprintf('%.2g', S.p));
+if isfield(S, 'adjust') && string(S.adjust) ~= "none" && isfinite(S.pAdj)
+    s = s + " (" + string(S.adjust) + " " + string(sprintf('%.2g', S.pAdj)) + ")";
+end
+s = s + sprintf(", n = %d vs %d", S.n1, S.n2);
+end
+
+
+function P = trialValueRows(TR, C, I)
+%trialValueRows  Per-point rows of a trial panel's points (TrialRows: [layer row] each, into P.layers(layer).R.values): trial, trial group, a distribution's category, parameters.
+P = repmat(struct('key', "", 'label', "", 'value', []), 1, 0);
+TR = double(TR);
+n = size(TR, 1);
+if n == 0 || size(TR, 2) < 2; return; end
+trial = NaN(n, 1);
+grp = strings(n, 1);
+grp(:) = missing;
+cat = grp;
+std = ["trial" "value" "x" "tA" "tB" "k" "group" "session" "sessionKey" "layer" "category" "series" "groupIndex"];
+names = strings(1, 0);
+vals = cell(1, 0);
+for j = reshape(unique(TR(:, 1)), 1, [])
+    if ~(j >= 1 && j <= numel(C.layers)) || C.layers(j).skip ~= ""; continue; end
+    R = C.layers(j).R;
+    if ~isstruct(R) || ~isfield(R, 'values') || ~istable(R.values); continue; end
+    Vt = R.values;
+    idx = find(TR(:, 1) == j);
+    r = TR(idx, 2);
+    ok = r >= 1 & r <= height(Vt);
+    idx = idx(ok);
+    r = r(ok);
+    vn = string(Vt.Properties.VariableNames);
+    trial(idx) = double(Vt.trial(r));
+    if isfield(R, 'groups') && istable(R.groups) && ismember("group", vn)
+        grp(idx) = levelLabels(double(Vt.group(r)), string(R.groups.label));
+    end
+    if isfield(R, 'categories') && istable(R.categories) && ismember("category", vn)
+        cat(idx) = levelLabels(double(Vt.category(r)), string(R.categories.label));
+    end
+    for v = vn(~ismember(vn, std))
+        col = Vt.(v);
+        if size(col, 2) ~= 1; continue; end
+        i = find(names == v, 1);
+        if isempty(i)
+            names(end+1) = v; %#ok<AGROW>
+            if isnumeric(col) || islogical(col); vals{end+1} = NaN(n, 1); else; vals{end+1} = repmat(string(missing), n, 1); end %#ok<AGROW>
+            i = numel(names);
+        end
+        if isnumeric(vals{i})
+            if isnumeric(col) || islogical(col); vals{i}(idx) = double(col(r)); end
+        else
+            vals{i}(idx) = string(col(r));
+        end
+    end
+end
+P(end+1) = struct('key', "trial", 'label', "Trial", 'value', trial.');
+if any(~ismissing(grp)); P(end+1) = struct('key', "trialGroup", 'label', "Trial group", 'value', categorical(grp.')); end
+if C.type == "trialDist" && any(~ismissing(cat))
+    lab = "Category";
+    if I.x.name ~= "" && I.x.name ~= "X"; lab = I.x.name; end
+    P(end+1) = struct('key', "x", 'label', lab, 'value', categorical(cat.'));
+end
+for i = 1:min(numel(names), 8)
+    val = vals{i};
+    if isnumeric(val); val = val.'; else; val = categorical(val.'); end
+    P(end+1) = struct('key', "parameters", 'label', names(i), 'value', val); %#ok<AGROW>
+end
+end
+
+
+function s = levelLabels(g, labels)
+%levelLabels  The label of each level index G (missing where it is none).
+s = repmat(string(missing), numel(g), 1);
+ok = g >= 1 & g <= numel(labels);
+s(ok) = labels(g(ok));
+end
+
+
 function s = onsetText(S)
 %onsetText  A response onset's line as one line: "12.5 ms (CUSUM past 5 SD for 5 ms, 2 ms bins)".
 s = string(sprintf('%.3g ms (CUSUM past %g SD for %g ms, %g ms bins)', 1000 * S.onset, S.settings.Threshold, ...
@@ -755,7 +858,11 @@ end
 if isempty(rows)   % nothing chosen: MATLAB's own X and Y
     rows = [dataTipTextRow('X', 'XData') dataTipTextRow('Y', 'YData')];
 end
-tpl.DataTipRows = rows;
+try
+    tpl.DataTipRows = rows;
+catch
+    % a template whose rows cannot be changed (a box chart's in R2025a): its own rows stay
+end
 end
 
 

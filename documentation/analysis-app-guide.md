@@ -2,8 +2,8 @@
 
 The analysis app, `EphysFigGenApp`, draws figures of recordings the
 [pipeline app](pipeline-app-guide.md) has processed: rasters, PSTHs, evoked
-potentials, firing rates, tuning curves, heat maps, probe maps, spectra and
-more. You design a figure once, see it on one unit, and then draw it for
+potentials, firing rates, tuning curves, heat maps, probe maps, spectra, a
+time or a count per trial compared across groups, and more. You design a figure once, see it on one unit, and then draw it for
 every unit of every recording you choose, with an HTML or PDF report that
 collects them. This page is for people who use the app; it needs no
 programming beyond the line that opens it. The
@@ -100,6 +100,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | ...do this | Do this |
 | --- | --- |
 | change how a figure looks (colors, line widths, fonts, axis labels) | right-click a part of the preview and edit it there, or pick a ready-made look in the **Design** menu (journal, talk, ...) |
+| draw a smooth line over a PSTH's bars | select the PSTH and, in its options, tick **Smoothed line: Draw**. **SD (ms)** sets how smooth the line is; **Smooth (ms)** still sets the bars' own smoothing, apart from the line's |
 | write a label that follows the data, such as *Time (s) re Stim onset* or *Hit trials* | type a variable in braces in a title, an axis label, a layer's name or a note: **Time (s) re {Line} {Edge}**, **{Response} trials**. Each figure fills it in. The **{x}** button beside the field lists them, with what each means (see [Labels that follow the data](#labels-that-follow-the-data)) |
 | give one figure its own event or window | in the figure's panel settings, set its own event reference and epoch window; the Alignment tab is only the default |
 | draw a figure across several recordings | tick **Across datasets** in the figure's Sessions section |
@@ -117,8 +118,42 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysFigGenApp.md#notes)) |
 | reuse a figure's panels in other figures | select it and press **Save as panel type...** under the figure list. In any figure, **New panel...** then lists it under **Saved figures**: pick it, and all its panels go into the free space or beside the selected panel, arranged as they were (see [Saved figures as panel types](EphysFigGenApp.md#figures-as-panel-types)) |
+| plot the time between two events per trial and compare groups | see [Compare a time per trial across groups](#compare-a-time-per-trial-across-groups) below |
 | draw the same figures every time the pipeline runs | save the config, then choose it on the pipeline app's Analysis tab |
 | draw the same figures from a script | **File → Generate script** |
+
+### Compare a time per trial across groups
+
+To plot, for example, how long each trial took from the stimulus to the
+animal leaving the platform, and whether that differs between trial groups:
+
+1. In the Figures tab, press **Add** (or **New panel...** in a figure you
+   have). Pick **Trial distribution**. Under **Key parameters**, set
+   **Measure** to *Delay from an event to another*, **From (A)** to *Stim
+   onset* and **To (B)** to *Platform offset*. Press **OK**: the panel
+   draws one dot per trial.
+2. To change the measure later, find the **Layers** section and press
+   **Edit...** beside **Measure**. The *Trial measure* window shows both events
+   with every option the Alignment tab has (which one, its scope, a sequence).
+   The gray line at the bottom shows the name the measure will get. Press
+   **OK**.
+3. In **Options**, pick what goes along the x axis in **Categories**: *trial
+   groups* (the groups of the figure's trial selection, such as *Depth*), *a
+   trial parameter* (type its name, and the number of bins beside it), or
+   *measure (layer)* to put several measures side by side. **Display** draws
+   the values as a swarm, boxes, violins, points or a line.
+4. The group test is drawn with the panel: brackets with stars over the pairs
+   that differ, and the overall p in a corner. **Test** picks the test (*auto*
+   chooses for you), **Show tests** how much is drawn. The same numbers are in
+   the figure's caption and the report.
+5. Right-click the plot and choose **Copy data table** to paste the
+   per-trial numbers into a spreadsheet, or **Export data (CSV)...** to save
+   them.
+
+For one measure against another, pick **Trial scatter** instead (its **X
+measure** is the x axis); for the shape of one measure, **Trial histogram**.
+Every option is in [Trial measures](EphysAnalysisConfig.md#trial-measures) and
+the [Trial measure window](EphysFigGenApp.md#the-trial-measure-window).
 
 ## Labels that follow the data
 

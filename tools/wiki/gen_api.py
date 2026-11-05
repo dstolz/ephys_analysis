@@ -1035,6 +1035,7 @@ ANALYSIS_GROUPS = [
     ("Compute", ["spikePSTH", "firingRate", "tuningCurve", "evokedPotential", "unitCorrelation",
                  "unitSummary", "probeMapValues"]),
     ("Latency and onset", ["eventLatency", "firstSpikeLatency", "responseOnset", "latencyMethodText"]),
+    ("Trial measures", ["trialMeasure", "trialMeasureLabel", "trialStatsText"]),
     ("Response tests and auROC", ["responseEpochs", "responseStats", "pAdjust", "aurocCurves", "aurocCall"]),
     ("Population analysis", ["populationAnalysis", "populationSummary", "renderPopulation", "writePopulation"]),
     ("Chronux analyses", ["chronuxSettings", "chronuxTimeBase", "chronuxSpectrum", "chronuxSpecgram",
@@ -1109,6 +1110,7 @@ def main(do_splice=True):
         "DatasetNotes": pdir("analysis", "DatasetNotes.m"),
         "PlotDesign": pdir("analysis", "PlotDesign.m"),
         "FigureTemplate": pdir("analysis", "FigureTemplate.m"),
+        "TrialDataExport": pdir("analysis", "TrialDataExport.m"),
     }
     for n, p in simple.items():
         cls = load_class(p)

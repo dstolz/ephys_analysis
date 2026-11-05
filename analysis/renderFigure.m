@@ -36,7 +36,11 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            to the opposite side. Last of all (after the time stack),
 %            xShow and yShow blank what the panel leaves out: "ticks" its
 %            label, "label" its ticks (marks and numbers), "none" both
-%            (blankAxes; every y axis of a yyaxis).
+%            (blankAxes; every y axis of a yyaxis). A trial scatter's
+%            marginal strips (its draw's extraLayout "marginals") take
+%            none of this but the plot's sides (they show no tick labels);
+%            its title goes on the x strip when that is over the plot,
+%            and the x overlays stay on the plot.
 %   Time     every panel sharing the figure's time axis (sharesTime; a
 %            spectrogram, a coherogram on the epochs too) shows
 %            [SPEC.window.pre post] (set on each: no linkaxes);
@@ -123,6 +127,9 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            editor on the figure (context kind "figure"; its redraw draws
 %            F again with the new SPEC.aesthetics). A panel's box ("on" /
 %            "off"; "auto" leaves the looks' Box) is set last, over all of them.
+%            The trial panels' right-click menus also get "Copy data table"
+%            and "Export data (CSV)..." (TrialDataExport.attach: their
+%            per-trial values).
 %   Probe figures  F of kind "probeFigure" (figureProbeCompute's PF: the
 %            figure computed for every unit or channel at its site on the
 %            probe) is drawn by renderProbeFigure with the same options,
@@ -298,7 +305,8 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %     axes    the panels' axes drawn, in panel order
 %     panels  one per SPEC.panels: id, type, axes (empty when not drawn),
 %             extraAxes (a coherence panel's phase axes, drawn under its
-%             magnitude; dressed with the panel type's looks),
+%             magnitude; a trial scatter's marginal strips, the x strip
+%             then the y strip; dressed with the panel type's looks),
 %             note (its text, empty without one), overlays (the lines
 %             and patches drawn) and yExtent (a panel with yLimMode: its
 %             y extent in its values' units, [lo hi], the draw function's
@@ -487,7 +495,7 @@ for k = 1:nDraw
     if hk.yName ~= ""; ylabel(ax, hk.yName, 'Interpreter', 'none'); end
     ttl = p.title;
     if own(k); ttl = groupingTitle(ttl, p, spec); end
-    if ttl ~= "" && ~isLeg(k); title(ax, ttl, 'FontWeight', 'normal', 'Interpreter', 'none'); end
+    if ttl ~= "" && ~isLeg(k); title(titleAxes(hk), ttl, 'FontWeight', 'normal', 'Interpreter', 'none'); end   % (over a scatter's top strip)
     if own(k)   % its groups are not the figure's: a legend of its own, inside it; the figure's legend serves the others
         if style.Legend
             v = isgraphics(hk.legendHandles);
@@ -504,11 +512,12 @@ for k = 1:nDraw
     axs(k) = ax;
     yExt(k, :) = figureExtentOf(hk, ax, p);
     if isfield(hk, 'extraAxes'); extra{k} = hk.extraAxes(isgraphics(hk.extraAxes)); end
-    labs{k} = panelAxes([ax reshape(extra{k}, 1, [])], p);   % its own axis sides and labels, over what its type drew
+    labs{k} = panelAxes(labeledAxes(hk, ax, extra{k}), p);   % its own axis sides and labels, over what its type drew
+    if isMarginals(hk); followSides(extra{k}, ax); end   % a scatter's marginal strips (no tick labels) take its sides
     hks{k} = hk;
     % the panel's overlays on its axes, and its note: in the band beside them, else in them
     ovls{k} = drawOverlays(struct('axes', ax), p.overlays);
-    if ~isempty(extra{k}) && ~isempty(p.overlays)   % a coherence panel's phase strip shares its x axis: the x overlays go on it too
+    if ~isempty(extra{k}) && ~isempty(p.overlays) && ~isMarginals(hk)   % a coherence panel's phase strip shares its x axis: the x overlays go on it too
         xo = p.overlays([p.overlays.axis] == "x");
         if ~isempty(xo)
             O2 = drawOverlays(struct('axes', extra{k}), xo);
@@ -545,7 +554,7 @@ sided = false(1, np);   % a band left or right of a panel's axes: narrower than 
 for k = 1:np; sided(k) = isempty(ax0) && sideNote(panels(k)); end
 hidden = figureTimeStack(axs, panels, isTime, labelSize, sided);
 for k = find(drawn & ~isLeg)   % what each panel's axes leave out (xShow, yShow), over what the stack and its type drew
-    blankAxes([axs(k) reshape(extra{k}, 1, [])], panels(k));
+    blankAxes(labeledAxes(hks{k}, axs(k), extra{k}), panels(k));
 end
 
 % title: the figure's, or what it shows; the top-left panel names the observation under a title of the figure's own
@@ -553,8 +562,9 @@ end
 obs = F.observation;
 if spec.title ~= "" && named && any(drawn & ~isLeg) && ~any(ismember(["Unit" "Observation"], titleVars))
     k1 = firstPanel(spec, drawn & ~isLeg);
-    if panels(k1).title == "" && strjoin(string(axs(k1).Title.String), "") == ""
-        title(axs(k1), string(obs.label), 'FontWeight', 'normal', 'Interpreter', 'none');
+    t1 = titleAxes(hks{k1});
+    if panels(k1).title == "" && strjoin(string(t1.Title.String), "") == ""
+        title(t1, string(obs.label), 'FontWeight', 'normal', 'Interpreter', 'none');
     end
 end
 sub = string(F.dataset);
@@ -679,7 +689,7 @@ if isempty(canvas)   % one axes: its note goes where it belongs once its looks a
         if ~isempty(notes{k}) && ~isempty(notes{k}.text); placeNote(notes{k}, panels(k).note); end
     end
 else   % the layout, once everything is drawn and dressed: every axes, band, the legend and the title, then the notes
-    figureLayout(canvas, layoutOf(spec, panels, axs, extra, notes, bands, th, G2, isLeg, opts.Scale));
+    figureLayout(canvas, layoutOf(spec, panels, axs, extra, hks, notes, bands, th, G2, isLeg, opts.Scale));
 end
 if figureEditable(opts.Editable, target)
     PlotAesthetics.enableEditing(target, figureEditContext(F, raw, target, opts, root, design, follows, txt));
@@ -699,6 +709,9 @@ if figureEditable(opts.DataTips, target)   % after the right-click menus: it add
         hT.panels(k).extraAxes = gobjects(0);
     end
     FigureDataTips.attach(F, spec, hT);
+end
+if figureEditable(opts.Editable, target)   % a trial panel's right-click menus: "Copy data table", "Export data (CSV)..."
+    TrialDataExport.attach(F, h);   % (a kept panel's menus have them: it adds them once)
 end
 if opts.Reuse && ~isempty(canvas) && isequal(canvas, target)   % what the next drawing with Reuse can keep
     setappdata(target, drawingAppdata(), struct('keys', keys, 'axes', axs, 'extra', {extra}, 'hks', {hks}, 'notes', {notes}, ...
@@ -984,8 +997,9 @@ for k = find(drawn)
         if p.title == "" || q.title == ""; return; end   % the type's title, or the observation's, before or after
         ttl = p.title;
         if own(k); ttl = groupingTitle(ttl, p, spec); end
-        sets(end+1, :) = {D.axes(k).Title, ttl, ""}; %#ok<AGROW>
-        dress(end+1, :) = {k, D.axes(k).Title, ttl, "none"}; %#ok<AGROW>
+        T = titleAxes(D.hks{k}).Title;   % (over a scatter's top strip)
+        sets(end+1, :) = {T, ttl, ""}; %#ok<AGROW>
+        dress(end+1, :) = {k, T, ttl, "none"}; %#ok<AGROW>
     end
 end
 txt = D.txt;
@@ -1408,20 +1422,54 @@ L = figurePlace(A, C, Mode=lay.boxesMean, Padding=lay.paddingPx);
 end
 
 
-function S = layoutOf(spec, panels, axs, extra, notes, bands, th, G2, isLeg, scale)
-%layoutOf  What figureLayout lays out: each panel's axes (a coherence panel's phase under its magnitude, a third of it) at its rect, note and band, the title and the legend.
+function S = layoutOf(spec, panels, axs, extra, hks, notes, bands, th, G2, isLeg, scale)
+%layoutOf  What figureLayout lays out: each panel's axes (a coherence panel's phase under its magnitude, a third of it; a scatter's marginal strips beside it) at its rect, note and band, the title and the legend.
+%   HKS: the draw functions' results (their extraLayout says how the extra
+%   axes share the box: [] stacked by shares, or a scatter's "marginals").
 %   G2: the figure's legend as figureLayout places it ([] = none, or
 %   inside a panel). ISLEG(k): panel k is a legend panel. SCALE:
 %   renderFigure's Scale, which multiplies the layout's px (figureLayout).
-P = struct('id', {}, 'axes', {}, 'shares', {}, 'rect', {}, 'fixed', {}, 'note', {}, 'text', {}, 'band', {});
+P = struct('id', {}, 'axes', {}, 'shares', {}, 'rect', {}, 'fixed', {}, 'note', {}, 'text', {}, 'band', {}, 'layout', {});
 for k = 1:numel(panels)
     A = [axs(k) reshape(extra{k}, 1, [])];
     t = [];
     if ~isempty(notes{k}) && ~isempty(notes{k}.text); t = notes{k}.text; end
+    lay = [];
+    if numel(hks) >= k && isMarginals(hks{k}); lay = hks{k}.extraLayout; end
     P(k) = struct('id', panels(k).id, 'axes', A, 'shares', [2 ones(1, numel(A) - 1)], 'rect', double(panels(k).rect), ...
-        'fixed', isLeg(k), 'note', panels(k).note, 'text', t, 'band', bands{k});
+        'fixed', isLeg(k), 'note', panels(k).note, 'text', t, 'band', bands{k}, 'layout', lay);
 end
 S = struct('layout', layoutSettings(spec.layout, scale), 'panels', P, 'title', th, 'legend', G2, 'margin', 6, 'scale', scale);
+end
+
+
+function tf = isMarginals(hk)
+%isMarginals  The panel's extra axes are a trial scatter's marginal strips (its draw's extraLayout kind "marginals").
+tf = isstruct(hk) && isfield(hk, 'extraLayout') && isstruct(hk.extraLayout) && isfield(hk.extraLayout, 'kind') ...
+    && string(hk.extraLayout.kind) == "marginals" && numel(hk.extraAxes) == 2 && all(isgraphics(hk.extraAxes));
+end
+
+
+function ta = titleAxes(hk)
+%titleAxes  The axes that hold a panel's title: its axes, or the marginal x strip over them (a trial scatter's).
+ta = hk.axes;
+if isMarginals(hk) && string(hk.extraLayout.xStrip) == "top"; ta = hk.extraAxes(1); end
+end
+
+
+function A = labeledAxes(hk, ax, extra)
+%labeledAxes  The axes whose sides, labels and ticks are the panel's (panelAxes, blankAxes): its axes and the strips under them, not a scatter's marginal strips.
+A = [ax reshape(extra, 1, [])];
+if isMarginals(hk); A = ax; end
+end
+
+
+function followSides(strips, ax)
+%followSides  A scatter's marginal strips take the plot's axis sides (they show no tick labels, so nothing moves).
+for a = reshape(strips, 1, [])
+    a.XAxisLocation = ax.XAxisLocation;
+    if isscalar(a.YAxis) && isscalar(ax.YAxis); a.YAxisLocation = ax.YAxisLocation; end
+end
 end
 
 

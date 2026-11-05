@@ -11,7 +11,9 @@ function [C, fx] = figureTestCases(root)
 %       continuous, heatmap, waveforms, probemap, corrmap, rate, tuning,
 %       spectrum, spectrogram, coherence (the spectral ones need Chronux
 %       on the path; without it their panels are skipped, drawn as notes),
-%       eventTrace (the Stim line's bars, epochs overlaid)
+%       eventTrace (the Stim line's bars, epochs overlaid), trialDist,
+%       trialHist, trialScatter (the delay from Stim onset to the trial's
+%       offset per trial, a scatter's against the trial's onset to Stim)
 %     eventTrace_rows   the Stim and Platform lines as logic levels, a
 %                       sub-row per epoch, colored by trial group
 %     spans             rasterPsth with the Stim line drawn as a span
@@ -57,6 +59,14 @@ function [C, fx] = figureTestCases(root)
 %     trial_counts      rasterPsth with the raster sorted by first-spike
 %                       latency (rasterSort "latency") and the PSTH's
 %                       trial counts as text (options.trialCount)
+%     (the four trial cases: the delay from Stim onset to Platform offset)
+%     trialDist_box     the trial distribution as boxes, a series per
+%                       Depth (2 bins) within each TrialType, tested
+%     trialHist_ecdf    the trial histogram as the cumulative distribution
+%     trialScatter_marginals  the trial scatter with a linear fit and its
+%                       band, Pearson's r and marginal histograms
+%     trialDist_log     the trial distribution on a log y axis, every pair
+%                       bracketed (bracketPairs "all")
 %   FX: the fixture (makeAnalysisFixture's struct) with cfg (the config)
 %   and runner (its EphysAnalysisRunner) and src (the dataset's source).
 %   Used by test_PlotAesthetics and test_PlotDesign.
@@ -178,6 +188,34 @@ cfg = cfg.addFigure(x);
 x = f; x.id = "trial_counts";   % the raster sorted by its first spike's latency, the PSTH's "n = 24" per group
 x.panels(1).options.rasterSort = "latency";
 x.panels(2).options.trialCount = "text";
+cfg = cfg.addFigure(x);
+mP = EphysAnalysisConfig.defaults("TrialMeasure");   % the trial cases' measure: Stim onset to Platform offset (it varies)
+mP.from = eventRef(line="Stim");
+mP.to = eventRef(line="Platform", edge="offset");
+x = cfg.Figures(cfg.figureIndex("trialDist")); x.id = "trialDist_box";   % boxes, a series per Depth (2 bins), tested
+x.panels(1).layers(1).measure = mP;
+x.panels(1).options.display = "box";
+x.panels(1).options.series = "param";
+x.panels(1).options.seriesParam = "Depth";
+x.panels(1).options.seriesBins = 2;
+x.panels(1).options.test = "auto";
+cfg = cfg.addFigure(x);
+x = cfg.Figures(cfg.figureIndex("trialHist")); x.id = "trialHist_ecdf";   % the cumulative distribution
+x.panels(1).layers(1).measure = mP;
+x.panels(1).options.display = "ecdf";
+cfg = cfg.addFigure(x);
+x = cfg.Figures(cfg.figureIndex("trialScatter")); x.id = "trialScatter_marginals";   % a linear fit with its band, r, marginals
+x.panels(1).layers(1).measure = mP;
+x.panels(1).options.fit = "linear";
+x.panels(1).options.fitBand = true;
+x.panels(1).options.corr = "pearson";
+x.panels(1).options.marginals = true;
+cfg = cfg.addFigure(x);
+x = cfg.Figures(cfg.figureIndex("trialDist")); x.id = "trialDist_log";   % a log y axis, every pair bracketed
+x.panels(1).layers(1).measure = mP;
+x.panels(1).options.yScale = "log";
+x.panels(1).options.testShow = "brackets";
+x.panels(1).options.bracketPairs = "all";
 cfg = cfg.addFigure(x);
 
 rn = EphysAnalysisRunner(cfg, LogFcn=[]);

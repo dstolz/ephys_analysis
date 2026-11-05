@@ -312,7 +312,7 @@ Collected from the code. Each is explained on the linked page.
 | Derived-signal bad channels | interpolated from the probe geometry (the 1/distance-weighted mean of the 4 nearest good sites on the same shank; in a pipeline run, a dataset without a probe of its own uses the default probe); without a probe, or for a site off the probe or with no good site on its shank, across the neighboring **columns** (`makima`), with a warning | [intan2matlab](intan2matlab.md#processing-order) |
 | Chronux `createdatamatc` | the connector puts a dig-in onset on the signal sample nearest its recording row (exact at the recording rate, within half a sample at a derived rate); Chronux's own `createdatamatc` anchors on `floor(t·Fs) + 1` and drops the window's last sample, so handed dig-in times it lands `1/origFs` late. Use `cx.trials`, or pass `t − 1/origFs` | [ChronuxDataset](ChronuxDataset.md#trial-sample-alignment) |
 | Chronux point-process grid | left to itself `mtspectrumpt` normalizes by the span of the spikes, not the recording; pass the `t` the connector returns | [ChronuxDataset](ChronuxDataset.md#why-t-matters-for-point-processes) |
-| MATLAB version | the Artifacts tab uses `xregion` (R2023a+); the plot aesthetics editor's color picker is `uicolorpicker` (R2024a+; earlier releases get a swatch that opens `uisetcolor`); the code is developed on R2025a | [INSTALL.md](../pipeline/INSTALL.md) |
+| MATLAB version | the Artifacts tab uses `xregion` (R2023a+); the plot aesthetics editor's color picker is `uicolorpicker` (R2024a+; earlier releases get a swatch that opens `uisetcolor`); the trial distribution panel's violin display is `violinplot` (R2024b+; an older release draws boxes and says so), while its swarm and box displays (`swarmchart`, `boxchart`) and the trial panels' `histcounts` and `polyfit` are base MATLAB; the code is developed on R2025a | [INSTALL.md](../pipeline/INSTALL.md) |
 | Parallel steps | the worker count is capped by free memory (4-5 on a 32 GB machine), not by the pool size; every worker reads the disk, so on a slow external disk a parallel step can be no faster than serial; the results are identical either way | [EphysPipeline → Parallel execution](EphysPipeline.md#parallel-execution) |
 
 ### Warnings that mark a fallback
@@ -378,7 +378,12 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   CI error bands and bars, a panel's `errorType "ci95"`, `errorBounds`; `tinv`
   for the *t* interval across sessions of a session figure's `error "ci95"`,
   `combineSessions`, which falls back to 1.96 × SEM without the toolbox;
-  `glmfit` for the neuroGLM connector's Poisson fit, `NeuroGLMExport.fit`).
+  `glmfit` for the neuroGLM connector's Poisson fit, `NeuroGLMExport.fit`;
+  `ranksum`, `ttest2`, `kruskalwallis`, `anova1`, `prctile`, `corr`,
+  `fitlm` and `predict` for the trial panels' statistics, `trialStats`:
+  the group tests, the summary's quartiles, the correlations and the fits'
+  95% bands; `ecdf` for a trial histogram's cumulative distribution,
+  `drawTrialHistPanel`).
 - Image Processing Toolbox (`padarray` in the mTRF-Toolbox packaging,
   `mTRFExport.resample`, which mirrors a signal past its ends so that
   `resample` does not filter them against zeros; `imresize` in the analysis
@@ -487,8 +492,8 @@ no optional toolbox are needed; tests that need one are skipped (reported as
   `test_ProgressClock`, `test_Provenance`, `test_ReadNewLines`, `test_RepositoryMetadata`,
   `test_SpikeCoincidence`, `test_TableSort`, `test_ThresholdScope` and `test_UnitQuality`; in
   `analysis/`, `test_Auroc`, `test_DatasetBrowser`, `test_DatasetFilter`, `test_DatasetRuns`,
-  `test_EpochMatrix`, `test_FirstSpikeLatency`, `test_PopulationAnalysis` and
-  `test_ResponseStats`. New suites take this form; `test_BinaryReader` is the
+  `test_EpochMatrix`, `test_FirstSpikeLatency`, `test_PopulationAnalysis`,
+  `test_ResponseStats` and `test_TrialMeasure`. New suites take this form; `test_BinaryReader` is the
   pattern for converting a function-style one (shared fixtures in
   `TestClassSetup`, one test method per section, each `check(cond, msg)` as
   `tc.verifyTrue(cond, msg)` with the same condition).
@@ -669,6 +674,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_DatasetRuns` (analysis/) | `DatasetRuns`: a value reused while its identity (settings and the stamp of the output files) holds, skipped and failed datasets, cancel keeping the finished ones, `forget`, the saved struct |
 | `test_EpochMatrix` (analysis/) | `epochMatrixSettings` (defaults, overlay, checks, cache identity, settings files) and `epochMatrix`: the parts against the per-dataset calls, assembly (rows, groups and their order, sessions), the result fields, the labels (`epochMatrixLabels`), the normalization (`epochMatrixNormalize`), `Recompute`, cancel |
 | `test_DatasetBrowser` (analysis/) | `DatasetBrowser`, headless and with its window: scan, filter, ticks, the settings form, `compute` against `epochMatrix`, `forEach`, the progress strip and cancel, the result file, the trial rasters (`epochMatrixRaster`, `TrialRaster`), FieldTrip structures of the epochs and sessions (`epochMatrixFieldTrip`, `sessionDataFieldTrip`), mTRF packages of the epochs, sessions, trials, an AUX stimulus and spikes (`epochMatrixMTRF`, `sessionDataMTRF`), `DatasetBrowser.open` finding the open window, closing keeping the object |
+| `test_TrialMeasure` (analysis/) | `trialMeasure` on a hand-built dataset (delays equal to `stopTimes`, before / after, the gap, which, durations, counts cut at the trial's end, trial parameters, labels), `trialGrouping`, `trialStats` against `ranksum` / `kruskalwallis` / `ttest2` / `anova1` / `pAdjust` and the fits against `polyfit` / `fitlm` / `movmean`, and the trial panels' compute |
 | `test_FirstSpikeLatency` (analysis/) | `firstSpikeLatency` on planted spike trains (known latencies, both window ends included, none NaN, groups, the stop mask, the errors) and the latency box plot's statistics against `prctile` and Tukey's fences |
 | `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, the auROC calls pooled over the family, `populationSummary`, the files `writePopulation` writes |
 | `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them; a missing file or no name reads nothing and keeps the offset |

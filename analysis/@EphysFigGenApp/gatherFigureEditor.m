@@ -10,7 +10,8 @@ function fig = gatherFigureEditor(obj)
 %   (E.panelSame.UserData: onPanelAlignEdited), else "default"; its
 %   selection is its own while "Trial selection as the figure" is
 %   unticked (the selection rows of the Panel alignment section), else
-%   "default". The
+%   "default"; a trial panel's ref and window are always "default" (it has
+%   none: its selection alone). The
 %   panel's rect (the Panels section's Position and Size, in the units
 %   picked) and the figure's padding are written only where a field no
 %   longer shows what showPanelPlace showed (on the page, dpi and units
@@ -22,7 +23,9 @@ function fig = gatherFigureEditor(obj)
 %   is the drop-down's. The panel's options are its Options rows', every field
 %   of its type, but its waveform: the Waveform section's rows (the time
 %   span [] while both its fields are blank, ampLim only with the fixed
-%   scale).
+%   scale); a trial panel's its trial rows (gatherTrial). A layer's
+%   measures (a trials layer's measure and xMeasure) have no row: the
+%   Trial measure window sets them (trialMeasureDialog).
 %   The panel's text note is its Text note rows', its overlays the
 %   Overlays list's, the one picked read from its rows (overlayGather).
 %   The figure's latency block is the First-spike latency rows' (a value
@@ -199,6 +202,7 @@ if j >= 1 && j <= numel(fig.panels)
     end
     own = E.panelSame.UserData;
     if ~(islogical(own) && numel(own) == 2); own = [false false]; end
+    if ismember(p.type, EphysAnalysisConfig.TrialPanelTypes); own = [false false]; end   % no event or window: its trial selection alone
     ownSel = ~E.panelSameSel.Value;   % "Trial selection as the figure" unticked: the panel's own
     if any(own) || ownSel
         fref = ref; fwin = win; fsel = sel;   % the figure's (resolved): where the panel's own start from
@@ -285,6 +289,10 @@ if isfield(op, 'tickColor'); op.tickColor = strtrim(string(E.tickColor.Value)); 
 if isfield(op, 'tickWidth'); op.tickWidth = E.tickWidth.Value; end
 if isfield(op, 'backColor'); op.backColor = strtrim(string(E.backColor.Value)); end
 if own('maskAfterStop'); op.maskAfterStop = logical(E.maskAfterStop.Value); end
+if isfield(op, 'smoothLine')
+    op.smoothLine.enabled = logical(E.smoothLine.Value);
+    op.smoothLine.smoothSec = E.smoothLineMs.Value / 1000;
+end
 if isfield(op, 'histStyle')
     op.histStyle = string(E.histStyle.Value);
     op.fill = logical(E.fill.Value);
@@ -379,6 +387,7 @@ if p.type == "eventTrace"
     op.baselineWidth = E.etBaseWidth.Value;
     op.rowSpacing = E.etRowSpacing.Value;
 end
+if ismember(p.type, EphysAnalysisConfig.TrialPanelTypes); op = gatherTrial(E, op, p.type); end
 if own('waveform')
     wv = op.waveform;
     wv.mode = string(E.waveMode.Value);
@@ -397,6 +406,62 @@ if own('waveform')
     wv.showSites = logical(E.waveSites.Value);
     wv.showNames = logical(E.waveNames.Value);
     op.waveform = wv;
+end
+end
+
+
+function op = gatherTrial(E, op, type)
+%gatherTrial  A trial distribution's, histogram's or scatter's options OP (of TYPE) as its Options rows show them (the fields it has).
+%   Its error and y limits are the Error and Y limits rows' (gatherOptions);
+%   a parameter's bins are a list ("" = [], "5" = 5 bins, "0 100 200" =
+%   edges), the x limits two ascending values else [] (automatic).
+if isfield(op, 'categories')
+    op.categories = string(E.trCategories.Value);
+    op.categoryParam = strtrim(string(E.trCategoryParam.Value));
+    op.categoryBins = parseList(E.trCategoryBins.Value);
+end
+op.series = string(E.trSeries.Value);
+op.seriesParam = strtrim(string(E.trSeriesParam.Value));
+op.seriesBins = parseList(E.trSeriesBins.Value);
+op.summary = string(E.trSummary.Value);
+op.test = string(E.trTest.Value);
+op.testPairs = string(E.trPairs.Value);
+op.adjust = string(E.trAdjust.Value);
+op.testAlpha = E.trAlpha.Value;
+op.testShow = string(E.trTestShow.Value);
+switch type
+    case "trialDist"
+        op.bracketPairs = string(E.trBracketPairs.Value);
+        op.display = string(E.trDisplay.Value);
+        op.ordinalX = logical(E.trOrdinalX.Value);
+        op.markerSize = E.trMarker.Value;
+        op.jitter = E.trJitter.Value;
+        op.showSummary = logical(E.trShowSummary.Value);
+        op.showN = "off";
+        if E.trShowN.Value; op.showN = "ticks"; end
+        op.yScale = string(E.trYScale.Value);
+    case "trialHist"
+        op.display = string(E.trHistDisplay.Value);
+        op.normalization = string(E.trNormalization.Value);
+        op.binMode = string(E.trBins.Value);
+        op.binCount = E.trBinCount.Value;
+        op.binWidth = E.trBinWidth.Value;
+        op.alpha = E.trOpacity.Value;
+        op.showSummary = logical(E.trShowSummary.Value);
+        op.xScale = string(E.trXScale.Value);
+        op.xLim = limits(E.trXLim.Value);
+    case "trialScatter"
+        op.fit = string(E.trFit.Value);
+        op.fitBand = logical(E.trFitBand.Value);
+        op.fitWindow = E.trFitWindow.Value;
+        op.corr = string(E.trCorr.Value);
+        op.marginals = logical(E.trMarginals.Value);
+        op.marginalSize = E.trMarginalSize.Value;
+        op.markerSize = E.trMarker.Value;
+        op.alpha = E.trOpacity.Value;
+        op.xScale = string(E.trXScale.Value);
+        op.yScale = string(E.trYScale.Value);
+        op.xLim = limits(E.trXLim.Value);
 end
 end
 

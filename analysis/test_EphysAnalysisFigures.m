@@ -54,7 +54,12 @@ function test_EphysAnalysisFigures(opts)
 %   figureCompute's Reuse (the same spec: every step taken again; a look
 %   edit: nothing computed; the PSTH's bins: that panel only, as from
 %   scratch; another observation: its panels) and the runner's
-%   FigureCache (computeFigure Reuse=true; clearSources forgets it).
+%   FigureCache (computeFigure Reuse=true; clearSources forgets it); a
+%   trial distribution panel (three trials layers: a delay equal to
+%   eventLatency by trial, a count against a hand count, RespLatency of
+%   the kept trials; categories the selection's TrialType groups, the
+%   first series' test ranksum, the statistics shared) and its skip
+%   reasons ("no line Foo", "no paired trials").
 %   Render (8): figureArea (the page in its margin, the title band, the
 %   area under it) and figurePlace (a labeled side at the page's edge
 %   moved in by its inset and the padding, an unlabeled one not; two
@@ -89,6 +94,19 @@ function test_EphysAnalysisFigures(opts)
 %   and heat map (diverging, 0-1), rate panels (bars, boxes of two
 %   layers with the inset's place, size and time span, points), tuning curves (a series, the inset), the waveforms'
 %   probe layout with the observed unit framed;
+%   the trial panels (section 7's Stim onset -> Platform offset delay): a
+%   swarm by Depth with brackets, an ECDF and a scatter with
+%   marginal histograms and a linear fit among the targets above;
+%   figurePlace's marginal split (and mirrored); the scatter's plot and
+%   strips inside its box, flush, a share of it each, linked limits, no
+%   strip tick labels, the title over the x strip, laid out again at a new
+%   size, at Scale 0.5, in place with Reuse, mirrored with its axes on top
+%   and right; the brackets (as many as the significant pairs, or all;
+%   none overlapping on a level; over the data), testShow's corner text,
+%   a log y axis, the five displays' roles and TrialRows; TrialDataExport
+%   (the columns, by id, tab-separated text, a CSV round trip through
+%   readtable, its errors) and the right-click items (once), a point's and
+%   a bracket's data tips;
 %   Editable, OnRemember and the context's redraw; the editor's colormap;
 %   renderFigure Reuse (an edit of two panels draws those again, the
 %   third kept with its menu, the drawing as a whole one; a title of the
@@ -363,6 +381,7 @@ place = @EphysAnalysisConfig.placePanel;
 remove = @EphysAnalysisConfig.removePanel;
 layerOf = @EphysAnalysisConfig.defaultLayer;
 spectralTypes = ["spectrum" "spectrogram" "coherence"];
+trialTypes = ["trialDist" "trialHist" "trialScatter"];
 FT = EphysAnalysisConfig.figureTemplates();
 roles = PlotAesthetics.roles().Role;
 
@@ -392,10 +411,42 @@ if S.sec("1", "config: defaults and the tables")
         && isequal(fieldnames(P.layers), fieldnames(EphysAnalysisConfig.defaults("Layer"))) ...
         && isequaln(P.options, T.DefaultOptions{T.Type == "psth"}), 'defaults("Panel"): a PSTH over the whole page with its options, no layers');
     L = EphysAnalysisConfig.defaults("Layer");
+    fnL = string(fieldnames(L)).';
     check(L.name == "" && L.enabled && L.source == "units" && L.binding == "observation" && ~isfield(L.units, 'source') ...
         && isequaln(L.units, rmfield(EphysAnalysisConfig.defaults("UnitSelection"), 'source')) && isequal(L.channels, []) ...
         && L.aggregate == "each" && isequaln(L.event, EphysAnalysisConfig.defaults("EventMark")) && L.eventsAs == "marks" ...
         && L.color == "" && L.lineStyle == "" && ~isfield(L, 'yParam') && ~isfield(L, 'seriesParam'), 'defaults("Layer")');
+    check(isequaln(L.measure, EphysAnalysisConfig.defaults("TrialMeasure")) && L.xMeasure.kind == "delay" ...
+        && L.xMeasure.from.line == "Trial" && L.xMeasure.from.edge == "onset" && isequaln(L.xMeasure.to, EphysAnalysisConfig.defaults("EventRef")) ...
+        && isequal(fnL(find(fnL == "eventsAs") + (1:2)), ["measure" "xMeasure"]), ...
+        'defaults("Layer"): measure (a TrialMeasure) and xMeasure (Trial onset -> Stim onset) after eventsAs');
+    TM = EphysAnalysisConfig.defaults("TrialMeasure");
+    TMto = EphysAnalysisConfig.defaults("EventRef"); TMto.line = "Trial"; TMto.edge = "offset";
+    check(isequal(string(fieldnames(TM)).', ["kind" "from" "to" "direction" "maxGapSec" "param" "unit" "label"]) && TM.kind == "delay" ...
+        && isequaln(TM.from, EphysAnalysisConfig.defaults("EventRef")) && TM.from.line == "Stim" && isequaln(TM.to, TMto) ...
+        && TM.direction == "after" && isinf(TM.maxGapSec) && TM.param == "" && TM.unit == "ms" && TM.label == "" ...
+        && isequal(EphysAnalysisConfig.TrialMeasureKinds, ["delay" "duration" "count" "param"]) ...
+        && isequal(EphysAnalysisConfig.TrialGroupings, ["groups" "param" "session" "layer"]) ...
+        && isequal(EphysAnalysisConfig.TrialTests, ["auto" "none" "ranksum" "ttest2" "kruskalwallis" "anova1"]) ...
+        && isequal(EphysAnalysisConfig.TrialFits, ["none" "linear" "poly2" "poly3" "movmean" "movmedian"]), ...
+        'defaults("TrialMeasure"): a delay from Stim onset to Trial offset, after, no gap limit, in ms; the trial constants');
+    TMs = TM; TMs.from.sequence = struct('line', "Trough", 'maxGapSec', 2); TMs.to.which = "nth"; TMs.to.n = 2;
+    Ln = EphysAnalysisConfig.normalizeLayer(struct('source', "trials", 'measure', TMs, 'xMeasure', struct('kind', "param", 'param', "Depth")));
+    check(isscalar(Ln.measure.from.sequence) && Ln.measure.from.sequence.line == "Trough" && Ln.measure.from.sequence.maxGapSec == 2 ...
+        && Ln.measure.from.sequence.relation == "followedBy" && Ln.measure.to.which == "nth" && Ln.measure.to.n == 2 ...
+        && Ln.xMeasure.kind == "param" && Ln.xMeasure.param == "Depth" && Ln.xMeasure.from.line == "Trial", ...
+        'normalizeLayer: a measure''s nested event references and their sequences completed (SequenceStep each); a partial xMeasure completed from the Layer''s (from Trial onset)');
+    check(trialMeasureLabel(TM) == "Stim onset → Trial offset (ms)" && trialMeasureLabel(L.xMeasure) == "Trial onset → Stim onset (ms)" ...
+        && trialMeasureLabel(struct('to', struct('line', "Platform", 'edge', "offset"), 'direction', "before")) == "Platform offset before Stim onset (ms)" ...
+        && trialMeasureLabel(struct('kind', "duration", 'from', struct('line', "Platform"))) == "Platform duration (ms)" ...
+        && trialMeasureLabel(struct('kind', "count", 'to', struct('line', "Trough", 'edge', "onset"))) == "Trough onsets after Stim onset" ...
+        && trialMeasureLabel(struct('kind', "param", 'param', "RespLatency")) == "RespLatency" ...
+        && trialMeasureLabel(struct('to', struct('line', "Platform", 'edge', "offset", 'which', "last"), 'unit', "s")) == "Stim onset → last Platform offset (s)" ...
+        && trialMeasureLabel(struct('to', struct('line', "Trough", 'edge', "onset", 'which', "nth", 'n', 2))) == "Stim onset → 2nd Trough onset (ms)" ...
+        && trialMeasureLabel(struct('kind', "count", 'to', struct('line', "Trough", 'edge', "onset"), 'maxGapSec', 2)) == "Trough onsets after Stim onset within 2 s" ...
+        && trialMeasureLabel(struct('label', "Time off the platform")) == "Time off the platform" ...
+        && trialMeasureLabel(TMs) == "Stim onset then Trough onset within 2 s → 2nd Trial offset (ms)", ...
+        'trialMeasureLabel: delay after / before, duration, count, param, which last / nth, a gap, a label of its own, a sequence');
     O = EphysAnalysisConfig.defaults("Observe");
     check(isequal(string(fieldnames(O)).', ["data" "units" "channels" "starred" "perGroup"]) && O.data == "units" && ~isfield(O.units, 'source') ...
         && isequal(O.channels, []) && ~O.starred && ~O.perGroup, 'defaults("Observe"): data (sorted units), units, channels, starred, perGroup');
@@ -405,17 +456,19 @@ if S.sec("1", "config: defaults and the tables")
         && FS.match == "site" && FS.mappingFile == "" && FS.minSessions == 1 && FS.trialGroups == "pool" ...
         && isequaln(EphysAnalysisConfig.defaults("Figure").sessions, FS), 'defaults("FigureSessions"), the Figure''s sessions block');
 
-    check(isequal(T.Type.', [types spectralTypes "eventTrace" "legend"]) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Short" "Categories" "Aligned" ...
-        "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]), 'panelTypes: the fourteen types and the columns');
+    check(isequal(T.Type.', [types spectralTypes "eventTrace" trialTypes "legend"]) && isequal(string(T.Properties.VariableNames), ["Type" "Label" "Short" "Categories" "Aligned" ...
+        "SharesTime" "OneGroup" "MultiLayer" "DefaultBinding" "Description" "DefaultOptions"]) && isequal(EphysAnalysisConfig.TrialPanelTypes, trialTypes), ...
+        'panelTypes: the seventeen types (the trial panels before the legend: TrialPanelTypes) and the columns');
     check(isequal(T.Short.', ["Raster" "PSTH" "Continuous" "Heatmap" "Waveforms" "ProbeMap" "Correlation" "Rate" "Tuning" ...
-        "Spectrum" "Spectrogram" "Coherence" "EventTraces" "Legend"]) && all(~contains(T.Short, [" " "+"])), ...
+        "Spectrum" "Spectrogram" "Coherence" "EventTraces" "Dist" "Hist" "Scatter" "Legend"]) && all(~contains(T.Short, [" " "+"])), ...
         'panelTypes: a one-word Short name per type (the automatic figure id''s part)');
-    check(isequal(T.SharesTime.', [true true true true false false false false false false true false true false]) ...
-        && isequal(T.Aligned.', [true true true true false false true true true true true true true false]) ...
-        && isequal(T.OneGroup.', [false false false true false false true false false false true false false false]) ...
-        && isequal(T.MultiLayer.', [true true true false false false false true true true false true true false]) ...
+    check(isequal(T.SharesTime.', [true true true true false false false false false false true false true false false false false]) ...
+        && isequal(T.Aligned.', [true true true true false false true true true true true true true false false false false]) ...
+        && isequal(T.OneGroup.', [false false false true false false true false false false true false false false false false false]) ...
+        && isequal(T.MultiLayer.', [true true true false false false false true true true false true true true true true false]) ...
         && isequal(T.DefaultBinding.', ["observation" "observation" "observation" "fixed" "observation" "fixed" "fixed" "observation" "observation" ...
-            "observation" "observation" "observation" "fixed" ""]) && T.Label(13) == "Event traces" && isequal(T.Categories{13}, "point") ...
+            "observation" "observation" "observation" "fixed" "fixed" "fixed" "fixed" ""]) && T.Label(13) == "Event traces" && isequal(T.Categories{13}, "point") ...
+        && isequal(T.Label(14:16).', ["Trial distribution" "Trial histogram" "Trial scatter"]) && all(cellfun(@(c) isequal(c, "trial"), T.Categories(14:16))) ...
         && isequal(T.Categories{T.Type == "spectrum"}, ["point" "continuous"]) && isequal(T.Categories{T.Type == "spectrogram"}, ["continuous" "point"]) ...
         && isequal(T.Categories{T.Type == "coherence"}, ["point" "continuous"]) && isequal(T.Label(10:12).', ["Power spectrum" "Spectrogram" "Coherence"]) ...
         && isequal(T.Categories{T.Type == "rate"}, "point") && isequal(T.Categories{T.Type == "tuning"}, "point") && T.Label(8) == "Firing rate" && T.Label(9) == "Tuning curve" ...
@@ -440,9 +493,10 @@ if S.sec("1", "config: defaults and the tables")
         && O{9}.seriesParam == "" && O{9}.waveform.mode == "off", ...
         'panelTypes: each type''s DefaultOptions (psth stack / auroc, heatmap auroc, waveforms layout, rate and its inset, tuning)');
     srcCat = EphysAnalysisConfig.sourceCategories();
-    check(isequal(srcCat.Category.', ["point" "continuous" "unit"]) && isequal(srcCat.Sources{1}, ["units" "detected" "events"]) ...
-        && isequal(srcCat.Sources{3}, ["units" "detected"]) && isequal(srcCat.Aligned.', [true true false]), 'sourceCategories (no trial category)');
-    check(isequal(EphysAnalysisConfig.FigureSources, ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX"]), 'FigureSources (no trials)');
+    check(isequal(srcCat.Category.', ["point" "continuous" "unit" "trial"]) && isequal(srcCat.Sources{1}, ["units" "detected" "events"]) ...
+        && isequal(srcCat.Sources{3}, ["units" "detected"]) && isequal(srcCat.Sources{4}, "trials") && isequal(srcCat.Aligned.', [true true false false]) ...
+        && srcCat.Label(4) == "Trial measure", 'sourceCategories: point, continuous, unit and the trial category (trials, not aligned)');
+    check(isequal(EphysAnalysisConfig.FigureSources, ["units" "detected" "events" "LFP" "MUA" "SPIKE" "AUX" "trials"]), 'FigureSources: trials last');
     catOf = @EphysAnalysisConfig.categoryOf;
     check(catOf("units", "raster") == "point" && catOf("detected", "waveforms") == "unit" && catOf("units", "corrmap") == "unit" ...
         && catOf("LFP", "heatmap") == "continuous" && catOf("units", "heatmap") == "point" ...
@@ -463,6 +517,69 @@ if S.sec("1", "config: defaults and the tables")
         && Oe.rasterByGroup && Oe.minWidth == 1 && Oe.colorBy == "layer" && Oe.height == 0.6 && isnan(Oe.alpha) && Oe.edgeColor == "none" ...
         && Oe.showBaseline && Oe.baselineColor == "" && Oe.rowSpacing == 1.25 && Oe.groupBands, ...
         'panelTypes: the event-trace panel''s DefaultOptions (bars, every epoch overlaid, sorted by group then time, a 1 pt narrowest bar, colored per line, a baseline)');
+    trialOk = true;
+    for tt = trialTypes
+        Lt = layerOf(tt);
+        trialOk = trialOk && catOf("trials", tt) == "trial" && catOf("units", tt) == "" && catOf("events", tt) == "" ...
+            && catOf("LFP", tt) == "" && Lt.source == "trials" && Lt.binding == "fixed" && isequaln(Lt.measure, TM) ...
+            && isequal(EphysAnalysisConfig.stackModes(tt), string.empty(1, 0)) && EphysAnalysisConfig.baselineModes(tt) == "none" ...
+            && EphysAnalysisConfig.aggregates(tt, "trials") == "each";
+    end
+    check(trialOk && catOf("trials", "psth") == "" && catOf("trials", "eventTrace") == "" && catOf("trials", "legend") == "", ...
+        'the trial panels draw trials layers only, and only they do; their default layer: a fixed trials layer (Stim onset -> Trial offset); no stack, baseline or aggregate');
+    Otd = T.DefaultOptions{T.Type == "trialDist"};
+    Oth = T.DefaultOptions{T.Type == "trialHist"};
+    Ots = T.DefaultOptions{T.Type == "trialScatter"};
+    check(isequal(string(fieldnames(Otd)).', ["categories" "categoryParam" "categoryBins" "series" "seriesParam" "seriesBins" "display" ...
+            "ordinalX" "summary" "errorType" "errorResamples" "showSummary" "test" "testPairs" "adjust" "testAlpha" "testShow" "bracketPairs" ...
+            "markerSize" "jitter" "showN" "yScale" "yLimMode" "yLim"]) ...
+        && Otd.categories == "groups" && Otd.categoryParam == "" && isequal(Otd.categoryBins, []) && Otd.series == "layer" ...
+        && Otd.display == "swarm" && ~Otd.ordinalX && Otd.summary == "mean" && Otd.errorType == "sem" && Otd.errorResamples == 1000 ...
+        && Otd.showSummary && Otd.test == "auto" && Otd.testPairs == "all" && Otd.adjust == "holm" && Otd.testAlpha == 0.05 && ~isfield(Otd, 'alpha') ...
+        && Otd.testShow == "brackets" && Otd.bracketPairs == "significant" && Otd.markerSize == 4 && Otd.jitter == 0.3 ...
+        && Otd.showN == "off" && Otd.yScale == "linear" && Otd.yLimMode == "auto" && isequal(Otd.yLim, []), ...
+        'panelTypes: the trial distribution''s DefaultOptions (by trial group, a series per layer, a swarm with mean +/- SEM, auto tests with brackets)');
+    check(isequal(string(fieldnames(Oth)).', ["series" "seriesParam" "seriesBins" "display" "normalization" "binMode" "binCount" "binWidth" ...
+            "alpha" "showSummary" "summary" "errorType" "errorResamples" "test" "testPairs" "adjust" "testAlpha" "testShow" "xScale" "xLim"]) ...
+        && Oth.display == "bars" && Oth.normalization == "count" && Oth.binMode == "auto" && Oth.binCount == 20 && Oth.binWidth == 10 ...
+        && Oth.alpha == 0.5 && Oth.testAlpha == 0.05 && Oth.showSummary && Oth.testShow == "text" && Oth.xScale == "linear" && isequal(Oth.xLim, []) ...
+        && isequal(string(fieldnames(Ots)).', ["series" "seriesParam" "seriesBins" "fit" "fitBand" "fitWindow" "corr" "marginals" ...
+            "marginalSize" "markerSize" "alpha" "summary" "errorType" "errorResamples" "test" "testPairs" "adjust" "testAlpha" "testShow" ...
+            "xScale" "yScale" "xLim" "yLimMode" "yLim"]) ...
+        && Ots.fit == "none" && Ots.fitBand && Ots.fitWindow == 10 && Ots.corr == "pearson" && ~Ots.marginals && Ots.marginalSize == 0.25 ...
+        && Ots.markerSize == 5 && Ots.alpha == 0.7 && Ots.testShow == "text" && Ots.yScale == "linear" && Ots.testAlpha == 0.05, ...
+        'panelTypes: the trial histogram''s and scatter''s DefaultOptions (alpha their opacity, testAlpha the tests'' level)');
+    cfoT = @EphysAnalysisConfig.sharedFieldsOf;
+    trialShared = ["series" "seriesParam" "seriesBins" "summary" "errorType" "errorResamples" "test" "testPairs" "adjust" "testAlpha" "testShow"];
+    check(isequal(cfoT("trialDist"), [trialShared "yScale" "yLimMode"]) && isequal(cfoT("trialHist"), [trialShared "xScale"]) ...
+        && isequal(cfoT("trialScatter"), [trialShared "xScale" "yScale" "yLimMode"]) && ~ismember("categories", cfoT("trialDist")), ...
+        'sharedFieldsOf: the trial panels share their series, summary, error, tests and scales (a distribution''s categories are its own)');
+    pTd = EphysAnalysisConfig.normalizePanel(struct('type', "trialDist", 'options', struct('errorType', "iqr", 'testShow', "brackets", 'yLimMode', "fixed", 'yLim', [0 1])));
+    pTh = EphysAnalysisConfig.normalizePanel(struct('type', "trialHist"));
+    pTs = EphysAnalysisConfig.normalizePanel(struct('type', "trialScatter"));
+    pPs = EphysAnalysisConfig.normalizePanel(struct('type', "psth"));
+    [okE, ~] = EphysAnalysisConfig.panelTakes(pTd, pTh, "errorType");
+    [okE2, kE2] = EphysAnalysisConfig.panelTakes(pTd, pPs, "errorType", AnyType=true);
+    [okS, kS] = EphysAnalysisConfig.panelTakes(pTd, pTh, "testShow");
+    pTd2 = pTd; pTd2.options.testShow = "text";
+    [okS2, ~] = EphysAnalysisConfig.panelTakes(pTd2, pTs, "testShow");
+    [okY, ~] = EphysAnalysisConfig.panelTakes(pTd, pTs, "yLimMode");
+    [okC, ~] = EphysAnalysisConfig.panelTakes(pTd, pTs, "categories", AnyType=true);
+    check(okE && ~okE2 && kE2 == "errorType" && ~okS && kS == "testShow" && okS2 && ~okY && ~okC, ...
+        'panelTakes: a trial panel''s iqr error goes to another trial panel, not to a PSTH; brackets only to a distribution; a fixed yLimMode needs a yLim; categories are a distribution''s alone');
+    sTd = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "trialDist", 'layers', layerOf("trialDist"))}}));
+    sEt = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "eventTrace", 'layers', layerOf("eventTrace"))}}));
+    dTd = figureDataSpec(sTd);
+    dEt = figureDataSpec(sEt);
+    [eT, nT] = figureErrorType(setfield(sTd.panels(1), 'options', setfield(sTd.panels(1).options, 'errorType', "iqr"))); %#ok<SFLD>
+    sTh = EphysAnalysisConfig.normalizeFigure(struct('panels', {{struct('type', "trialHist", 'layers', layerOf("trialHist"))}}));
+    dTh = figureDataSpec(sTh);
+    check(isfield(dTd.panels.options, 'testAlpha') && ~isfield(dEt.panels.options, 'alpha') && ~isfield(dTh.panels.options, 'alpha') ...
+        && isfield(dTh.panels.options, 'testAlpha') && ~any(isfield(dTh.panels.options, ["binMode" "binCount" "binWidth" "normalization" "xLim"])) ...
+        && isfield(dTd.panels.options, 'display') ...
+        && isfield(dTd.panels.options, 'yScale') && ~any(isfield(dTd.panels.options, ["testShow" "bracketPairs" "markerSize" "jitter" "showN" "showSummary" "ordinalX"])) ...
+        && eT == "iqr" && nT == 1000, ...
+        'figureDataSpec: a trial panel''s testAlpha (its tests'' level), display and scales are computed with, its looks (alpha: an opacity, the bins) are not; figureErrorType: its errorType');
     Ol = T.DefaultOptions{T.Type == "legend"};
     Ll = layerOf("legend");
     check(T.Label(T.Type == "legend") == "Legend" && T.Description(T.Type == "legend") == "The figure's legend in a panel of its own" ...
@@ -481,6 +598,9 @@ if S.sec("1", "config: defaults and the tables")
     check(D1.source == "LFP" && D1.binding == "observation" && D2.source == "units" && D2.binding == "fixed" ...
         && D3.source == "units" && D3.binding == "fixed" && D4.source == "units" && D4.binding == "observation", ...
         'defaultLayer: the type''s first source with its default binding');
+    D5 = layerOf("trialScatter");
+    check(D5.source == "trials" && D5.binding == "fixed" && D5.xMeasure.from.line == "Trial" && D5.measure.to.line == "Trial" ...
+        && D5.measure.to.edge == "offset", 'defaultLayer of a trial scatter: a fixed trials layer, y Stim onset -> Trial offset, x Trial onset -> Stim onset');
     check(strcmp(errorId(@() layerOf("violin")), 'EphysAnalysisConfig:BadValue') && strcmp(errorId(@() layerOf("behavior")), 'EphysAnalysisConfig:BadValue'), ...
         'defaultLayer of an unknown type (behavior is not a panel type): BadValue');
     fnF = string(fieldnames(F)).';
@@ -571,8 +691,19 @@ end
 
 if S.sec("2", "config: addFigure, templates and ids")
     check(FT.Template(1) == "rasterPsth" && FT.Label(1) == "Raster over PSTH (per unit)" ...
-        && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "eventTrace" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" spectralTypes]) ...
-        && FT.Template(end) == "blank", 'figureTemplates: rasterPsth first, one per type, blank last');
+        && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "eventTrace" trialTypes "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" spectralTypes]) ...
+        && FT.Template(end) == "blank", 'figureTemplates: rasterPsth first, one per type (the trial panels after the event traces), blank last');
+    cTr = EphysAnalysisConfig();
+    idsTr = strings(1, 0);
+    for tt = trialTypes
+        [cTr, idsTr(end+1)] = cTr.addFigure(tt); %#ok<AGROW>
+    end
+    pTr = [cTr.Figures.panels];
+    check(isequal(idsTr, ["Dist trials" "Hist trials" "Scatter trials"]) && all([cTr.Figures.autoId]) ...
+        && all(arrayfun(@(g) g.observe.data == "dataset", cTr.Figures)) && isequal([pTr.id], trialTypes + "_1") ...
+        && all(arrayfun(@(p) isscalar(p.layers) && p.layers.source == "trials" && p.layers.binding == "fixed", pTr)) ...
+        && isequal(FT.Label(ismember(FT.Template, trialTypes)).', ["Trial distribution" "Trial histogram" "Trial scatter"]), ...
+        'the trial templates: one panel with a fixed trials layer, the figure drawn for the dataset; automatic ids "Dist trials", "Hist trials", "Scatter trials"');
     ct = EphysAnalysisConfig();
     ct = ct.addFigure("rate");
     ct = ct.addFigure("tuning");
@@ -895,6 +1026,58 @@ if S.sec("4", "config: a JSON round trip")
         && isequal([ov2.shape], ["line" "region"]) && ov2(2).to == 0.25 && ov2(2).faceAlpha == 0.4 && ov2(2).layer == "under" ...
         && all([ov2.panel] == "all") && isempty(g.panels(1).overlays) && contains(txt, '"overlays"'), ...
         'a panel''s note (two lines) and two overlays survive save / load; the other panels keep none');
+
+    % the trial panels: a distribution, a histogram and a scatter, measures with a sequence step, a shift and bin edges
+    ct = EphysAnalysisConfig();
+    ct.Source.Root = root;
+    Ld = layerOf("trialDist");
+    Ld.measure.to = struct('line', "Platform", 'edge', "offset", 'which', "last");
+    Ld.measure.from.sequence = struct('line', "Trough", 'edge', "onset", 'n', 2, 'maxGapSec', 1.5);
+    Ld.measure.maxGapSec = 3;
+    Ld.measure.label = "Time to leave";
+    Ld2 = layerOf("trialDist");
+    Ld2.measure = struct('kind', "param", 'param', "RespLatency", 'unit', "s");
+    Ld2.color = "#d62728";
+    Lh = layerOf("trialHist");
+    Lh.measure = struct('kind', "count", 'from', struct('line', "Stim", 'offsetParam', "RespLatency"), 'to', struct('line', "Trough", 'edge', "onset"), 'maxGapSec', 2);
+    Ls = layerOf("trialScatter");
+    Ls.measure.kind = "duration";
+    Ls.measure.from.line = "Platform";
+    Ls.xMeasure.direction = "before";
+    Ls.xMeasure.unit = "s";
+    trialFig = struct('id', "trials", 'panels', {{ ...
+        struct('type', "trialDist", 'rect', [0 0.5 0.5 0.5], 'layers', [Ld Ld2], 'selection', struct('groupBy', "TrialType"), ...
+            'options', struct('categories', "param", 'categoryParam', "Depth", 'categoryBins', [0 100 250 500], 'series', "layer", ...
+            'display', "box", 'test', "kruskalwallis", 'testPairs', "first", 'adjust', "bh", 'testAlpha', 0.01, 'yScale', "log")), ...
+        struct('type', "trialHist", 'rect', [0.5 0.5 0.5 0.5], 'layers', Lh, ...
+            'options', struct('series', "param", 'seriesParam', "Depth", 'seriesBins', 3, 'display', "ecdf", 'binMode', "width", 'binWidth', 0.5, 'xLim', [0 5])), ...
+        struct('type', "trialScatter", 'rect', [0 0 1 0.5], 'layers', Ls, ...
+            'options', struct('series', "groups", 'fit', "poly2", 'marginals', true, 'marginalSize', 0.3, 'xScale', "log", 'alpha', 0.4))}});
+    ct = ct.addFigure(trialFig);
+    ftr = fullfile(root, 'trials.json');
+    ct.save(ftr);
+    txtT = fileread(ftr);
+    ctl = EphysAnalysisConfig.load(ftr);
+    gt = ctl.Figures(1);
+    md = gt.panels(1).layers(1).measure;
+    check(ct.isequalConfig(ctl) && isempty(ctl.LoadWarnings) && isequal([gt.panels.type], trialTypes) && gt.observe.data == "dataset" ...
+        && contains(txtT, '"measure"') && contains(txtT, '"xMeasure"') && contains(txtT, '"categoryBins"'), ...
+        'a figure of a trial distribution, histogram and scatter survives save / load exactly');
+    check(md.to.which == "last" && md.to.line == "Platform" && isscalar(md.from.sequence) && md.from.sequence.n == 2 ...
+        && md.from.sequence.maxGapSec == 1.5 && md.maxGapSec == 3 && md.label == "Time to leave" && isinf(gt.panels(3).layers.measure.maxGapSec) ...
+        && gt.panels(1).layers(2).measure.kind == "param" && gt.panels(1).layers(2).measure.param == "RespLatency" ...
+        && gt.panels(1).layers(2).measure.unit == "s" && gt.panels(1).layers(2).color == "#d62728" ...
+        && gt.panels(2).layers.measure.from.offsetParam == "RespLatency" && gt.panels(2).layers.measure.kind == "count" ...
+        && gt.panels(3).layers.measure.kind == "duration" && gt.panels(3).layers.xMeasure.direction == "before" ...
+        && gt.panels(3).layers.xMeasure.unit == "s" && gt.panels(3).layers.xMeasure.from.line == "Trial", ...
+        'the measures: a sequence step, which last, a gap, a label, a parameter, a shift by a parameter, a scatter''s x measure');
+    check(isequal(gt.panels(1).options.categoryBins, [0 100 250 500]) && gt.panels(1).options.categoryParam == "Depth" ...
+        && gt.panels(1).options.display == "box" && gt.panels(1).options.testAlpha == 0.01 && gt.panels(1).options.yScale == "log" ...
+        && isequal(gt.panels(1).selection.groupBy, "TrialType") && gt.panels(2).options.seriesBins == 3 ...
+        && gt.panels(2).options.display == "ecdf" && isequal(gt.panels(2).options.xLim, [0 5]) && gt.panels(2).options.binWidth == 0.5 ...
+        && gt.panels(3).options.marginals && gt.panels(3).options.marginalSize == 0.3 && gt.panels(3).options.fit == "poly2" ...
+        && gt.panels(3).options.alpha == 0.4 && isempty(gt.panels(1).options.seriesBins), ...
+        'the trial options: bin edges, a bin count, [] bins, a panel''s own selection, the scales, the scatter''s marginals and fit');
 
     s = cfg.toStruct();
     s.Figures(1).bogus = 1;
@@ -1240,7 +1423,7 @@ if S.sec("6", "config: validate")
     check(any(I.Field == "wf.waveforms_1.layers(1).source" & I.Severity == "error" ...
         & I.Message == "A unit waveforms panel draws unit-summary layers, not LFP."), 'a source the panel type does not draw');
     b = base; b.Figures(1).panels(1).layers(1).source = "trials";
-    check(has(b, "figure_1.raster_1.layers(1).source", "error"), 'trials is no layer source (the behavior panel type is gone)');
+    check(has(b, "figure_1.raster_1.layers(1).source", "error"), 'a trials layer on a raster: an error (trials layers go on the trial panels only)');
     b = base; b.Figures(1).panels(1).layers(1).binding = "both";
     check(has(b, "figure_1.raster_1.layers(1).binding", "error"), 'binding is observation or fixed');
     b = base; ev2 = evL; ev2.binding = "observation"; b.Figures(1).panels(1).layers(2) = ev2;
@@ -1685,11 +1868,98 @@ if S.sec("6", "config: validate")
     check(bR.Figures(1).panels(kP).options.trialCount == "off" && isempty(figIssues(bTc)) && isempty(figIssues(bTl)) ...
         && has(bTx, "figure_1.psth_1.options.trialCount", "error") && isempty(figIssues(bSl)), ...
         'a PSTH''s trialCount is off, text or legend (off by default); a raster may sort by latency');
+    bSm = bR; bSm.Figures(1).panels(kP).options.smoothLine = struct('enabled', true, 'smoothSec', 0);
+    bSn = bR; bSn.Figures(1).panels(kP).options.smoothLine.smoothSec = -0.01;
+    bSi = bR; bSi.Figures(1).panels(kP).options.smoothLine.smoothSec = Inf;
+    sl0 = bR.Figures(1).panels(kP).options.smoothLine;
+    check(~sl0.enabled && sl0.smoothSec == 0.025 && isempty(figIssues(bSm)) ...
+        && has(bSn, "figure_1.psth_1.options.smoothLine.smoothSec", "error") && has(bSi, "figure_1.psth_1.options.smoothLine.smoothSec", "error"), ...
+        'a PSTH''s smoothLine: off by default, 25 ms; its smoothSec 0 or more (0: the unsmoothed PSTH), finite');
     I9 = figIssues(b4);
     I9 = I9(I9.Field == n0 + "x", :);
     b10 = b2; b10.Figures(1).panels(2).type = "bogus";
     check(height(I9) == 1 && contains(I9.Message, "up the panel") && has(b10, "figure_1.psth_1.type", "error") ...
         && has(b10, n0 + "placement", "error"), 'a custom note''s message names the panel; a panel of an unknown type still has its note checked');
+
+    % the trial panels: trials layers only (and only there), always fixed; a selection of their own; the measure; the options
+    tD = "td.trialDist_1.";
+    tdOf = @() base.addFigure("trialDist", 'Id', "td");
+    b = tdOf(); b.Figures(2).panels.selection = struct('groupBy', "TrialType", 'filter', "Depth > 0");
+    b2 = tdOf(); b2.Figures(2).panels.ref = struct('line', "Platform");
+    b3 = tdOf(); b3.Figures(2).panels.window = struct('pre', 0, 'post', 1);
+    b4 = tdOf(); b4.Figures(2).panels.selection = struct('groupBy', ["Depth" "TrialType" "Level"]);
+    check(isempty(figIssues(b)) && has(b2, tD + "ref", "error") && has(b3, tD + "window", "error") && has(b4, tD + "selection", "error"), ...
+        'a trial panel is not aligned: a selection of its own is fine (checked as the figure''s), a ref or window of its own is not');
+    b = tdOf(); b.Figures(2).panels.layers(2) = layerOf("raster"); b.Figures(2).panels.layers(2).binding = "fixed";
+    b2 = tdOf(); b2.Figures(2).panels.layers(2) = layerOf("eventTrace");
+    b3 = base; b3.Figures(1).panels(2).layers(2) = layerOf("trialDist");
+    b4 = tdOf(); b4.Figures(2).panels.layers.binding = "observation";
+    check(any(issueMessages(b, tD + "layers(2).source") == "A trial distribution panel draws trials layers only (a trial measure each), not units.") ...
+        && has(b2, tD + "layers(2).source", "error") && has(b3, "figure_1.psth_1.layers(2).source", "error") ...
+        && any(issueMessages(b4, tD + "layers(1).binding") == "A trials layer is always fixed: its measure names its events or parameter.") ...
+        && contains(strjoin(issueMessages(b3, "figure_1.psth_1.layers(2).source")), "go on trial distribution"), ...
+        'a trial panel draws trials layers only (no units, no events), a trials layer goes on a trial panel only, and is always fixed');
+    tM = tD + "layers(1).measure.";
+    b = tdOf(); mT = b.Figures(2).panels.layers.measure;
+    mT.kind = "speed"; mT.direction = "around"; mT.maxGapSec = 0; mT.unit = "min"; mT.label = "{Measur}";
+    b.Figures(2).panels.layers.measure = mT;
+    b2 = tdOf(); b2.Figures(2).panels.layers.measure.from.line = "";
+    b3 = tdOf(); b3.Figures(2).panels.layers.measure.to.n = 0;
+    b4 = b3; b4.Figures(2).panels.layers.measure.kind = "duration";   % no B: its to is not read
+    b5 = tdOf(); b5.Figures(2).panels.layers.measure.kind = "param";
+    b6 = b5; b6.Figures(2).panels.layers.measure.param = "RespLatency";
+    check(all(arrayfun(@(x) has(b, tM + x, "error"), ["kind" "direction" "maxGapSec" "unit"])) && has(b, tM + "label", "warning") ...
+        && has(b2, tM + "from", "error") && has(b3, tM + "to", "error") && ~has(b4, tM + "to", "error") ...
+        && has(b5, tM + "param", "error") && isempty(figIssues(b6)), ...
+        'a trial measure: kind, direction, maxGapSec > 0, unit, the label''s variables, from and (delay, count) to as event references, a param kind''s parameter');
+    b = base.addFigure("trialScatter", Id="ts");
+    b.Figures(2).panels.layers.measure.to.which = "all";
+    b2 = base.addFigure("trialScatter", Id="ts"); b2.Figures(2).panels.layers.xMeasure.unit = "h";
+    b3 = tdOf(); b3.Figures(2).panels.layers.measure.to.which = "all";
+    check(has(b, "ts.trialScatter_1.layers(1).measure.to.which", "warning") && has(b2, "ts.trialScatter_1.layers(1).xMeasure.unit", "error") ...
+        && isempty(figIssues(b3)), ...
+        'a scatter''s delay to every B warns (the first value per trial is paired), not a distribution''s; a scatter''s xMeasure is checked');
+    b = tdOf(); o = b.Figures(2).panels.options;
+    o.categories = "unit"; o.series = "color"; o.display = "pie"; o.summary = "mode"; o.errorType = "range"; o.test = "chi2"; o.testPairs = "some";
+    o.adjust = "fdr"; o.testShow = "stars"; o.bracketPairs = "few"; o.showN = "legend"; o.yScale = "sqrt"; o.testAlpha = 1; o.markerSize = 0;
+    o.jitter = 2; o.yLim = [1 0]; o.categoryBins = [3 2 1]; o.seriesBins = 2.5;
+    b.Figures(2).panels.options = o;
+    badT = ["categories" "series" "display" "summary" "errorType" "test" "testPairs" "adjust" "testShow" "bracketPairs" "showN" "yScale" ...
+        "testAlpha" "markerSize" "jitter" "yLim" "categoryBins" "seriesBins"];
+    check(all(arrayfun(@(x) has(b, tD + "options." + x, "error"), badT)), 'a trial distribution''s options: ' + strjoin(badT, ", "));
+    b = tdOf(); b.Figures(2).panels.options.categories = "param";
+    b2 = b; b2.Figures(2).panels.options.categoryParam = "Depth";
+    b3 = tdOf(); b3.Figures(2).panels.options.series = "groups";
+    b4 = b2; b4.Figures(2).panels.options.series = "param"; b4.Figures(2).panels.options.seriesParam = "Depth";
+    b5 = b4; b5.Figures(2).panels.options.seriesParam = "TrialType";
+    b6 = tdOf(); b6.Figures(2).panels.options.seriesParam = "not a name";
+    check(has(b, tD + "options.categoryParam", "error") && isempty(figIssues(b2)) && has(b3, tD + "options.series", "error") ...
+        && has(b4, tD + "options.series", "error") && isempty(figIssues(b5)) && has(b6, tD + "options.seriesParam", "error"), ...
+        'categories / series "param" name their parameter; the series may not group as the categories do (two parameters may)');
+    tH = "th.trialHist_1.options.";
+    b = base.addFigure("trialHist", Id="th"); o = b.Figures(2).panels.options;
+    o.display = "swarm"; o.normalization = "cdf"; o.binMode = "fixed"; o.binCount = 0; o.binWidth = -1; o.alpha = 2; o.testAlpha = 0; o.testShow = "brackets";
+    o.xScale = "ln"; o.xLim = [2 2];
+    b.Figures(2).panels.options = o;
+    badH = ["display" "normalization" "binMode" "binCount" "binWidth" "alpha" "testAlpha" "testShow" "xScale" "xLim"];
+    tS = "ts.trialScatter_1.options.";
+    b2 = base.addFigure("trialScatter", Id="ts"); o = b2.Figures(2).panels.options;
+    o.fit = "spline"; o.fitWindow = 1; o.corr = "kendall"; o.marginalSize = 0.6; o.alpha = -0.1; o.xScale = "log2"; o.yLimMode = "fixed";
+    b2.Figures(2).panels.options = o;
+    badS = ["fit" "fitWindow" "corr" "marginalSize" "alpha" "xScale" "yLim"];
+    b3 = base.addFigure("trialScatter", Id="ts"); b3.Figures(2).panels.options.fit = "movmedian"; b3.Figures(2).panels.options.xScale = "log";
+    b3.Figures(2).panels.options.marginals = true; b3.Figures(2).panels.options.test = "none";
+    check(all(arrayfun(@(x) has(b, tH + x, "error"), badH)) && all(arrayfun(@(x) has(b2, tS + x, "error"), badS)) && isempty(figIssues(b3)), ...
+        'a trial histogram''s options (' + strjoin(badH, ", ") + ') and a scatter''s (' + strjoin(badS, ", ") + ')');
+    b = tdOf(); b.Figures(2).panels.options.errorType = "iqr"; b.Figures(2).panels.options.errorResamples = 0.5;
+    check(~has(b, tD + "options.errorType", "error") && has(b, tD + "options.errorResamples", "error"), ...
+        'a trial panel''s error is one of AuxErrorTypes (iqr too); its errorResamples is checked as every panel''s');
+    b = tdOf(); b.Figures(2).sessions.enabled = true;
+    b2 = b; b2.Figures(2).sessions.trialGroups = "each";
+    b3 = b; b3.Figures(2).panels.options.categories = "session";
+    check(has(b, "td.trialDist_1.options.categories", "warning") && ~has(b2, "td.trialDist_1.options.categories", "warning") ...
+        && ~has(b3, "td.trialDist_1.options.categories", "warning") && ~has(b, "td.trialDist_1.type", "error"), ...
+        'a session figure may hold a trial panel; grouped by the trial groups under trialGroups "pool" it warns');
 end
 
 %% ============================================================================ compute
@@ -2511,6 +2781,63 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     end
     check(nU >= 2 && nPsth >= 1 && okOne, sprintf(['one observation of the raster + PSTH figure computes its own unit only ' ...
         '(%d PSTH layer(s); the dataset has %d units)'], nPsth, nU));
+
+    % trial panels (trialDist): trialMeasure on the fixture against eventLatency, a hand count and the trial column;
+    % the categories are selectTrials' groups; the test is ranksum; a missing line and no trials are skip reasons
+    tmSel = trialSelection(groupBy="TrialType");
+    tmM = EphysAnalysisConfig.defaults("TrialMeasure");
+    tmM.from = eventRef(line="Stim");
+    tmM.to = eventRef(line="Platform", edge="offset");
+    tmD = layerOf("trialDist"); tmD.measure = tmM;
+    tmC = tmD; tmC.measure.kind = "count"; tmC.measure.to = eventRef(line="Trough");
+    tmP = tmD; tmP.measure.kind = "param"; tmP.measure.param = "RespLatency";
+    cfg = cfg.addFigure(struct('panels', {{struct('id', "td", 'type', "trialDist", 'selection', tmSel, ...
+        'options', struct('categories', "groups", 'series', "layer"), 'layers', [tmD tmC tmP])}}), Id="tmeas");
+    tmSpec = cfg.figureFor("tmeas");
+    tmF = rn.computeFigure(src, tmSpec);
+    tmL = tmF.panels(1).layers;
+    [tmMask, tmG, tmGi] = selectTrials(src, tmSel);
+    tmE = epochTable(src, eventRef(line="Stim"), Window=wD, Selection=tmSel);
+    tmLat = eventLatency(src, tmE, eventRef(line="Platform", edge="offset"));
+    tmR = tmL(1).R;
+    [tmHas, tmAt] = ismember(tmE.trial, tmR.values.trial);
+    check(all([tmL.skip] == "") && tmR.kind == "trialDist" && all(tmHas | isnan(tmLat)) ...
+        && max(abs(tmR.values.value(tmAt(tmHas)) - 1000 * tmLat(tmHas))) < 1e-6 && tmR.unit == "ms" ...
+        && all(ismember(tmR.values.trial, find(tmMask))), ...
+        sprintf('trialDist delay: Stim onset to Platform offset is eventLatency of the same trial, in ms (%d trials)', height(tmR.values)));
+    tmOn = resolveEvents(src, eventRef(line="Stim"), tmMask);
+    tmTr = sort(src.events.Trough(:, 1));
+    tmRows = find(tmMask);
+    tmWant = zeros(numel(tmRows), 1);
+    for tmI = 1:numel(tmRows)
+        tmK = tmRows(tmI);
+        tmA = tmOn(tmOn >= src.trials.TrialOnset(tmK) & tmOn <= src.trials.TrialOffset(tmK));
+        tmWant(tmI) = nnz(tmTr >= tmA(1) & tmTr <= src.trials.TrialOffset(tmK) + 1 / src.fs);
+    end
+    tmRc = tmL(2).R;
+    check(isequal(tmRc.values.trial, tmRows) && isequal(tmRc.values.value, tmWant) && tmRc.unit == "", ...
+        sprintf('trialDist count: the Trough onsets from each Stim onset to the trial''s end, by hand (%d in all)', sum(tmWant)));
+    tmRL = src.trials.RespLatency(tmRows);
+    tmRp = tmL(3).R;
+    check(isequal(tmRp.values.value, tmRL(isfinite(tmRL))) && tmRp.drops.nNoValue == nnz(~isfinite(tmRL)) && tmRp.label == "RespLatency", ...
+        'trialDist param: RespLatency of the kept trials, the misses (NaN) left out and counted');
+    tmV = tmR.values.value;
+    tmTT = tmR.values.TrialType;
+    tmP0 = NaN;
+    if nnz(tmTT == 0) >= 2 && nnz(tmTT == 1) >= 2; tmP0 = ranksum(tmV(tmTT == 0), tmV(tmTT == 1)); end
+    check(isequal(tmR.categories.label, tmG.label) && isequal(tmR.values.category, tmGi(tmR.values.trial)) ...
+        && height(tmR.series) == 3 && isequaln(tmL(2).R.stats, tmR.stats) && tmR.stats.test(1).across == "categories" ...
+        && (isequaln(tmR.stats.test(1).p, tmP0) || abs(tmR.stats.test(1).p - tmP0) < 1e-12), ...
+        sprintf('trialDist: categories = the trial groups (%s), one series per layer, the same statistics in each; the first series'' test is ranksum (p = %.3g)', ...
+        strjoin(tmG.label, ", "), tmR.stats.test(1).p));
+    tmS2 = tmSpec;
+    tmS2.panels(1).layers(1).measure.to = eventRef(line="Foo");
+    [~, tmLR] = figureSkipReason(src, tmS2);
+    tmN = src; tmN.hasTrials = false;
+    [~, tmLRn] = figureSkipReason(tmN, tmSpec);
+    check(tmLR([tmLR.layer] == 1).reason == "no line Foo" && tmLR([tmLR.layer] == 2).reason == "" ...
+        && tmLRn([tmLRn.layer] == 0).reason == "no paired trials", ...
+        'figureSkipReason: a trial measure''s missing line is "no line Foo" for its layer; without paired trials the panel says "no paired trials"');
 end
 
 %% ============================================================================ render
@@ -2599,6 +2926,19 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     cfg = cfg.addFigure(fm);
     Fm = rn.computeFigure(src, cfg.figureFor("marks"), Observation=Tu(1, :));
 
+    % three trial panels on section 7's delay layer (tmD: Stim onset to Platform offset): a swarm by Depth (each value a
+    % category) with every pair bracketed, an ECDF, a scatter with marginal histograms and a linear fit
+    cfg = cfg.addFigure(struct('panels', {{struct('id', "tsw", 'type', "trialDist", 'selection', tmSel, 'options', ...
+        struct('categories', "param", 'categoryParam', "Depth", 'categoryBins', [], 'series', "layer", 'display', "swarm", ...
+        'testShow', "brackets", 'bracketPairs', "all"), 'layers', tmD)}}), Id="tswarm");
+    cfg = cfg.addFigure(struct('panels', {{struct('id', "tec", 'type', "trialHist", 'options', struct('display', "ecdf"), ...
+        'layers', tmD)}}), Id="tecdf");
+    cfg = cfg.addFigure(struct('panels', {{struct('id', "tsc", 'type', "trialScatter", 'title', "Delay by onset", 'options', ...
+        struct('fit', "linear", 'fitBand', true, 'corr', "pearson", 'marginals', true), 'layers', tmD)}}), Id="tscatter");
+    Ftsw = rn.computeFigure(src, cfg.figureFor("tswarm"));
+    Ftec = rn.computeFigure(src, cfg.figureFor("tecdf"));
+    Ftsc = rn.computeFigure(src, cfg.figureFor("tscatter"));
+
     % every panel type into every kind of target
     drawTargets();
     rcases = {
@@ -2629,7 +2969,10 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         "continuous trials only, 5 of them", Ftr5
         "a heat map of trials",             Fth
         "a PSTH with its own selection",    Fos
-        "one trial group's figure",         Fpg};
+        "one trial group's figure",         Fpg
+        "a trial swarm with brackets",      Ftsw
+        "a trial ECDF",                     Ftec
+        "a trial scatter: marginals, a linear fit", Ftsc};
     for k = 1:size(rcases, 1)
         Fk = rcases{k, 2};
         ids = [Fk.panels.id];
@@ -2671,6 +3014,183 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         if msgs ~= ""; msg = msg + " (" + msgs + ")"; end
         check(okAll, msg);
     end
+
+    % the trial panels (drawTrialDistPanel, drawTrialHistPanel, drawTrialScatterPanel): the scatter's marginal strips
+    % laid out in its box, the brackets, the corner's test, a log axis, the displays, the data table and its menu items
+    Lmg = figurePlace(A0, setfield(placeCell([0 0 1 1], [0 0 0 0]), 'layout', ...
+        struct('kind', "marginals", 'size', 0.25, 'xStrip', "top", 'yStrip', "right"))); %#ok<SFLD>
+    Lmm = figurePlace(A0, setfield(placeCell([0 0 1 1], [0 0 0 0]), 'layout', ...
+        struct('kind', "marginals", 'size', 0.25, 'xStrip', "bottom", 'yStrip', "left"))); %#ok<SFLD>
+    check(near(Lmg.panels(1).axes, [0 0 300 225; 0 225 300 75; 300 0 100 225]) ...
+        && near(Lmm.panels(1).axes, [100 75 300 225; 100 0 300 75; 0 75 100 225]), ...
+        ['figurePlace: a scatter''s marginals split its box, the plot (1 - f) of it each way, the x strip f high over it ' ...
+        '(under it when its x axis is on top), the y strip f wide right of it (left when its y axis is on the right), flush']);
+    drawTargets();
+    fMg = Ftsc.spec.panels(1).options.marginalSize;
+    clf(fig);
+    hMg = renderFigure(Ftsc, Ftsc.spec, fig);
+    drawnow;
+    [okMg, whyMg] = marginalsPlaced(hMg, fig, fMg);
+    SMg = getappdata(fig, 'FigureLayout');
+    aMg = hMg.panels(1).axes;
+    xMg = hMg.panels(1).extraAxes;
+    okMt = okMg && isstruct(SMg.panels(1).layout) && SMg.panels(1).layout.kind == "marginals" ...
+        && strjoin(string(xMg(1).Title.String), "") == "Delay by onset" && strjoin(string(aMg.Title.String), "") == "" ...
+        && isempty(xMg(1).XTickLabel) && isempty(xMg(2).YTickLabel) && ~isempty(aMg.XTickLabel) && ~isempty(aMg.YTickLabel) ...
+        && all(arrayfun(@(a) string(a.Tag) == "axes" && string(getappdata(a, 'PlotTile')) == "tsc", xMg));
+    aMg.XLim = aMg.XLim + [0 1];   % a zoom of the plot: the x strip follows
+    okLink = isequal(xMg(1).XLim, aMg.XLim);
+    check(okMt && okLink, sprintf(['a trial scatter''s marginals: three axes inside its box, the strips flush with the plot, %g of the ' ...
+        'box each, their limits linked to the plot''s, no tick labels, tagged as the panel''s tiles, the title over the x strip (%s)'], ...
+        fMg, whyMg));
+    fig.Position(3:4) = [600 640];
+    figureLayout(fig);   % (an invisible figure runs no SizeChangedFcn)
+    [okRs, whyRs] = marginalsPlaced(hMg, fig, fMg);
+    fig.Position(3:4) = [700 800];
+    hMs = renderFigure(Ftsc, Ftsc.spec, fig, Scale=0.5);
+    [okSc, whySc] = marginalsPlaced(hMs, fig, fMg);
+    check(okRs && okSc, sprintf('the marginals stay in place laid out again at a new size (%s) and drawn at Scale 0.5 (%s)', whyRs, whySc));
+    delete(ufig.Children);
+    pMg = uipanel(ufig, 'Units', 'pixels', 'Position', [1 1 690 790], 'BorderType', 'none');
+    renderFigure(Ftsc, Ftsc.spec, pMg, Reuse=true);
+    DMg = getappdata(pMg, 'FigureDrawing');
+    sMg = Ftsc.spec;
+    sMg.panels(1).rect = [0.1 0.1 0.6 0.6];
+    [hMr, howMr] = renderFigure(Ftsc, sMg, pMg, Reuse=true);
+    [okMr, whyMr] = marginalsPlaced(hMr, pMg, fMg);
+    sMg.panels(1).xSide = "top";
+    sMg.panels(1).ySide = "right";
+    hMf = renderFigure(Ftsc, sMg, pMg, Reuse=true);
+    [okMf, whyMf] = marginalsPlaced(hMf, pMg, fMg);
+    xF = hMf.panels(1).extraAxes;
+    aF = figureBox(hMf.panels(1).axes, ufig);
+    check(howMr == "inplace" && isequal(hMr.panels(1).extraAxes, DMg.extra{1}) && okMr && okMf ...
+        && figureBox(xF(1), ufig) * [0; 1; 0; 1] <= aF(2) + 0.5 && figureBox(xF(2), ufig) * [1; 0; 1; 0] <= aF(1) + 0.5 ...
+        && strcmp(hMf.panels(1).axes.XAxisLocation, 'top') && all(strcmp({xF.YAxisLocation}, 'right')), ...
+        sprintf(['Reuse: a new rect lays the plot and its strips out again in place (%s); its axes on top and right put the ' ...
+        'x strip under the plot and the y strip left of it (%s)'], whyMr, whyMf));
+    delete(pMg);
+
+    sBr = Ftsw.spec;
+    axOf = @(h) h.panels(1).axes;
+    RBr = Ftsw.panels(1).layers(1).R;
+    Pbr = RBr.stats.pairs;
+    nSig = nnz(Pbr.sig & isfinite(Pbr.pAdj));
+    nAll = nnz(isfinite(Pbr.p));
+    nTst = nnz(arrayfun(@(t) t.name ~= "none" && isfinite(t.p), RBr.stats.test));
+    sBr.panels(1).options.bracketPairs = "significant";
+    clf(fig);
+    nB1 = numel(findall(axOf(renderFigure(Ftsw, sBr, fig)), 'Tag', 'sigBracket'));
+    sBr.panels(1).options.bracketPairs = "all";
+    hBr = renderFigure(Ftsw, sBr, fig);
+    bBr = findall(axOf(hBr), 'Tag', 'sigBracket');
+    tBr = findall(axOf(hBr), 'Tag', 'sigText');
+    yv = RBr.values.value;
+    lvOk = true;   % brackets on one level do not overlap
+    for i = 1:numel(bBr)
+        for j = i + 1:numel(bBr)
+            if abs(max(bBr(i).YData) - max(bBr(j).YData)) < 1e-9 * max(abs(yv))
+                lvOk = lvOk && (max(bBr(i).XData) <= min(bBr(j).XData) || max(bBr(j).XData) <= min(bBr(i).XData));
+            end
+        end
+    end
+    yTopBr = max([bBr.YData]);
+    check(nB1 == nSig && numel(bBr) == nAll && numel(tBr) == nAll && nAll >= 1 && lvOk && min([bBr.YData]) > max(yv) ...
+        && ylim(axOf(hBr)) * [0; 1] >= yTopBr && all(arrayfun(@(b) isappdata(b, 'SigPair'), bBr)), ...
+        sprintf(['a trial distribution''s brackets: %d for the significant pairs (%d), %d for all (%d), each with its stars, ' ...
+        'over the data, none overlapping another on its level, the y axis grown to hold them'], nB1, nSig, numel(bBr), nAll));
+    nStat = zeros(1, 3);
+    nBrk = zeros(1, 3);
+    shows = ["brackets" "text" "off"];
+    for i = 1:3
+        sBr.panels(1).options.testShow = shows(i);
+        hS = renderFigure(Ftsw, sBr, fig);
+        nStat(i) = numel(findall(axOf(hS), 'Tag', 'statText'));
+        nBrk(i) = numel(findall(axOf(hS), 'Tag', 'sigBracket'));
+    end
+    check(nTst >= 1 && isequal(nStat, [1 1 0]) && isequal(nBrk, [nAll 0 0]), ...
+        sprintf('testShow: "brackets" the brackets and the omnibus p in the corner, "text" the p alone, "off" neither (%s; %s)', ...
+        mat2str(nStat), mat2str(nBrk)));
+    sLg = Ftsw.spec;
+    sLg.panels(1).options.yScale = "log";
+    lastwarn('');
+    hLg = renderFigure(Ftsw, sLg, fig);
+    [~, wLg] = lastwarn;
+    bLg = findall(axOf(hLg), 'Tag', 'sigBracket');
+    pLg = findall(axOf(hLg), 'Tag', 'distPoints');
+    check(strcmp(axOf(hLg).YScale, 'log') && string(wLg) == "" && sum(arrayfun(@(o) numel(o.YData), pLg)) == nnz(yv > 0) ...
+        && ~isempty(bLg) && min([bLg.YData]) > max(yv), ...
+        'yScale "log": a log y axis, every value over 0 drawn, the brackets stepped over the data, no warning');
+    want = struct('swarm', "distPoints", 'box', "distBox", 'violin', "distViolin", 'points', "distPoints", 'line', "distLine");
+    okD = exist('violinplot', 'file') == 2;   % (R2024b and later; R2025a has it)
+    whyD = strings(1, 0);
+    for d = string(fieldnames(want)).'
+        sD = Ftsw.spec;
+        sD.panels(1).options.display = d;
+        lastwarn('');
+        hD = renderFigure(Ftsw, sD, fig);
+        [~, wD2] = lastwarn;
+        hasRole = ~isempty(findall(axOf(hD), 'Tag', want.(d)));
+        summ = ~isempty(findall(axOf(hD), 'Tag', 'distSummary'));
+        ok = hasRole && string(wD2) == "" && summ == ismember(d, ["swarm" "points" "violin"]);
+        if ~ok; whyD(end+1) = d; end %#ok<AGROW>
+        okD = okD && ok;
+    end
+    pts = findall(axOf(renderFigure(Ftsw, Ftsw.spec, fig)), 'Tag', 'distPoints');
+    TR = cell2mat(arrayfun(@(o) reshape(double(o.YData), [], 1), pts, 'UniformOutput', false));
+    okRows = ~isempty(pts) && all(arrayfun(@(o) isappdata(o, 'TrialRows') && size(getappdata(o, 'TrialRows'), 1) == numel(o.YData), pts));
+    if okRows
+        rr = cell2mat(arrayfun(@(o) getappdata(o, 'TrialRows'), pts, 'UniformOutput', false));
+        okRows = isequal(sort(rr(:, 2)), (1:height(RBr.values)).') && max(abs(sort(RBr.values.value(rr(:, 2))) - sort(TR(:)))) < 1e-9;
+    end
+    check(okD && okRows, "a trial distribution draws as a swarm, boxes, violins, points or a line, each its own role, the summary " + ...
+        "marks over the swarm, points and violins; every point carries its row of R.values (TrialRows)" + ...
+        strjoin(" (failed: " + whyD + ")", ""));
+
+    TV = TrialDataExport.valuesTable(Ftsw);
+    lead = ["figure" "panel" "layer" "measure" "dataset" "session" "sessionKey" "trial" "group" "groupLabel" "category" ...
+        "categoryLabel" "series" "seriesLabel" "value" "x" "tA" "tB"];
+    vnT = string(TV.Properties.VariableNames);
+    RV = RBr.values;
+    okTV = numel(vnT) > 18 && isequal(vnT(1:18), lead) && height(TV) == height(RV) && isequal(TV.value, RV.value) ...
+        && isequal(TV.trial, RV.trial) && all(TV.figure == "tswarm") && all(TV.panel == "tsw") && all(TV.dataset == string(src.name)) ...
+        && ismember("Depth", vnT) && isequal(TV.categoryLabel, string(RBr.categories.label(RV.category))) ...
+        && isequaln(TrialDataExport.valuesTable(Ftsw, "tsw"), TV) && all(isnan(TV.x)) ...
+        && strcmp(errorId(@() TrialDataExport.valuesTable(F1, 1)), 'TrialDataExport:NotTrialPanel') ...
+        && strcmp(errorId(@() TrialDataExport.valuesTable(Ftsw, "nope")), 'TrialDataExport:NoPanel');
+    txT = splitlines(strip(TrialDataExport.tableText(TV), 'right'));
+    csvT = string(tempname) + ".csv";
+    TrialDataExport.export(Ftsw, [], csvT);
+    TR2 = readtable(csvT, 'TextType', 'string');
+    deleteQuiet(csvT);
+    TS = TrialDataExport.valuesTable(Ftsc);
+    check(okTV && numel(txT) == height(TV) + 1 && txT(1) == strjoin(vnT, char(9)) && height(TR2) == height(TV) ...
+        && isequal(string(TR2.Properties.VariableNames), vnT) && max(abs(TR2.value - TV.value)) < 1e-6 && all(TR2.figure == "tswarm") ...
+        && isequal(TR2.trial, TV.trial) && all(isfinite(TS.x)) && isequal(TS.x, Ftsc.panels(1).layers(1).R.values.x), ...
+        sprintf(['TrialDataExport: one row per value with the columns %s, then the trial parameters (Depth); tab-separated ' ...
+        'text with a header; written as CSV, readtable gives it back (%d rows); a scatter''s x; not a trial panel and no ' ...
+        'such panel are errors'], strjoin(lead, ", "), height(TR2)));
+    fT = figure('Visible', 'off', 'Position', [100 100 700 800]);   % (an editable drawing leaves its context on the figure)
+    renderFigure(Ftsw, Ftsw.spec, fT, Editable=true, DataTips=true);
+    hMn = renderFigure(Ftsw, Ftsw.spec, fT, Editable=true, DataTips=true);
+    pMn = findall(axOf(hMn), 'Tag', 'distPoints');
+    bMn = findall(axOf(hMn), 'Tag', 'sigBracket');
+    itA = string({PlotAesthetics.menuOf(axOf(hMn)).Children.Text});
+    itP = string({PlotAesthetics.menuOf(pMn(1)).Children.Text});
+    nAgain = TrialDataExport.attach(Ftsw, hMn);
+    itA2 = string({PlotAesthetics.menuOf(axOf(hMn)).Children.Text});
+    Lp = FigureDataTips.tipText(pMn(1), 1);
+    Lb = FigureDataTips.tipText(bMn(1), 1);
+    hMs2 = renderFigure(Ftsc, Ftsc.spec, fT, Editable=true);
+    itS = string({PlotAesthetics.menuOf(hMs2.panels(1).extraAxes(1)).Children.Text});
+    delete(fT);
+    items = ["Copy data table" "Export data (CSV)..."];
+    check(all(ismember(items, itA)) && all(ismember(items, itP)) && all(ismember(items, itS)) && nAgain == 0 ...
+        && nnz(itA2 == items(1)) == 1 && any(startsWith(Lp, "Trial: ")) && any(startsWith(Lp, "Depth: ")) ...
+        && any(startsWith(Lb, "Pair test: ranksum p = ")), ...
+        sprintf(['the trial panels'' right-click menus (their axes, points, a scatter''s strips) hold "Copy data table" and ' ...
+        '"Export data (CSV)...", once; a point''s tip names its trial and category (%s), a bracket''s its test (%s)'], ...
+        strjoin(Lp, " | "), strjoin(Lb, " | ")));
 
     % a panel's text note and overlays (phase 6): drawn on that panel, their looks as rules, the figure's own winning
     sN = F1.spec;
@@ -3705,6 +4225,75 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         'entries instead']);
     check(okSt, 'a stacked PSTH''s trialCount: the text at the right end of each row, above its baseline');
     check(okHt && okHl, 'a PSTH heat map''s trialCount: the text beside each row (text), or in the row''s label (legend)');
+    % the PSTH's smoothed line: the unsmoothed rates smoothed by the line's own SD, over each group's trace, apart from
+    % the histogram's smoothing; a look (nothing computed again); divided as the rates are; stacked, in each row
+    sSl = Ffs.spec;
+    sSl.panels(2).options.smoothLine = struct('enabled', true, 'smoothSec', 0.03);
+    s0 = Ffs.spec;
+    s0.panels(2).options.bins.SmoothSec = 0;
+    F0 = rn.computeFigure(src, s0, Observation=Tu(1, :));
+    R0 = F0.panels(2).layers(1).R;
+    dtS = median(diff(Rfp.t));
+    finiteLines = @(h) h(arrayfun(@(x) any(isfinite(x.YData(:))), h));   % not the legend's entry
+    ofGroup = @(h, gl) findall(h, '-function', @(x) string(getappdata(x, 'PlotGroup')) == gl);
+    hS = renderFigure(Ffs, sSl, fig);
+    aS = hS.panels(2).axes;
+    lnS = finiteLines(findall(aS, 'Tag', 'smoothLine'));
+    okN = numel(lnS) == height(Ffs.groups);
+    okU = max(abs(Rfp.rateUnsmoothed - R0.rate), [], 'all') < 1e-9 && ~isequaln(Rfp.rate, R0.rate);
+    okD = isequaln(figureDataSpec(sSl), figureDataSpec(Ffs.spec));   % (isequaln: a spec holds NaN)
+    okV = true;
+    for gS = 1:height(Ffs.groups)
+        hG = ofGroup(lnS, string(Ffs.groups.label(gS)));
+        want = gaussianSmooth(R0.rate(:, 1, gS), 0.03 / dtS);
+        okV = okV && isscalar(hG) && max(abs(hG.YData(:) - want)) < 1e-9 && max(abs(hG.XData(:) - Rfp.t(:))) < 1e-12;
+    end
+    kids = allchild(aS);
+    iL = find(ismember(kids, lnS));
+    iT = find(arrayfun(@(x) ismember(string(x.Tag), ["rate" "rateFill"]) && any(isfinite(x.YData(:))), kids));
+    okO = ~isempty(iT) && ~isempty(iL) && max(iL) < min(iT);   % over the traces: earlier among the children
+    lgS = findall(fig, 'Type', 'legend');
+    lgS = string(lgS(1).String);
+    okL = any(lgS == "Smoothed (SD 30 ms)");
+    okSl = okN && okU && okD && okV && okO && okL;
+    sSn = sSl;
+    sSn.panels(2).options.normalize = "unitPeak";
+    hSn = renderFigure(Ffs, sSn, fig);
+    hG = ofGroup(finiteLines(findall(hSn.panels(2).axes, 'Tag', 'smoothLine')), string(Ffs.groups.label(1)));
+    want = gaussianSmooth(Rfp.rateUnsmoothed(:, 1, 1), 0.03 / dtS) / max(abs(Rfp.rate), [], 'all');
+    okSn = isscalar(hG) && max(abs(hG.YData(:) - want)) < 1e-9;
+    sSs = FfsS.spec;
+    sSs.panels(2).options.smoothLine = struct('enabled', true, 'smoothSec', 0.03);
+    hSs = renderFigure(FfsS, sSs, fig);
+    aSs = hSs.panels(2).axes;
+    lnSs = finiteLines(findall(aSs, 'Tag', 'smoothLine'));
+    yyaxis(aSs, 'left');
+    ylSs = ylim(aSs);
+    okSs = numel(lnSs) == height(FfsS.groups);
+    for gS = 1:height(FfsS.groups)   % in the group's row: from its baseline up, inside the axes
+        glS = string(FfsS.groups.label(gS));
+        hG = ofGroup(lnSs, glS);
+        bG = findall(aSs, 'Tag', 'stackBase', '-function', @(x) string(getappdata(x, 'PlotGroup')) == glS);
+        okSs = okSs && isscalar(hG) && isscalar(bG) && min(hG.YData) >= bG.YData(1) - 1e-9 && max(hG.YData) <= ylSs(2) + 1e-9;
+    end
+    sSh = sSl;
+    sSh.panels(2).options.display = "heatmap";
+    hSh = renderFigure(Ffs, sSh, fig);
+    Fno = Ffs;
+    Fno.panels(2).layers(1).R = rmfield(Fno.panels(2).layers(1).R, 'rateUnsmoothed');
+    hNo = renderFigure(Fno, sSl, fig);
+    ntNo = "";
+    for x = reshape(findall(hNo.panels(2).axes, 'Tag', 'layerNote'), 1, [])
+        ntNo = ntNo + " " + strjoin(string(x.String), " ");
+    end
+    okSh = isempty(findall(hSh.panels(2).axes, 'Tag', 'smoothLine')) ...
+        && isempty(finiteLines(findall(hNo.panels(2).axes, 'Tag', 'smoothLine'))) && any(contains(ntNo, "no smoothed line"));
+    check(okSl, sprintf(['a PSTH''s smoothed line: each group''s unsmoothed rates (spikePSTH''s rateUnsmoothed, the same ' ...
+        'as with SmoothSec 0) smoothed by its own SD, over every trace, "Smoothed (SD 30 ms)" in the legend; a look alone ' ...
+        '(lines %d, unsmoothed %d, data spec %d, values %d, on top %d, legend %d)'], okN, okU, okD, okV, okO, okL));
+    check(okSn, 'a PSTH''s smoothed line is divided as the rates are (normalize unitPeak)');
+    check(okSs, 'a stacked PSTH''s smoothed line: one per row, from the row''s baseline, inside the axes');
+    check(okSh, 'no smoothed line on a PSTH heat map; a result without rateUnsmoothed draws none and says so');
     ha = renderFigure(Fau, Fau.spec, fig);
     aa = ha.axes(2);
     check(isscalar(findall(aa, 'Tag', 'chanceLine')) && isequal(ylim(aa), [0 1]) && ~isempty(findall(aa, '-regexp', 'Tag', '^rate(Fill)?$')) ...
@@ -4782,6 +5371,95 @@ if S.sec("10", "session figures: one figure across datasets")
     check(isempty(only1) || (~isempty(e1) && e1(1).status == "done" && e1(1).F.nSessions == 1 ...
         && any(e1(1).F.sessions.status == "missing") && contains(e1(1).F.dataset, "1 session")), ...
         'with minSessions 1 that group is drawn from its one session: nSessions 1, the other session "missing", the title''s count agrees');
+
+    % trial panels across sessions: every session's per-trial values in one table, each in its series; the
+    % statistics made again over them (trialPanelStats after the merge), so "session" groups by the sessions
+    tsM = EphysAnalysisConfig.defaults("TrialMeasure");
+    tsM.from = eventRef(line="Stim");
+    tsM.to = eventRef(line="Platform", edge="offset");
+    tsD = layerOf("trialDist"); tsD.measure = tsM;
+    tsH = layerOf("trialHist"); tsH.measure = tsM;
+    tsS = layerOf("trialScatter"); tsS.measure = tsM;
+    sd = sc.addFigure(struct('panels', {{struct('id', "td", 'type', "trialDist", 'rect', [0 0.5 1 0.5], 'layers', tsD, ...
+        'options', struct('categories', "session", 'series', "layer")), ...
+        struct('id', "th", 'type', "trialHist", 'rect', [0 0 0.5 0.5], 'layers', tsH, 'options', struct('series', "session")), ...
+        struct('id', "ts", 'type', "trialScatter", 'rect', [0.5 0 0.5 0.5], 'layers', tsS, ...
+        'options', struct('series', "session", 'fit', "linear"))}}), Id="strial");
+    kd = sd.figureIndex("strial");
+    sd.Figures(kd).observe.data = "dataset";
+    sd.Figures(kd).sessions.enabled = true;
+    spd = sd.figureFor("strial");
+    Td = figureSessionObservations(srcQ, spd);
+    [resD, ~, FsD] = figureSessionCompute(srcQ, Sq, spd, Observation=Td(1, :));
+    FD = resD(1).F;
+    RD = FD.panels(1).layers(1).R;
+    ownD = cellfun(@(f) f.panels(1).layers(1).R, FsD, 'UniformOutput', false);
+    vD = RD.values.value;
+    pD = NaN;
+    if nnz(RD.values.session == 1) >= 2 && nnz(RD.values.session == 2) >= 2
+        pD = ranksum(vD(RD.values.session == 1), vD(RD.values.session == 2));
+    end
+    check(isscalar(resD) && resD(1).status == "done" && RD.kind == "trialDist" && isequal(unique(RD.values.session).', [1 2]) ...
+        && height(RD.values) == height(ownD{1}.values) + height(ownD{2}.values) && RD.n == height(RD.values) ...
+        && isequal(RD.values.value, [ownD{1}.values.value; ownD{2}.values.value]) ...
+        && isequal(RD.values.sessionKey, [repmat(Sq.key(1), height(ownD{1}.values), 1); repmat(Sq.key(2), height(ownD{2}.values), 1)]) ...
+        && height(RD.categories) == 2 && isequal(RD.categories.label, Sq.label) && isequal(RD.values.category, RD.values.session) ...
+        && height(RD.groups) == 2 && isequal(string(RD.groups.label), Sq.label) && isequal(RD.values.group, RD.values.session) ...
+        && RD.drops.nNoB == ownD{1}.drops.nNoB + ownD{2}.drops.nNoB && RD.drops.nNoSeries == 0 ...
+        && height(RD.sessions) == 2 && all(RD.sessions.status == "done") && RD.sessionSeries.match == "none" ...
+        && isfinite(RD.stats.test(1).p) && abs(RD.stats.test(1).p - pD) < 1e-12 && isequaln(FD.panels(1).groups, RD.groups), ...
+        sprintf(['a trial distribution across 2 sessions: %d + %d values stacked (session, sessionKey), categories "session" = ' ...
+        'the sessions (%s), the series the sessions'' (pool), the rank-sum over the merged values (p = %.3g)'], ...
+        height(ownD{1}.values), height(ownD{2}.values), strjoin(RD.categories.label, ", "), RD.stats.test(1).p));
+    RH = FD.panels(2).layers(1).R;
+    RS = FD.panels(3).layers(1).R;
+    check(RH.kind == "trialHist" && height(RH.values) == height(RD.values) && height(RH.series) == 2 && isfinite(RH.stats.test(1).p) ...
+        && RS.kind == "trialScatter" && isequal(unique(RS.values.session).', [1 2]) && all(isfinite(RS.values.x)) && height(RS.series) == 2 ...
+        && numel(RS.stats.fit) == 2 && numel(RS.stats.corr) == 2 && RS.xLabel ~= "", ...
+        'a trial histogram and a trial scatter merge too: series "session" two levels, the scatter''s fit and correlation per session');
+    tsTxt = trialStatsText(FD);
+    capD = figureCaption(spd, Td, Sessions=FD.sessions, Results={FD});
+    check(numel(tsTxt) == 3 && startsWith(tsTxt(1), "td: " + Sq.label(1) + " ") && contains(tsTxt(1), "(n = ") ...
+        && contains(tsTxt(1), "Rank-sum p = ") && contains(tsTxt(3), "Pearson r = ") && contains(tsTxt(3), "linear fit R") ...
+        && contains(capD, "trial measure: " + trialMeasureLabel(tsM)) && contains(capD, "categories by session") ...
+        && contains(capD, "across 2 sessions") && contains(capD, tsTxt(1)), ...
+        "trialStatsText per trial panel and figureCaption Results=: " + tsTxt(1));
+    for tgMode = ["each" "combine"]
+        st2 = sd; st2.Figures(kd).sessions.trialGroups = tgMode;
+        st2.Figures(kd).panels(1).options.categories = "groups";
+        [resM, ~, FsM] = figureSessionCompute(srcQ, Sq, st2.figureFor("strial"), Observation=Td(1, :));
+        ownM = cellfun(@(f) f.panels(1).layers(1).R, FsM, 'UniformOutput', false);
+        nG = cellfun(@(r) height(r.groups), ownM);
+        okM = all([resM.status] == "done");
+        if tgMode == "each"
+            Ge = unique([string(ownM{1}.groups.label); string(ownM{2}.groups.label)]);
+            nIn = 0;
+            for e = resM([resM.status] == "done")
+                Re = e.F.panels(1).layers(1).R;
+                okM = okM && height(Re.groups) == e.F.nSessions && all(Re.values.group >= 1) ...
+                    && isequal(string(Re.groups.label(Re.values.group)), Sq.label(Re.values.session)) ...
+                    && height(Re.categories) == height(Re.groups);   % the groups of the merged result: the sessions holding the group
+                nIn = nIn + height(Re.values);
+            end
+            okM = okM && numel(resM) == numel(Ge) && nIn == nnz(ownM{1}.values.group > 0) + nnz(ownM{2}.values.group > 0);
+            msg = sprintf('trialGroups "each": a figure per trial group (%d), each with the sessions holding it as its series, every grouped value once', numel(resM));
+        else
+            Rc = resM(1).F.panels(1).layers(1).R;
+            okM = okM && isscalar(resM) && height(Rc.groups) == sum(nG) && ismember("lineStyle", string(Rc.groups.Properties.VariableNames)) ...
+                && height(Rc.categories) == height(Rc.groups) && height(Rc.values) == height(ownM{1}.values) + height(ownM{2}.values) ...
+                && all(Rc.values.group >= 1 & Rc.values.group <= height(Rc.groups)) ...
+                && isequal(Rc.groups.base(Rc.values.group), Rc.values.session);
+            % one trial group sliced from each session's own result (combineSessions Group=: sliceGroup)
+            g1 = string(ownM{1}.groups.label(1));
+            Rg = combineSessions(ownM, Sq, Group=g1);
+            nWant = nnz(ownM{1}.values.group == 1) + nnz(ownM{2}.values.group == find(string(ownM{2}.groups.label) == g1, 1));
+            okM = okM && Rg.kind == "trialDist" && height(Rg.values) == nWant && Rg.n == nWant && all(ismember(Rg.values.group, [1 2])) ...
+                && height(Rg.groups) == 2 && Rg.sessionSeries.group == g1;
+            msg = sprintf(['trialGroups "combine": a series per session and trial group (%d), categories "groups" = those series; ' ...
+                'Group= slices one trial group from each session''s values (%s: %d)'], height(Rc.groups), g1, nWant);
+        end
+        check(okM, msg);
+    end
 
     % site matching with different unit ids, and two units on one site (planted in session 2's sorting folder)
     u1 = P1.unitId(1);
@@ -5883,7 +6561,7 @@ if S.sec("17", "label variables: the list, their values, filled in by renderFigu
 
     % the list, and figureFileName's label kind
     L = figureLabelVariables();
-    check(height(L) == 22 && numel(unique(L.Name)) == height(L) && all(ismember(["Line" "Edge" "Response" "Unit" "Epochs" "Name"], L.Name)) ...
+    check(height(L) == 24 && numel(unique(L.Name)) == height(L) && all(ismember(["Line" "Edge" "Response" "Unit" "Epochs" "Name" "Measure" "MeasureX"], L.Name)) ...
         && isequal(string(L.Properties.VariableNames), ["Name" "Topic" "Meaning" "Example"]) && all(L.Meaning ~= "") && all(L.Example ~= ""), ...
         'figureLabelVariables(): a row per variable (name, topic, meaning, example), {Line} {Response} {Unit} among them');
     V0 = struct('Line', "Stim", 'Edge', "onset");
@@ -5928,6 +6606,22 @@ if S.sec("17", "label variables: the list, their values, filled in by renderFigu
     check(Vq.Line == "Resp" && Vq.Edge == "offset" && Vq0.Line == "Stim" && contains(Vq.Event, "then Resp offset") ...
         && Vo.Unit == "<Unit>" && Vo.Name == src.name, ...
         '{Line} and {Edge} follow the sequence step aligned to (alignStep); PerObservation=false leaves the observation''s "<Unit>"');
+    % {Measure} and {MeasureX}: a trial panel's first enabled trials layer's measure (the figure's own text: its first trial panel's)
+    cM = cfg.addFigure("trialScatter", Id="sc");
+    cM.Figures(2).panels(1).layers(1).measure = struct('to', struct('line', "Platform", 'edge', "offset"));
+    Lm2 = cM.Figures(2).panels(1).layers(1);
+    Lm2.measure = struct('kind', "param", 'param', "RespLatency");
+    cM.Figures(2).panels(1).layers = [cM.Figures(2).panels(1).layers(1) Lm2];
+    cM.Figures(2).panels(1).layers(1).enabled = false;   % the first enabled one is the parameter's
+    sM = cM.figureFor("sc");
+    [~, Vm] = figureLabelVariables(sM, [], Panel=1);
+    [~, Vm0] = figureLabelVariables(sM, []);
+    sM.panels(1).type = "trialDist";
+    [~, Vmd] = figureLabelVariables(sM, [], Panel=1);
+    check(Vm.Measure == "RespLatency" && Vm.MeasureX == "Trial onset → Stim onset (ms)" && Vm0.Measure == "RespLatency" ...
+        && Vmd.Measure == "RespLatency" && Vmd.MeasureX == "" && V.Measure == "" && Vp.Measure == "" && Vp.MeasureX == "" ...
+        && figureFileName("{Measure} vs {MeasureX}", Vm, Kind="label") == "RespLatency vs Trial onset → Stim onset (ms)", ...
+        '{Measure}: a trial panel''s first enabled trials layer''s measure (trialMeasureLabel; the figure''s own text: its first trial panel''s), {MeasureX} a scatter''s x measure; blank elsewhere');
 
     % renderFigure fills them in: the title, labels, note and a layer's name, each panel with its own values
     sr = spec;
@@ -6278,6 +6972,34 @@ s = "";
 if ~isscalar(th); return; end
 t = strjoin(string(th.Title.String), " ");
 s = strjoin(string(th.Subtitle.String), " ");
+end
+
+
+function [ok, why] = marginalsPlaced(h, canvas, f)
+%marginalsPlaced  A trial scatter's plot and marginal strips (H.panels(1)) inside its laid-out box, flush, each strip a share F of it, the limits linked.
+%   The x strip over or under the plot, the y strip right or left of it (as its layout says); positions in CANVAS's pixels.
+ok = false;
+A = [h.panels(1).axes reshape(h.panels(1).extraAxes, 1, [])];
+if numel(A) ~= 3 || ~all(isgraphics(A)) || ~isappdata(canvas, 'FigureLayoutResult')
+    why = "no plot with two strips";
+    return
+end
+R = getappdata(canvas, 'FigureLayoutResult');
+b = R.panels(1).box;
+q = zeros(3, 4);
+for i = 1:3
+    u = A(i).Units;
+    A(i).Units = 'pixels';
+    q(i, :) = A(i).Position;
+    A(i).Units = u;
+end
+m = q(1, :); x = q(2, :); y = q(3, :);
+in = @(r) r(1) >= b(1) - 0.5 && r(2) >= b(2) - 0.5 && r(1) + r(3) <= b(1) + b(3) + 0.5 && r(2) + r(4) <= b(2) + b(4) + 0.5;
+xFlush = (abs(x(2) - m(2) - m(4)) < 0.5 || abs(x(2) + x(4) - m(2)) < 0.5) && abs(x(1) - m(1)) < 0.5 && abs(x(3) - m(3)) < 0.5;
+yFlush = (abs(y(1) - m(1) - m(3)) < 0.5 || abs(y(1) + y(3) - m(1)) < 0.5) && abs(y(2) - m(2)) < 0.5 && abs(y(4) - m(4)) < 0.5;
+ok = in(m) && in(x) && in(y) && xFlush && yFlush && abs(x(4) - f * b(4)) < 0.5 && abs(y(3) - f * b(3)) < 0.5 ...
+    && isequal(A(2).XLim, A(1).XLim) && isequal(A(3).YLim, A(1).YLim);
+why = sprintf('box %s, plot %s, x strip %s, y strip %s', mat2str(round(b)), mat2str(round(m)), mat2str(round(x)), mat2str(round(y)));
 end
 
 

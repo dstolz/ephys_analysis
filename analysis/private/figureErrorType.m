@@ -7,6 +7,8 @@ function [type, nBoot] = figureErrorType(panel)
 %     rate          the same, with display "bar" (its error bars)
 %     continuous    the panel's options.errorType ("sem", "std", "ci95" or
 %                   "iqr") unless it is "off"
+%     trialDist, trialHist, trialScatter   the same (the error of each
+%                   category's and series' summary, trialPanelStats)
 %   and "sem" otherwise (rasters, heat maps, waveforms, probe and
 %   correlation maps draw no band; a panel whose error is "off" draws
 %   none): what every compute function makes anyway, so no bootstrap is
@@ -30,5 +32,7 @@ switch panel.type
         type = o.errorType;
     case "rate"
         if o.display == "bar"; type = o.errorType; end
+    case {"trialDist" "trialHist" "trialScatter"}
+        type = o.errorType;
 end
 end

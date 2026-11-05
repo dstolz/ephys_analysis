@@ -22,10 +22,14 @@ function applyFigureEditor(obj, opts)
 %   rows, its page size and preview shape (showFigureSize, fitFigureViews)
 %   and its alignment rows. Scope "figure" (the default) fills them all:
 %   another figure, an edit, a config opened.
+%   Either scope clears FigureSelectPending (an Arrange press's light
+%   select: selectLightly), since the panel's rows then show the selected
+%   panel.
 arguments
     obj (1,1) EphysFigGenApp
     opts.Scope (1,1) string {mustBeMember(opts.Scope, ["figure" "panel"])} = "figure"
 end
+obj.FigureSelectPending = false;   % (the rows show the selected panel now: an Arrange press's light select is done)
 E = obj.FigureEditor;
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures)

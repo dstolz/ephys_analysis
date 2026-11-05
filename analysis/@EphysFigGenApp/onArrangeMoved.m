@@ -23,6 +23,9 @@ function onArrangeMoved(obj, id, evt)
 %   shift, or the same change of size about the same edges (arrangeGroup,
 %   on the dragged one's snapped rect), in the same undo step, "Move
 %   panels" or "Resize panels".
+%   A press that selected the box (selectLightly: FigureSelectPending)
+%   has the editor's rows filled now, however the drag ends
+%   (finishPendingSelect; a move's commitFigureEdit fills them itself).
 %   ID ":legend", the floating legend's box (dragged or resized, or its
 %   menu's Make it a legend panel here, EVT []): a legend panel is added
 %   at the box (onNewPanel, Type "legend", Where "rect": "Add panel"), so
@@ -46,10 +49,14 @@ G = struct('id', {}, 'rect0', {}, 'w', {}, 'parts', {});   % the others selected
 if isstruct(D) && isfield(D, 'group'); G = D.group; end
 arrangeCues(obj, [], []);
 C = arrangeContext(obj, id);
-if isempty(C) || isempty(C.w) || ~isvalid(C.w); return; end
+if isempty(C) || isempty(C.w) || ~isvalid(C.w)
+    finishPendingSelect(obj);
+    return
+end
 if mode == "canceled"
     arrangeWidgetSet(C.w, C.rect0);
     for i = 1:numel(G); arrangeWidgetSet(G(i).w, G(i).rect0); end
+    finishPendingSelect(obj, "");   % (Escape filled the rows already: cancelArrange)
     return
 end
 if ~isempty(G)   % (not snapped to the panels that move along)
@@ -64,6 +71,7 @@ else
     raw = double(reshape(evt.CurrentPosition, 1, 4));
     if mode ~= "drag" && all(abs(raw - C.rect0) < 1e-12)   % a click that moved nothing: no snap to the grid either
         arrangeWidgetSet(C.w, C.rect0);
+        finishPendingSelect(obj);   % (a press that selected the box: the editor's rows now)
         return
     end
 end
@@ -78,6 +86,7 @@ R = zeros(0, 4);
 if ~isempty(G); [rect, R] = arrangeGroup(C.rect0, rect, vertcat(G.rect0)); end
 u = obj.FigureRectUnits;
 if id == ":legend"
+    finishPendingSelect(obj, "");   % (before the editor is read back)
     obj.onNewPanel(Type="legend", Where="rect", Rect=rect);
     return
 end
@@ -88,6 +97,7 @@ if all(abs(rect - C.rect0) < 1e-12)
         arrangeWidgetSet(G(i).w, G(i).rect0);
         if ~isempty(G(i).parts); arrangePartsAt(G(i).parts, G(i).parts.box0); end
     end
+    finishPendingSelect(obj, "");   % (a press that selected the box: the editor's rows now)
     showPanelPlace(obj);
     obj.setStatus(id + " is where it was.");
     return

@@ -11,7 +11,8 @@ function cancelArrange(obj, msg)
 %   Position and Size fields show it again (showPanelPlace), and the box stays there
 %   until the mouse button is let go (FigureArrangeMode "canceled", which
 %   onArrangeMoving and onArrangeMoved honor). The smart guides are
-%   hidden; FigureCorners goes back to []. The status bar says MSG unless
+%   hidden; FigureCorners goes back to []. A press that selected a box
+%   lightly has the editor's rows filled (finishPendingSelect). The status bar says MSG unless
 %   it is "" (default "Canceled."). Escape calls it, on any tab
 %   (onKeyPress), and so do Arrange turned off (onArrangeToggled), the
 %   overlay taken away (syncArrangeOverlay) and a click off the page while
@@ -60,5 +61,6 @@ if isstruct(O) && ~isempty(O.axes) && isvalid(O.axes)
 elseif mode == "corners" && fig
     obj.Fig.Pointer = "arrow";
 end
+finishPendingSelect(obj, "");   % a press that selected a box: the editor's rows now (selectLightly)
 if msg ~= ""; obj.setStatus(msg); end
 end

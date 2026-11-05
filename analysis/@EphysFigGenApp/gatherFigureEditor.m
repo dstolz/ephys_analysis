@@ -39,6 +39,11 @@ function fig = gatherFigureEditor(obj)
 %   is size.source "export" (the own width and height kept as stored),
 %   anything else an own size of the Width and Height fields (the drop-down
 %   and the fields agree: onFigureSizeEdited keeps them so).
+%   While an Arrange press has selected a panel lightly (FigureSelectPending:
+%   the panel's rows still show the previous panel) the rows are filled
+%   first (finishPendingSelect), so the previous panel's values are not
+%   read into the one selected.
+finishPendingSelect(obj, "");
 E = obj.FigureEditor;
 fig = obj.Config.Figures(obj.SelectedFigure);
 fig.id = strtrim(string(E.id.Value));

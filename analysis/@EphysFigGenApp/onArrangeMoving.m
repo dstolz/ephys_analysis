@@ -24,8 +24,10 @@ function onArrangeMoving(obj, id, evt, alt)
 %   arrangeGroup); the snapping and the guides are the dragged box's (the
 %   others selected are not snapped to), and every selected panel's plots
 %   go with its box.
-%   The first step of a drag selects the panel (when the click did not),
-%   notes the drag (FigureArrangeMode "drag"; the Position listeners on the preview's axes wait meanwhile:
+%   The first step of a drag selects the panel when the click did not, as
+%   a press does (selectLightly: its box blue, its fields; the editor's
+%   other rows follow at the release), notes the drag (FigureArrangeMode
+%   "drag"; the Position listeners on the preview's axes wait meanwhile:
 %   markFigurePanel) and hides the selected panels' size labels
 %   (arrangeSizeLabels) until it ends; after Escape (cancelArrange) the
 %   box stays where it was until the drag ends. What a step reads that the
@@ -70,7 +72,7 @@ if first
         else
             obj.FigurePanelExtra = strings(1, 0);
         end
-        obj.onPanelSelected(C.j);   % (its fields then show this panel)
+        selectLightly(obj, C.j);   % its box and fields now; the editor's rows at the release (finishPendingSelect)
     end
     G = dragGroup(obj, id);
     if ~isempty(G)   % the others selected move along: no snapping to them

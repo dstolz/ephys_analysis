@@ -1,10 +1,13 @@
 function arrangeClickDone(obj)
-%arrangeClickDone  A click on one of several selected boxes waits no longer for its release: the window's WindowButtonUpFcn back as it was.
+%arrangeClickDone  A click on a box waits no longer for its release: the window's WindowButtonUpFcn back as it was.
 %   onArrangeClicked keeps the selection while the mouse button is down on
-%   a selected box (FigureArrangeClick: the box's id and the window's
-%   WindowButtonUpFcn before), so that a drag moves them all; this ends
-%   that wait: at the release (no drag came: that panel alone is selected
-%   then), when a drag starts (onArrangeMoving), or at the next click.
+%   one of several selected boxes (FigureArrangeClick: the box's id, the
+%   window's WindowButtonUpFcn before, alone true), so that a drag moves
+%   them all, and waits for the release of a press that selected a box
+%   lightly (alone false: selectLightly), whose editor rows the release
+%   fills (finishPendingSelect) when no drag came; this ends that wait: at
+%   the release, when a drag starts (onArrangeMoving: the drag's release
+%   fills the rows then, onArrangeMoved), or at the next click.
 %
 %   See also EphysFigGenApp.onArrangeClicked, EphysFigGenApp.onArrangeMoving.
 C = obj.FigureArrangeClick;

@@ -6,9 +6,13 @@ function onArrangeClicked(obj, id, evt)
 %   boxes). It notes the overlay clicked last (FigureArrangeFocus: the
 %   arrow keys now nudge the selection, nudgePanel, until an editor
 %   control is used). On a box:
-%     click         selects that panel alone, as Ctrl+Click on it does
-%                   (onPanelSelected: the editor shows it, its box turns
-%                   blue). On a box that is one of several selected, the
+%     click         selects that panel alone, as Ctrl+Click on it does,
+%                   in two steps so that a drag can start at once: on the
+%                   press its box turns blue and the Position and Size
+%                   fields show it (selectLightly); the rest of the
+%                   editor shows it once the press ends (the release, or
+%                   Escape: finishPendingSelect, as onPanelSelected
+%                   fills it). On a box that is one of several selected, the
 %                   selection stays while the mouse button is down (a drag
 %                   moves them all); let go without a drag and that panel
 %                   alone is selected (the window's WindowButtonUpFcn, for
@@ -46,6 +50,7 @@ end
 if obj.FigureArrangeMode == "canceled"; obj.FigureArrangeMode = ""; end
 obj.FigureArrangeFocus = true;
 arrangeClickDone(obj);   % (an earlier press's wait for its release, if it is still there)
+finishPendingSelect(obj);   % (an earlier press's light select whose release never came)
 [shift, right] = clickKind(obj, evt);
 if id == ":legend"; return; end
 if id == ""
@@ -72,14 +77,18 @@ elseif any(sel == id) && numel(sel) > 1   % one of several: they stay selected f
         obj.onPanelSelected(j);
     end
     if ~right
-        obj.FigureArrangeClick = struct('id', id, 'oldUp', {obj.Fig.WindowButtonUpFcn});
+        obj.FigureArrangeClick = struct('id', id, 'oldUp', {obj.Fig.WindowButtonUpFcn}, 'alone', true);
         obj.Fig.WindowButtonUpFcn = @(~, ~) released(obj);
     end
 else
     many = ~isempty(obj.FigurePanelExtra);
     obj.FigurePanelExtra = strings(1, 0);
-    if j ~= obj.SelectedPanel
-        obj.onPanelSelected(j);
+    if j ~= obj.SelectedPanel && right
+        obj.onPanelSelected(j);   % (no drag follows a right-click: its menu opens)
+    elseif j ~= obj.SelectedPanel
+        selectLightly(obj, j);   % its box and fields now; the editor's rows when the press ends (finishPendingSelect)
+        obj.FigureArrangeClick = struct('id', id, 'oldUp', {obj.Fig.WindowButtonUpFcn}, 'alone', false);
+        obj.Fig.WindowButtonUpFcn = @(~, ~) released(obj);   % (a click with no drag: the release ends it here or in onArrangeMoved)
     elseif many
         obj.syncFigureEditor();   % (the editor's rows are this panel's alone again)
     else
@@ -107,11 +116,15 @@ end
 
 
 function released(obj)
-%released  The mouse button let go after a click on one of several selected boxes: no drag came, so that panel alone is selected.
+%released  The mouse button let go after a click on a box and no drag came: a box selected on the press fills the editor; one of several selected is selected alone.
 if ~isvalid(obj); return; end
 C = obj.FigureArrangeClick;
 arrangeClickDone(obj);
 if ~isstruct(C) || obj.FigureArrangeMode == "drag"; return; end
+if ~C.alone
+    finishPendingSelect(obj);   % (the editor's rows are this panel's)
+    return
+end
 obj.FigurePanelExtra = strings(1, 0);
 obj.syncFigureEditor();   % (the editor's rows are this panel's alone again; its box alone blue)
 end

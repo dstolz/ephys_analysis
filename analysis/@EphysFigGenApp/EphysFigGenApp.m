@@ -433,6 +433,7 @@ classdef EphysFigGenApp < handle
         FigurePanelMarkAxes = []            % the preview's axes its listeners follow (re-laid out on a resize)
         FigurePanelMarkListeners = []       % those listeners (Position PostSet)
         FigureLayingOut (1,1) logical = false   % the app lays the preview out itself (inPlaceFigurePreview, layoutPreview): the listeners above wait, and the caller brings the outline and Arrange's overlay up to date once after
+        FigureSelectPending (1,1) logical = false   % Arrange: a press selected a box lightly (its box blue, its Position fields), the editor's other rows still the previous panel's until the release fills them (finishPendingSelect; applyFigureEditor clears it)
         FigureFocusPane (1,1) double = 0    % the column F6 last went to: 1 the figure list, 2 the editor, 3 the preview
         FigureHistory FigureEditHistory = FigureEditHistory()   % the figure editor's undo and redo (recordFigureEdit, onUndoRedo); cleared by another config
         CtrlHeld (1,1) logical = false      % Ctrl (Cmd) is down (onKeyPress, onKeyRelease): an editor edit made with it opens Apply to figures (onApplyToFigures)

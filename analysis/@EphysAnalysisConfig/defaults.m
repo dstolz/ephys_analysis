@@ -19,7 +19,9 @@ function s = defaults(section)
 %                     LatencyBox (a PSTH's box plot of the first-spike
 %                     latencies: its look), Note, Overlay (one
 %                     entry of a panel's overlays), EventMark (an events
-%                     layer's event: an EventRef and its mark's look);
+%                     layer's event: an EventRef and its mark's look),
+%                     TrialMeasure (a trials layer's measure: one number
+%                     per trial from its events or a trial parameter);
 %                     a figure's Observe (what it is drawn for),
 %                     FigureSessions (drawn across datasets), FigureProbe
 %                     (laid out on the probe), Panel (one entry
@@ -267,6 +269,22 @@ switch section
         s.spanWidth = 1.5;              % ... its width, points
         s.spanAlpha = 1;                % ... its opacity 0-1
 
+    case "TrialMeasure"
+        % a trials layer's measure (Layer.measure, a scatter's Layer.xMeasure): one number per trial from the trial's
+        % events (A = from, B = to) or from a trial parameter (trialMeasure computes it, trialMeasureLabel names it)
+        to = EphysAnalysisConfig.defaults("EventRef");
+        to.line = "Trial";
+        to.edge = "offset";
+        s = struct( ...
+            'kind',      "delay", ...       % "delay" (A to B) | "duration" (A's interval, onset to offset) | "count" (B events after A) | "param" (a trial parameter)
+            'from',      EphysAnalysisConfig.defaults("EventRef"), ...   % A: which / n / sequence / shifts pick it in each trial
+            'to',        to, ...            % B (delay, count): which "first" | "last" | "nth" | "all" (all: a value per B, several per trial)
+            'direction', "after", ...       % delay: "after" (the first B at or after A) | "before" (the last B at or before A: negative values)
+            'maxGapSec', Inf, ...           % delay: |B - A| above this is dropped (and counted); count: the window ends at A + maxGapSec at the latest
+            'param',     "", ...            % kind "param": the numeric trial parameter
+            'unit',      "ms", ...          % delay, duration: "ms" | "s" (count: none; param: as recorded)
+            'label',     "");               % "" = automatic (trialMeasureLabel)
+
     case "Overlay"
         % one graphic drawn on a panel's axes in data units (drawOverlays): a line across the axis, or a semitransparent
         % patch between two values; a panel holds any number of them (Panel.overlays), each with its own look
@@ -326,16 +344,21 @@ switch section
         % one data binding of a figure panel (Panel.layers): a source, and either the observation (the previewed /
         % generated unit or channel) or the fixed items it names
         u = EphysAnalysisConfig.defaults("UnitSelection");
+        xm = EphysAnalysisConfig.defaults("TrialMeasure");
+        xm.from.line = "Trial";             % a scatter's x: Trial onset -> Stim onset
+        xm.to = EphysAnalysisConfig.defaults("EventRef");
         s = struct( ...
-            'name',        "", ...              % legend / aesthetics label ("" = automatic: the unit label, "LFP ch 3", the event label)
+            'name',        "", ...              % legend / aesthetics label ("" = automatic: the unit label, "LFP ch 3", the event label, the measure's label)
             'enabled',     true, ...            % unticked, it stays in the config but is not drawn
-            'source',      "units", ...         % one of FigureSources: units | detected | events | LFP | MUA | SPIKE | AUX
-            'binding',     "observation", ...   % "observation" (the observed unit / channel) | "fixed" (units / channels / event); events are always fixed
+            'source',      "units", ...         % one of FigureSources: units | detected | events | LFP | MUA | SPIKE | AUX | trials
+            'binding',     "observation", ...   % "observation" (the observed unit / channel) | "fixed" (units / channels / event / measure); events and trials are always fixed
             'units',       rmfield(u, 'source'), ...   % fixed point / unit layers: which units (may keep several)
             'channels',    [], ...              % fixed continuous layers: the extract's columns ([] = all)
             'aggregate',   "each", ...          % several units / channels: "each" (a trace or block each) | "mean" (their mean, a band across them) | "magnitude" (a spectral panel's signal: the channels as one, their vector magnitude; aggregates())
             'event',       EphysAnalysisConfig.defaults("EventMark"), ...   % source events: the line, edge, which / scope / sequence, and the mark's look
             'eventsAs',    "marks", ...         % source events: "marks" (on raster rows; latency lines elsewhere) | "train" (the events as a spike train) | "span" (a line from each onset to its offset)
+            'measure',     EphysAnalysisConfig.defaults("TrialMeasure"), ...   % source trials: the value per trial (a TrialMeasure; a scatter's y)
+            'xMeasure',    xm, ...              % source trials on a trial scatter: the x value per trial (default Trial onset -> Stim onset)
             'color',       "", ...              % "" = the group's color; else a name / #rrggbb for every trace of this layer
             'lineStyle',   "");                 % "" = by layer order (- -- : -.); else one of OverlayLineStyles
 

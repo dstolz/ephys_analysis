@@ -3,8 +3,10 @@ function [L, unknown] = normalizeLayer(in, path)
 %   [L, UNKNOWN] = EphysAnalysisConfig.normalizeLayer(IN, PATH) fills the
 %   fields IN leaves out, coerces the rest (see normalizeSection) and drops
 %   unknown fields (their paths, prefixed by PATH, in UNKNOWN). The nested
-%   units (a UnitSelection without its source), event (an EventMark) and
-%   event.sequence (SequenceStep each) are coerced as normalizeSection does.
+%   units (a UnitSelection without its source), event (an EventMark),
+%   measure and xMeasure (TrialMeasures: their from / to EventRefs) and
+%   every sequence in them (SequenceStep each) are coerced as
+%   normalizeSection does.
 %
 %   See also EphysAnalysisConfig.normalizePanel, EphysAnalysisConfig.defaults.
 

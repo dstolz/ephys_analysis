@@ -13,7 +13,8 @@ function id = autoFigureId(fig)
 %     active panels' enabled layers read, in that order, each once,
 %     joined by "+"; an events layer counts only where it is the data
 %     (on an event-trace panel, or drawn as a spike train: eventsAs
-%     "train"), not as marks or spans. "dataset" when there is none
+%     "train"), not as marks or spans; a trials layer reads "trials"
+%     ("Dist trials"). "dataset" when there is none
 %   Only letters, digits, "+" and single spaces are used, so the id is
 %   file-name safe. The id is not made unique here: normalizeFigures
 %   gives every figure whose autoId is true this id, or "<id> (n)" with

@@ -32,9 +32,10 @@ function T = figureSettingItems(fig)
 %   between them, layout.boxesMean and layout.padding) and "page" (the
 %   figure's page size, figureExportSize). Panel settings, per panel:
 %   Axes and limits (box, axis sides, yLimMode, yLim, cLim, yTicks,
-%   scale), Colors and lines, Display and stacks, Marks and insets (first
-%   spike, latency box, onset line, waveform), Data and analysis (every
-%   other option),
+%   scale, a trial panel's xScale, yScale and xLim), Colors and lines,
+%   Display and stacks, Marks and insets (first spike, latency box, onset
+%   line, waveform, a trial panel's summary mark, counts and tests), Data
+%   and analysis (every other option),
 %   Alignment and note (its own event reference / window / selection,
 %   its note's look but not its text; its place goes with the panels).
 %   Appearance: the Style fields a figure draws with, grouped (Lines,
@@ -214,22 +215,24 @@ end
 
 function g = optionGroup(f)
 %optionGroup  The group of a panel's option F.
-if ismember(f, ["yLimMode" "yLim" "cLim" "yTicks" "scale"])
+if ismember(f, ["yLimMode" "yLim" "cLim" "yTicks" "scale" "xScale" "yScale" "xLim"])
     g = "Axes and limits";
 elseif ismember(f, ["colormap" "tickColor" "tickWidth" "backColor" "fill" "fillAlpha" "histStyle" "colorBy" "alpha" ...
         "edgeColor" "edgeWidth" "lineWidth" "lineStyle" "showBaseline" "baselineColor" "baselineStyle" "baselineWidth" ...
-        "groupBands" "height" "minWidth" "rowSpacing" "band"])
+        "groupBands" "height" "minWidth" "rowSpacing" "band" "markerSize"])
     g = "Colors and lines";
 elseif ismember(f, ["display" "stack" "stackSpacing" "layout" "rows" "order" "rasterSort" "rasterSortEvent" ...
         "rasterSortOrder" "rasterByGroup" "maskAfterStop" "trials" "maxTrials" "group" "showPhase" "overTime" ...
-        "orientation" "align" "valign" "columns"])
+        "orientation" "align" "valign" "columns" "ordinalX" "jitter" "normalization" "binMode" "binCount" "binWidth" ...
+        "marginals" "marginalSize"])
     g = "Display and stacks";
-elseif ismember(f, ["firstSpike" "latencyBox" "onsetLine" "waveform"])
+elseif ismember(f, ["firstSpike" "latencyBox" "onsetLine" "waveform" "showSummary" "showN" "testShow" "bracketPairs"])
     g = "Marks and insets";
 else
     g = "Data and analysis";
 end
 end
+
 
 
 function L = optionLabels()
@@ -253,7 +256,15 @@ L = struct('bins', "Bins", 'measure', "Measure", 'baseline', "Baseline", 'auroc'
     'minWidth', "Smallest width", 'lineWidth', "Line width", 'lineStyle', "Line style", 'showBaseline', "Baseline line", ...
     'baselineColor', "Baseline color", 'baselineStyle', "Baseline style", 'baselineWidth', "Baseline width", ...
     'rowSpacing', "Row spacing", 'groupBands', "Group bands", 'unitLabels', "Unit labels", 'waveColor', "Color waveforms by value", ...
-    'orientation', "Orientation", 'align', "Horizontal place", 'valign', "Vertical place", 'columns', "Columns");
+    'orientation', "Orientation", 'align', "Horizontal place", 'valign', "Vertical place", 'columns', "Columns", ...
+    'categories', "Categories", 'categoryParam', "Category parameter", 'categoryBins', "Category bins", ...
+    'series', "Series", 'seriesBins', "Series bins", 'ordinalX', "Categories at their values", 'summary', "Summary", ...
+    'showSummary', "Summary mark", 'test', "Test", 'testPairs', "Pairs compared", 'adjust', "P adjustment", ...
+    'testShow', "Show tests", 'bracketPairs', "Brackets drawn", 'markerSize', "Marker size", 'jitter', "Jitter", ...
+    'showN', "Trial counts", 'xScale', "X scale", 'yScale', "Y scale", 'xLim', "X limits", ...
+    'normalization', "Normalization", 'binMode', "Bins", 'binCount', "Bin count", 'binWidth', "Bin width", ...
+    'testAlpha', "Significance level", 'fit', "Fit", 'fitBand', "Fit band", 'fitWindow', "Fit window", 'corr', "Correlation", ...
+    'marginals', "Marginal histograms", 'marginalSize', "Marginal size");
 end
 
 

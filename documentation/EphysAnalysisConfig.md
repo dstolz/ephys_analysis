@@ -1107,12 +1107,14 @@ a partial figure struct; without an id (`Id=` or the struct's) the figure's id i
 [automatic](#figure-ids), with one it is the figure's own (`autoId` false). `"rasterPsth"` (the default) is
 `raster_1` on the page's top half (`rect [0 0.5 1 0.5]`) flush over `psth_1` on its bottom half (`[0 0 1 0.5]`), each with one
 `units` layer that follows the observation. Each panel type that draws data has a template of
-its own (`"psth"`, `"raster"`, `"continuous"`, `"eventTrace"` for [event traces](#event-traces), `"heatmap"`, `"waveforms"`,
+its own (`"psth"`, `"raster"`, `"continuous"`, `"eventTrace"` for [event traces](#event-traces), `"trialDist"`,
+`"trialHist"` and `"trialScatter"` for the [trial panels](#trial-measures), `"heatmap"`, `"waveforms"`,
 `"probemap"`, `"corrmap"`, `"rate"` for a firing rate panel, `"tuning"` for a
 tuning curve, `"spectrum"`, `"spectrogram"` and `"coherence"` for the
 [spectral panels](#spectral-panels)): one panel `<type>_1` over the whole page (`[0 0 1 1]`) holding
 `defaultLayer(type)`, a layer of the first source of the type's first
-[category](#source-categories) (`units`; `LFP` for continuous; an events layer of the `Stim` line for event traces) bound as the
+[category](#source-categories) (`units`; `LFP` for continuous; an events layer of the `Stim` line for event traces; a
+`trials` layer measuring Stim onset to Trial offset for the trial panels, a scatter's x Trial onset to Stim onset) bound as the
 type's `DefaultBinding` says, so a new panel draws at once, with the type's
 default options; a [legend panel](#panel-types) has none. `"blank"` has no panels. A figure given to `addFigure` without an
 `observe.data` (every template) observes what its enabled following layers
@@ -1120,7 +1122,7 @@ read (`EphysAnalysisConfig.followedData(fig)`): `"units"` when one reads sorted
 units, else `"detected"` when one reads detections, else the signal of the
 first one that reads a signal, else `"dataset"`. So the unit templates observe
 sorted units, `"continuous"` and `"spectrogram"` the LFP channels, and
-`"heatmap"`, `"probemap"`, `"corrmap"` and `"blank"` (fixed layers, or none) the dataset. After that `observe.data`
+`"heatmap"`, `"probemap"`, `"corrmap"`, the trial panels' and `"blank"` (fixed layers, or none) the dataset. After that `observe.data`
 is the figure's own: adding or rebinding layers does not change it. The app
 offers no template (its **Add** makes a blank figure and asks for its first
 panel); the templates stay for scripts and tests.
@@ -1140,7 +1142,7 @@ keeps the text as typed. `figureLabelVariables()` lists them (a table of `Name`,
 | Trials | `{Response}` (the selection's response words joined by `" or "`; `"all"` without), `{Filter}`, `{GroupBy}` (blank without), `{Group}` (a perGroup observation's group, else `"all"`), `{Epochs}` (the panel's epochs, else the figure's) |
 | Observation | `{Unit}` (the short label of the files' `{Unit}`: `su12`, `ch7`, `dataset`, `probe`), `{Observation}` (its label), `{Channel}`, `{Shank}`, `{Depth}` (blank where unknown) |
 | Data | `{Name}` (`F.dataset`), `{Subject}` (`F.subject`, the subjects merged for a session figure), `{Sessions}` (`F.nSessions`, else 1) |
-| Figure | `{Figure}`, `{Panel}` (ids), `{Bin}`, `{Smooth}` (the panel's `options.bins` in ms; blank without), `{Date}` (today, `yyyy-MM-dd`) |
+| Figure | `{Figure}`, `{Panel}` (ids), `{Bin}`, `{Smooth}` (the panel's `options.bins` in ms; blank without), `{Measure}` (a [trial panel's](#trial-measures) measure: `trialMeasureLabel` of its first enabled trials layer's, *Stim onset → Platform offset (ms)*; the figure's own text: its first trial panel's; blank without), `{MeasureX}` (a trial scatter's x measure; blank elsewhere), `{Date}` (today, `yyyy-MM-dd`) |
 
 `[T, V] = figureLabelVariables(spec, F, Panel=k)` gives each one's value for
 panel `k` of `spec` (a `figureFor` spec; `0`, the default, is the figure's own:
@@ -1221,7 +1223,7 @@ follow its id.
 | `xSide`, `ySide` | `"bottom"`, `"left"` | where the panel's x axis' ticks and label go, `"bottom"` or `"top"`, and its y axis', `"left"` or `"right"`; drawn once the type has drawn, for every type. A coherence panel's x axis on top goes on its magnitude, its phase strip dropping its tick labels; a stacked PSTH keeps its two y axes (left: the groups, right: the peaks) whatever `ySide` says. A color bar outside on the side an axis moves to goes to the opposite side. Validate: `bottom` or `top`, `left` or `right` |
 | `rect` | `[0 0 1 1]` | the panel's place on the page, `[x y width height]`, normalized 0-1 of the page with the origin at its bottom-left corner (as a MATLAB `Position`): `[0 0.5 1 0.5]` is the top half. It is the panel's plot area or its outer box, as the figure's `layout.boxesMean` says. Panels may overlap; the later one in `panels` is drawn on top (`orderPanel`). The app shows and takes it in `RectUnits` (`figureRectConvert`). [Placing panels](#placing-panels) |
 | `ref`, `window` | `"default"` | `"default"` = the figure's, or the panel's own [EventRef](#eventref) / [EpochWindow](#epochwindow) (aligned types only). A panel with its own cuts its own epochs, with the figure's selection or its own (next row); with the figure's, its groups must match the figure's by label, or the panel is skipped. It then no longer [shares the time axis](#shared-time-axis) |
-| `selection` | `"default"` | `"default"` = the figure's, or the panel's own [TrialSelection](#trialselection) (aligned types only): its own epochs and groups, [colored apart with a legend inside the panel](#panel-types). Its groups are not matched to the figure's, and a per-group figure does not cut them. A panel with only its own `selection` still shares the time axis, which depends on `ref` and `window` alone |
+| `selection` | `"default"` | `"default"` = the figure's, or the panel's own [TrialSelection](#trialselection) (aligned types and the [trial panels](#trial-measures), which select trials but cut no epochs): its own epochs and groups, [colored apart with a legend inside the panel](#panel-types). Its groups are not matched to the figure's, and a per-group figure does not cut them. A panel with only its own `selection` still shares the time axis, which depends on `ref` and `window` alone |
 | `layers` | none | the [layers](#layer-fields), a list of any length |
 | `options` | the type's [options](#panel-options) | all of the options the panel draws, coerced to the type's, so changing `type` re-seeds them: fields the new type has keep their values, the others are dropped |
 | `note` | `defaults("Note")` | descriptive text on or beside the panel: a [note](#panel-notes) (nothing is drawn until `text` has words), after `options`. `placement` `"below"`, `"above"`, `"right"` or `"left"` gives up a band of the panel's own area beside its axes; a compass point, `"center"` or `"custom"` (at `x`, `y`, 0-1 across and up the panel's axes) puts the text in the axes |
@@ -1233,13 +1235,15 @@ follow its id.
 | --- | --- | --- |
 | `name` | `""` | the legend and aesthetics label; `""` = automatic: the unit's label, `LFP ch 3`, the event's label. It may use [label variables](#label-variables) |
 | `enabled` | `true` | unticked, the layer stays in the config and is not drawn |
-| `source` | `"units"` | one of `FigureSources`: `"units"`, `"detected"`, `"events"` (a digital or derived line's events), `"LFP"`, `"MUA"`, `"SPIKE"` or `"AUX"`; the panel type decides which a panel takes ([source categories](#source-categories)) |
-| `binding` | `"observation"` | `"observation"`: follows the previewed or generated unit or channel ([what a layer reads](#what-a-layer-reads)); `"fixed"`: reads what `units`, `channels` or `event` name. Events layers are always fixed |
+| `source` | `"units"` | one of `FigureSources`: `"units"`, `"detected"`, `"events"` (a digital or derived line's events), `"LFP"`, `"MUA"`, `"SPIKE"`, `"AUX"` or `"trials"` (one number per trial: `measure`); the panel type decides which a panel takes ([source categories](#source-categories)) |
+| `binding` | `"observation"` | `"observation"`: follows the previewed or generated unit or channel ([what a layer reads](#what-a-layer-reads)); `"fixed"`: reads what `units`, `channels`, `event` or `measure` name. Events and trials layers are always fixed |
 | `units` | [UnitSelection](#unitselection) without `source` | fixed point and unit layers: which units (it may keep several). A layer following the observation uses it only for the other spike source, on the observed channel. `source` is taken from the layer's |
 | `channels` | `[]` | fixed signal layers: the extract's columns (`[]` = all) |
 | `aggregate` | `"each"` | several units or channels in one layer: `"each"` (one trace or block per item) or `"mean"` (their mean, with a band across them: a PSTH overlay, the aux magnitude's mean) on a raster, PSTH, continuous, rate or tuning panel; `"each"` or `"magnitude"` (the channels as one item, their vector magnitude, each channel's 2 s running mean out first: an accelerometer's movement) for a fixed signal layer of a spectrum, spectrogram or coherence panel ([Spectral panels](#spectral-panels)); `EphysAnalysisConfig.aggregates(type, source)` lists them |
 | `event` | [EventMark](#raster-event-marks) | source `events`: the line, edge, which / scope / [sequence](#event-sequences) and the mark's look (`marker`, `size`, `color`, and a span's `spanStyle`, `spanWidth`, `spanAlpha`) |
 | `eventsAs` | `"marks"` | source `events`: `"marks"` (a mark on every raster row; a latency line and a rug on a PSTH, signal or heat map panel), `"train"` (the events as a spike train of their own: rows in a raster, a PSTH, a heat map row) or `"span"` (a line from each onset to its offset on every raster row; a line per trial group from the median onset to the median offset elsewhere: [Spans](#raster-event-marks)). Not used on an [event-trace panel](#event-traces) |
+| `measure` | [TrialMeasure](#trial-measures), Stim onset → Trial offset | source `trials`: the value each trial gives, a delay, a duration, a count or a trial parameter (a scatter's y) |
+| `xMeasure` | [TrialMeasure](#trial-measures), Trial onset → Stim onset | source `trials` on a trial scatter: the x value each trial gives; unused elsewhere |
 | `color` | `""` | `""` = the trial group's color (an event-trace panel: a palette color per line); else a name or `#rrggbb` for every trace of the layer |
 | `lineStyle` | `""` | `""` = by order of the layer's items (`-`, `--`, `:`, `-.`; an event-trace panel: its `lineStyle` option); else one of those |
 
@@ -1262,12 +1266,16 @@ follow its id.
 | `spectrogram` | Spectrogram | Spectrogram | continuous, point | yes | yes | yes | no | `observation` |
 | `coherence` | Coherence | Coherence | point, continuous | yes | no | no | yes | `observation` |
 | `eventTrace` | Event traces | EventTraces | point (events layers only) | yes | yes | no | yes | `fixed` |
+| `trialDist` | Trial distribution | Dist | trial | no | no | no | yes | `fixed` |
+| `trialHist` | Trial histogram | Hist | trial | no | no | no | yes | `fixed` |
+| `trialScatter` | Trial scatter | Scatter | trial | no | no | no | yes | `fixed` |
 | `legend` | Legend | Legend | none (no layers) | no | no | no | no | `""` |
 
 - `Short`: one word, the type's part of an [automatic figure id](#figure-ids).
 - `Categories`: the [source categories](#source-categories) its layers draw.
 - `Aligned`: cut into epochs around events, so the panel's `ref` and `window`
-  apply. An unaligned panel (waveforms, probe map) must keep both `"default"`.
+  apply. An unaligned panel (waveforms, probe map, the trial panels) must keep both `"default"`;
+  a trial panel may still take a `selection` of its own.
 - `SharesTime`: its x axis is time from the event; it takes the figure's time
   axis ([below](#shared-time-axis)) and the events layers. A coherence panel
   does not share it in the table, but `figureFor` sets `sharesTime` for one
@@ -1447,6 +1455,18 @@ What each draws:
 - `eventTrace`: digital or derived lines as a logic analyzer shows them, a row
   per events layer, each interval from its onset to its offset ([Event
   traces](#event-traces)).
+- `trialDist`: one value per trial (a trials layer's measure: a delay, a
+  duration, a count or a trial parameter) by category along x (the trial
+  groups, a parameter's levels, the session or the layer), as a swarm, boxes,
+  violins, jittered points or a line of the summary, colored by series, with
+  the summary ± its error and group tests drawn as brackets ([Trial
+  measures](#trial-measures)).
+- `trialHist`: the distribution of each series' values, as bars, an outline or
+  the empirical cumulative distribution, with each series' summary as a dotted
+  line.
+- `trialScatter`: each trial's y measure against its x measure, per series,
+  with a fit and its band, a correlation, logarithmic axes and marginal
+  histograms.
 
 **Per-panel trial selection.** An aligned panel's `selection` may be its own
 [TrialSelection](#trialselection) (`groupBy`, `filter`, `groupOrder`, ...)
@@ -1460,7 +1480,8 @@ that differs from the figure's; the figure's legend keeps the groups of the
 panels on its selection. The panel still shares the time axis while its `ref`
 and `window` are the figure's. `figureSkipReason` checks the panel against its
 own selection (`no trial parameter X`), and Validate as the figure's
-(`<figure>.<panel>.selection`; an error on a type that is not aligned).
+(`<figure>.<panel>.selection`; an error on a type that is not aligned, but for
+the trial panels, whose values come from the trials it selects).
 `adoptPanelAlignment` takes a panel's own selection as the figure's and, like
 `relinkPanels`, sets every panel's back to `"default"`.
 
@@ -1675,6 +1696,139 @@ sub-row, and the series (sessions, subjects or all sessions) are its groups
 for `colorBy "group"`, the bands and the sort. The template `"eventTrace"` is
 one panel with one events layer of the `Stim` line.
 
+### Trial measures
+
+Three panel types draw one number per trial instead of activity around an
+event: `trialDist` (*Trial distribution*), `trialHist` (*Trial histogram*) and
+`trialScatter` (*Trial scatter*), `EphysAnalysisConfig.TrialPanelTypes`. They
+answer questions such as how long after Stim onset the animal left the
+platform, how long it stayed off, how many trough pokes a trial had, or how
+those relate to a trial parameter. Each takes **trials layers** only (source
+`"trials"`, category `trial`), and a trials layer goes on no other panel.
+A trials layer is always fixed: its `measure`, a **TrialMeasure**, names the
+events or the parameter it reads. One measure per layer, so several layers
+give several measures in one panel, and the layer is a grouping of its own. The
+panels are not aligned to events: their `ref` and `window` stay `"default"`,
+and they read the figure's trial selection, or a `selection` of their own. A
+figure of trial panels alone is drawn for the dataset.
+
+`EphysAnalysisConfig.defaults("TrialMeasure")`:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `kind` | `"delay"` | `"delay"`: from event A to event B; `"duration"`: A's interval, from its onset to its offset; `"count"`: how many B events follow A; `"param"`: a numeric trial parameter's value (`EphysAnalysisConfig.TrialMeasureKinds`) |
+| `from` | an [EventRef](#eventref), Stim onset | A: the event each value starts from; its `which`, `n`, [sequence](#event-sequences) and shifts pick it in each trial |
+| `to` | an EventRef, Trial offset | B (delay, count): its `which` picks among the B events after A: `"first"`, `"last"`, `"nth"`, or `"all"` (a value per B, so several per trial) |
+| `direction` | `"after"` | a delay: `"after"` (the first B at or after A, as a stop event is found) or `"before"` (the last B at or before A, a negative value) |
+| `maxGapSec` | `Inf` | a delay: a B farther than this from A is dropped and counted; a count: the window ends at A + `maxGapSec` at the latest (and at the trial's end) |
+| `param` | `""` | `kind "param"`: the numeric trial parameter, e.g. `RespLatency` |
+| `unit` | `"ms"` | a delay's or duration's unit, `"ms"` or `"s"` (a count has none, a parameter keeps its own) |
+| `label` | `""` | the measure's name in labels and legends; `""` = automatic, `trialMeasureLabel` |
+
+`trialMeasureLabel(m)` names a measure: its `label` when set, else *Stim onset →
+Platform offset (ms)* (a delay after), *Platform offset before Stim onset (ms)*
+(before), *Platform duration (ms)*, *Trough onsets after Stim onset* (a count),
+*RespLatency* (a parameter); an event picked by `which` reads *last Platform
+offset* or *2nd Trough onset*, as `eventLatency` names it, and an event with a
+sequence reads as `eventRefLabel` writes it. The layer's automatic name, the
+[label variables](#label-variables) `{Measure}` and `{MeasureX}` and the app use
+it. A layer's `measure` is a scatter's y; its `xMeasure` (default Trial onset →
+Stim onset) is a scatter's x and is not used elsewhere.
+
+**Grouping.** The values are grouped twice: by `categories` (a distribution's x
+axis) and by `series` (the colors in every type). Each is one of
+`EphysAnalysisConfig.TrialGroupings`: `"groups"` (the figure's trial groups, or
+the panel's own selection's), `"param"` (the levels of the trial parameter
+`categoryParam` / `seriesParam`; `categoryBins` / `seriesBins` `[]` makes each
+value a level, a whole number n makes n equal-width bins, two or more
+ascending numbers are the bins' edges), `"session"` (a session figure's
+sessions) or `"layer"` (each trials layer). The categories and the series may
+not group alike (two different parameters may).
+
+**Statistics.** Each category and series gets its `summary` (`"mean"` or
+`"median"`) with its error (`errorType`, as a continuous panel's:
+`"off"`, `"sem"`, `"std"`, `"ci95"` with `errorResamples` bootstrap resamples,
+or `"iqr"`). A group `test` compares the categories within each series (one
+category: the series): `"auto"` takes the rank sum test for two levels and
+Kruskal-Wallis for more; `"ranksum"`, `"ttest2"`, `"kruskalwallis"` and
+`"anova1"` name one; `"none"` tests nothing (`EphysAnalysisConfig.TrialTests`).
+The pairs (`testPairs` `"all"`, or `"first"`: each against the first level) are
+adjusted by `pAdjust` (`adjust` `"holm"`, `"bh"`, `"bonferroni"` or `"none"`)
+and marked with stars below `testAlpha`. A scatter fits each series (`fit`,
+`EphysAnalysisConfig.TrialFits`: a polynomial of degree 1 to 3 with its 95%
+band, or a moving mean or median over `fitWindow` points) and gives its
+correlation (`corr`). The tests need the Statistics and Machine Learning
+Toolbox.
+
+`opts.trialDist` (look: options only the drawing reads, so changing one
+recomputes nothing):
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `categories` | `"groups"` | the x axis: `"groups"`, `"param"`, `"session"` or `"layer"` |
+| `categoryParam`, `categoryBins` | `""`, `[]` | categories `"param"`: the trial parameter, and its bins (`[]`, a count or edges) |
+| `series` | `"layer"` | the colors: `"layer"`, `"groups"`, `"param"` or `"session"` |
+| `seriesParam`, `seriesBins` | `""`, `[]` | series `"param"`: as above |
+| `display` | `"swarm"` | `"swarm"`, `"box"`, `"violin"`, `"points"` (jittered) or `"line"` (the summary per category, a line per series) |
+| `ordinalX` | `false` | look; `"line"` and `"points"`: numeric categories at their values instead of evenly spaced |
+| `summary` | `"mean"` | `"mean"` or `"median"`: the summary mark, the line's points and the caption |
+| `errorType`, `errorResamples` | `"sem"`, 1000 | the summary's error |
+| `showSummary` | `true` | look; swarm, points and violin: the summary mark ± its error over the values |
+| `test` | `"auto"` | the group test across the categories in each series |
+| `testPairs` | `"all"` | `"all"` pairs, or `"first"` (each category against the first) |
+| `adjust`, `testAlpha` | `"holm"`, 0.05 | the pairs' p adjustment (`pAdjust`) and the tests' significance level, in (0, 1) |
+| `testShow` | `"brackets"` | look; `"brackets"` (the significant pairs bracketed with stars, the overall p in a corner), `"text"` (the overall p alone) or `"off"` (the caption only) |
+| `bracketPairs` | `"significant"` | look; `"significant"` or `"all"` (n.s. brackets too) |
+| `markerSize`, `jitter` | 4, 0.3 | look; the points' size, and `"points"`' jitter as a share of the category's slot (0 to 1) |
+| `showN` | `"off"` | look; `"ticks"`: each category's trial count in its tick label (*Hit (n = 12)*) |
+| `yScale` | `"linear"` | or `"log"` |
+| `yLimMode`, `yLim` | `"auto"`, `[]` | the value axis ([Y limits](#y-limits)) |
+
+`opts.trialHist`:
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `series`, `seriesParam`, `seriesBins` | `"layer"`, `""`, `[]` | a histogram per series, as a distribution's |
+| `display` | `"bars"` | `"bars"`, `"outline"` (a stair line) or `"ecdf"` (the empirical cumulative distribution) |
+| `normalization` | `"count"` | look; bars and outline: `"count"`, `"probability"` or `"pdf"` |
+| `binMode` | `"auto"` | look; `"auto"` (`histcounts`' rule, one set of edges for every series), `"count"` (`binCount` bins) or `"width"` (`binWidth`, in the measure's unit) |
+| `binCount`, `binWidth` | 20, 10 | look; a whole number >= 1; a positive width |
+| `alpha` | 0.5 | look; the bars' opacity, 0 to 1 |
+| `showSummary` | `true` | look; a dotted line at each series' summary |
+| `summary`, `errorType`, `errorResamples` | `"mean"`, `"sem"`, 1000 | as a distribution's |
+| `test`, `testPairs`, `adjust`, `testAlpha` | `"auto"`, `"all"`, `"holm"`, 0.05 | across the series |
+| `testShow` | `"text"` | look; `"text"` or `"off"` |
+| `xScale` | `"linear"` | look; or `"log"` (log-spaced bins) |
+| `xLim` | `[]` | look; `[]` (automatic) or `[lo hi]` in the measure's unit |
+
+`opts.trialScatter`:
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `series`, `seriesParam`, `seriesBins` | `"layer"`, `""`, `[]` | the colors, as a distribution's |
+| `fit` | `"none"` | per series: `"linear"`, `"poly2"`, `"poly3"`, `"movmean"` or `"movmedian"` |
+| `fitBand` | `true` | a polynomial fit's 95% confidence band |
+| `fitWindow` | 10 | a moving fit's window, a whole number of points >= 2 |
+| `corr` | `"pearson"` | each series' correlation: `"pearson"`, `"spearman"` or `"none"` |
+| `marginals` | `false` | look; a histogram of x above the plot and of y beside it |
+| `marginalSize` | 0.25 | look; the strips' share of the panel's box, 0.1 to 0.5 |
+| `markerSize`, `alpha` | 5, 0.7 | look; the points' size and opacity |
+| `summary`, `errorType`, `errorResamples` | `"mean"`, `"sem"`, 1000 | each series' y summary |
+| `test`, `testPairs`, `adjust`, `testAlpha` | `"auto"`, `"all"`, `"holm"`, 0.05 | y across the series |
+| `testShow` | `"text"` | look; `"text"` or `"off"` |
+| `xScale`, `yScale` | `"linear"` | or `"log"`; the fits are made in the scale drawn |
+| `xLim` | `[]` | look; the x axis' limits |
+| `yLimMode`, `yLim` | `"auto"`, `[]` | the y axis ([Y limits](#y-limits)) |
+
+A trial panel's `testAlpha` is its tests' significance level; the histogram's
+and the scatter's `alpha` is their opacity, as an event-trace panel's is. The three types share their series, summary, error, tests and scales
+([Copying options between panels](#copying-options-between-panels)); a
+distribution's categories are its own. A dataset without paired trials skips
+a trial panel (`no paired trials`). The templates `"trialDist"`, `"trialHist"`
+and `"trialScatter"` are one panel with one trials layer (Stim onset → Trial
+offset; a scatter's x Trial onset → Stim onset), and their figures' automatic
+ids read *Dist trials*, *Hist trials* and *Scatter trials*.
+
 ### Panel options
 
 A panel's `options` are the type's (`panelTypes().DefaultOptions`); a field
@@ -1771,6 +1925,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `tuning` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
 | `spectrum`, `spectrogram`, `coherence` | | | the [Chronux options](#spectral-panels), above; none but `stack` and `stackSpacing` is a shared option |
 | `eventTrace` | | | the [event-trace options](#event-traces), above; none is a shared option |
+| `trialDist`, `trialHist`, `trialScatter` | | | the [trial-measure options](#trial-measures), above; the series, summary, error, tests and scales are shared among the three |
 | `legend` | `orientation` | `"auto"` | `"auto"` (horizontal when the rect is wider than tall, else vertical), `"vertical"` or `"horizontal"` |
 | `legend` | `align`, `valign` | `"center"`, `"middle"` | where the legend sits in its rect when smaller: `"left"`, `"center"` or `"right"`; `"top"`, `"middle"` or `"bottom"` |
 | `legend` | `columns` | 0 | 0 = automatic (from the rect's shape), else that many columns; a whole number >= 0 |
@@ -1792,6 +1947,9 @@ options a type has, in order:
 | `rate` | `measure`, `baseline`, `waveform` |
 | `tuning` | `measure`, `baseline`, `waveform`, `stack`, `stackSpacing` |
 | `spectrum`, `spectrogram`, `coherence` | `stack`, `stackSpacing` (a spectrogram's `baseline` is `chronuxNormalize`'s) |
+| `trialDist` | `series`, `seriesParam`, `seriesBins`, `summary`, `errorType`, `errorResamples`, `test`, `testPairs`, `adjust`, `testAlpha`, `testShow`, `yScale`, `yLimMode` |
+| `trialHist` | the same but `yScale` and `yLimMode`, with `xScale` |
+| `trialScatter` | the same with `xScale`, `yScale` and `yLimMode` |
 | `waveforms`, `probemap`, `eventTrace` | none (a waveforms panel's `waveform` is its own settings, not an inset) |
 
 Three pure functions edit a figure entry as a value (the app's **Apply to all
@@ -1816,6 +1974,7 @@ it accepts. `EphysAnalysisConfig.sourceCategories()`:
 | `point` | Point process | `units`, `detected`, `events` | yes | event times: sorted units, threshold detections, a digital or derived line's events |
 | `continuous` | Continuous signal | `LFP`, `MUA`, `SPIKE`, `AUX` | yes | sampled signals cut around each event |
 | `unit` | Unit summary | `units`, `detected` | no | one summary per unit over the recording: its waveform, its place on the probe, its rate |
+| `trial` | Trial measure | `trials` | no | one number per trial from its events or parameters ([Trial measures](#trial-measures)) |
 
 `units` and `detected` are in two categories: the panel type decides which
 (`EphysAnalysisConfig.categoryOf(source, type)` is the category the type
@@ -1824,7 +1983,8 @@ that shares the time axis (raster, PSTH, continuous, heat map, spectrogram,
 event traces) and nothing elsewhere (so not on a firing rate, tuning, spectrum
 or coherence panel). A heat map takes `point` or `continuous` layers. An
 event-trace panel takes events layers only: `units`, `detected` and the
-signals are `""` there.
+signals are `""` there. A `trials` layer is `trial` on a trial distribution,
+histogram or scatter panel, which take nothing else, and `""` elsewhere.
 
 ### What a layer reads
 
@@ -2355,7 +2515,15 @@ Errors:
   `marker` the aesthetics editor knows and a positive `size`, a span's
   `spanStyle` (`-`, `--`, `:`, `-.`), a positive `spanWidth` and a `spanAlpha` from 0
   to 1; only events layers on an event-trace panel (`An event traces panel draws
-  events layers only (a digital or derived line each), not units.`); a `lineStyle` that is
+  events layers only (a digital or derived line each), not units.`); only trials
+  layers on a trial panel (`A trial distribution panel draws trials layers only (a
+  trial measure each), not units.`) and a trials layer only there, always fixed
+  (`A trials layer is always fixed: its measure names its events or parameter.`);
+  a trials layer's `measure` (a scatter's `xMeasure` too), at
+  `<figure>.<panel>.layers(<j>).measure.<field>`: `kind`, `from` and (delay,
+  count) `to` as event references, `direction`, `maxGapSec` above 0, a `param`
+  kind's parameter name, `unit` `ms` or `s`, and the `label`'s label variables (a
+  warning); a `lineStyle` that is
   `""`, `-`, `--`, `:` or `-.`;
 - a raster whose enabled layers are all events drawn as marks or spans (`A raster's marks
   need rows: add a units, detected or train layer`);
@@ -2417,7 +2585,18 @@ Errors:
   positive `edgeWidth`, `lineWidth`, `baselineWidth` and `rowSpacing`, a
   `minWidth` of 0 or more, and with `trials "rows"` its sort as a raster's
   (`rasterSortOrder`, a `rasterSortEvent` for `rasterSort "event"`) (an
-  `edgeColor` or `baselineColor` that is not a color is a warning);
+  `edgeColor` or `baselineColor` that is not a color is a warning); a [trial
+  panel's](#trial-measures) `categories` and `series` (`TrialGroupings`; a
+  `"param"` one with its parameter named; not grouping alike), the bins (`[]`, a
+  whole count or ascending edges), `display`, `summary`, `errorType`
+  (`AuxErrorTypes`), `test` (`TrialTests`; the Statistics and Machine Learning
+  Toolbox unless `none`), `testPairs`, `adjust`, `testShow` (`brackets` on a
+  distribution only), `bracketPairs`, `showN`, `normalization`, `binMode`, `fit`
+  (`TrialFits`), `corr`, `xScale` and `yScale`, `testAlpha` in (0, 1), `alpha`
+  (an opacity) and `jitter` from 0 to 1, a positive `markerSize` and `binWidth`, a whole
+  `binCount` >= 1 and `fitWindow` >= 2, `marginalSize` from 0.1 to 0.5, and `xLim`
+  / `yLim` `[]` or ascending; a scatter's delay to every B (`to.which "all"`)
+  is a warning at `<...>.measure.to.which` (the first value per trial is paired);
 - a name in braces in the figure's `title`, a panel's `title`, `xLabel`, `yLabel`
   or `note.text`, or a layer's `name`, that is no [label variable](#label-variables)
   is a warning at that field (it is drawn as typed), naming the variable it likely
@@ -2839,7 +3018,10 @@ Warnings (with `sessions.enabled`):
   groups are pooled);
 - `trialGroups "combine"` with a PSTH panel drawn as bars (drawn as lines);
 - a heat map of trials (`options.rows "trials"`; not merged, the layer is
-  skipped).
+  skipped);
+- a trial panel grouped by `"groups"` (`categories` or `series`, at
+  `<figure>.<panel>.options.<field>`) under `trialGroups "pool"`: the pooled
+  groups are the sessions' series.
 
 The `observe.perGroup` warning (the selection groups by nothing) does not fire
 on a session figure, which ignores `perGroup`. A config whose only enabled item
@@ -3263,7 +3445,7 @@ plots and session plots as figures of the same ids, the converter's notes as
 Figure (its `layout`), Panel (its `rect`), Layer and Observe (no options block in a figure, `panels` after `layout`;
 `selection` after `window`, then `layers`, `options`, `note` and `overlays` last in a panel; `defaults("FigureCommon")` a `BadSection`;
 the continuous `trials` and `maxTrials` (100), the heat map's `rows` and raster sort fields and `observe.perGroup`);
-`panelTypes` (fourteen types, with the rate, tuning, spectral, event-trace and legend rows' flags and the event-trace and legend options), `sourceCategories`,
+`panelTypes` (seventeen types, with the rate, tuning, spectral, event-trace, trial and legend rows' flags and the event-trace, trial and legend options), `defaults("TrialMeasure")`, the Layer's `measure` and `xMeasure`, `trialMeasureLabel`, `sourceCategories` (the trial category),
 `categoryOf`, `observeKind` (of each `ObserveData` value), `followedData`, `defaultLayer` (an unknown type is a `BadValue`),
 `sharedFieldsOf` (none for a waveforms panel or a spectral type); `addFigure`'s templates (the `"rate"` and `"tuning"` ones
 included), ids and the data each observes (given, or its following layers'), the [automatic ids](#figure-ids)

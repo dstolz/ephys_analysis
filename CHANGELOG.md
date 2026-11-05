@@ -10,6 +10,11 @@ says how to cut a release.
 
 ### Changed
 
+- Figures: a layer has `measure` and `xMeasure` (each a `TrialMeasure`, `defaults("TrialMeasure")`): what a `trials`
+  layer reads per trial, and a trial scatter's x. `EphysAnalysisConfig.FigureSources` gains `"trials"`, and
+  `sourceCategories` the `trial` category (source `trials`, not aligned). A trial panel may hold a `selection` of its
+  own although it is not aligned. `eventRefLabel` takes `Detail=true` (which "last" / "nth" and the shifts, as
+  `eventLatency` names an event).
 - Figures: the error is each panel's own. A PSTH's, firing rate panel's and tuning curve's error is its own
   `options.errorType` (`"off"` | `"sem"` | `"std"` | `"ci95"`, `EphysAnalysisConfig.PanelErrorTypes`) with
   `options.errorResamples` (a continuous panel takes `errorResamples` beside its `errorType`), and the bands' look is the
@@ -422,6 +427,14 @@ says how to cut a release.
 
 ### Added
 
+- Figures: three panel types over one number per trial, `trialDist` (*Trial distribution*), `trialHist` (*Trial
+  histogram*) and `trialScatter` (*Trial scatter*), `EphysAnalysisConfig.TrialPanelTypes`, with their options
+  (categories and series by trial group, parameter, session or layer; summary and error; group tests, pairs,
+  adjustment and `testAlpha`; display, bins, fits, correlation, marginal histograms, log scales), templates (*Dist trials*,
+  ...), validate rules, the constants `TrialMeasureKinds`, `TrialGroupings`, `TrialTests` and `TrialFits`, and the
+  label variables `{Measure}` and `{MeasureX}`. A trial measure (`kind` delay, duration, count or param; `from`,
+  `to`, `direction`, `maxGapSec`, `param`, `unit`, `label`) is named by the new `trialMeasureLabel` ("Stim onset →
+  Platform offset (ms)"). The panels are computed (below) and drawn with the next change.
 - Analysis: `trialMeasure(src, m, mask)`, one number per trial from its events or parameters: the delay from an
   event A to the first (last, n-th, every) event B after or before it, found as a stop event is (so its delays are
   `eventLatency`'s), dropped beyond `maxGapSec`; how long A's interval lasts; how many B events follow A up to the

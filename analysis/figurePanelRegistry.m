@@ -3,7 +3,8 @@ function reg = figurePanelRegistry()
 %   REG = figurePanelRegistry() is a struct with one field per panel type
 %   of EphysAnalysisConfig.panelTypes() (raster, psth, continuous, heatmap,
 %   waveforms, probemap, corrmap, rate, tuning, spectrum, spectrogram,
-%   coherence, eventTrace, legend), each a struct with
+%   coherence, eventTrace, trialDist, trialHist, trialScatter, legend),
+%   each a struct with
 %     compute  @(src, panel, E, G, ctx) -> P, the panel's result: P.layers,
 %              one entry per layer of the panel (figurePanelLayers: name,
 %              source, binding, category, eventsAs, skip, R, meta). SRC is
@@ -29,11 +30,13 @@ function reg = figurePanelRegistry()
 %   computeHeatmapPanel, computeWaveformsPanel, computeProbeMapPanel,
 %   computeCorrMapPanel, computeRatePanel, computeTuningPanel,
 %   computeSpectrumPanel, computeSpectrogramPanel, computeCoherencePanel,
-%   computeEventTracePanel, computeLegendPanel,
+%   computeEventTracePanel, computeTrialDistPanel, computeTrialHistPanel,
+%   computeTrialScatterPanel, computeLegendPanel,
 %   and drawRasterPanel, drawPsthPanel, drawContinuousPanel,
 %   drawHeatmapPanel, drawWaveformsPanel, drawProbeMapPanel,
 %   drawCorrMapPanel, drawRatePanel, drawTuningPanel, drawSpectrumPanel,
 %   drawSpectrogramPanel, drawCoherencePanel, drawEventTracePanel,
+%   drawTrialDistPanel, drawTrialHistPanel, drawTrialScatterPanel,
 %   drawLegendPanel. A legend panel computes and draws nothing: renderFigure
 %   puts the figure's legend on its hidden axes.
 %
@@ -53,6 +56,9 @@ reg.spectrum   = entry(@computeSpectrumPanel,   @drawSpectrumPanel);
 reg.spectrogram = entry(@computeSpectrogramPanel, @drawSpectrogramPanel);
 reg.coherence  = entry(@computeCoherencePanel,  @drawCoherencePanel);
 reg.eventTrace = entry(@computeEventTracePanel, @drawEventTracePanel);
+reg.trialDist  = entry(@computeTrialDistPanel,  @drawTrialDistPanel);
+reg.trialHist  = entry(@computeTrialHistPanel,  @drawTrialHistPanel);
+reg.trialScatter = entry(@computeTrialScatterPanel, @drawTrialScatterPanel);
 reg.legend     = entry(@computeLegendPanel,     @drawLegendPanel);
 end
 

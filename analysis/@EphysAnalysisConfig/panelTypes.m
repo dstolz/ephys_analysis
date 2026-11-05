@@ -84,6 +84,12 @@ function T = panelTypes()
 %   writes "n = 24" per group in the group's color (a stack: at the right
 %   end of each row; a heat map: beside each row), "legend" appends
 %   "(n = 24)" to the group's legend entry (a heat map: to its row label).
+%   A PSTH's smoothLine (enabled, smoothSec) draws a line over each
+%   trace: the PSTH smoothed on its own, a Gaussian of SD smoothSec over
+%   the unsmoothed bins (spikePSTH's R.rateUnsmoothed), so bins.SmoothSec
+%   smooths the histogram alone and neither changes the other (smoothSec 0:
+%   the unsmoothed PSTH as a line). It is the drawing's: changing it
+%   computes nothing again. Not drawn as a heat map.
 %   A PSTH's display "heatmap"
 %   draws its first item (unit or mean) as an image instead: a row per
 %   trial group, the first on top, colored on that item's own range
@@ -200,6 +206,7 @@ function T = panelTypes()
 %   EphysAnalysisConfig.defaultLayer.
 
 bins = struct('BinSec', 0.01, 'SmoothSec', 0.01);              % SmoothSec: Gaussian SD (0 = none)
+smoothLine = struct('enabled', false, 'smoothSec', 0.025);     % psth: a smoothed line over the histogram, its own Gaussian SD (s)
 baseline = struct('Mode', "none", 'Window', [-0.2 0]);
 waveform = EphysAnalysisConfig.defaults("Waveform");           % raster / psth / rate / tuning: the unit's waveform inset ("off" = none)
 waveformsOwn = waveform;
@@ -235,6 +242,7 @@ opts.psth = struct( ...
     'histStyle',     "bar", ...         % "bar" | "line"
     'fill',          true, ...          % filled bars / area under the line
     'fillAlpha',     NaN, ...           % fill opacity 0-1 (NaN: 0.5 where groups overlap, else 1)
+    'smoothLine',    smoothLine, ...    % a smoothed line over each trace: enabled, smoothSec (its own Gaussian SD, s; bins.SmoothSec smooths the histogram alone)
     'normalize',     "none", ...        % "none" | "unitPeak" | "groupPeak" | "allPeak"
     'stack',         "off", ...         % "off" (the groups overlaid) | "groups" (a row per trial group, the first on top)
     'stackSpacing',  1.1, ...           % stack: the row step, x the row height (1: the rows touch; < 1 overlaps)

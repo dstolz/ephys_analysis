@@ -124,6 +124,21 @@ Rg = spikePSTH({st}, E, Window=[-0.2 0.5], BinSec=0.01, SmoothSec=0.02);
 Rr = spikePSTH({st}, E, Window=[-0.2 0.5], BinSec=0.01);
 check(abs(mean(Rg.rate) - mean(Rr.rate)) / mean(Rr.rate) < 0.01 && std(Rg.rate) < std(Rr.rate), ...
     'smoothing keeps the mean and lowers the bin-to-bin spread');
+okU = isequaln(Rr.rateUnsmoothed, Rr.rate) && max(abs(Rg.rateUnsmoothed - Rr.rate), [], 'all') < 1e-9 ...
+    && ~isequaln(Rg.rateUnsmoothed, Rg.rate);
+Eu = epochs(t0, 1 + mod((1:numel(t0)).', 2));
+Eu.t1 = Eu.t0 + 0.3;
+for bm = ["none" "subtract" "zscore" "percent"]
+    for mk = [false true]
+        nv = {'Window', [-0.2 0.5], 'BinSec', 0.01, 'Baseline', [-0.2 0], 'BaselineMode', bm, 'MaskAfterStop', mk};
+        R0 = spikePSTH({st}, Eu, nv{:});
+        Rs = spikePSTH({st}, Eu, nv{:}, 'SmoothSec', 0.03);
+        okU = okU && max(abs(Rs.rateUnsmoothed - R0.rate), [], 'all') < 1e-9 && isequal(isnan(Rs.rateUnsmoothed), isnan(R0.rate)) ...
+            && isequaln(R0.rateUnsmoothed, R0.rate) && ~isequaln(Rs.rate, R0.rate);
+    end
+end
+check(okU, ['rateUnsmoothed: the rate without SmoothSec (as SmoothSec 0 gives it) for every baseline mode, masked after ' ...
+    'the stop or not (a PSTH''s smoothed line smooths it on its own); the rate itself at SmoothSec 0']);
 drv = [st; driven(t0, 0.05, 0.25, 60)];
 Rd = spikePSTH({st, drv}, E, Window=[-0.2 0.5], BinSec=0.05, Labels=["flat" "driven"]);
 inWin = Rd.t > 0.05 & Rd.t < 0.25;
@@ -930,6 +945,22 @@ Rf = combineSessions({Fg}, S(1, :), Group="group 2");
 check(isequaln(Rf.rate, Fg.rate(Eg.groupIndex == 2, :)) && isequal(Rf.epochs.t0(Rf.epochIndex), E2.t0) && isequal(Rf.groupIndex, ones(n2, 1)), ...
     'Group slicing a rate result: its epochs'' rates, epochIndex into the merged epochs');
 check(strcmp(errorId(@() combineSessions(G, S, Group="group 9")), 'combineSessions:TooFew'), 'a group no session has: TooFew');
+
+% --- the unsmoothed rates (a PSTH's smoothed line) merge as the rates do ------------------------
+P2 = P; G2 = G;
+for k = 1:3
+    P2{k}.rateUnsmoothed = 2 * P{k}.rate;
+    G2{k}.rateUnsmoothed = 2 * G{k}.rate;
+end
+Rup = combineSessions(P(1:2), S(1:2, :)); Rup2 = combineSessions(P2(1:2), S(1:2, :));
+Rua = combineSessions(P, S, Match="site", Series="all", MinSessions=2); Rua2 = combineSessions(P2, S, Match="site", Series="all", MinSessions=2);
+Rug = combineSessions(G, S, Group="group 2"); Rug2 = combineSessions(G2, S, Group="group 2");
+P3 = P2; P3{2} = rmfield(P3{2}, 'rateUnsmoothed');
+Ru3 = combineSessions(P3, S, Match="site", Series="all", MinSessions=2);
+check(isequaln(Rup2.rateUnsmoothed, 2 * Rup.rate) && max(abs(Rua2.rateUnsmoothed - 2 * Rua.rate), [], 'all') < 1e-12 ...
+    && isequal(isnan(Rua2.rateUnsmoothed), isnan(Rua.rate)) && isequaln(Rug2.rateUnsmoothed, 2 * Rug.rate) ...
+    && isequaln(Rup.rateUnsmoothed, Rup.rate) && ~isfield(Ru3, 'rateUnsmoothed'), ...
+    'rateUnsmoothed merges as the rate does (pool, site + all, one group sliced); none when a session''s result lacks it');
 
 % --- combine: session x trial group, line styles ------------------------------------------------
 R = combineSessions(G(1:2), S(1:2, :), TrialGroups="combine");

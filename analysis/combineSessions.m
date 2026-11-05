@@ -146,7 +146,9 @@ function R = combineSessions(Rs, sessions, opts)
 %                  combineSessions:Bins); rate / sem / count [nB x nT x nS]
 %                  (series session: copies of each session's own; subject /
 %                  all: the mean over member sessions and the across-session
-%                  half width; count summed); nEpochs, n [nS x 1];
+%                  half width; count summed); rateUnsmoothed [nB x nT x
+%                  nS] (as rate's mean, when every result has it: a PSTH
+%                  panel's smoothed line); nEpochs, n [nS x 1];
 %                  raster (1 x nT: times, epoch (rows of R.epochs), group
 %                  (the epoch's series); site: the units' spikes pooled);
 %                  epochGroup [nE x 1] (the series of each epoch),
@@ -407,6 +409,15 @@ R.t = R1.t;
 R.edges = R1.edges;
 R.window = R1.window;
 R.rate = M;
+if all(cellfun(@(r) isfield(r, 'rateUnsmoothed') && isequal(size(r.rateUnsmoothed), size(r.rate)), Rs(P)))
+    U = pairCombine(Rs, tiles, info, @(r) r.rateUnsmoothed, nB, "mean");   % each member's, a site's units averaged
+    R.rateUnsmoothed = NaN(size(M));
+    for s = 1:nS   % as seriesArrays makes the series' mean
+        ps = find(info.pairs.s == s);
+        if info.single; ps = ps(1); end
+        R.rateUnsmoothed(:, :, s) = mean(U(:, :, ps), 3, 'omitnan');
+    end
+end
 R.sem = H;
 R.err = struct('type', "", 'lo', LO, 'hi', HI, 'over', "", 'nBoot', NaN);
 R.count = count;
@@ -1422,6 +1433,7 @@ switch r.kind
         map = zeros(numel(keep), 1);
         map(keep) = 1:nnz(keep);
         r.rate = r.rate(:, :, g); r.sem = r.sem(:, :, g); r.count = r.count(:, :, g);
+        if isfield(r, 'rateUnsmoothed'); r.rateUnsmoothed = r.rateUnsmoothed(:, :, g); end
         r = sliceErr(r, @(x) x(:, :, g));
         r.nEpochs = r.nEpochs(g); r.n = r.n(g); r.stopMean = r.stopMean(g);
         r.baselineRate = r.baselineRate(:, g); r.baselineSD = r.baselineSD(:, g);

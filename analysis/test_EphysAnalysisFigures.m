@@ -1861,6 +1861,13 @@ if S.sec("6", "config: validate")
     check(bR.Figures(1).panels(kP).options.trialCount == "off" && isempty(figIssues(bTc)) && isempty(figIssues(bTl)) ...
         && has(bTx, "figure_1.psth_1.options.trialCount", "error") && isempty(figIssues(bSl)), ...
         'a PSTH''s trialCount is off, text or legend (off by default); a raster may sort by latency');
+    bSm = bR; bSm.Figures(1).panels(kP).options.smoothLine = struct('enabled', true, 'smoothSec', 0);
+    bSn = bR; bSn.Figures(1).panels(kP).options.smoothLine.smoothSec = -0.01;
+    bSi = bR; bSi.Figures(1).panels(kP).options.smoothLine.smoothSec = Inf;
+    sl0 = bR.Figures(1).panels(kP).options.smoothLine;
+    check(~sl0.enabled && sl0.smoothSec == 0.025 && isempty(figIssues(bSm)) ...
+        && has(bSn, "figure_1.psth_1.options.smoothLine.smoothSec", "error") && has(bSi, "figure_1.psth_1.options.smoothLine.smoothSec", "error"), ...
+        'a PSTH''s smoothLine: off by default, 25 ms; its smoothSec 0 or more (0: the unsmoothed PSTH), finite');
     I9 = figIssues(b4);
     I9 = I9(I9.Field == n0 + "x", :);
     b10 = b2; b10.Figures(1).panels(2).type = "bogus";
@@ -4198,6 +4205,75 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         'entries instead']);
     check(okSt, 'a stacked PSTH''s trialCount: the text at the right end of each row, above its baseline');
     check(okHt && okHl, 'a PSTH heat map''s trialCount: the text beside each row (text), or in the row''s label (legend)');
+    % the PSTH's smoothed line: the unsmoothed rates smoothed by the line's own SD, over each group's trace, apart from
+    % the histogram's smoothing; a look (nothing computed again); divided as the rates are; stacked, in each row
+    sSl = Ffs.spec;
+    sSl.panels(2).options.smoothLine = struct('enabled', true, 'smoothSec', 0.03);
+    s0 = Ffs.spec;
+    s0.panels(2).options.bins.SmoothSec = 0;
+    F0 = rn.computeFigure(src, s0, Observation=Tu(1, :));
+    R0 = F0.panels(2).layers(1).R;
+    dtS = median(diff(Rfp.t));
+    finiteLines = @(h) h(arrayfun(@(x) any(isfinite(x.YData(:))), h));   % not the legend's entry
+    ofGroup = @(h, gl) findall(h, '-function', @(x) string(getappdata(x, 'PlotGroup')) == gl);
+    hS = renderFigure(Ffs, sSl, fig);
+    aS = hS.panels(2).axes;
+    lnS = finiteLines(findall(aS, 'Tag', 'smoothLine'));
+    okN = numel(lnS) == height(Ffs.groups);
+    okU = max(abs(Rfp.rateUnsmoothed - R0.rate), [], 'all') < 1e-9 && ~isequaln(Rfp.rate, R0.rate);
+    okD = isequaln(figureDataSpec(sSl), figureDataSpec(Ffs.spec));   % (isequaln: a spec holds NaN)
+    okV = true;
+    for gS = 1:height(Ffs.groups)
+        hG = ofGroup(lnS, string(Ffs.groups.label(gS)));
+        want = gaussianSmooth(R0.rate(:, 1, gS), 0.03 / dtS);
+        okV = okV && isscalar(hG) && max(abs(hG.YData(:) - want)) < 1e-9 && max(abs(hG.XData(:) - Rfp.t(:))) < 1e-12;
+    end
+    kids = allchild(aS);
+    iL = find(ismember(kids, lnS));
+    iT = find(arrayfun(@(x) ismember(string(x.Tag), ["rate" "rateFill"]) && any(isfinite(x.YData(:))), kids));
+    okO = ~isempty(iT) && ~isempty(iL) && max(iL) < min(iT);   % over the traces: earlier among the children
+    lgS = findall(fig, 'Type', 'legend');
+    lgS = string(lgS(1).String);
+    okL = any(lgS == "Smoothed (SD 30 ms)");
+    okSl = okN && okU && okD && okV && okO && okL;
+    sSn = sSl;
+    sSn.panels(2).options.normalize = "unitPeak";
+    hSn = renderFigure(Ffs, sSn, fig);
+    hG = ofGroup(finiteLines(findall(hSn.panels(2).axes, 'Tag', 'smoothLine')), string(Ffs.groups.label(1)));
+    want = gaussianSmooth(Rfp.rateUnsmoothed(:, 1, 1), 0.03 / dtS) / max(abs(Rfp.rate), [], 'all');
+    okSn = isscalar(hG) && max(abs(hG.YData(:) - want)) < 1e-9;
+    sSs = FfsS.spec;
+    sSs.panels(2).options.smoothLine = struct('enabled', true, 'smoothSec', 0.03);
+    hSs = renderFigure(FfsS, sSs, fig);
+    aSs = hSs.panels(2).axes;
+    lnSs = finiteLines(findall(aSs, 'Tag', 'smoothLine'));
+    yyaxis(aSs, 'left');
+    ylSs = ylim(aSs);
+    okSs = numel(lnSs) == height(FfsS.groups);
+    for gS = 1:height(FfsS.groups)   % in the group's row: from its baseline up, inside the axes
+        glS = string(FfsS.groups.label(gS));
+        hG = ofGroup(lnSs, glS);
+        bG = findall(aSs, 'Tag', 'stackBase', '-function', @(x) string(getappdata(x, 'PlotGroup')) == glS);
+        okSs = okSs && isscalar(hG) && isscalar(bG) && min(hG.YData) >= bG.YData(1) - 1e-9 && max(hG.YData) <= ylSs(2) + 1e-9;
+    end
+    sSh = sSl;
+    sSh.panels(2).options.display = "heatmap";
+    hSh = renderFigure(Ffs, sSh, fig);
+    Fno = Ffs;
+    Fno.panels(2).layers(1).R = rmfield(Fno.panels(2).layers(1).R, 'rateUnsmoothed');
+    hNo = renderFigure(Fno, sSl, fig);
+    ntNo = "";
+    for x = reshape(findall(hNo.panels(2).axes, 'Tag', 'layerNote'), 1, [])
+        ntNo = ntNo + " " + strjoin(string(x.String), " ");
+    end
+    okSh = isempty(findall(hSh.panels(2).axes, 'Tag', 'smoothLine')) ...
+        && isempty(finiteLines(findall(hNo.panels(2).axes, 'Tag', 'smoothLine'))) && any(contains(ntNo, "no smoothed line"));
+    check(okSl, sprintf(['a PSTH''s smoothed line: each group''s unsmoothed rates (spikePSTH''s rateUnsmoothed, the same ' ...
+        'as with SmoothSec 0) smoothed by its own SD, over every trace, "Smoothed (SD 30 ms)" in the legend; a look alone ' ...
+        '(lines %d, unsmoothed %d, data spec %d, values %d, on top %d, legend %d)'], okN, okU, okD, okV, okO, okL));
+    check(okSn, 'a PSTH''s smoothed line is divided as the rates are (normalize unitPeak)');
+    check(okSs, 'a stacked PSTH''s smoothed line: one per row, from the row''s baseline, inside the axes');
+    check(okSh, 'no smoothed line on a PSTH heat map; a result without rateUnsmoothed draws none and says so');
     ha = renderFigure(Fau, Fau.spec, fig);
     aa = ha.axes(2);
     check(isscalar(findall(aa, 'Tag', 'chanceLine')) && isequal(ylim(aa), [0 1]) && ~isempty(findall(aa, '-regexp', 'Tag', '^rate(Fill)?$')) ...

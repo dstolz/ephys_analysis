@@ -4546,6 +4546,20 @@ if S.sec("5l", "a raster's First-spike marks... and a PSTH's Latency box plot...
     check(shownTc && app.Config.Figures(1).panels(2).options.trialCount == "text" && string(app.UndoMenu.Text) == "Undo Trial count" ...
         && app.FigurePreviewState == "drawn" && numel(txP) == height(app.FigurePreviewResult.groups), ...
         sprintf('Trial count: text gives the PSTH "n = <trials>" per group (%d) as one named step', numel(txP)));
+    % the PSTH's Smoothed line row: Draw, and its SD (grayed out until Draw)
+    shownSl = shown(FE.smoothLine) && ~FE.smoothLine.Value && FE.smoothLineMs.Value == 25 && string(FE.smoothLineMs.Enable) == "off";
+    FE.smoothLine.Value = true;
+    app.onConfigChanged("figure", FE.smoothLine);
+    FE.smoothLineMs.Value = 40;
+    app.onConfigChanged("figure", FE.smoothLineMs);
+    app.refreshFigurePreview(Force=true);
+    slP = findall(app.FigurePreviewPanel, 'Tag', 'smoothLine');
+    slP = slP(arrayfun(@(h) any(isfinite(h.YData)), slP));   % not the legend's entry
+    slO = app.Config.Figures(1).panels(2).options.smoothLine;
+    check(shownSl && slO.enabled && abs(slO.smoothSec - 0.04) < 1e-12 && string(FE.smoothLineMs.Enable) == "on" ...
+        && string(app.UndoMenu.Text) == "Undo Smoothed line" && app.FigurePreviewState == "drawn" ...
+        && numel(slP) == height(app.FigurePreviewResult.groups), ...
+        sprintf('Smoothed line: Draw and SD (ms) give the PSTH a line per group (%d), "Undo Smoothed line"', numel(slP)));
     app.onPanelSelected(1);   % the raster
     offered = any(string(FE.rasterSort.Items) == "latency");
     FE.rasterSort.Value = "latency";

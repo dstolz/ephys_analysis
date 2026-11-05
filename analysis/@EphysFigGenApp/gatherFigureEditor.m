@@ -289,6 +289,10 @@ if isfield(op, 'tickColor'); op.tickColor = strtrim(string(E.tickColor.Value)); 
 if isfield(op, 'tickWidth'); op.tickWidth = E.tickWidth.Value; end
 if isfield(op, 'backColor'); op.backColor = strtrim(string(E.backColor.Value)); end
 if own('maskAfterStop'); op.maskAfterStop = logical(E.maskAfterStop.Value); end
+if isfield(op, 'smoothLine')
+    op.smoothLine.enabled = logical(E.smoothLine.Value);
+    op.smoothLine.smoothSec = E.smoothLineMs.Value / 1000;
+end
 if isfield(op, 'histStyle')
     op.histStyle = string(E.histStyle.Value);
     op.fill = logical(E.fill.Value);

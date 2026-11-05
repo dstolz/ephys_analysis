@@ -739,6 +739,35 @@ the aesthetics editor can restyle or hide; the right-click menu goes to **Trial 
 in the PSTH's options. The Figures tab's **Trial count** row is a drop-down of the three
 values.
 
+### Smoothed line
+
+A PSTH panel's `options.smoothLine` draws a line over each trial group's trace: the
+PSTH smoothed on its own. `bins.SmoothSec` smooths the histogram, `smoothLine.smoothSec`
+the line, and neither changes the other:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | draw the line |
+| `smoothSec` | 0.025 | the line's Gaussian SD, s, over the PSTH's bins (0: the unsmoothed PSTH as a line); 0 or more |
+
+The line starts from the rates without the histogram's smoothing (`spikePSTH`'s
+`R.rateUnsmoothed`: each group's mean over its unsmoothed epochs, after the baseline),
+so with `bins.SmoothSec` 0.01 and `smoothSec` 0.05 the bars are smoothed by 10 ms and
+the line by 50 ms, not by both. It is smoothed on the bins (renormalized at the window's
+edges and next to masked bins, as the histogram is), divided as the rates are
+(`normalize`), and for a layer's mean taken over its units. It is the drawing's alone:
+changing it redraws the preview without computing the figure again.
+
+It is drawn on top of every trace, in the trial group's color (a darker shade over the
+group's own fill, so it shows), the item's line style, 1.5 times the design's line
+width; stacked (`stack "groups"`), in each row on the row's scale, and the rows make
+room for it. The legend gets an entry *Smoothed (SD 25 ms)*. Role `smoothLine` (group:
+the trace's), which the aesthetics editor can restyle or hide; the right-click menu
+goes to **Smoothed line** in the PSTH's options. Not drawn with `display "heatmap"`,
+nor for the member sessions of a [session figure](#session-figures). A result computed
+before `R.rateUnsmoothed` existed draws no line and says so in its notes (preview it
+again).
+
 ### Unit waveforms
 
 A raster, PSTH, firing rate or tuning panel of spikes
@@ -2068,6 +2097,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `histStyle` | `"bar"` | `"bar"` or `"line"` |
 | `psth` | `fill` | `true` | fill the bars, or the area under the line |
 | `psth` | `fillAlpha` | `NaN` | fill opacity 0-1; `NaN` = 0.5 where groups overlay, else 1 |
+| `psth` | `smoothLine` | `enabled false`, `smoothSec` 0.025 | a line over each trace, the PSTH smoothed on its own by a Gaussian of SD `smoothSec` (s), independent of `bins.SmoothSec` ([Smoothed line](#smoothed-line)). Not with `display "heatmap"` |
 | `psth` | `normalize` | `"none"` | `"none"`, `"unitPeak"`, `"groupPeak"` or `"allPeak"` |
 | `psth` | `stack` | `"off"` | `"groups"`: one row per trial group, stacked downwards (the first group on top, as a raster lists them), instead of overlaid; a single group is drawn overlaid ([Stacks](#stacks)) |
 | `psth` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the row height (below 1 the rows overlap); positive |
@@ -2645,7 +2675,8 @@ defaults. A file written by hand may leave out any field that keeps its default.
         "layers": [ { "name": "", "enabled": true, "source": "units", "binding": "observation", "aggregate": "each", "...": "..." } ],
         "options": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
                      "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "histStyle": "bar", "fill": true,
-                     "fillAlpha": "NaN", "normalize": "none", "maskAfterStop": false, "yLim": [],
+                     "fillAlpha": "NaN", "smoothLine": { "enabled": false, "smoothSec": 0.025 },
+                     "normalize": "none", "maskAfterStop": false, "yLim": [],
                      "latencyBox": { "enabled": false, "color": "groups", "...": "..." }, "onsetLine": "off", "trialCount": "off",
                      "waveform": { "mode": "off", "...": "..." } } },
       { "id": "continuous_1", "type": "continuous", "title": "", "box": "auto", "rect": [0, 0, 1, 0.285],
@@ -2739,7 +2770,8 @@ Errors:
 - a raster whose enabled layers are all events drawn as marks or spans (`A raster's marks
   need rows: add a units, detected or train layer`);
 - options, by type: a raster's `rasterSortOrder` and, with `rasterSort "event"`, a
-  valid `rasterSortEvent`; a PSTH's `trialCount` (`off`, `text` or `legend`); an
+  valid `rasterSortEvent`; a PSTH's `trialCount` (`off`, `text` or `legend`) and
+  `smoothLine.smoothSec` (0 or more); an
   event trace's sub-rows with `rasterSort "latency"` (a warning: no spikes); a raster's `firstSpike` and a PSTH's `latencyBox` while
   `enabled` (the marker and a positive size;
   the box's `lineStyle`, a positive `lineWidth`, `boxHeight` from 0.02 to 0.5,

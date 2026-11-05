@@ -319,6 +319,7 @@ classdef PlotAesthetics
                 "colorbar"     "Color bar"
                 "rate"         "PSTH"
                 "rateFill"     "PSTH fill"
+                "smoothLine"   "PSTH smoothed line"
                 "sem"          "Error band"
                 "stopLine"     "Stop event (mean)"
                 "stackBase"    "Row baseline"

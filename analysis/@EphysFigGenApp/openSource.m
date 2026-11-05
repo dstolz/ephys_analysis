@@ -11,7 +11,7 @@ function openSource(obj, source, opts)
 %
 %   For a folder the last config (preference LastConfigFile) opens again,
 %   its figures and defaults as they are, with that source in place of its
-%   own: the config is then unsaved (the status bar says so; Save writes
+%   own (its Data tab filter, Source.Filter, kept): the config is then unsaved (the status bar says so; Save writes
 %   the new source to its file). With no last config, or one that cannot
 %   be read, it is a new "<folder> quick look" config (one dataset of
 %   Datasets names it instead). Either way the datasets are scanned.
@@ -70,6 +70,7 @@ if isempty(last)
     return
 end
 saved = last.toStruct();   % what the file holds
+cfg.Source.Filter = last.Source.Filter;   % its Data tab filter stays
 switched = ~isequaln(last.Source, cfg.Source);
 last.Source = cfg.Source;
 obj.SelectedFigure = min(1, numel(last.Figures));

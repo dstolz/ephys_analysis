@@ -190,7 +190,9 @@ a hidden dataset keeps its **Run** tick, and a run uses every ticked dataset,
 shown or not. While a filter is on, the line above it (right of the scan's
 count) says *showing k of n* and, when
 hidden datasets are ticked, *(m ticked hidden)*; **Tick shown only** makes the
-ticks match what shows. The filter is not saved in the config.
+ticks match what shows. The filter is saved with the config
+([`Source.Filter`](EphysAnalysisConfig.md#source)): a change to it marks the
+config unsaved, and opening the config sets it again.
 
 **Active dataset**, on the right:
 

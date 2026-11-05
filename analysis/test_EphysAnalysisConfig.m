@@ -75,6 +75,10 @@ check(cfg.isequalConfig(c2) && c2.File == string(f) && isempty(c2.LoadWarnings) 
 
 cfg.Name = "AM quick look";
 cfg.Source.Root = root;
+cfg.Source.Filter.Tags = "ofc, pilot";   % the analysis app's Data tab filter
+cfg.Source.Filter.TagMode = "all";
+cfg.Source.Filter.ExcludeTags = "draft";
+cfg.Source.Filter.Subjects = "M*";
 cfg.Defaults.EventRef.line = "Stim";
 cfg.Defaults.EventRef.timeRange = [0 Inf];
 cfg.Defaults.EventRef.maxDurationSec = Inf;
@@ -104,6 +108,10 @@ check(contains(txt, '"maxDurationSec": "Inf"') && contains(txt, '"schema": "ephy
 check(isequal(c2.Figures(3).selection.groupBy, ["Depth" "TrialType"]) && isequal(c2.Defaults.Selection.groupBy, "Depth") ...
     && isstring(c2.Defaults.Selection.response) && isequal(c2.Figures(2).observe.channels, [1 3]) ...
     && isequal(c2.Defaults.EventRef.timeRange, [0 Inf]), 'lists of one and two, numbers and Inf come back with their shapes');
+check(isequal(c2.Source.Filter, struct('Subjects', "M*", 'ExcludeSubjects', "", 'Tags', "ofc, pilot", 'TagMode', "all", ...
+    'ExcludeTags', "draft", 'Search', "")) && isequal(EphysAnalysisConfig().Source.Filter.TagMode, "any") ...
+    && all(structfun(@(v) isequal(v, ""), rmfield(EphysAnalysisConfig().Source.Filter, 'TagMode'))), ...
+    'Source.Filter (the Data tab''s tag and subject filter) round-trips; by default it is off (TagMode "any")');
 check(isequal(c2.Figures(1).ref, "default") && isstruct(c2.Figures(3).ref) && c2.Figures(3).ref.line == "Platform" ...
     && isstruct(c2.Figures(3).window.stop) && c2.Figures(3).window.stop.edge == "offset" && isempty(c2.Figures(2).window.stop), ...
     '"default", overrides and stop events round-trip');
@@ -135,6 +143,8 @@ bad = cfg; bad.Source.Mode = "folders";
 check(hasIssue(bad, "Folders", "error"), 'folders mode without folders');
 bad = cfg; bad.Source.Selection = "list";
 check(hasIssue(bad, "Datasets", "warning"), 'a list selection without datasets warns');
+bad = cfg; bad.Source.Filter.TagMode = "some";
+check(hasIssue(bad, "Filter.TagMode", "error"), 'the filter''s TagMode is "any" or "all"');
 bad = cfg; bad.Defaults.Window.pre = 1; bad.Defaults.Window.post = 0;
 check(hasIssue(bad, "Window", "error"), 'pre <= post');
 bad = cfg; bad.Defaults.Selection.filter = "Depth >";

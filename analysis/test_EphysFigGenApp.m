@@ -419,6 +419,25 @@ if S.sec("1", "build, open the project, scan")
     check(isequal(app.NotSubjectFilterDropDown.Items, app.SubjectFilterDropDown.Items) ...
         && isequal(app.NotTagFilterDropDown.Items, app.TagFilterDropDown.Items), ...
         'the "not" lists hold the same subjects and tags in use');
+    % the filter is the config's Source.Filter: a change is an edit (the title's "*"), and a config applied
+    % (opened, Undo) sets the filter and filters the table again, without asking for a new scan
+    savedF = app.SavedConfigStruct;
+    app.SavedConfigStruct = app.Config.toStruct();   % as if just saved
+    filterBy(app, '(any)', 'draft', 'all', NotSubject='nosuch');
+    cfgF = app.Config;
+    titleF = string(app.Fig.Name);
+    filterBy(app, '(any)', '(any)', 'any');
+    F0 = app.Config.Source.Filter;
+    n0 = height(app.DatasetsTable.Data);
+    scanText = string(app.ScanLabel.Text);
+    app.applyConfig(cfgF);
+    check(isequal(cfgF.Source.Filter, struct('Subjects', "", 'ExcludeSubjects', "nosuch", 'Tags', "draft", 'TagMode', "all", ...
+        'ExcludeTags', "", 'Search', "")) && startsWith(titleF, "* ") && all(structfun(@(v) v == "", rmfield(F0, 'TagMode'))) && n0 == 2 ...
+        && string(app.TagFilterDropDown.Value) == "draft" && string(app.TagFilterModeDropDown.Value) == "all" ...
+        && string(app.NotSubjectFilterDropDown.Value) == "nosuch" && string(app.SubjectFilterDropDown.Value) == "(any)" ...
+        && isequal(app.DatasetsTable.Data.Idx, kF2) && string(app.ScanLabel.Text) == scanText, ...
+        'the filter is the config''s Source.Filter ("" = off; a change marks the config unsaved); a config applied sets it and filters the table, no new scan asked for');
+    app.SavedConfigStruct = savedF;
     filterBy(app, '(any)', 'draft', 'any');
     Tt = app.DatasetsTable.Data;
     Tt.Run(:) = false;
@@ -5173,8 +5192,9 @@ end
 
 
 function filterBy(app, subject, tags, mode, opts)
-%filterBy  The Data tab's filter as picked or typed: Subject SUBJECT, Tags TAGS, MODE "any" | "all", applied as their callbacks do.
+%filterBy  The Data tab's filter as picked or typed: Subject SUBJECT, Tags TAGS, MODE "any" | "all", applied by their callback.
 %   NotSubject, NotTags and Search (all blank by default) fill the "not" drop-downs and the Search field.
+%   The callback (the Search field's, as each control's) filters the table and takes the filter into the config.
 arguments
     app
     subject
@@ -5190,7 +5210,7 @@ app.TagFilterModeDropDown.Value = char(mode);
 app.NotSubjectFilterDropDown.Value = char(opts.NotSubject);
 app.NotTagFilterDropDown.Value = char(opts.NotTags);
 app.SearchFilterField.Value = char(opts.Search);
-app.refreshDatasetsTable();
+app.SearchFilterField.ValueChangedFcn(app.SearchFilterField, []);
 end
 
 

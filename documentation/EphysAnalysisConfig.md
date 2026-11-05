@@ -82,7 +82,9 @@ distinct as file names: `{Plot}` replaces every character outside
   "name": "AM quick look", "description": "",
   "Source": { "Mode": "project", "Root": "D:\\EPHYS", "OutputRoot": "",
               "NamePattern": "{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}", "Recordings": "concatenate",
-              "Selection": "all", "Datasets": [], "Folders": [] },
+              "Selection": "all", "Datasets": [], "Folders": [],
+              "Filter": { "Subjects": "", "ExcludeSubjects": "", "Tags": "ofc", "TagMode": "any",
+                          "ExcludeTags": "pilot", "Search": "" } },
   "Defaults": {
     "EventRef":  { "line": "Stim", "edge": "onset", "which": "first", "n": 1, "scope": "auto",
                    "minDurationSec": 0, "maxDurationSec": "Inf", "timeRange": ["-Inf", "Inf"], "offsetSec": 0,
@@ -151,6 +153,7 @@ has plots is version 1: [below](#loading-a-version-1-config)).
 | `Selection` | `"all"` | project mode: `"all"` datasets under the root, or the `"list"` in `Datasets` |
 | `Datasets` | none | root-relative [dataset keys](EphysPipeline.md#dataset-keys) for `"list"`. A key not found is warned about (`EphysAnalysisRunner:UnknownDataset`) and skipped |
 | `Folders` | none | dataset output folders (`"folders"` mode) |
+| `Filter` | off | the analysis app's [Data tab filter](EphysFigGenApp.md#data-tab), saved so the config opens with it: `Subjects`, `ExcludeSubjects`, `Tags`, `TagMode` (`"any"` or `"all"` of `Tags`), `ExcludeTags` and `Search`, each text as typed (several values comma-separated; `""` = off), the options of [`datasetFilter`](../pipeline/datasetFilter.m). It only chooses which datasets the app's table shows: what runs is `Selection` and `Datasets`, and the runner and scripts ignore it |
 
 Project mode only lists the recording folders (`EphysProject`, no header
 read, nothing written); each dataset's files are found under its output

@@ -1,7 +1,9 @@
 function n = brokenGraphicTips(root)
 %brokenGraphicTips  Over each "cannot draw" sign in ROOT, a clear image whose tooltip is the sign's message, so hovering shows why.
 %   N = brokenGraphicTips(ROOT) for the signs brokenGraphic drew under ROOT
-%   (renderFigure's and renderProbeFigure's canvas, once laid out). Each
+%   (renderFigure's and renderProbeFigure's canvas, once laid out). It
+%   first puts every sign at its place for the axes' final limits and size
+%   (an export is printed before a redraw would move them). Then each
 %   sign whose axes sit in a panel or tab of a visible figure (the analysis
 %   app's preview) gets a transparent image (uiimage, Tag "layerNoteTip")
 %   over it, at its size: its tooltip is the message (wrapped), and a
@@ -17,10 +19,14 @@ function n = brokenGraphicTips(root)
 %   See also brokenGraphic, renderFigure, renderProbeFigure.
 n = 0;
 if isempty(root) || ~isgraphics(root); return; end
+signs = findall(root, '-function', @(o) isappdata(o, 'LayerNoteSign'));
+for fr = reshape(signs, 1, [])   % first every sign at its place for the final limits and layout (an export prints before any redraw)
+    U = getappdata(fr, 'LayerNoteSign');
+    U.place();
+end
 fig = ancestor(root, 'figure');
 if isempty(fig) || ~strcmp(fig.Visible, 'on'); return; end
-signs = findall(root, '-function', @(o) isappdata(o, 'LayerNoteSign'));
-blank = fullfile(fileparts(fileparts(mfilename('fullpath'))), 'icons', 'status', 'clear.svg');   % (an empty source shows a placeholder picture)
+blank =fullfile(fileparts(fileparts(mfilename('fullpath'))), 'icons', 'status', 'clear.svg');   % (an empty source shows a placeholder picture)
 for fr = reshape(signs, 1, [])
     U = getappdata(fr, 'LayerNoteSign');
     if ~isempty(U.overlay) && isvalid(U.overlay); continue; end

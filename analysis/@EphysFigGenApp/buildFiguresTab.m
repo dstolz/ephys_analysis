@@ -1679,7 +1679,7 @@ obj.FigureSearchIndex = figureSearchIndex(obj.FigureSections, U);   % the rows a
 % template row (and Apply last change) above the preview. Ctrl is Cmd on a Mac (onKeyPress).
 pg = uigridlayout(g, [7 5]);
 pg.RowHeight = {46, 46, 46, 34, '1x', 30, 20};
-pg.ColumnWidth = {90, 'fit', '1x', 'fit', 125};
+pg.ColumnWidth = {110, 'fit', '1x', 'fit', 125};   % (110: Export preview unclipped, room for Auto's slider)
 pg.ColumnSpacing = 6;
 pg.Padding = [0 0 0 0];
 bg = uigridlayout(pg, [5 1], "RowHeight", {30, 30, 30, 24, 30}, "ColumnWidth", {'1x'}, "RowSpacing", 3, "Padding", [0 0 0 0]);

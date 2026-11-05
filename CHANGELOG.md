@@ -432,6 +432,8 @@ says how to cut a release.
   shape loads with its unknown fields dropped and named in `LoadWarnings`, and `validate` refuses a retired export
   format), manifest schema `intan-dataset-manifest/1` (`ManifestSchemasAccepted` is the current schema only) and
   `DatasetTracker`'s reading of a run with results but no status file as `"done"` (its `State` is empty).
+- `combineSessions`' merge of version-1 `behavior` results (`mergeBehavior`): no figure makes them since figures
+  replaced plots.
 
 ### Added
 
@@ -480,6 +482,16 @@ says how to cut a release.
   does not use grayed out. Panel alignment shows a trial panel its trial selection alone. The New panel window gives
   the trial panels the measure's **Measure** (kind), **From (A)**, **To (B)** and **Parameter** and their display
   (`onNewPanel(Measure=...)` for scripts). The epoch diagram drops its leftover `behavior` lines.
+- Session figures: the trial panels are merged across sessions (`combineSessions` kinds `trialDist`, `trialHist`,
+  `trialScatter`): every session's per-trial values in one table, each in its series (the sessions under
+  `trialGroups "pool"`, a figure per trial group under `"each"`, session x trial group under `"combine"`), and
+  `figureSessionCompute` makes the categories, series and tests again over the merged values, so the `"session"`
+  grouping has the sessions as its levels.
+- Reports: a figure with trial panels says in its caption what each measures, how it groups, summarizes and tests
+  (`figureCaption`), and `figureCaption(..., Results=)` appends their statistics; the runner and the standalone script
+  pass each figure's computed result. The new `trialStatsText(F)` writes them, a line per trial panel: each
+  category's center ± error and n, the overall p, the pairs' adjusted p with stars, a scatter's r and fit R², and the
+  values left out.
 - Pipeline app, Project tab: **Copy manifests** in the Tools panel puts the manifest files of its datasets (the active
   one, or the ticked ones) on the clipboard as files, to paste into a folder, an e-mail or a chat, and lists in a
   message the files the clipboard holds and any not copied (`copyFilesToClipboard`, Windows).

@@ -67,6 +67,20 @@ function txt = figureCaption(spec, T, opts)
 %   above, and "each panel's y shared across the tiles" with
 %   probe.sharedY (no batch range, no trial group per figure: a probe
 %   figure shares y across its tiles itself and ignores perGroup).
+%   A figure with trial panels (trial distribution, histogram, scatter)
+%   says, per such panel ("<panel id>: " first when there are several),
+%   what its SPEC asks: "trial measures: Stim onset → Platform offset (ms)"
+%   (each enabled layer's measure, trialMeasureLabel; a scatter's "<y> vs
+%   <x>"), "categories by TrialType; series by measure" (the figure's
+%   trial groups by their groupBy parameters, a parameter (binned), the
+%   session or the measure; series by measure only with several layers),
+%   "mean ± SEM" (summary ± errorType), "rank-sum or Kruskal-Wallis test
+%   (all pairs, holm, alpha 0.05)" (test, testPairs, adjust, testAlpha;
+%   "no test" for test "none") and, on a scatter, "linear fit, Pearson
+%   correlation". Results=FS (each observation's computed figure, a cell
+%   or a struct array) appends what they found: trialStatsText's line per
+%   trial panel, each line once (a trial panel's layers are fixed, so
+%   every observation's lines are alike).
 %
 %   See also figureObservations, addReportFigure,
 %   EphysAnalysisRunner.runDataset.
@@ -78,6 +92,7 @@ arguments
     opts.Sessions = []
     opts.Auroc = []
     opts.YShared (1,1) double = NaN
+    opts.Results = []
 end
 
 n = height(T);
@@ -172,7 +187,7 @@ if aligned
     if ~isempty(g); parts(end+1) = "groups by " + strjoin(g, " x "); end
     parts = [parts aurocText(spec, opts.Auroc) latencyText(spec)];
 end
-parts = [parts trialText(spec)];
+parts = [parts trialSpecText(spec)];
 if across
     switch ss.series
         case "session", parts(end+1) = "a color per session";
@@ -200,6 +215,146 @@ if ~onProbe && ~isempty(figureBatchPanels(spec))
     end
 end
 txt = strjoin(parts, "; ") + ".";
+stats = resultsText(opts.Results);
+if ~isempty(stats); txt = txt + " " + strjoin(stats + ".", " "); end
+end
+
+
+function parts = trialSpecText(spec)
+%trialSpecText  What each trial panel of SPEC measures, how it groups, summarizes and tests (figureCaption's header).
+parts = strings(1, 0);
+isT = arrayfun(@(p) ismember(p.type, EphysAnalysisConfig.TrialPanelTypes) && ~isempty(p.layers) && any([p.layers.enabled]), ...
+    spec.panels);
+many = nnz(isT) > 1;
+for k = find(isT)
+    p = spec.panels(k);
+    o = p.options;
+    L = p.layers([p.layers.enabled]);
+    labs = strings(1, 0);
+    for j = 1:numel(L)
+        lab = trialMeasureLabel(L(j).measure);
+        if p.type == "trialScatter" && isfield(L(j), 'xMeasure') && isstruct(L(j).xMeasure)
+            lab = lab + " vs " + trialMeasureLabel(L(j).xMeasure);
+        end
+        labs(end+1) = lab; %#ok<AGROW>
+    end
+    labs = unique(labs, 'stable');
+    word = "trial measure";
+    if numel(labs) > 1; word = "trial measures"; end
+    first = word + ": " + strjoin(labs, ", ");
+    if many
+        id = string(p.type) + "_" + k;
+        if isfield(p, 'id') && string(p.id) ~= ""; id = string(p.id); end
+        first = id + ": " + first;
+    end
+    parts(end+1) = first; %#ok<AGROW>
+    by = strings(1, 0);
+    if p.type == "trialDist" && isfield(o, 'categories')
+        by(end+1) = "categories by " + groupingWords(spec, p, o.categories, optOf(o, 'categoryParam', ""), optOf(o, 'categoryBins', [])); %#ok<AGROW>
+    end
+    if isfield(o, 'series') && ~(o.series == "layer" && numel(L) < 2)
+        by(end+1) = "series by " + groupingWords(spec, p, o.series, optOf(o, 'seriesParam', ""), optOf(o, 'seriesBins', [])); %#ok<AGROW>
+    end
+    if ~isempty(by); parts(end+1) = strjoin(by, ", "); end %#ok<AGROW>
+    sm = string(optOf(o, 'summary', "mean"));
+    et = string(optOf(o, 'errorType', "off"));
+    if et ~= "off"; sm = sm + " " + char(177) + " " + errorWord(et); end
+    parts(end+1) = sm; %#ok<AGROW>
+    parts(end+1) = testWords(o); %#ok<AGROW>
+    if p.type == "trialScatter"
+        fc = strings(1, 0);
+        fit = string(optOf(o, 'fit', "none"));
+        switch fit
+            case "none"
+            case "poly2", fc(end+1) = "quadratic fit";
+            case "poly3", fc(end+1) = "cubic fit";
+            case "movmean", fc(end+1) = sprintf("moving-mean fit (%g points)", optOf(o, 'fitWindow', 10));
+            case "movmedian", fc(end+1) = sprintf("moving-median fit (%g points)", optOf(o, 'fitWindow', 10));
+            otherwise, fc(end+1) = fit + " fit";
+        end
+        cr = string(optOf(o, 'corr', "none"));
+        if cr ~= "none"; fc(end+1) = upper(extractBefore(cr, 2)) + extractAfter(cr, 1) + " correlation"; end
+        if ~isempty(fc); parts(end+1) = strjoin(fc, ", "); end %#ok<AGROW>
+    end
+end
+end
+
+
+function s = groupingWords(spec, p, how, param, bins)
+%groupingWords  A trial panel's grouping in words: the trial groups' parameters, a parameter (binned), session, measure.
+switch string(how)
+    case "groups"
+        g = strings(1, 0);
+        if isstruct(p.selection) && isfield(p.selection, 'groupBy') && ~isempty(p.selection.groupBy)
+            g = string(p.selection.groupBy);
+        elseif isfield(spec, 'selection') && isstruct(spec.selection) && isfield(spec.selection, 'groupBy')
+            g = string(spec.selection.groupBy);
+        end
+        s = "the trial groups";
+        if ~isempty(g); s = strjoin(g, " x "); end
+    case "param"
+        s = string(param);
+        if isscalar(bins)
+            s = s + sprintf(" (%d bins)", round(bins));
+        elseif numel(bins) >= 2
+            s = s + " (bins " + strjoin(compose("%g", bins), ", ") + ")";
+        end
+    case "layer"
+        s = "measure";
+    otherwise
+        s = string(how);
+end
+end
+
+
+function s = testWords(o)
+%testWords  "rank-sum test (all pairs, holm, alpha 0.05)", or "no test".
+t = string(optOf(o, 'test', "auto"));
+switch t
+    case "none", s = "no test"; return
+    case "auto", s = "rank-sum or Kruskal-Wallis test";
+    case "ranksum", s = "rank-sum test";
+    case "ttest2", s = "t-test";
+    case "kruskalwallis", s = "Kruskal-Wallis test";
+    case "anova1", s = "one-way ANOVA";
+    otherwise, s = t + " test";
+end
+pairs = "all pairs";
+if string(optOf(o, 'testPairs', "all")) == "first"; pairs = "each vs the first"; end
+adj = string(optOf(o, 'adjust', "holm"));
+if adj == "none"; adj = "unadjusted"; end
+s = s + sprintf(" (%s, %s, alpha %g)", pairs, adj, optOf(o, 'testAlpha', 0.05));
+end
+
+
+function s = errorWord(et)
+switch et
+    case "sem", s = "SEM";
+    case "std", s = "SD";
+    case "ci95", s = "95% CI";
+    case "iqr", s = "IQR";
+    otherwise, s = et;
+end
+end
+
+
+function v = optOf(o, f, d)
+v = d;
+if isfield(o, f) && ~isempty(o.(f)); v = o.(f); end
+end
+
+
+function lines = resultsText(res)
+%resultsText  trialStatsText of each computed figure, each line once.
+lines = strings(0, 1);
+if isempty(res); return; end
+if isstruct(res); res = num2cell(res); end
+for i = 1:numel(res)
+    F = res{i};
+    if ~isstruct(F) || ~isscalar(F); continue; end
+    t = trialStatsText(F);
+    lines = [lines; t(~ismember(t, lines))]; %#ok<AGROW>
+end
 end
 
 
@@ -309,156 +464,6 @@ for k = 1:numel(spec.panels)
     parts(end+1) = whose + onset + " drawn " + on; %#ok<AGROW>
     did(end+1) = "onset"; %#ok<AGROW>
 end
-end
-
-
-function parts = trialText(spec)
-%trialText  What each trial panel draws: its measures, grouping, summary and error, its tests, a scatter's fit and correlation.
-parts = strings(1, 0);
-noun = struct('trialDist', "a distribution", 'trialHist', "a histogram", 'trialScatter', "a scatter");
-for k = 1:numel(spec.panels)
-    p = spec.panels(k);
-    if ~ismember(p.type, EphysAnalysisConfig.TrialPanelTypes) || isempty(p.layers); continue; end
-    L = p.layers(arrayfun(@(l) l.enabled && string(l.source) == "trials" && isfield(l, 'measure') && isstruct(l.measure), p.layers));
-    if isempty(L); continue; end
-    o = p.options;
-    sel = spec.selection;
-    if isfield(p, 'selection') && isstruct(p.selection); sel = p.selection; end
-    y = unique(arrayfun(@(l) string(trialMeasureLabel(l.measure)), L), 'stable');
-    t = noun.(p.type) + " of " + strjoin(y, ", ");
-    if p.type == "trialScatter"
-        xm = unique(arrayfun(@(l) string(trialMeasureLabel(l.xMeasure)), L), 'stable');
-        t = t + " against " + strjoin(xm, ", ");
-    end
-    t = t + " per trial";
-    if p.type == "trialDist"; t = t + " by " + groupingText(o, "category", sel); end
-    oneSeries = isscalar(L) && optText(o, 'series', "layer") == "layer";
-    if ~oneSeries
-        t = t + ", a color per " + groupingText(o, "series", sel);
-    end
-    if p.type == "trialScatter"
-        t = t + " (y as " + summaryText(o) + ")";
-    else
-        t = t + " (" + summaryText(o) + ")";
-    end
-    if optText(o, 'test', "auto") ~= "none" && (p.type == "trialDist" || ~oneSeries)   % (one series and no categories: no test)
-        across = "the series";
-        if p.type == "trialDist"; across = "the categories in each series"; end
-        t = t + "; " + testText(optText(o, 'test', "auto")) + " across " + across + ", " + pairsText(o);
-    end
-    if p.type == "trialScatter"
-        t = t + fitText(o);
-    end
-    logs = strings(1, 0);
-    if optText(o, 'xScale', "linear") == "log"; logs(end+1) = "x"; end %#ok<AGROW>
-    if optText(o, 'yScale', "linear") == "log"; logs(end+1) = "y"; end %#ok<AGROW>
-    if ~isempty(logs); t = t + "; log " + strjoin(logs, " and ") + " axis"; end
-    parts(end+1) = t; %#ok<AGROW>
-end
-end
-
-
-function s = groupingText(o, which, sel)
-%groupingText  A trial panel's categories or series in words: "TrialType", "Depth (3 bins)", "session", "layer".
-if which == "category"
-    how = optText(o, 'categories', "groups");
-    prm = optText(o, 'categoryParam', "");
-    bins = [];
-    if isfield(o, 'categoryBins'); bins = o.categoryBins; end
-else
-    how = optText(o, 'series', "layer");
-    prm = optText(o, 'seriesParam', "");
-    bins = [];
-    if isfield(o, 'seriesBins'); bins = o.seriesBins; end
-end
-switch how
-    case "groups"
-        g = strings(1, 0);
-        if isstruct(sel) && isfield(sel, 'groupBy'); g = string(sel.groupBy); end
-        s = "trial group";
-        if ~isempty(g); s = strjoin(g, " x "); end
-    case "param"
-        s = prm;
-        if isscalar(bins)
-            s = s + sprintf(" (%d bins)", round(bins));
-        elseif numel(bins) > 1
-            s = s + sprintf(" (%d bins)", numel(bins) - 1);
-        end
-    otherwise
-        s = how;
-end
-end
-
-
-function s = summaryText(o)
-%summaryText  "mean +/- SEM", "median +/- IQR", "mean".
-s = optText(o, 'summary', "mean");
-e = optText(o, 'errorType', "sem");
-names = struct('sem', "SEM", 'std', "SD", 'ci95', "95% CI", 'iqr', "IQR");
-if isfield(names, e); s = s + " +/- " + names.(e); end
-end
-
-
-function s = testText(test)
-%testText  A trial panel's test in words.
-switch test
-    case "ranksum",       s = "rank-sum tests (Kruskal-Wallis for more than 2 levels)";
-    case "ttest2",        s = "t-tests (one-way ANOVA for more than 2 levels)";
-    case "kruskalwallis", s = "Kruskal-Wallis tests";
-    case "anova1",        s = "one-way ANOVA";
-    otherwise,            s = "rank-sum (2 levels) or Kruskal-Wallis tests";
-end
-end
-
-
-function s = pairsText(o)
-%pairsText  The pairs compared, their adjustment and the significance level.
-s = "all pairs";
-if optText(o, 'testPairs', "all") == "first"; s = "each against the first"; end
-names = struct('holm', "Holm", 'bh', "Benjamini-Hochberg", 'bonferroni', "Bonferroni");
-a = optText(o, 'adjust', "holm");
-if isfield(names, a)
-    s = s + " adjusted by " + names.(a);
-else
-    s = s + " not adjusted";
-end
-alpha = 0.05;
-if isfield(o, 'testAlpha') && isnumeric(o.testAlpha) && isscalar(o.testAlpha); alpha = o.testAlpha; end
-s = s + sprintf(", alpha %g", alpha);
-end
-
-
-function s = fitText(o)
-%fitText  A scatter's fit and correlation in words, each after "; ".
-s = "";
-switch optText(o, 'fit', "none")
-    case "linear", f = "a linear fit";
-    case "poly2",  f = "a quadratic fit";
-    case "poly3",  f = "a cubic fit";
-    case "movmean",   f = "a moving mean";
-    case "movmedian", f = "a moving median";
-    otherwise, f = "";
-end
-if f ~= ""
-    if startsWith(f, "a moving")
-        w = 10;
-        if isfield(o, 'fitWindow') && isnumeric(o.fitWindow) && isscalar(o.fitWindow); w = o.fitWindow; end
-        f = f + sprintf(" over %g points", w);
-    elseif ~isfield(o, 'fitBand') || logical(o.fitBand)
-        f = f + " with its 95% band";
-    end
-    s = s + "; " + f + " per series";
-end
-switch optText(o, 'corr', "none")
-    case "pearson",  s = s + "; Pearson correlation";
-    case "spearman", s = s + "; Spearman correlation";
-end
-end
-
-
-function v = optText(o, name, default)
-v = default;
-if isfield(o, name) && ~isempty(o.(name)); v = string(o.(name)); end
 end
 
 

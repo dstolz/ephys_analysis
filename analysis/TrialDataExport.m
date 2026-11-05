@@ -6,6 +6,7 @@ classdef TrialDataExport
     %
     %     T = TrialDataExport.valuesTable(F)           every trial panel of the computed figure F
     %     T = TrialDataExport.valuesTable(F, K)        panel K: its index or id (several: a list)
+    %     T = TrialDataExport.resultsTable(RESULTS)   every figure of a run's results (a session figure's data file), observation first
     %     txt = TrialDataExport.tableText(T)           T as tab-separated text, the header first
     %     txt = TrialDataExport.copy(F, K)             that text on the clipboard (K optional)
     %     file = TrialDataExport.export(F, K, FILE)    T written as CSV (writetable); FILE "" = a save dialog
@@ -67,6 +68,32 @@ classdef TrialDataExport
                     if P.layers(j).skip ~= "" || ~isstruct(R) || ~isfield(R, 'values') || ~istable(R.values); continue; end
                     parts{end+1} = layerTable(F, P, j, R); %#ok<AGROW>
                 end
+            end
+            T = stackTables(parts);
+        end
+
+        function T = resultsTable(results)
+            %resultsTable  valuesTable of every computed figure in RESULTS (a run's struct array with a field F), an observation column first.
+            %   T = TrialDataExport.resultsTable(RESULTS): RESULTS(i).F is a computed figure
+            %   (EphysAnalysisRunner.runSessionFigure's results: the merged figure of each
+            %   observation); T is its valuesTable with a leading column observation
+            %   (RESULTS(i).observation, else i), the figures' rows one after another. A
+            %   figure with no trial panel adds no row.
+            parts = cell(1, 0);
+            for i = 1:numel(results)
+                r = results(i);
+                if ~isfield(r, 'F') || ~isstruct(r.F) || isempty(r.F) || ~isfield(r.F, 'panels'); continue; end
+                Ti = TrialDataExport.valuesTable(r.F);
+                if height(Ti) == 0; continue; end
+                obs = string(i);
+                if isfield(r, 'observation') && ~isempty(r.observation); obs = string(r.observation); end
+                Ti = addvars(Ti, repmat(obs, height(Ti), 1), 'Before', 1, 'NewVariableNames', 'observation');
+                parts{end+1} = Ti; %#ok<AGROW>
+            end
+            if isempty(parts)
+                T = TrialDataExport.valuesTable(struct('id', "", 'panels', []));
+                T = addvars(T, strings(0, 1), 'Before', 1, 'NewVariableNames', 'observation');
+                return
             end
             T = stackTables(parts);
         end

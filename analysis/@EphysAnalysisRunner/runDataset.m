@@ -167,6 +167,8 @@ for jf = 1:numel(fids)
         pages = strings(1, 0);
         F = [];
         calls = {};   % each observation's auROC calls, for the caption (figureAurocCalls)
+        trialFs = {};   % each observation's figure when it has trial panels: their statistics for the caption (trialStatsText)
+        withTrials = opts.Report && any(ismember([spec.panels.type], EphysAnalysisConfig.TrialPanelTypes));
         draws = opts.Export || withImages || withPages;
         onPool = draws && obj.usePagePool(nObs);
         share = 1 - 0.5 * onPool;   % on the workers the computing is the first half, the drawing the second
@@ -184,6 +186,7 @@ for jf = 1:numel(fids)
             if isempty(F); F = obj.computeFigure(src, spec, Observation=T(i, :)); end
             ac = figureAurocCalls(F);
             if ~isempty(ac); calls{end+1} = ac; end %#ok<AGROW>
+            if withTrials; trialFs{end+1} = trialPart(F); end %#ok<AGROW>
             if ~draws; continue; end   % computed only
             page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, 'Kept', string.empty(1, 0), ...
                 'BatchYLim', BY, 'Images', withImages, 'Pages', withPages);
@@ -203,7 +206,7 @@ for jf = 1:numel(fids)
         if opts.Report
             if isempty(F); F = struct('kind', "figure"); end
             obj.Report = addReportFigure(obj.Report, rspec, F, Files=files, Images=images, Pages=pages, Observations=T, ...
-                Caption=figureCaption(spec, T, Dataset=name, Auroc=calls, YShared=nShared));
+                Caption=figureCaption(spec, T, Dataset=name, Auroc=calls, YShared=nShared, Results=trialFs));
         end
         obj.clearBatchCache(k, spec.id);
         obj.Results(end+1, :) = {name, spec.id, "figure", "done", sprintf("%d observation(s)", nObs), strjoin(files, "; "), toc(t0)};
@@ -287,6 +290,19 @@ if opts.Report
 end
 obj.Results(end+1, :) = {name, spec.id, "figure", "done", sprintf("%d tile(s)", nT), strjoin(files, "; "), toc(t0)};
 obj.log("%s: %s done (%d tile(s), %d file(s), %.1f s)", name, spec.id, nT, numel(files), toc(t0));
+end
+
+
+function K = trialPart(F)
+%trialPart  What the caption reads of a figure's trial panels (trialStatsText): the panels' id, type and layers, without
+%   the other panels and the per-trial values, so a run holds no observation's whole result for it.
+K = struct('panels', F.panels(ismember([F.panels.type], EphysAnalysisConfig.TrialPanelTypes)));
+for k = 1:numel(K.panels)
+    for j = 1:numel(K.panels(k).layers)
+        R = K.panels(k).layers(j).R;
+        if isstruct(R) && isfield(R, 'values'); K.panels(k).layers(j).R = rmfield(R, 'values'); end
+    end
+end
 end
 
 

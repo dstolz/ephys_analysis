@@ -528,7 +528,16 @@ the panel, `categories` and `series` (index, label, color, n, value) and
 `stats` (`trialStats`: `table`, `test`, `pairs`, `fit`, `corr`,
 `options`). The statistics run over all of the panel's layers at once, at
 the end of a dataset's compute and again after a session figure's datasets
-are merged.
+are merged ([The merged result](#the-merged-result)).
+
+`lines = trialStatsText(F)` puts a computed figure's trial-panel statistics
+into words, one line per trial panel, as the report captions print them
+(`figureCaption(..., Results=)`): each category's center ± error with its
+unit and n, the overall p, each pair's adjusted p with its stars, a
+scatter's r and fit R², and the values left out, three significant digits:
+*td: Hit 412 ± 18.3 ms (n = 12), Miss 655 ± 40.1 ms (n = 9); Rank-sum p =
+0.000123; Hit vs Miss p = 0.000123 (holm)\*\*\*; 3 trials without a
+Platform offset*.
 
 ### Drawing and the data table
 
@@ -930,8 +939,8 @@ merged, what a run writes and how it is validated are on the
 | Field | Meaning |
 | --- | --- |
 | `groups` | one row per series: `index`, `label` (the session labels, the subject ids, `"All sessions"`, or `"<series> · <trial group>"` for `combine`), `color` (`groupColors(1:n, false)`; `groupColors(1:n, true)` for `ColorOrder "sequential"`, in date order, which a design draws with its sequential colors; one dark gray for one series), `n` (epochs; units for waveforms), `nSessions`, `nTrials`, and for `combine` `lineStyle` (`-` `--` `:` `-.` by trial group), `group` and `base` (the session, subject or all series the row belongs to: color a `combine` series by `base`) |
-| `sessions` | the sessions table plus `series` (the session's series, NaN when it has no result), `status` (`done` / `missing`; a status the table already held is kept), `nItems` (units or channels of its result; behavior: epochs with a value) and `nEpochs` |
-| `sessionSeries` | how it was made: `mode` (`session`, `subject`, `all`; a heatmap is `all`, waveforms `session`), `error`, `errorNote` (`"95% CI, t"` or `"1.96 × SEM"` for `ci95` across sessions), `match` (`pool`, `site`, `mapping`, `channel` for signals), `minSessions`, `group`, `trialGroups`. (Named so because tuning and behavior results already use `R.series` for their series labels) |
+| `sessions` | the sessions table plus `series` (the session's series, NaN when it has no result), `status` (`done` / `missing`; a status the table already held is kept), `nItems` (units or channels of its result; a trial panel's: its values) and `nEpochs` (a trial panel's: its trials with a value) |
+| `sessionSeries` | how it was made: `mode` (`session`, `subject`, `all`; a heatmap is `all`, waveforms `session`), `error`, `errorNote` (`"95% CI, t"` or `"1.96 × SEM"` for `ci95` across sessions), `match` (`pool`, `site`, `mapping`, `channel` for signals, `none` for event traces and trial panels), `minSessions`, `group`, `trialGroups`. (Named so because tuning results already use `R.series` for their series labels) |
 | `epochs` | every session's epochs stacked, `epoch` renumbered 1..N, with the new columns `session` (the row of `R.sessions`) and `sessionKey`; every epoch-indexed field of the kind (`R.raster(u).epoch`, `epochGroup`, `epochIndex`, `values.epoch`, `rasterEvents`, `keptEpochs`, ...) is offset to match |
 | `tiles` | `match`, `key`, `units` (`{nTiles x nSessions}` row indices into each session's `meta`), `nUnits`, `labels`, `meta`, `channel` |
 | `err` | the band: for series `subject` / `all`, `over = "sessions"` and type `sem`, `std`, `ci95` or `none`; for series `session`, the results' own (over epochs) |
@@ -963,6 +972,8 @@ always pool. A session figure observes one matched unit, so its layers match by 
 | `tuning` | the union of every session's levels (all numeric or all text: `combineSessions:MixedLevels`), `mean`, `sem` `[nLevels x nTiles x nSeries]`; the series label is `seriesParam` `"session"` or `"subject"` |
 | `heatmap` | pool matching and one series: rows are the session-units in session order (a thin divider between sessions); a signal heatmap averages channels over the sessions. With `TrialGroups "each"` the figure's trial groups are its tiles |
 | `waveforms` | pool only: the units' waveforms of every session, each tile colored by its session |
+| `eventTrace` | no tiles: every session's intervals and epochs, each epoch in its series |
+| `trialDist`, `trialHist`, `trialScatter` | no tiles: every session's `values` stacked (`session`, `sessionKey`; `group` the merged series of the value's session and trial group), `n` recounted, `drops` summed (plus `nNoSeries`, values in no series). `categories`, `series` and `stats` are made again by `trialPanelStats` in `figureSessionCompute`, over the merged values |
 
 A result that cannot be merged is an error with an identifier:
 `combineSessions:Kind` (mixed kinds), `:Bins`, `:TimeBase`, `:MixedLevels`,
@@ -1090,12 +1101,11 @@ count, the window length, tiled or sliding) and, given `Auroc=CALLS` (one
 `figureAurocCalls(F)` result per observation: the first auROC result a figure's
 panels hold), what the cutoff called, summed over the observations (*units called
 over [0 0.5] s by the 95% CI cutoff (+/-0.043): Hit 5 up, 2 down; ... (of 6
-units)*; none with the cutoff `"none"`). A [trial panel](#trial-measures) says what it
-draws: *a distribution of Stim onset → Platform offset (ms) per trial by
-TrialType (mean +/- SEM); rank-sum (2 levels) or Kruskal-Wallis tests across the
-categories in each series, all pairs adjusted by Holm, alpha 0.05* (its measures,
-categories and series, summary and error, test, pairs, adjustment and `testAlpha`,
-a scatter's x measure, fit and correlation, its log axes).
+units)*; none with the cutoff `"none"`). A figure with trial panels says what
+each measures, how it groups, summarizes and tests (*trial measure: Stim onset
+→ Platform offset (ms); categories by Depth; mean ± SEM; rank-sum or
+Kruskal-Wallis test (all pairs, holm, alpha 0.05)*), and `Results=FS` (each
+observation's computed figure) appends `trialStatsText`'s lines, each once.
 
 ### Unit waveforms
 
@@ -1453,7 +1463,7 @@ app's preview and the standalone scripts share:
 | `figureProbeTiles(src, spec)` | a [probe figure's](EphysAnalysisConfig.md#probe-figures) tiles: `[T, left, sites]`, the figure's units or channels (`figureObservations`, `perGroup` off) that have a site on the probe, kept by `probe.shanks`, `channels` and `depthRange`, at most `maxPerSite` per recording channel and `maxTiles` in all (every k-th in probe order); `T` gains `x` and `y` (µm), `left` counts what was left out (`noPosition`, `filtered`, `overSite`, `overMax`) and `sites` lists every site of the probe map with `included`. Pure |
 | `figureProbeCompute(src, spec, Check=, Reuse=, ProgressFcn=)` | `[PF, K]`: a probe figure on one dataset, the whole figure computed for every tile (`figureCompute` per row of `figureProbeTiles`, the steps the tiles share computed once), no graphics: `PF.kind` `"probeFigure"`, `tiles` (each tile's `F`, position and `skip`), `sites`, `left`, `epochs` and `groups`. `renderFigure` draws it on one page (`renderProbeFigure`); `EphysAnalysisRunner.computeProbeFigure` wraps it ([Probe figures](EphysAnalysisConfig.md#probe-figures)) |
 | `figureOutputName(pattern, name, spec, obs, i, n)` | the file name (no extension) of observation `i` of `n`: `Export.FilenamePattern` with `{Plot}` the figure's id, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`) and `{Index}` its number, and `_<Unit>` added when the pattern names neither |
-| `figureCaption(spec, T, Dataset=, Sessions=)` | the sentence under the figure in a report: the observations (`T` from `figureObservations`), the panel types and, for aligned panels, the event, window and grouping. `Sessions=S` (the `sessionTable` rows) describes a [session figure](#session-figures-in-a-run) instead: *card: site ch 7 across 3 sessions (1 subject); ...*, with the series and the trial groups' handling |
+| `figureCaption(spec, T, Dataset=, Sessions=, Results=)` | the sentence under the figure in a report: the observations (`T` from `figureObservations`), the panel types and, for aligned panels, the event, window and grouping; trial panels' measures, grouping and tests. `Sessions=S` (the `sessionTable` rows) describes a [session figure](#session-figures-in-a-run) instead: *card: site ch 7 across 3 sessions (1 subject); ...*, with the series and the trial groups' handling. `Results=` (the computed figures) appends the trial panels' statistics (`trialStatsText`) |
 | `figureSessionObservations(sources, spec)` | a session figure's observations matched across the sessions (`sources`: a cell of `loadAnalysisSource` structs, in date order): a row per site, mapping cell, channel or the dataset, with `nSessions`, `unitIds` and `perSession` (the row each session draws). Pure |
 | `figureSessionCompute(sources, sessions, spec, Observation=, Check=)` | `[res, sessions, Fs]`: one observation of a session figure computed on every session (`figureCompute`) and each panel's layers merged with `combineSessions`; `res` has a merged figure `F` per facet and trial group. No runner, no graphics. What it merges and skips: [Session figures](EphysAnalysisConfig.md#merging-a-session-figure) |
 | `figureSessionSpec(spec)` | a session figure's spec as it is computed and drawn: `trialGroups "pool"` clears the groups (and a tuning panel's `seriesParam`), `"combine"` draws PSTH bars as lines, `perGroup` off. `renderFigure` applies it to a merged figure itself |

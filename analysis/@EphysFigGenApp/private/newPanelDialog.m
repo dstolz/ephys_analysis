@@ -39,14 +39,21 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0, 
 %     spectrogram     Frequency range (Hz), Moving window (s)
 %     coherence       Frequency range (Hz)
 %     eventTrace      Lines (LINES: one events layer each), Display
+%     trialDist, trialHist, trialScatter   no Reads or Binding (a trials
+%                     layer, always fixed): the measure's Kind, From (A's
+%                     line and edge; grayed out for a parameter), To (B's;
+%                     grayed out for a duration or a parameter), Parameter
+%                     (PARAMS; a parameter's only), and a distribution's
+%                     Display, a histogram's Draw as, a scatter's Fit
 %     legend          Orientation (auto, vertical, horizontal) and
 %                     Columns (0 = automatic); no source: a legend panel
 %                     shows the figure's legend entries
 %   OK returns C, a struct onNewPanel takes as its options: Type, Where
 %   ("free", "below", "above", "right", "left", "draw": onNewPanel then
 %   waits for two clicks on the preview), Rect ([]), Id, Title, Source, Partner, Binding, Lines
-%   and Options (the partial options the parameters set), Set ("") and
-%   Alignment. Refused with a red line instead: a name another panel of F
+%   and Options (the partial options the parameters set), Measure (a trial
+%   panel's: a struct with kind, from and to (line, edge each) and param;
+%   else struct()), Set ("") and Alignment. Refused with a red line instead: a name another panel of F
 %   has; a second legend panel ("The figure already has a legend panel
 %   (legend_1)."); a place grayed out. Cancel, or closing the window,
 %   returns [].
@@ -80,7 +87,8 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0, 
 %   current parameters' controls, a struct by name: Source, Partner,
 %   Binding, Sort, BinMs, SmoothMs, Measure, Display, ErrorType, Rows,
 %   Layout, Value, Metric, Correlation, Param, Series, FreqFrom, FreqTo,
-%   Scale, WinSec, StepSec, Lines; a saved figure's: Alignment), Message,
+%   Scale, WinSec, StepSec, Lines, Kind, From, FromEdge, To, ToEdge, Fit;
+%   a saved figure's: Alignment), Message,
 %   Ok and Cancel.
 %
 %   See also onNewPanel, EphysAnalysisConfig.panelTypes, figureEditorChoices,
@@ -324,7 +332,7 @@ if isvalid(d); delete(d); end
             end
             c.Where = w;
             c.Rect = [];
-            c = orderfields(c, {'Type', 'Where', 'Rect', 'Id', 'Title', 'Source', 'Partner', 'Binding', 'Lines', 'Options', 'Set', 'Alignment'});
+            c = orderfields(c, {'Type', 'Where', 'Rect', 'Id', 'Title', 'Source', 'Partner', 'Binding', 'Lines', 'Options', 'Measure', 'Set', 'Alignment'});
         end
         uiresume(d);
     end
@@ -405,7 +413,8 @@ specs = {};   % {name, label, maker}: a row each
 ch = figureEditorChoices(t, "");
 srcs = ch.Sources(ch.Sources ~= "events");
 labels = ch.SourceLabels(ch.Sources ~= "events");
-if t ~= "eventTrace" && ~isempty(srcs)
+trialType = ismember(t, EphysAnalysisConfig.TrialPanelTypes);   % a trials layer, always fixed: its measure instead
+if t ~= "eventTrace" && ~trialType && ~isempty(srcs)
     first = EphysAnalysisConfig.defaultLayer(t).source;
     if ~ismember(first, srcs); first = srcs(1); end
     specs(end+1, :) = {"Source", ternary(t == "coherence", "Seed:", "Reads:"), ...
@@ -490,6 +499,36 @@ switch t
         end
         specs(end+1, :) = {"Display", "Draw as:", @(gr) uidropdown(gr, "Items", ["solid bars (onset to offset)" "a logic level (a line)"], ...
             "ItemsData", ["bars" "line"], "Value", def.display, "Tooltip", "How each interval of a line is drawn.")};
+    case {"trialDist" "trialHist" "trialScatter"}   % the first layer's measure (the editor's Trial measure window has every row)
+        tm = EphysAnalysisConfig.defaults("TrialMeasure");
+        specs(end+1, :) = {"Kind", "Measure:", @(gr) uidropdown(gr, "Items", ["Delay from an event to another" ...
+            "Duration of an interval" "Count of events after an event" "A trial parameter"], ...
+            "ItemsData", EphysAnalysisConfig.TrialMeasureKinds, "Value", tm.kind, ...
+            "Tooltip", "The number each trial gives: the time from A to B, the length of A's interval, how many B " + ...
+            "events follow A, or a trial column.")};
+        specs(end+1, :) = {"From", "From (A):", @(gr) linePair(gr, lines, tm.from.line, tm.from.edge, ...
+            "A: the line and edge each trial's value starts from (its first one in the trial; the editor's Trial " + ...
+            "measure window has which, scope, shifts and sequences).")};
+        specs(end+1, :) = {"To", "To (B):", @(gr) linePair(gr, lines, tm.to.line, tm.to.edge, ...
+            "B: the line and edge the value is measured to (a delay), or counted (a count).")};
+        specs(end+1, :) = {"Param", "Parameter:", @(gr) uidropdown(gr, "Editable", "on", "Items", ["" params], "Value", "", ...
+            "Tooltip", "A trial parameter: the trial column each trial's value is.")};
+        switch t
+            case "trialDist"
+                specs(end+1, :) = {"Display", "Display:", @(gr) uidropdown(gr, "Items", ["swarm" "box" "violin" ...
+                    "points (jittered)" "line (the summary per category)"], "ItemsData", ["swarm" "box" "violin" "points" "line"], ...
+                    "Value", among(def.display, ["swarm" "box" "violin" "points" "line"]), ...
+                    "Tooltip", "How each category's values are drawn.")};
+            case "trialHist"
+                specs(end+1, :) = {"Display", "Draw as:", @(gr) uidropdown(gr, "Items", ["bars" "an outline" ...
+                    "the cumulative distribution (ECDF)"], "ItemsData", ["bars" "outline" "ecdf"], ...
+                    "Value", among(def.display, ["bars" "outline" "ecdf"]), "Tooltip", "How each series' histogram is drawn.")};
+            case "trialScatter"
+                specs(end+1, :) = {"Fit", "Fit:", @(gr) uidropdown(gr, "Items", ["none" "a line" "a quadratic" "a cubic" ...
+                    "a moving mean" "a moving median"], "ItemsData", EphysAnalysisConfig.TrialFits, ...
+                    "Value", among(def.fit, EphysAnalysisConfig.TrialFits), "Tooltip", "A fit per series (its x: the " + ...
+                    "trial onset to A's line by default; the editor's X measure).")};
+        end
     case "legend"
         specs(end+1, :) = {"Orientation", "Orientation:", @(gr) uidropdown(gr, "Items", ["auto (by the panel's shape)" ...
             "vertical" "horizontal"], "ItemsData", ["auto" "vertical" "horizontal"], ...
@@ -533,6 +572,34 @@ if isfield(P, 'FreqFrom')
     P.FreqFrom = findobj(kids, 'Tag', 'first');
     P.FreqTo = findobj(kids, 'Tag', 'second');
 end
+for e = ["From" "To"]   % a measure's events: a line and an edge each
+    if ~isfield(P, e); continue; end
+    kids = P.(e).Children;
+    P.(e) = findobj(kids, 'Tag', 'line');
+    P.(e + "Edge") = findobj(kids, 'Tag', 'edge');
+end
+if isfield(P, 'Kind')   % B grayed out for a duration or a parameter, A for a parameter; the parameter for a parameter only
+    P.Kind.ValueChangedFcn = @(~, ~) kindChanged(P);
+    kindChanged(P);
+end
+end
+
+
+function h = linePair(gr, lines, ln, edge, tip)
+%linePair  A line (an editable drop-down of LINES, LN shown) and its edge (EDGE) in a grid of their own (Tags "line" and "edge").
+h = uigridlayout(gr, [1 2], "ColumnWidth", {'1x', 80}, "Padding", [0 0 0 0], "ColumnSpacing", 6);
+uidropdown(h, "Editable", "on", "Items", unique([string(ln) lines], 'stable'), "Value", ln, "Tag", "line", "Tooltip", tip);
+uidropdown(h, "Items", ["onset" "offset"], "Value", edge, "Tag", "edge", "Tooltip", tip);
+end
+
+
+function kindChanged(P)
+%kindChanged  A trial panel's measure rows enabled by its Kind: B with a delay or a count, A but with a parameter, the parameter with one.
+k = string(P.Kind.Value);
+on = @(tf) matlab.lang.OnOffSwitchState(tf);
+set([P.To P.ToEdge], 'Enable', on(ismember(k, ["delay" "count"])));
+set([P.From P.FromEdge], 'Enable', on(k ~= "param"));
+P.Param.Enable = on(k == "param");
 end
 
 
@@ -598,7 +665,7 @@ end
 function c = gatherParams(P, t)
 %gatherParams  What the parameters say, as onNewPanel's options: Source, Partner, Binding, Lines and Options (Set "", Alignment "figure").
 c = struct('Source', "", 'Partner', "", 'Binding', "", 'Lines', string.empty(1, 0), 'Options', struct(), ...
-    'Set', "", 'Alignment', "figure");
+    'Measure', struct(), 'Set', "", 'Alignment', "figure");
 o = struct();
 if isfield(P, 'Source'); c.Source = string(P.Source.Value); end
 if isfield(P, 'Partner'); c.Partner = string(P.Partner.Value); end
@@ -628,6 +695,13 @@ if isfield(P, 'Scale'); o.scale = string(P.Scale.Value); end
 if isfield(P, 'WinSec'); o.movingwin = [P.WinSec.Value P.StepSec.Value]; end
 if isfield(P, 'Orientation'); o.orientation = string(P.Orientation.Value); end
 if isfield(P, 'Columns'); o.columns = round(P.Columns.Value); end
+if isfield(P, 'Fit'); o.fit = string(P.Fit.Value); end
+if isfield(P, 'Kind')   % a trial panel's first layer's measure
+    c.Measure = struct('kind', string(P.Kind.Value), ...
+        'from', struct('line', strtrim(string(P.From.Value)), 'edge', string(P.FromEdge.Value)), ...
+        'to', struct('line', strtrim(string(P.To.Value)), 'edge', string(P.ToEdge.Value)), ...
+        'param', strtrim(string(P.Param.Value)));
+end
 c.Options = o;
 if t == "eventTrace"; c.Source = ""; end
 end

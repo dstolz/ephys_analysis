@@ -1,8 +1,12 @@
-function t = layerLabel(L)
+function t = layerLabel(L, type)
 %layerLabel  A figure layer as the Layers list names it.
-%   T = layerLabel(L) for one layer L (defaults("Layer")):
+%   T = layerLabel(L, TYPE) for one layer L (defaults("Layer")) of a panel
+%   of TYPE (default "": any):
 %     events    "events: Stim offset (marks)" (its event's eventRefLabel,
 %               and drawn as marks or a train)
+%     trials    "trials: Stim onset → Platform offset (ms)" (its measure's
+%               trialMeasureLabel); on a trial scatter "trials: <y> vs
+%               <x>" (its xMeasure's)
 %     fixed     "units, fixed: ids 3 5 (mean)", "LFP, fixed: ch 3 5" or
 %               "..., fixed: all"; the mean when it averages them, the
 %               magnitude when a signal's are one ("AUX, fixed: ch 1 2 3
@@ -12,9 +16,16 @@ function t = layerLabel(L)
 %   layer that is not enabled.
 %
 %   See also EphysFigGenApp.onLayerSelected.
+arguments
+    L (1,1) struct
+    type (1,1) string = ""
+end
 switch L.source
     case "events"
         t = "events: " + eventRefLabel(eventMarkRef(L.event)) + " (" + L.eventsAs + ")";
+    case "trials"
+        t = "trials: " + trialMeasureLabel(L.measure);
+        if type == "trialScatter"; t = t + " vs " + trialMeasureLabel(L.xMeasure); end
     otherwise
         if L.binding == "observation"
             t = L.source + ", follows the observation";

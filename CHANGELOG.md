@@ -470,6 +470,16 @@ says how to cut a release.
   `anova1`) with pairwise tests adjusted by `pAdjust`, starred, and significant below the panel's `testAlpha`; linear, polynomial and moving fits with 95% bands
   and Pearson or Spearman correlations, in log10 units on a log axis. Suite `test_TrialMeasure`. See
   [EphysAnalysis](documentation/EphysAnalysis.md#trial-measures).
+- Analysis app: the trial panels in the Figures tab. A trials layer's **Measure** row (a trial scatter's **X
+  measure** too) names its measure, and **Edit...** opens the modal **Trial measure** window: the kind, A's and B's
+  event rows as the Alignment tab has them (sequences included), the direction, the gap, the parameter, the unit and
+  the label, its automatic name shown as you edit; **OK** is one undo step (*Trial measure*). The Options section has
+  the trial panels' rows (**Categories**, **Series**, **Summary** with the **Error** row, **Test**, **P adjustment**,
+  **Show tests**, a distribution's **Display**, **Points** and **Show**, a histogram's **Draw as**, **Bins** and
+  **Opacity**, a scatter's **Fit**, **Correlation** and **Marginals**, **Scales (x, y)**, **X limits**), those a value
+  does not use grayed out. Panel alignment shows a trial panel its trial selection alone. The New panel window gives
+  the trial panels the measure's **Measure** (kind), **From (A)**, **To (B)** and **Parameter** and their display
+  (`onNewPanel(Measure=...)` for scripts). The epoch diagram drops its leftover `behavior` lines.
 - Pipeline app, Project tab: **Copy manifests** in the Tools panel puts the manifest files of its datasets (the active
   one, or the ticked ones) on the clipboard as files, to paste into a folder, an e-mail or a chat, and lists in a
   message the files the clipboard holds and any not copied (`copyFilesToClipboard`, Windows).

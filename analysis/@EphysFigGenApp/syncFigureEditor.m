@@ -23,7 +23,8 @@ function syncFigureEditor(obj)
 %                    axes); Panel alignment's rows grayed out (they
 %                    show the figure's) while "Same as the figure" is
 %                    ticked, and, with a note, for a type not aligned to
-%                    events; its trial selection rows grayed out while
+%                    events; a trial panel's (no event or window) only
+%                    its trial selection, with a note; its trial selection rows grayed out while
 %                    "Trial selection as the figure" is ticked; its Apply
 %                    to all panels only while the panel has its own,
 %                    Re-link all panels while any panel has its own
@@ -31,7 +32,8 @@ function syncFigureEditor(obj)
 %                    panels while the figure has another panel (every
 %                    one takes the axis sides)
 %     Event reference, Epoch window, Trial selection   unless every panel
-%                    of the figure is one not aligned to events
+%                    of the figure is one not aligned to events (Trial
+%                    selection also with a trial panel, which takes it)
 %     First-spike latency   while the figure has a raster, PSTH or heat
 %                    map panel: a note naming the panels that read it,
 %                    Method, Detect, Baseline (its window's fields enabled
@@ -49,7 +51,9 @@ function syncFigureEditor(obj)
 %                    drawn (a mark's look for marks, the color and span
 %                    line for a span; Draw as grayed out on an event-trace
 %                    panel, which offers a train only on a raster, PSTH or
-%                    heat map); the color and line style but for marks
+%                    heat map); a trials layer's Measure (and a trial
+%                    scatter's X measure), each with Edit... (the Trial
+%                    measure window); the color and line style but for marks
 %                    and spans
 %     Options        the panel type's own (titled "<Type> options"); a heat
 %                    map of a signal has no bins or measure; a PSTH's or a
@@ -88,6 +92,14 @@ function syncFigureEditor(obj)
 %                    panel's rows (the bar outline with bars, the level
 %                    line with a line, the group bands with a sub-row per
 %                    epoch, the baseline's look with a baseline); a
+%                    trial panel's rows (trialEnable: a distribution's
+%                    categories, display, points and summary marks; a
+%                    histogram's display, bins, opacity and summary line;
+%                    a scatter's points, opacity, fit, correlation and
+%                    marginals; on all three the series, summary (with
+%                    the Error row), test, adjustment, how the tests show
+%                    and the scales, a histogram's and scatter's x limits,
+%                    a distribution's and scatter's y limits); a
 %                    legend panel's entries (orientation, columns) and
 %                    place in the panel
 %     Waveform       with a panel whose type draws spikes (its sources
@@ -278,7 +290,7 @@ v.panelXShow = false;
 % layers and options: off unless the panel uses them
 layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layerBinding" "layerFollows" "layerClasses" ...
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
-    "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "evSpanStyle" "layerColor" "layerLineStyle"];
+    "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "evSpanStyle" "trMeasure" "trXMeasure" "layerColor" "layerLineStyle"];
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "tickWidth" "backColor" ...
     "firstSpike" "latencyBox" "onsetLine" "trialCount" ...
     "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "statistic" "errorType" "errFace" "errEdge" "order" ...
@@ -286,7 +298,9 @@ optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
     "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
-    "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing" "legOrient" "legAlign"];
+    "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing" "legOrient" "legAlign" ...
+    "trCategories" "trSeries" "trSummary" "trTest" "trAdjust" "trTestShow" "trDisplay" "trMarker" "trShowSummary" ...
+    "trHistDisplay" "trBins" "trOpacity" "trFit" "trCorr" "trMarginals" "trXScale" "trXLim"];
 waveKeys = ["waveNote" "waveMode" "waveSpikes" "waveFrom" "waveAmp" "waveWidth" "waveLocation" "wavePP" "waveSites"];
 noteKeys = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"];
 overlayKeys = ["ovList" "ovName" "ovKind" "ovValue" "ovFrom" "ovLayer" "ovColor" "ovFill" "ovEdge" "ovStyle"];
@@ -315,7 +329,7 @@ if hasPanel
     % layers
     nl = numel(p.layers);
     labels = strings(1, nl);
-    for i = 1:nl; labels(i) = layerLabel(p.layers(i)); end
+    for i = 1:nl; labels(i) = layerLabel(p.layers(i), t); end
     if ~isequal(string(E.layerList.Items), labels)
         if nl == 0
             set(E.layerList, "Items", {}, "ItemsData", []);
@@ -350,6 +364,7 @@ if hasPanel
         v.layerAggregate = fixed && (isSpike || isSignal) && numel(lc.Aggregates) > 1;
         v.evLine = L.source == "events"; v.evEdge = v.evLine; v.evSeqText = v.evLine; v.evDrawAs = v.evLine;
         v.evMarker = marks; v.evColor = marks || span; v.evSpanStyle = span;
+        v.trMeasure = L.source == "trials"; v.trXMeasure = v.trMeasure && t == "trialScatter";   % its measures: Edit... opens the Trial measure window
         v.layerColor = ~(marks || span); v.layerLineStyle = v.layerColor;
         if ~lc.Bindable; E.layerBinding.Value = "fixed"; end
         en(E.layerBinding, lc.Bindable);
@@ -424,6 +439,7 @@ if hasPanel
     stop = obj.FigureAlignControls.StopOn.Value;
     if isstruct(p.window); stop = obj.PanelAlignControls.StopOn.Value; end
     en(E.maskAfterStop, stop);
+    if ismember(t, EphysAnalysisConfig.TrialPanelTypes); trialEnable(E, t); end   % a trial panel's rows its values do not use: grayed out
     en(E.optApplyAll, np > 1);   % Apply to all panels: any other panel (every one takes the axis sides; adoptPanelOptions)
 
     % the unit waveform's note (what it sets, or why the type draws none) and its rows' enabling
@@ -441,18 +457,23 @@ if hasPanel
     if ismember(t, ["corrmap" "rate" "tuning"]); modes = ["fixed" "between"]; end
     AlignControls.setWindowModes(obj.PanelAlignControls.Mode, modes);
     C2 = obj.PanelAlignControls;
+    trialPanel = ismember(t, EphysAnalysisConfig.TrialPanelTypes);   % no event or window, but a trial selection of its own
     unlinked = paligned && ~E.panelSame.Value;   % linked ("Same as the figure"): the rows show the figure's, locked
     ctl = findobj([C2.RefGrid C2.WindowGrid], '-property', 'Enable');
     set(ctl, 'Enable', onoff(unlinked));
     if unlinked; AlignControls.syncEnable(C2); end
-    ownSel = paligned && ~E.panelSameSel.Value;   % linked ("Trial selection as the figure"): the figure's, locked
+    selectable = paligned || trialPanel;
+    ownSel = selectable && ~E.panelSameSel.Value;   % linked ("Trial selection as the figure"): the figure's, locked
     set(findobj(C2.SelectionGrid, '-property', 'Enable'), 'Enable', onoff(ownSel));
     if ownSel; en(C2.MinArtifact, C2.ExcludeArtifacts.Value); end
     en(E.panelSame, paligned);
-    en(E.panelSameSel, paligned);
+    en(E.panelSameSel, selectable);
+    set([E.panelSame C2.RefGrid C2.WindowGrid], 'Visible', onoff(~trialPanel));   % a trial panel: the selection alone
     en(E.alignApplyAll, (unlinked || ownSel) && ~several);   % (it gives one panel's own to the figure)
     E.palignNote.Text = "";
-    if ~paligned
+    if trialPanel
+        E.palignNote.Text = "Trial panels use no event or window: they take the figure's trial selection, or their own.";
+    elseif ~paligned
         E.palignNote.Text = typeLabel + " panels are not aligned to events: they use no event or window.";
     end
 
@@ -488,6 +509,7 @@ en(E.alignRelinkAll, own);
 pg = E.palignGrid;
 hs = pg.UserData;
 note = 34 * (hasPanel && ~paligned);
+hs(1:2) = hs(1:2) * ~(hasPanel && ismember(fig.panels(j).type, EphysAnalysisConfig.TrialPanelTypes));   % a trial panel: no event or window rows
 pg.RowHeight = {note, 30, hs(1), hs(2), 22, hs(3)};
 S(names == "palign").BodyHeight = note + 30 + hs(1) + hs(2) + 22 + hs(3) + 5 * pg.RowSpacing;
 
@@ -524,8 +546,10 @@ for i = 1:numel(S)
             S(i).Visible = hasPanel && ~several;   % each panel's own
         case "waveform"
             S(i).Visible = hasPanel && waveSpiky;
-        case {"ref" "window" "selection"}
+        case {"ref" "window"}
             S(i).Visible = np == 0 || any(aligned);
+        case "selection"   % the trial panels take the figure's trial selection too
+            S(i).Visible = np == 0 || any(aligned) || any(ismember(types0, EphysAnalysisConfig.TrialPanelTypes));
         case "latency"
             S(i).Visible = latOn;
         otherwise
@@ -623,7 +647,7 @@ v.contTrials = t == "continuous";
 v.maskAfterStop = ismember(t, ["raster" "psth"]) || pointHeat;
 v.histStyle = t == "psth" && ~psthHeat; v.fill = v.histStyle; v.normalize = t == "psth";
 v.statistic = t == "continuous";
-v.errorType = ismember(t, ["psth" "continuous" "rate" "tuning"]) && ~psthHeat;   % the panel's own error (its items by type)
+v.errorType = ismember(t, ["psth" "continuous" "rate" "tuning" EphysAnalysisConfig.TrialPanelTypes]) && ~psthHeat;   % the panel's own error (its items by type; a trial panel's summary's)
 v.order = t == "heatmap" && ~trialHeat;
 et = t == "eventTrace";   % an event-trace panel's rows
 v.etDisplay = et; v.etTrials = et; v.etColorBy = et; v.etHeight = et; v.etEdge = et; v.etMinWidth = et; v.etLineStyle = et;
@@ -634,7 +658,16 @@ v.legOrient = t == "legend"; v.legAlign = v.legOrient;
 v.unitLabels = v.value;
 v.waveColor = v.value;
 v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric; v.detrend = v.metric;
-v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning" "spectrum"]) && ~psthHeat;
+v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "trialDist" "trialScatter"]) && ~psthHeat;
+% the trial panels: a distribution's categories and display, a histogram's bins, a scatter's fit, correlation and
+% marginals; the grouping, summary, test and scale rows on all three (trialEnable grays what their values do not use)
+isDist = t == "trialDist"; isHist = t == "trialHist"; isScat = t == "trialScatter";
+trial = isDist || isHist || isScat;
+v.trCategories = isDist; v.trDisplay = isDist;
+v.trSeries = trial; v.trSummary = trial; v.trTest = trial; v.trAdjust = trial; v.trTestShow = trial; v.trXScale = trial;
+v.trMarker = isDist || isScat; v.trShowSummary = isDist || isHist; v.trOpacity = isHist || isScat; v.trXLim = isHist || isScat;
+v.trHistDisplay = isHist; v.trBins = isHist;
+v.trFit = isScat; v.trCorr = isScat; v.trMarginals = isScat;
 v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram"]) || psthHeat;
 v.panelColormap = psthHeat;
 % the spectral panels: the Chronux tab's rows
@@ -694,6 +727,54 @@ val = struct('heatRows', optionText(op, "rows", "items"), 'psthDisplay', optionT
 if isfield(op, 'overTime'); val.overTime = isscalar(op.overTime) && logical(op.overTime); end
 if isfield(op, 'baseline') && isstruct(op.baseline) && isfield(op.baseline, 'Mode'); val.baselineMode = optionText(op.baseline, "Mode", ""); end
 if isfield(op, 'auroc') && isstruct(op.auroc) && isfield(op.auroc, 'cutoff'); val.aurocCutoff = optionText(op.auroc, "cutoff", ""); end
+end
+
+
+function trialEnable(E, t)
+%trialEnable  A trial panel's (TYPE T) Options rows enabled by its values: what they do not use grayed out.
+%   A parameter's name and bins with "a trial parameter"; the pairs, the
+%   adjustment, alpha and how the tests show unless the test is none (the
+%   bracketed pairs on a distribution with brackets); x at values with
+%   points or a line, the jitter with points, the summary mark with a
+%   swarm, points or violin, n in the ticks on a distribution; the
+%   normalization but with an ECDF, the bin count or width by Bins; the fit's
+%   band with a line or polynomial, its window with a moving one; the
+%   marginals' size with them; the x scale but on a distribution, the y
+%   scale but on a histogram. The Show tests items are the type's.
+en = @(c, tf) set(c, 'Enable', matlab.lang.OnOffSwitchState(tf));
+isDist = t == "trialDist";
+en([E.trCategoryParam E.trCategoryBins], string(E.trCategories.Value) == "param");
+en([E.trSeriesParam E.trSeriesBins], string(E.trSeries.Value) == "param");
+shows = ["text" "off"];
+labels = ["the p in a corner" "off (the caption only)"];
+if isDist
+    shows = ["brackets" shows];
+    labels = ["brackets, stars and the p" labels];
+end
+if ~isequal(string(E.trTestShow.ItemsData), shows)   % (set only when they change)
+    was = string(E.trTestShow.Value);
+    E.trTestShow.ItemsData = [];
+    set(E.trTestShow, "Items", labels, "ItemsData", shows);
+    if ismember(was, shows); E.trTestShow.Value = was; end
+end
+testOn = string(E.trTest.Value) ~= "none";
+en([E.trPairs E.trAdjust E.trAlpha E.trTestShow], testOn);
+en(E.trBracketPairs, testOn && isDist && string(E.trTestShow.Value) == "brackets");
+drawn = string(E.trDisplay.Value);
+en(E.trOrdinalX, ismember(drawn, ["points" "line"]));
+en(E.trJitter, isDist && drawn == "points");
+en(E.trShowSummary, ~isDist || ismember(drawn, ["swarm" "points" "violin"]));
+en(E.trShowN, isDist);
+en(E.trNormalization, string(E.trHistDisplay.Value) ~= "ecdf");
+bins = string(E.trBins.Value);
+en(E.trBinCount, bins == "count");
+en(E.trBinWidth, bins == "width");
+fitted = string(E.trFit.Value);
+en(E.trFitBand, ismember(fitted, ["linear" "poly2" "poly3"]));
+en(E.trFitWindow, ismember(fitted, ["movmean" "movmedian"]));
+en(E.trMarginalSize, logical(E.trMarginals.Value));
+en(E.trXScale, ~isDist);
+en(E.trYScale, t ~= "trialHist");
 end
 
 

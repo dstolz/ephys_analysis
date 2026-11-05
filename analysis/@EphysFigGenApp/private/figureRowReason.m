@@ -101,6 +101,10 @@ switch key
         tail = "is for an events layer drawn as marks or as a line from onset to offset.";
     case "evSpanStyle"
         tail = "is for an events layer drawn as a line from onset to offset.";
+    case "trMeasure"
+        tail = "is for a trials layer (a trial distribution, histogram or scatter panel's): pick one in the Layers list.";
+    case "trXMeasure"
+        tail = "is a trial scatter's x: pick a trials layer of a trial scatter panel in the Layers list.";
     case {"layerColor" "layerLineStyle"}
         tail = "is for a layer that is not drawn as event marks or spans.";
     case {"ovName" "ovKind" "ovLayer" "ovStyle"}
@@ -128,6 +132,7 @@ switch type
     case "eventTrace", s = "an event-trace panel has a row per line already.";
     case "corrmap", s = "a unit correlation map is a units-by-units matrix (draw a panel per group with Group shown).";
     case {"waveforms" "probemap"}, s = "it has no trial groups to stack.";
+    case cellstr(EphysAnalysisConfig.TrialPanelTypes), s = "a trial panel groups its values by Categories and Series instead.";
     otherwise, s = "pick such a panel.";
 end
 end
@@ -168,7 +173,7 @@ T.onsetLine = o(["raster" "psth"], "");
 T.trialCount = o("psth", "");
 T.heatRows = o("heatmap", "");
 for f = ["contTrials" "statistic"]; T.(f) = o("continuous", ""); end
-T.errorType = o(["psth" "continuous" "rate" "tuning"], "on a PSTH with Display: trace");
+T.errorType = o(["psth" "continuous" "rate" "tuning" EphysAnalysisConfig.TrialPanelTypes], "on a PSTH with Display: trace");
 T.errFace = o(["psth" "continuous" "spectrum" "coherence" "waveforms" "probemap"], ...
     "on a PSTH with Display: trace, on a coherence panel unless drawn over time");
 T.errEdge = T.errFace;
@@ -183,7 +188,7 @@ T.legAlign = T.legOrient;
 T.unitLabels = o("probemap", "");
 T.waveColor = o("probemap", "with Waveform: Show, and Value: rate or nSpikes");
 for f = ["metric" "correlation" "fisherZ" "detrend"]; T.(f) = o("corrmap", ""); end
-T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence"], ...
+T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence" "trialDist" "trialScatter"], ...
     "on a PSTH with Display: trace, on a coherence panel unless drawn over time (an image's scale is its Color limits)");
 T.yLimMode = T.yLim;
 T.cLim = o(["psth" "heatmap" "probemap" "corrmap" "spectrogram" "coherence"], ...
@@ -202,6 +207,16 @@ for f = ["auMethod" "auWinMs" "auModFrom" "auCutoff" "auMarks"]
     T.(f) = o(["psth" "heatmap"], "with the auroc baseline (a heat map of spikes)");
 end
 T.auTest = o(["psth" "heatmap"], "with the auroc baseline and the per-unit test cutoff");
+% the trial panels' rows (one value per trial: a distribution, histogram or scatter)
+trial = EphysAnalysisConfig.TrialPanelTypes;
+for f = ["trSeries" "trSummary" "trTest" "trAdjust" "trTestShow" "trXScale"]; T.(f) = o(trial, ""); end
+T.trCategories = o("trialDist", "");
+T.trDisplay = o("trialDist", "");
+T.trMarker = o(["trialDist" "trialScatter"], "");
+T.trShowSummary = o(["trialDist" "trialHist"], "");
+for f = ["trHistDisplay" "trBins"]; T.(f) = o("trialHist", ""); end
+for f = ["trOpacity" "trXLim"]; T.(f) = o(["trialHist" "trialScatter"], ""); end
+for f = ["trFit" "trCorr" "trMarginals"]; T.(f) = o("trialScatter", ""); end
 end
 
 

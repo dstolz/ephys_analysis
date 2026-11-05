@@ -41,7 +41,11 @@ function onNewPanel(obj, opts)
 %   the layer cannot follow the observation), Lines (an event-trace
 %   panel: one events layer per line) and Options (a partial options
 %   struct of the type, merged into its defaults: struct('bins',
-%   struct('BinSec', 0.02))) and Remembered (false: the type's defaults;
+%   struct('BinSec', 0.02))), Measure (a trial panel's: a partial
+%   TrialMeasure merged into its first layer's measure, its from and to
+%   field by field: struct('kind', "delay", 'from', struct('line',
+%   "Stim"), 'to', struct('line', "Platform", 'edge', "offset"))) and
+%   Remembered (false: the type's defaults;
 %   true: the options remembered for the type over them, as the window
 %   starts from, under Options).
 %   onNewPanel(Where=W) without a Type opens the window with Place at W.
@@ -74,6 +78,7 @@ arguments
     opts.Binding (1,1) string {mustBeMember(opts.Binding, ["" "observation" "fixed"])} = ""
     opts.Lines (1,:) string = string.empty(1, 0)
     opts.Options (1,1) struct = struct()
+    opts.Measure (1,1) struct = struct()
     opts.Remembered (1,1) logical = false
 end
 k = obj.SelectedFigure;
@@ -142,6 +147,9 @@ if t == "eventTrace" && ~isempty(opts.Lines)   % a row per line
     L = repmat(L(1), 1, numel(opts.Lines));
     for q = 1:numel(opts.Lines); L(q).event.line = opts.Lines(q); end
 end
+if ~isempty(fieldnames(opts.Measure)) && ~isempty(L) && L(1).source == "trials"   % a trial panel's measure: its kind, events, parameter
+    L(1).measure = EphysAnalysisConfig.normalizeSection("TrialMeasure", mergeOptions(L(1).measure, opts.Measure));
+end
 rows = "items";
 if isfield(opts.Options, 'rows'); rows = string(opts.Options.rows); end
 for q = 1:numel(L)
@@ -166,7 +174,7 @@ p = fig.panels(end);
 [pageCm, dpi] = figurePage(obj, fig);
 msg = "Added " + p.id + " (" + PT.Label(row) + ") " + placeWords(fig0, opts.Where, anchor) + ", " + ...
     rectText(p.rect, obj.FigureRectUnits, pageCm, dpi) + ".";
-if ~isempty(p.layers); msg = msg + " Its layer: " + layerLabel(p.layers(1)) + "."; end
+if ~isempty(p.layers); msg = msg + " Its layer: " + layerLabel(p.layers(1), p.type) + "."; end
 if ~isempty(fieldnames(mem))
     msg = msg + " Its options start from those last set on a " + PT.Label(row) + " panel (" + ...
         strjoin(string(fieldnames(mem)).', ", ") + "; Edit > Reset panel options to defaults).";
@@ -181,7 +189,7 @@ function drawOnPreview(obj, opts, remembered, what)
 %   here as Where "rect" with the rect drawn (cornerClick), starting from
 %   the remembered options as they would now (REMEMBERED).
 o = struct();
-for f = ["Type" "Set" "Alignment" "Id" "Title" "Source" "Partner" "Binding" "Lines" "Options"]
+for f = ["Type" "Set" "Alignment" "Id" "Title" "Source" "Partner" "Binding" "Lines" "Options" "Measure"]
     if isfield(opts, f); o.(f) = opts.(f); end
 end
 o.Remembered = remembered;

@@ -89,6 +89,7 @@ abHeight = 232;
 pos = obj.Fig.Position;
 d = uifigure('Name', name + ": " + pid + ", layer " + i, 'Position', [pos(1) + 100, pos(2) + 60, 1000, 600], ...
     'Tag', 'trialMeasureDialog', 'WindowStyle', 'modal');
+obj.TrialMeasureDialog = d;   % kept, so closeTrialMeasureDialog finds it without a search
 addlistener(obj.Fig, 'ObjectBeingDestroyed', @(~, ~) delete(d(isvalid(d))));   % it goes with the app
 g = uigridlayout(d, [9 1], 'RowHeight', {'fit', 24, abHeight, 24, 24, 24, 24, '1x', 36}, 'Padding', [12 12 12 12], ...
     'RowSpacing', 8);

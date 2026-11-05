@@ -279,6 +279,7 @@ classdef EphysFigGenApp < handle
         AlignBarsExcluded  matlab.ui.control.CheckBox   % off: the bars leave out what Pairing and Artifacts exclude; on: stack it on
         AlignTrialsTable   matlab.ui.control.Table
         SequenceDialog     matlab.ui.Figure = matlab.ui.Figure.empty   % the Event sequence window (editSequence), when open
+        TrialMeasureDialog matlab.ui.Figure = matlab.ui.Figure.empty   % the Trial measure window (trialMeasureDialog), when open
 
         % --- Figures tab (buildFiguresTab) ---
         FiguresTree            matlab.ui.container.Tree         % the figures under groups (figureGroups); a figure's node holds its index in NodeData

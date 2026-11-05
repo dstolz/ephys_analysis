@@ -8,10 +8,21 @@ function closeTrialMeasureDialog(obj, force)
 %   them (as closeSequenceDialog does for the Event sequence window).
 %   closeTrialMeasureDialog(OBJ, true) closes it whatever is shown.
 %
+%   The window is the one the app keeps (OBJ.TrialMeasureDialog), so the
+%   common case, no window open, costs nothing: applyFigureEditor calls
+%   this on every switch of figure, panel or layer, and a search of every
+%   open figure (the kept previews, a context menu per drawn object) would
+%   cost more than the switch. With FORCE a window by its Tag is closed
+%   too, in case one is open that the app does not keep.
+%
 %   See also trialMeasureDialog, closeSequenceDialog.
 if nargin < 2; force = false; end
-for d = reshape(findall(groot, 'Type', 'figure', 'Tag', 'trialMeasureDialog'), 1, [])
-    if force || ~showsIt(obj, d.UserData); delete(d); end
+d = obj.TrialMeasureDialog;
+if ~isempty(d) && isvalid(d) && (force || ~showsIt(obj, d.UserData))
+    delete(d);
+end
+if force
+    delete(findall(groot, 'Type', 'figure', 'Tag', 'trialMeasureDialog'));
 end
 end
 

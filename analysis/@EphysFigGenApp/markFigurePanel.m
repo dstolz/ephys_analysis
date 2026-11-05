@@ -156,7 +156,16 @@ function placeAgain(obj, ax)
 %   an edit left alone (Reuse) and moves them, and the frame is drawn
 %   once it is done (refreshFigurePreview). While Arrange is on, its
 %   overlay follows the page instead (syncArrangeOverlay, Follow).
-if ~isvalid(obj) || ~isvalid(ax) || obj.FigurePreviewState == "drawing"; return; end
+%   Not during an Arrange drag either (FigureArrangeMode "drag", or
+%   "canceled": a step, or Escape, moves the dragged panel's axes, the
+%   page stays where it is), nor while the app lays the preview out itself
+%   (FigureLayingOut: inPlaceFigurePreview, layoutPreview), which marks
+%   the panels once after; else every axes the layout moves would follow
+%   the page again.
+if ~isvalid(obj) || ~isvalid(ax) || obj.FigurePreviewState == "drawing" || obj.FigureLayingOut ...
+        || ismember(obj.FigureArrangeMode, ["drag" "canceled"])
+    return
+end
 if obj.FigureArrange
     obj.syncArrangeOverlay(Follow=true);
     return

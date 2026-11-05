@@ -8,7 +8,8 @@ function [shown, why] = syncArrangeOverlay(obj, opts)
 %   covers the page the panels' rects are read in (appdata
 %   FigureLayoutResult's page: the last layout's, also for a preview out
 %   of date), its x and y limits [0 1], so a box's Position is its panel's
-%   rect; it is put over the drawing again (uistack). It holds a widget per
+%   rect; it is put over the drawing again (uistack, when it is not the
+%   container's first child already). It holds a widget per
 %   panel (private/arrangeWidget: Tag "arrangeBox:<id>", at the panel's
 %   rect as the config holds it; the selected panels' blue, the primary's
 %   line thicker: selectedPanelIds), and a dashed
@@ -92,7 +93,8 @@ if ~isstruct(O); O = newOverlay(obj, P); end
 ax = O.axes;
 page = double(reshape(R.page, 1, 4));
 if ~isequal(ax.Position, page); ax.Position = page; end
-uistack(ax, 'top');   % over the drawing (a drawing kept in part reorders the canvas' children)
+top = allchild(P);   % (the overlay's handle is hidden: Children leaves it out)
+if isempty(top) || top(1) ~= ax; uistack(ax, 'top'); end   % over the drawing (a drawing kept in part reorders the canvas' children)
 
 fig = obj.Config.Figures(k);
 ids = strings(1, 0);
@@ -115,9 +117,9 @@ for i = 1:numel(ids)
     if isKey(W, char(id))
         w = W(char(id));
         arrangeWidgetSet(w, r);
-        arrangeWidgetSelect(w, levelOf(id, sel));
+        arrangeWidgetSelect(w, arrangeSelectLevel(id, sel));
     else
-        w = arrangeWidget(ax, r, id, levelOf(id, sel), callbacks(obj, id));
+        w = arrangeWidget(ax, r, id, arrangeSelectLevel(id, sel), callbacks(obj, id));
         W(char(id)) = w;
     end
     arrangeWidgetLock(w, locked);
@@ -149,18 +151,6 @@ O.widgets = W;
 obj.FigureArrangeOverlay = O;
 arrangeSizeLabels(obj);   % the selected panels' sizes by their boxes
 shown = true;
-end
-
-
-function v = levelOf(id, sel)
-%levelOf  How a box shows the selection: 2 the primary (the editor's panel), 1 another selected panel, 0 none.
-v = 0;
-if isempty(sel); return; end
-if id == sel(1)
-    v = 2;
-elseif any(sel == id)
-    v = 1;
-end
 end
 
 

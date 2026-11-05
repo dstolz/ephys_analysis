@@ -1,4 +1,4 @@
-function arrangeCues(obj, rect, g)
+function arrangeCues(obj, rect, g, opts)
 %arrangeCues  Arrange's smart guides over the preview for a panel being moved or resized: alignment lines, distances, equal spacing and size, a readout.
 %   arrangeCues(OBJ, RECT, G) draws, in the Arrange overlay's axes (its
 %   data units the page's 0-1), the cues snapRect found for RECT (G):
@@ -19,10 +19,22 @@ function arrangeCues(obj, rect, g)
 %                       (a corner clicked)
 %   The objects (lines and texts, Tag "arrangeGuide", none taking a click)
 %   are made once per overlay and reused: a cue not needed is hidden, so
-%   a drag changes their data only. arrangeCues(OBJ, [], []) hides them
-%   all (a drag released, Escape, the nudge's timer).
+%   a drag changes their data only; which are shown is kept with them
+%   (the overlay's guides.on), so a step reads no Visible back.
+%   arrangeCues(OBJ, [], []) hides them all (a drag released, Escape, the
+%   nudge's timer).
+%   arrangeCues(..., PageCm=CM, Dpi=DPI): the figure's export page and dpi
+%   as the caller has them (a drag's step: onArrangeMoving reads them once
+%   per drag), else figurePage's.
 %
 %   See also snapRect, EphysFigGenApp.onArrangeMoving, EphysFigGenApp.nudgePanel.
+arguments
+    obj
+    rect
+    g
+    opts.PageCm = []
+    opts.Dpi = []
+end
 O = obj.FigureArrangeOverlay;
 if ~isstruct(O) || isempty(O.axes) || ~isvalid(O.axes); return; end
 G = O.guides;
@@ -34,13 +46,17 @@ if isempty(G) || ~isvalid(G.readout)
 end
 objs = [G.lines G.gapLines G.gapTexts G.size G.readout];
 if isempty(g)
-    set(objs(strcmp(get(objs, 'Visible'), 'on')), 'Visible', 'off');
+    if any(G.on); setShown(obj, G, objs, false(size(objs))); end
     return
 end
 ax = O.axes;
 px = max(ax.Position(3:4), 1);   % the page in px: a few px of offset in its 0-1
 u = obj.FigureRectUnits;
-[pageCm, dpi] = figurePage(obj);
+if isempty(opts.PageCm) || isempty(opts.Dpi)
+    [pageCm, dpi] = figurePage(obj);
+else
+    [pageCm, dpi] = deal(opts.PageCm, opts.Dpi);
+end
 [~, d, tail] = unitsShown([], "", u);
 on = false(size(objs));
 
@@ -97,9 +113,19 @@ if corner(1) > 0.75; h = 'right'; dx = -dx; end
 if corner(2) > 0.9; vv = 'top'; dy = -dy; end
 set(G.readout, 'Position', [corner + [dx dy], 0], 'String', t, 'HorizontalAlignment', h, 'VerticalAlignment', vv);
 on(end) = true;
-vis = strcmp(get(objs, 'Visible'), 'on').';
+setShown(obj, G, objs, on);
+end
+
+
+function setShown(obj, G, objs, on)
+%setShown  Show the cue objects OBJS where ON, hide the rest: only those that change (G.on, what they show now), noted in the overlay.
+vis = G.on;
 set(objs(on & ~vis), 'Visible', 'on');
 set(objs(~on & vis), 'Visible', 'off');
+G.on = on;
+O = obj.FigureArrangeOverlay;
+O.guides = G;
+obj.FigureArrangeOverlay = O;
 end
 
 
@@ -121,4 +147,5 @@ end
 G.size = line(ax, [0 0], [0 0], 'Color', [0.95 0.55 0.8], 'LineWidth', 1.5, 'LineStyle', '--', common{:});
 G.readout = text(ax, 0, 0, "", 'Color', [0.15 0.15 0.15], 'FontSize', 9, 'Interpreter', 'none', ...
     'BackgroundColor', [1 1 0.88], 'EdgeColor', [0.6 0.6 0.6], 'Margin', 2, common{:});
+G.on = false(1, 8 + 2 * 8 + 2);   % which are shown, in the order arrangeCues lists them (none yet)
 end

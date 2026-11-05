@@ -3743,13 +3743,20 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.onArrangeMoved("psth_2", roiMove(r2, raw));
     check(altFree && rectIs(rectOf5("psth_2"), r2), 'Alt held: no snapping, the box exactly where the pointer puts it');
     tStep = zeros(3, 20);   % a step of a drag: the box, the plot, the guides, the fields (1) and the window drawn (2); the plot alone moved and drawn (3)
+    pgO = app.FigureArrangeOverlay.axes.Position;
     for i = 1:20
         t0 = tic;
         app.onArrangeMoving("psth_2", roiMove(r2, [0.3 + 0.01 * mod(i, 5), 0, 0.45, 0.5]));
         tStep(1, i) = toc(t0);
         drawnow;
         tStep(2, i) = toc(t0);
+        if i == 1; app.FigureArrangeOverlay.axes.Position = pgO + [1 0 0 0]; end   % a spy: a step that made the overlay follow the canvas puts it back
     end
+    followed = ~isequal(app.FigureArrangeOverlay.axes.Position, pgO + [1 0 0 0]);
+    movedLive = ~isequal(ax2.Position, p2);
+    app.FigureArrangeOverlay.axes.Position = pgO;
+    check(~followed && movedLive, ...
+        'during a drag the plot moves along but the overlay does not follow the canvas once per axes moved (the Position listeners wait)');
     app.onKeyPress(pressed('escape', {}));
     app.onArrangeMoved("psth_2", roiMove(r2, r2));
     drawnow;

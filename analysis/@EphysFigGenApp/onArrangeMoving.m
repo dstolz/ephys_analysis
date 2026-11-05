@@ -25,9 +25,15 @@ function onArrangeMoving(obj, id, evt, alt)
 %   others selected are not snapped to), and every selected panel's plots
 %   go with its box.
 %   The first step of a drag selects the panel (when the click did not),
-%   notes the drag (FigureArrangeMode "drag") and hides the selected
-%   panels' size labels (arrangeSizeLabels) until it ends; after Escape
-%   (cancelArrange) the box stays where it was until the drag ends.
+%   notes the drag (FigureArrangeMode "drag"; the Position listeners on the preview's axes wait meanwhile:
+%   markFigurePanel) and hides the selected panels' size labels
+%   (arrangeSizeLabels) until it ends; after Escape (cancelArrange) the
+%   box stays where it was until the drag ends. What a step reads that the
+%   drag does not change (the rects, the page, the snap step and reach:
+%   arrangeContext; the overlay's place) is read on the first step and
+%   kept in FigureDrag (ctx). The box, the guides and the fields follow
+%   every step; the plots follow on the first step and then at most every
+%   40 ms (FigureDrag.moved), since moving them is what a step costs most.
 %   onArrangeMoving(OBJ, ID, EVT, ALT): ALT true or false in place of the
 %   window's CurrentModifier (the tests).
 %
@@ -40,13 +46,20 @@ arguments
 end
 mode = obj.FigureArrangeMode;
 if mode == "corners"; return; end
-C = arrangeContext(obj, id);
-if isempty(C) || isempty(C.w) || ~isvalid(C.w); return; end
+D = obj.FigureDrag;
+if mode == "drag" && isstruct(D) && isfield(D, 'ctx') && D.id == id && isvalid(D.ctx.w)
+    C = D.ctx;   % (read on the first step: the drag changes none of it)
+    C.alt = altHeld(obj);
+else
+    C = arrangeContext(obj, id);
+    if isempty(C) || isempty(C.w) || ~isvalid(C.w); return; end
+end
 if mode == "canceled"   % Escape: the box stays put until the drag ends
     arrangeWidgetSet(C.w, C.rect0);
     return
 end
-if mode ~= "drag"
+first = mode ~= "drag";
+if first
     obj.FigureArrangeMode = "drag";
     obj.FigureArrangeFocus = true;
     arrangeClickDone(obj);   % a drag: a click on one of several selected boxes keeps them all
@@ -58,20 +71,19 @@ if mode ~= "drag"
             obj.FigurePanelExtra = strings(1, 0);
         end
         obj.onPanelSelected(C.j);   % (its fields then show this panel)
-        C = arrangeContext(obj, id);
-        if isempty(C) || isempty(C.w) || ~isvalid(C.w); return; end
     end
-    obj.FigureDrag = struct('id', id, 'parts', {arrangeParts(obj, id, C.rect0)}, 'group', dragGroup(obj, id));   % what moves with the box
+    G = dragGroup(obj, id);
+    if ~isempty(G)   % the others selected move along: no snapping to them
+        keep = ~ismember(C.names, [G.id]);
+        C.others = C.others(keep, :);
+        C.names = C.names(keep);
+    end
+    C.pg = obj.FigureArrangeOverlay.axes.Position;   % the page on the canvas, px
+    D = struct('id', id, 'parts', {arrangeParts(obj, id, C.rect0)}, 'group', G, 'ctx', C, 'moved', tic);   % what moves with the box
+    obj.FigureDrag = D;
     arrangeSizeLabels(obj);   % hidden: the readout shows the size now
 end
-D = obj.FigureDrag;
-G = struct('id', {}, 'rect0', {}, 'w', {}, 'parts', {});
-if isstruct(D) && isfield(D, 'group'); G = D.group; end
-if ~isempty(G)   % the others selected move along: no snapping to them
-    keep = ~ismember(C.names, [G.id]);
-    C.others = C.others(keep, :);
-    C.names = C.names(keep);
-end
+G = D.group;
 if ~isempty(alt); C.alt = logical(alt); end
 raw = double(reshape(evt.CurrentPosition, 1, 4));
 if obj.FigureSnap && ~C.alt
@@ -79,21 +91,36 @@ if obj.FigureSnap && ~C.alt
 else
     [rect, g] = snapRect(raw, C.rect0, C.others, [0 0], [0 0], Names=C.names);   % only the cues
 end
-pg = obj.FigureArrangeOverlay.axes.Position;
+pg = C.pg;
 toPx = @(r) [pg(1:2) + r(1:2) .* pg(3:4), r(3:4) .* pg(3:4)];
+live = first || toc(D.moved) > 0.04;   % the plots: at most every 40 ms (exact once released)
+if live && ~first
+    D.moved = tic;
+    obj.FigureDrag = D;
+end
 if ~isempty(G)   % the same shift, or the same change of size about the same edges, for each one selected
     [rect, R] = arrangeGroup(C.rect0, rect, vertcat(G.rect0));
     for i = 1:numel(G)
         arrangeWidgetSet(G(i).w, R(i, :));
-        if ~isempty(G(i).parts); arrangePartsAt(G(i).parts, toPx(R(i, :))); end
+        if live && ~isempty(G(i).parts); arrangePartsAt(G(i).parts, toPx(R(i, :))); end
     end
 end
 arrangeWidgetSet(C.w, rect);
-if isstruct(D) && isfield(D, 'parts') && ~isempty(D.parts)   % the panel's plots go with it (exact once released)
+if live && ~isempty(D.parts)   % the panel's plots go with it
     arrangePartsAt(D.parts, toPx(rect));
 end
-arrangeCues(obj, rect, g);
+arrangeCues(obj, rect, g, PageCm=C.pageCm, Dpi=C.dpi);
 if C.j > 0 && C.j == obj.SelectedPanel; showRect(obj, rect, C); end
+end
+
+
+function tf = altHeld(obj)
+%altHeld  Alt (Option) is held now (the window's CurrentModifier): no snapping.
+tf = false;
+try
+    tf = any(string(obj.Fig.CurrentModifier) == "alt");
+catch
+end
 end
 
 

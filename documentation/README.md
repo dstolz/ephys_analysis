@@ -378,7 +378,11 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   CI error bands and bars, a panel's `errorType "ci95"`, `errorBounds`; `tinv`
   for the *t* interval across sessions of a session figure's `error "ci95"`,
   `combineSessions`, which falls back to 1.96 × SEM without the toolbox;
-  `glmfit` for the neuroGLM connector's Poisson fit, `NeuroGLMExport.fit`).
+  `glmfit` for the neuroGLM connector's Poisson fit, `NeuroGLMExport.fit`;
+  `ranksum`, `ttest2`, `kruskalwallis`, `anova1`, `prctile`, `corr`,
+  `fitlm` and `predict` for the trial panels' statistics, `trialStats`:
+  the group tests, the summary's quartiles, the correlations and the fits'
+  95% bands).
 - Image Processing Toolbox (`padarray` in the mTRF-Toolbox packaging,
   `mTRFExport.resample`, which mirrors a signal past its ends so that
   `resample` does not filter them against zeros; `imresize` in the analysis
@@ -487,8 +491,8 @@ no optional toolbox are needed; tests that need one are skipped (reported as
   `test_ProgressClock`, `test_Provenance`, `test_ReadNewLines`, `test_RepositoryMetadata`,
   `test_SpikeCoincidence`, `test_TableSort`, `test_ThresholdScope` and `test_UnitQuality`; in
   `analysis/`, `test_Auroc`, `test_DatasetBrowser`, `test_DatasetFilter`, `test_DatasetRuns`,
-  `test_EpochMatrix`, `test_FirstSpikeLatency`, `test_PopulationAnalysis` and
-  `test_ResponseStats`. New suites take this form; `test_BinaryReader` is the
+  `test_EpochMatrix`, `test_FirstSpikeLatency`, `test_PopulationAnalysis`,
+  `test_ResponseStats` and `test_TrialMeasure`. New suites take this form; `test_BinaryReader` is the
   pattern for converting a function-style one (shared fixtures in
   `TestClassSetup`, one test method per section, each `check(cond, msg)` as
   `tc.verifyTrue(cond, msg)` with the same condition).
@@ -669,6 +673,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_DatasetRuns` (analysis/) | `DatasetRuns`: a value reused while its identity (settings and the stamp of the output files) holds, skipped and failed datasets, cancel keeping the finished ones, `forget`, the saved struct |
 | `test_EpochMatrix` (analysis/) | `epochMatrixSettings` (defaults, overlay, checks, cache identity, settings files) and `epochMatrix`: the parts against the per-dataset calls, assembly (rows, groups and their order, sessions), the result fields, the labels (`epochMatrixLabels`), the normalization (`epochMatrixNormalize`), `Recompute`, cancel |
 | `test_DatasetBrowser` (analysis/) | `DatasetBrowser`, headless and with its window: scan, filter, ticks, the settings form, `compute` against `epochMatrix`, `forEach`, the progress strip and cancel, the result file, the trial rasters (`epochMatrixRaster`, `TrialRaster`), FieldTrip structures of the epochs and sessions (`epochMatrixFieldTrip`, `sessionDataFieldTrip`), mTRF packages of the epochs, sessions, trials, an AUX stimulus and spikes (`epochMatrixMTRF`, `sessionDataMTRF`), `DatasetBrowser.open` finding the open window, closing keeping the object |
+| `test_TrialMeasure` (analysis/) | `trialMeasure` on a hand-built dataset (delays equal to `stopTimes`, before / after, the gap, which, durations, counts cut at the trial's end, trial parameters, labels), `trialGrouping`, `trialStats` against `ranksum` / `kruskalwallis` / `ttest2` / `anova1` / `pAdjust` and the fits against `polyfit` / `fitlm` / `movmean`, and the trial panels' compute |
 | `test_FirstSpikeLatency` (analysis/) | `firstSpikeLatency` on planted spike trains (known latencies, both window ends included, none NaN, groups, the stop mask, the errors) and the latency box plot's statistics against `prctile` and Tukey's fences |
 | `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, the auROC calls pooled over the family, `populationSummary`, the files `writePopulation` writes |
 | `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them; a missing file or no name reads nothing and keeps the offset |

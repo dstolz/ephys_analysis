@@ -26,7 +26,10 @@ function I = epochIntervals(src, E, ref)
 %   offset after its onset: nothing runs from onset to offset), and
 %   resolveEvents' (resolveEvents:NoLine, resolveEvents:NoTrials, ...).
 %
-%   See also epochEvents, resolveEvents, computeEventTracePanel, figurePointLayer.
+%   The intervals come from eventIntervals (trialMeasure's durations use
+%   it too).
+%
+%   See also epochEvents, resolveEvents, eventIntervals, computeEventTracePanel, figurePointLayer.
 
 arguments
     src (1,1) struct
@@ -44,28 +47,14 @@ catch ME
     if ME.identifier ~= "resolveEvents:NoEvents"; rethrow(ME); end
     return
 end
-[line, edge] = alignedEvent(ref);
+[on, off, hit, line] = eventIntervals(src, ref, x, shift);   % each event's interval, moved as the event was
 I.line = line;
-name = line;
-if line == "Trial" || (src.trialLine ~= "" && line == src.trialLine)
-    name = src.trialLine;
-end
-if ~isfield(src.events, name)
-    error('resolveEvents:NoLine', '%s: no digital line "%s" (lines: %s).', ...
-        src.name, name, strjoin(string(fieldnames(src.events)), ", "));
-end
-iv = double(src.events.(name));
-if isempty(iv); iv = zeros(0, 2); end
-col = 1 + (edge == "offset");
-move = ref.offsetSec + shift(:);          % what moved each event from its recorded edge
-raw = x(:) - move;
-tol = 1e-6;
-if isfinite(src.fs) && src.fs > 0; tol = 0.5 / src.fs; end
-[hit, loc] = ismembertol(raw, iv(:, col), tol, 'DataScale', 1);
-on = iv(loc(hit), 1) + move(hit);
-off = iv(loc(hit), 2) + move(hit);
+on = on(hit);
+off = off(hit);
 ok = isfinite(on) & isfinite(off) & off >= on;   % a zero-length interval among others is kept (drawn at a minimum width)
 if ~any(off(ok) > on(ok)) && any(hit)
+    name = line;
+    if line == "Trial" || (src.trialLine ~= "" && line == src.trialLine); name = src.trialLine; end
     error('epochIntervals:NoOffsets', ['%s: line %s has no offset after its onsets (every interval is a ' ...
         'single instant), so nothing runs from onset to offset.'], src.name, name);
 end
@@ -85,17 +74,4 @@ end
 I.epoch = vertcat(ec{:}, zeros(0, 1));
 I.on = vertcat(onc{:}, zeros(0, 1));
 I.off = vertcat(offc{:}, zeros(0, 1));
-end
-
-
-function [line, edge] = alignedEvent(ref)
-%alignedEvent  The line and edge of the event an event reference aligns to (epochEvents' rule).
-line = ref.line; edge = ref.edge;
-a = ref.alignStep;
-if isinf(a)
-    a = find([string.empty(1, 0) ref.sequence.relation] == "followedBy", 1, 'last');   % none without steps
-end
-if ~isempty(a) && a >= 1
-    line = ref.sequence(a).line; edge = ref.sequence(a).edge;
-end
 end

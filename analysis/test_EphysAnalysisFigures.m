@@ -54,7 +54,12 @@ function test_EphysAnalysisFigures(opts)
 %   figureCompute's Reuse (the same spec: every step taken again; a look
 %   edit: nothing computed; the PSTH's bins: that panel only, as from
 %   scratch; another observation: its panels) and the runner's
-%   FigureCache (computeFigure Reuse=true; clearSources forgets it).
+%   FigureCache (computeFigure Reuse=true; clearSources forgets it); a
+%   trial distribution panel (three trials layers: a delay equal to
+%   eventLatency by trial, a count against a hand count, RespLatency of
+%   the kept trials; categories the selection's TrialType groups, the
+%   first series' test ranksum, the statistics shared) and its skip
+%   reasons ("no line Foo", "no paired trials").
 %   Render (8): figureArea (the page in its margin, the title band, the
 %   area under it) and figurePlace (a labeled side at the page's edge
 %   moved in by its inset and the padding, an unlabeled one not; two
@@ -2487,6 +2492,63 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     end
     check(nU >= 2 && nPsth >= 1 && okOne, sprintf(['one observation of the raster + PSTH figure computes its own unit only ' ...
         '(%d PSTH layer(s); the dataset has %d units)'], nPsth, nU));
+
+    % trial panels (trialDist): trialMeasure on the fixture against eventLatency, a hand count and the trial column;
+    % the categories are selectTrials' groups; the test is ranksum; a missing line and no trials are skip reasons
+    tmSel = trialSelection(groupBy="TrialType");
+    tmM = EphysAnalysisConfig.defaults("TrialMeasure");
+    tmM.from = eventRef(line="Stim");
+    tmM.to = eventRef(line="Platform", edge="offset");
+    tmD = layerOf("trialDist"); tmD.measure = tmM;
+    tmC = tmD; tmC.measure.kind = "count"; tmC.measure.to = eventRef(line="Trough");
+    tmP = tmD; tmP.measure.kind = "param"; tmP.measure.param = "RespLatency";
+    cfg = cfg.addFigure(struct('panels', {{struct('id', "td", 'type', "trialDist", 'selection', tmSel, ...
+        'options', struct('categories', "groups", 'series', "layer"), 'layers', [tmD tmC tmP])}}), Id="trials");
+    tmSpec = cfg.figureFor("trials");
+    tmF = rn.computeFigure(src, tmSpec);
+    tmL = tmF.panels(1).layers;
+    [tmMask, tmG, tmGi] = selectTrials(src, tmSel);
+    tmE = epochTable(src, eventRef(line="Stim"), Window=wD, Selection=tmSel);
+    tmLat = eventLatency(src, tmE, eventRef(line="Platform", edge="offset"));
+    tmR = tmL(1).R;
+    [tmHas, tmAt] = ismember(tmE.trial, tmR.values.trial);
+    check(all([tmL.skip] == "") && tmR.kind == "trialDist" && all(tmHas | isnan(tmLat)) ...
+        && max(abs(tmR.values.value(tmAt(tmHas)) - 1000 * tmLat(tmHas))) < 1e-6 && tmR.unit == "ms" ...
+        && all(ismember(tmR.values.trial, find(tmMask))), ...
+        sprintf('trialDist delay: Stim onset to Platform offset is eventLatency of the same trial, in ms (%d trials)', height(tmR.values)));
+    tmOn = resolveEvents(src, eventRef(line="Stim"), tmMask);
+    tmTr = sort(src.events.Trough(:, 1));
+    tmRows = find(tmMask);
+    tmWant = zeros(numel(tmRows), 1);
+    for tmI = 1:numel(tmRows)
+        tmK = tmRows(tmI);
+        tmA = tmOn(tmOn >= src.trials.TrialOnset(tmK) & tmOn <= src.trials.TrialOffset(tmK));
+        tmWant(tmI) = nnz(tmTr >= tmA(1) & tmTr <= src.trials.TrialOffset(tmK) + 1 / src.fs);
+    end
+    tmRc = tmL(2).R;
+    check(isequal(tmRc.values.trial, tmRows) && isequal(tmRc.values.value, tmWant) && tmRc.unit == "", ...
+        sprintf('trialDist count: the Trough onsets from each Stim onset to the trial''s end, by hand (%d in all)', sum(tmWant)));
+    tmRL = src.trials.RespLatency(tmRows);
+    tmRp = tmL(3).R;
+    check(isequal(tmRp.values.value, tmRL(isfinite(tmRL))) && tmRp.drops.nNoValue == nnz(~isfinite(tmRL)) && tmRp.label == "RespLatency", ...
+        'trialDist param: RespLatency of the kept trials, the misses (NaN) left out and counted');
+    tmV = tmR.values.value;
+    tmTT = tmR.values.TrialType;
+    tmP0 = NaN;
+    if nnz(tmTT == 0) >= 2 && nnz(tmTT == 1) >= 2; tmP0 = ranksum(tmV(tmTT == 0), tmV(tmTT == 1)); end
+    check(isequal(tmR.categories.label, tmG.label) && isequal(tmR.values.category, tmGi(tmR.values.trial)) ...
+        && height(tmR.series) == 3 && isequaln(tmL(2).R.stats, tmR.stats) && tmR.stats.test(1).across == "categories" ...
+        && (isequaln(tmR.stats.test(1).p, tmP0) || abs(tmR.stats.test(1).p - tmP0) < 1e-12), ...
+        sprintf('trialDist: categories = the trial groups (%s), one series per layer, the same statistics in each; the first series'' test is ranksum (p = %.3g)', ...
+        strjoin(tmG.label, ", "), tmR.stats.test(1).p));
+    tmS2 = tmSpec;
+    tmS2.panels(1).layers(1).measure.to = eventRef(line="Foo");
+    [~, tmLR] = figureSkipReason(src, tmS2);
+    tmN = src; tmN.hasTrials = false;
+    [~, tmLRn] = figureSkipReason(tmN, tmSpec);
+    check(tmLR([tmLR.layer] == 1).reason == "no line Foo" && tmLR([tmLR.layer] == 2).reason == "" ...
+        && tmLRn([tmLRn.layer] == 0).reason == "no paired trials", ...
+        'figureSkipReason: a trial measure''s missing line is "no line Foo" for its layer; without paired trials the panel says "no paired trials"');
 end
 
 %% ============================================================================ render

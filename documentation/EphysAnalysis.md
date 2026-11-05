@@ -256,6 +256,12 @@ of `ref` at or after it (NaN where none follows). With
 epoch's event the animal left the platform; a raster can be sorted by it
 (`rasterSort "event"`).
 
+`trialMeasure(src, m, mask)` turns such relations into one number per
+trial: the delay from one event to another (after or before it), how long
+an interval lasts, how many events follow, or a trial parameter; see
+[Trial measures](#trial-measures). Its delays are `eventLatency`'s, and
+`trialStats` gives the trial panels their summaries, group tests and fits.
+
 ### `trialSelection`: which trials, in which groups
 
 | Field | Default | Meaning |
@@ -432,6 +438,94 @@ Pure functions, but for `unitSummary`, which loads the units through
 | `firstSpikeLatency(R, Units=, MinSec=, MaxSec=, Method=, Baseline=, BaselineRate=, Alpha=, Surprise=, MinSpikes=)` | each epoch's first-spike latency from a `spikePSTH` result's raster rows (`Raster=true`, or rows merged across sessions): `lat` `[nEpochs x nUnits]`, s from the epoch's event to its first response spike in `[MinSec, MaxSec]` (default 0 to `Inf`: the window's end), both included to the sample; NaN where none. `Method` `"first"` (default): the first spike in the window; `"surprise"`: the first spike of the first burst whose Poisson surprise against the baseline rate reaches `Surprise` (default 3; a burst starts from `MinSpikes`, default 3, spikes under half the baseline's mean interval apart; Legendy & Salcman 1985); `"poisson"`: the spike at which the count since `MinSec` first has P(N >= k) < `Alpha` (default 0.01) at the baseline rate (Chase & Young 2007): `lat` is that significance spike, which lags the response's first spike by the few spikes the count needs, and `latFirst` is the first spike of the run that made it so (the spikes back from it while each interval is under half the baseline's mean interval; the same as `lat` for the other rules). The Poisson probabilities are `gammainc` over all of an epoch's spikes at once. The baseline rate: the spikes in `Baseline` (`[]`: before the event; [lo hi] s), every epoch's together (`BaselineRate "unit"`) or each epoch's own (`"trial"`). The spikes are the raster's own (relative to each `t0Continuous`, the stop mask applied), so a latency sits on the tick it marks. Also `latFirst` (above), `spikeTime` (`lat` on the continuous clock, with `R.epochs`), `rate` (the baseline rate each epoch was tested against), `window` (searched, clipped to `R.edges`), `baseline`, `method`, `settings`, `units`, `labels`, `epochGroup`, `groups`, `n` `[nGroups x nUnits]` (the epochs with a latency) and `nEpochs`. Errors `firstSpikeLatency:NoRaster`, `:BadWindow`, `:NoBaseline` (a Poisson rule with no baseline in the raster's span), `:BadUnit`. A figure takes it once per unit for every panel that reads it, by its latency block ([First-spike latency](EphysAnalysisConfig.md#first-spike-latency)) |
 | `responseOnset(R, Units=, MinSec=, MaxSec=, Baseline=, BinSec=, Threshold=, Drift=, SustainSec=, Direction=, Gate=, GateAlpha=)` | each unit's response onset from its PSTH by CUSUM (Page 1954; Ellaway 1978): the raster's spikes in bins of `BinSec` (default 0.002 s) on a grid through the event, the baseline bins' mean and SD (`Baseline` as above), then over the window's bins C = max(0, C + z - `Drift`) (default 1), z = (x - mean) / SD (`Direction` `"up"`, the default; `"down"`: (mean - x) / SD; `"both"`: its absolute value), computed as `Z = cumsum(z - Drift)`, `C = Z - min(0, cummin(Z))`; the onset is where C reaches `Threshold` (default 5 SDs) and stays up and rising for `SustainSec` (default 0.005 s), at the bin after the last bin where C was 0. A unit that does not respond gets none: with `Gate="evoked"` (default; `"none"` for the CUSUM alone; needs `signrank`) the onset is kept only when, across the epochs (all of them, or each group's), each epoch's rate in the search window differs from its rate in the baseline by Wilcoxon's signed rank test at `GateAlpha` (0.05; two-sided, the median change going the way `Direction` says; not corrected for the units asked for), the test of `responseStats`' evoked response; a sparse unit's clustered pair of spontaneous spikes in one epoch, many SDs of a tiny baseline SD, does not give an onset. `onset` `[1 x nUnits]` (every epoch), `groupOnset` `[nGroups x nUnits]`, `t` and `cusum` (the curve), `baselineMean`, `baselineSD`, `gateP` and `groupGateP` (the gate's p), `window`, `baseline`, `settings`. Errors `responseOnset:NoRaster`, `:BadWindow`, `:NoBaseline`, `:BadUnit`. A raster's or PSTH's onset line reads it |
 | `unitCorrelation(st, E, Metric=, Type=, FisherZ=, Detrend=, BinSec=, SmoothSec=, Baseline=, BaselineMode=, Groups=, Meta=)` | `r / p / q [nUnits x nUnits x nGroups]` (`q`: `p` adjusted by Benjamini-Hochberg, `pAdjust`, over each group's pairs of units, each pair once), `z` (with `FisherZ=true`: atanh r, NaN on the diagonal), `meanR` (mean over the pairs; with `FisherZ`, averaged in z and transformed back), `nEpochs`, `response [nEpochs x nUnits]`. Each epoch's response is its `"mean"` rate over `[tStart, tStop)` (moved to the spikes' clock by `t0Continuous - t0`) or its `"peak"` binned rate (bins from `tStart`; a bin that runs past `tStop` is not used), optionally minus the epoch's baseline rate (`BaselineMode="subtract"`); every pair of units is then correlated over the epochs of each group, `Type="pearson"` or `"spearman"` (ties averaged), after `Detrend` (default true) takes from each unit's responses their moving mean over about 20% of the group's epochs in time order (`movmean`, odd, at least 5), so that two units whose rates drift slowly over the session do not correlate through the drift (`R.response` keeps the responses as measured; `Detrend=false` correlates them as they are). Fixed and `"between"` windows; with `"between"` windows `Metric="peak"` searches only the first `R.peakBins` bins of every window, the whole bins of the shortest, so a peak does not grow with the epoch's length. An epoch whose response is not finite (a window shorter than one bin) is left out; a unit whose responses do not vary has NaN correlations, and so does every pair of a group with fewer than 3 epochs. Needs no toolbox; `p` is two-sided from the t distribution |
+
+## Trial measures
+
+One number per trial from the trial's events or parameters: the trial
+panels (`trialDist`, `trialHist`, `trialScatter`) draw them, and a script
+calls `trialMeasure` directly.
+
+```matlab
+src = loadAnalysisSource(out);
+[mask, G, gi] = selectTrials(src, trialSelection(groupBy="TrialType"));
+m = EphysAnalysisConfig.defaults("TrialMeasure");
+m.from = eventRef(line="Stim");                       % A
+m.to = eventRef(line="Platform", edge="offset");      % B
+[T, info] = trialMeasure(src, m, mask);               % T.value: ms from each Stim onset to the platform's offset
+groupsummary(table(T.value, gi(T.trial)), "Var2", "median", "Var1")
+```
+
+`[T, info] = trialMeasure(src, m, mask)` (pure) takes a trial measure `m`
+(fields `kind`, `from`, `to`, `direction`, `maxGapSec`, `param`, `unit`,
+`label`) and the trials `mask` keeps (`selectTrials`; `[]` = every paired
+trial). `T` has one row per value: `trial` (row of `src.trials`), `value`
+(in `m.unit`, `"ms"` by default or `"s"`, for the time kinds; a count; the
+column's own values for a parameter), `tA` and `tB` (the A and B events, s
+on the digital clock) and `k` (which interval of its trial A is, as
+`resolveEvents`' `k`). `info` has `kind`, `label` (`m.label`, else the
+automatic one: "Stim onset → Platform offset (ms)"), `unit`, `nA` (A
+events found), `nNoB` (A events with no B, or none within `maxGapSec`) and
+`nNoValue` (A events dropped by `from.offsetParam`, durations with no
+interval, parameter values that are not finite).
+
+| Kind | Value |
+| --- | --- |
+| `delay` | `tB - tA`. A = `resolveEvents(src, m.from, mask)`; the B events of `m.to` at or after A (`direction "after"`, nearest first) or at or before A (`"before"`, nearest first; negative values), found as a [stop event](#epochwindow-the-span-of-each-epoch) is: among the intervals overlapping A's own trial in trial or auto scope, else over the recording, `m.to`'s shift taken from A's trial. `m.to.which` picks: `"first"` the nearest, `"last"` the farthest, `"nth"` the n-th nearest, `"all"` every one (several rows per A). A B farther than `maxGapSec` from A is dropped and its A counted in `nNoB`. With `"after"` and `"first"` the delay is `eventLatency`'s, exactly |
+| `duration` | offset minus onset of the interval each A is an edge of (the line, or a sequence's aligned step's line; `"Trial"` is the trial itself) |
+| `count` | how many events of `m.to` (every one, `which "all"`, in every trial) lie in `[tA, tA + maxGapSec)` and no later than A's trial's `TrialOffset + 1/fs` (the first low row after the trial is still its own, as `containingTrial` says, so the count ends at the trial's end however late the gap ends); an A without a trial counts up to the next A. A line with no event counts 0 |
+| `param` | the numeric trial column `m.param` on the kept trials; `tA` is the trial's onset |
+
+`resolveEvents:NoEvents` for the A events is let through unchanged (its
+message says why nothing was found); when A events exist but none gives a
+value it is `trialMeasure:NoValues`. A parameter the trials lack (or no
+paired trials) is `trialMeasure:NoParam`, a column that is not one number
+per trial `trialMeasure:BadParam`; `resolveEvents`' other errors are
+rethrown. A figure turns all of them into the layer's skip reason.
+
+### Grouping and statistics
+
+A trial panel groups the values two ways, *categories* (the distribution
+panel's x axis) and *series* (the colors), each by the figure's trial
+groups (`"groups"`), a trial parameter's values (`"param"`: each value, n
+equal-width bins, or given bin edges; a text parameter by its strings), the
+session (`"session"`) or the layer (`"layer"`). `trialStats` then computes,
+per category and series, n, the center (mean or median), its error
+(`errorBounds`: sem, std, ci95, iqr), the median, quartiles, minimum and
+maximum; the group test across the categories within each series (across
+the series when there is one category): `"auto"` is `ranksum` for two levels
+and `kruskalwallis` for more, `"ttest2"` / `"anova1"` are the parametric
+choices (`"ranksum"` and `"ttest2"` with more than two levels run
+`kruskalwallis` and `anova1`), and the pairs (`"all"`, or each level against
+the first) by `ranksum` (`ttest2` under a parametric choice), their p
+adjusted per series by `pAdjust` (holm, bh, bonferroni, none) and starred at
+0.05 / 0.01 / 0.001 on the adjusted p (a pair is significant, for the
+brackets, below the panel's `testAlpha`, 0.05 by default; `alpha` is a
+histogram's or scatter's opacity). A level with fewer than two values
+takes no part (NaN, never an error). On a scatter, per series: a fit
+(`linear`, `poly2`, `poly3`: `polyfit`, with the 95% band of the curve from
+`fitlm` and `predict`; `movmean`, `movmedian` over the x-sorted points) and
+a correlation (`corr`, Pearson or Spearman), both in log10 units on a log
+axis (values at or below 0 left out and counted). They need the Statistics
+and Machine Learning Toolbox.
+
+### The trial panels' result
+
+Each computed trials layer of a trial panel has `R` with `kind` (the panel
+type), `measure`, `label`, `unit` (and on a scatter `xMeasure`, `xLabel`,
+`xUnit`), `values` (one row per value: `trial`, `value`, `x` (the x
+measure's value on a scatter, paired by trial: the first value of each
+side), `tA`, `tB`, `k`, `group` (row of `groups`), `session`, `sessionKey`,
+`layer` (the layer's index), the selection's `groupBy` columns and the
+category and series parameter columns from the trials, then `category` and
+`series`), `groups` (`selectTrials`' groups, `n` the trials with a value),
+`groupIndex`, `n` (values), `drops` (`nTrials`, `nKept`, `nA`, `nNoB`,
+`nNoValue`, the x measure's `xA`, `xNoB`, `xNoValue`, and `nUnpaired`),
+`options`, `dataset`, `params`, `created`, and, the same in every layer of
+the panel, `categories` and `series` (index, label, color, n, value) and
+`stats` (`trialStats`: `table`, `test`, `pairs`, `fit`, `corr`,
+`options`). The statistics run over all of the panel's layers at once, at
+the end of a dataset's compute and again after a session figure's datasets
+are merged.
 
 ## Response statistics
 
@@ -1948,6 +2042,7 @@ and counted. Each trial's mean is removed before its spectrum unless
 | `test_EphysAnalysisCompute` | no fixture: `spikePSTH` on seeded Poisson trains (rate, SEM, half-open bins, bins that are whole multiples from the event and `R.window`, `spikePSTH:BadWindow`, a spike in the event's own sample at 0, baselines, smoothing, stop masking, rasters), `firingRate` over between windows, `tuningCurve` (and `tuningCurve:NoValues`), `evokedPotential` (event rule: the event's own row at `t = 0`; padding, drop counts, baseline), the filter compiler, `unitCorrelation` (Pearson and Spearman against `corrcoef`, peak rates and partial bins, baseline, groups, constant units), `probeMapValues`, `binCounts` and `countBelow` against brute force (a spike on a bin edge in the bin that starts there, also on a 30 kHz sample grid), the renderers the figures share (`renderHeatmap`, `renderProbeMap`, `renderCorrMap`, `renderWaveforms`) into axes, uiaxes, figure and uipanel, the probe's shanks (`probeColumns`: a parked site stays on its shank) and the probe map's sites at their own x, its unit labels (a column per shank side, leaders and arrowheads stopping short of the units, labels spread apart) and its units drawn as waveform glyphs (spikes, SD band, templates; no color bar but with units per site), `shortUnitLabels`, probe order and site labels (`probeOrder`, `siteLabels`), the rate / count / probability measures, a grid's labels on its tiled layout, `renderWaveforms`' grid and probe layouts (amplitude scales, glyph sizes, sites, names, units without a position, templates, SD and SEM bands), the error bands and bars (`errorBounds`: SEM, SD, the bootstrap 95% CI as `bootci`'s percentile one, repeatable, the global random stream untouched, the median and the IQR; each compute function's `R.err`), and across sessions `sessionTable` (labels, order), `combineSessions` on hand-made results of every kind a figure layer merges (pool / site / mapping tiles, series per session / subject / all, the SEM and *t* 95% CI across sessions, members, epoch renumbering on every epoch-indexed field, group slicing against the compute over that group, `combine`'s labels and line styles, `rate`'s `rowsAre`, every error id), the unit-mapping CSV (`writeUnitMapping`, `readUnitMapping`) and `writeAnalysisData` (round trip, `Exists`, `-v7`); `spikePSTH`'s z-score as `epochMatrixNormalize`'s (the same mean and SD of the baseline's bins, unchanged by a longer baseline), its batched `"ci95"` bands, `unitCorrelation`'s `Detrend`, `q` and common `"peak"` bins, `tuningCurve`'s `nValid` |
 | `test_EphysAnalysisEpochs` | the fixture: `loadAnalysisSource` against the generator's truth (`durationSec` from `info.LFP.nSamples`; without a probe file, the sort's probe map places the detections as the probe file does), `t0Continuous` and `offsetSec` on both clocks, trial / recording scope, `"Trial"`, an interval belonging to the trial holding its edge (spanning trials, touching trials, an event on the first low row after a trial, `Platform` in recording scope, the pairing flags in recording scope), the `PairingMismatch` warning, events shifted by a trial parameter (RespWindow onset + RespLatency at the generator's response troughs, both clocks, `"s"`, a shifted stop event, the misses counted, the errors), `epochEvents` (every onset and offset in each window, several per trial, trial scope), `epochSpikes` (the raster's times, each epoch's own window), event sequences (Trial offset then the first poke after it, never past the next trial; `maxGapSec`, `n`, step lengths, `notFollowedBy`, `alignStep`, a step on its own line and edge, `which` after the sequence, the counts, a stop event and raster marks of sequences, `eventRefLabel`, the errors), `eventLatency` (a shifted stop event's latency again; Platform offset after each Stim onset among the intervals overlapping its trial; its label; a line name; `resolveEvents:NoLine`), `groupBy`, response and filter selection, between windows, approved cuts, `selectUnits` / `selectChannels` (units as `DatasetOutputs.readUnits` gives them, the sorting folder read once, shanks by the probe map's `kcoords`; every channel gives the cached signal as it is), `selectUnits`' response test (the same as `responseStats` over its own epochs; direction and alpha; `selectUnits:NoneLeft`, `selectUnits:BadResponse`; `responseStats:NoToolbox` without the toolbox) and its auROC test (the units `aurocCurves` calls modulated; no cutoff is `selectUnits:BadResponse`), error identifiers, the no-behavior fallback, `src.artifacts` and the epochs that touch one (dropped by default, also when only the baseline touches it; a period ending at a window's start does not touch it; kept and flagged with `Artifacts="keep"`) |
 | `test_ResponseStats` | no fixture: `pAdjust` against statsmodels' `multipletests` (`pipeline/testdata/padjust_golden.json` from `tools/golden/padjust_golden.py`; NaN, ties, one value), `responseStats` on hand-made epochs with known counts (rates, p against `signrank` / `kruskalwallis` called directly, direction, correction, the epochs left out, rates for windows of different lengths, the errors). The tests that call the toolbox are skipped without it |
+| `test_TrialMeasure` | no fixture: a dataset struct built in the test (six trials; Stim, Platform, Trough lines with pokes on the first low row after a trial and between trials). `trialMeasure`: a delay after with which first equals `stopTimes` (`eventLatency`) in trial and recording scope, for which nth / last, a shift and a sequence; before (negative, the A events without a B counted); `maxGapSec`; which all / nth; durations (Stim, `"Trial"`, every Platform interval); counts cut at `TrialOffset + 1/fs` in both scopes, half-open at the gap, 0 on a line with no event; param (NaN counted, the mask, text `BadParam`, missing `NoParam`); ms against s; the labels. `trialGrouping` (groups, a parameter's values, n bins, edges, text, layers, sessions); `trialStats` against `ranksum`, `kruskalwallis`, `ttest2`, `anova1` and `pAdjust`, the stars, the first-level pairs, mean and median with `errorBounds`, NaN for too few values; the fits against `polyfit`, `fitlm` / `predict` and `movmean` / `movmedian`, Spearman on a monotone curve, a log scale in log10 units; the trial panels' compute (the `R` fields, the statistics shared by the layers, a missing line or bad selection skipped, a scatter's pairing). The statistics tests are skipped without the Statistics and Machine Learning Toolbox |
 | `test_FirstSpikeLatency` | no fixture: `firstSpikeLatency` on spike trains planted on a 30 kHz grid and cut by `spikePSTH` (known latencies, a spike in the event's own sample at 0, an epoch with none NaN, `MinSec` and `MaxSec` included to the sample, a negative `MinSec`, `MaxSec` past the window clipped, `Units=`, the groups' counts, the stop mask, the spike's continuous time, the errors); the Poisson surprise and the Poisson count by hand (a burst shed of the spontaneous spike before it, the count's p, the unit's and each trial's rate, no baseline an error); on synthetic Poisson trains with a known onset, each rule within its tolerance and the noisy case's benefit over the first-spike rule; `responseOnset`'s CUSUM by hand (its mean, SD, curve, onset, a crossing that does not last), the synthetic onset within 5 ms and none on a baseline alone; `figureLatencies` taking one latency and one onset per unit for two panels, an edit of the method taking the latencies again and not the onset; and the box plot's statistics (`latencyBoxStats`: `prctile`'s quartiles, Tukey's fences, whiskers and outliers, NaN left out, none and one value); the Poisson count's `latFirst` (the first spike of the run that made it significant) and the vectorized `gammainc` rules equal to the per-spike `poisscdf` ones on synthetic trains; `responseOnset`'s `Direction`, its CUSUM as `cumsum` against Page's loop, and the evoked gate removing a sparse unit's chance onset |
 | `test_Auroc` | no fixture: `aucOf` against counting every pair; the `"psth"` method against a port of the Caras lab's `auROC_response_curve`; the `"epochs"` method against hand counts; tiled and sliding windows, the whole-bin rules and the errors; the stop mask; the 95% CI formula, the fixed cutoff and the wide-cutoff warning; bootstrap, ranksum and shuffle tests on driven, suppressed and flat units (reproducible by seed; ranksum against `ranksum` called directly); a unit silent over a group's epochs has no auROC (NaN) and stays out of the cutoff; units measured apart (`Call=false`) and called in one `aurocCall` get the cutoff, the test's correction and the calls of one `aurocCurves` over them all; `spikePSTH`'s auROC result, `modulatedOnly` and caption; the figure caption's auROC clause (`figureAurocCalls`), the PSTH and heat map marks, tagged. Skipped without the toolbox; the shuffle cutoff (the pooled null's quantile, `Alpha`, stacked nulls, `aurocCall:NoNull`, flat units called less than by the 95% CI cutoff) |
 | `test_DatasetFavorites` | no fixture: `DatasetFavorites` in temporary folders: no file, the round trip of dataset and channel stars, unit stars kept with their sort (a new sort shows none, the old one back shows them), the last star removing the file, an unreadable file, a read-only folder and a folder gone, the three kinds of target, bad levels and ids, and `sessionTable`'s `starred` |

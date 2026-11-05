@@ -6,7 +6,9 @@ function reason = figureLayerError(ME)
 %   probe map, a signal's baseline with no sample in the window; for the
 %   Chronux panels no trial or segment left, a pair or field channel not
 %   at hand, a moving window longer than the epoch, a result over its
-%   limit, settings chronuxSettings refuses, ...): the
+%   limit, settings chronuxSettings refuses, ...; for the trial panels a
+%   trial selection that cannot be applied, a measure with no value or
+%   whose trial parameter is missing or not numeric): the
 %   layer (or the panel) is skipped with it and the
 %   rest of the figure is still computed. ChronuxDataset:NoChronux (the
 %   toolbox is not on the MATLAB path) gives "Chronux is not on the path".
@@ -25,7 +27,9 @@ skippable = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLef
     "chronuxSpecgram:TooLarge" "chronuxSpikeSpecgram:Short" "chronuxSpikeSpecgram:TooLarge" ...
     "chronuxSpikeField:Short" "chronuxSpikeField:TooLarge" "chronuxUnitCoherence:Short" "chronuxUnitCoherence:TooLarge" "chronuxCoherence:Short" "chronuxCoherence:TooLarge" "chronuxTimeBase:NoTrials" ...
     "chronuxTimeBase:BadValue" "chronuxSettings:BadValue" "chronuxSettings:Baseline" ...
-    "chronuxNormalize:NoBaseline" "chronuxParams:Fpass"];   % no window centered in the baseline; fpass above the layer's Nyquist
+    "chronuxNormalize:NoBaseline" "chronuxParams:Fpass" ...   % no window centered in the baseline; fpass above the layer's Nyquist
+    "selectTrials:NoTrials" "selectTrials:NoParam" "selectTrials:NoRespCode" "selectTrials:TooManyGroups" ...
+    "trialSelection:BadFilter" "trialMeasure:NoValues" "trialMeasure:NoParam" "trialMeasure:BadParam"];   % a trial panel's selection and measures
 if string(ME.identifier) == "ChronuxDataset:NoChronux"   % the spectral panels: the toolbox, not the data
     reason = "Chronux is not on the path";
     return

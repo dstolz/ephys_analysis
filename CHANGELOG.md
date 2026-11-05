@@ -422,6 +422,15 @@ says how to cut a release.
 
 ### Added
 
+- Analysis: `trialMeasure(src, m, mask)`, one number per trial from its events or parameters: the delay from an
+  event A to the first (last, n-th, every) event B after or before it, found as a stop event is (so its delays are
+  `eventLatency`'s), dropped beyond `maxGapSec`; how long A's interval lasts; how many B events follow A up to the
+  trial's end; or a numeric trial column. Values in ms (or s), with the drops counted (`nNoB`, `nNoValue`); errors
+  `trialMeasure:NoValues`, `:NoParam`, `:BadParam`. The trial panels' statistics (`trialStats`): per category and
+  series n, mean or median with its error band, quartiles; group tests (`ranksum` / `kruskalwallis`, or `ttest2` /
+  `anova1`) with pairwise tests adjusted by `pAdjust`, starred, and significant below the panel's `testAlpha`; linear, polynomial and moving fits with 95% bands
+  and Pearson or Spearman correlations, in log10 units on a log axis. Suite `test_TrialMeasure`. See
+  [EphysAnalysis](documentation/EphysAnalysis.md#trial-measures).
 - Pipeline app, Project tab: **Copy manifests** in the Tools panel puts the manifest files of its datasets (the active
   one, or the ticked ones) on the clipboard as files, to paste into a folder, an e-mail or a chat, and lists in a
   message the files the clipboard holds and any not copied (`copyFilesToClipboard`, Windows).

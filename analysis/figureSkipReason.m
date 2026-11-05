@@ -30,12 +30,19 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %   no numeric trial parameter), or whose param or seriesParam the trials
 %   lack ("no trial parameter X"); a spectrum, spectrogram or coherence
 %   panel without the Chronux toolbox on the path ("Chronux is not on the
-%   path"). A spectrum or coherence panel on timeBase "range" is not
+%   path"); a trial panel (trialDist, trialHist, trialScatter) without
+%   paired trials ("no paired trials") or whose selection's groupBy, or
+%   categoryParam / seriesParam (categories / series "param"), the trials
+%   lack ("no trial parameter X"). A spectrum or coherence panel on timeBase "range" is not
 %   aligned to events: it needs none of the alignment's lines, trials or
 %   parameters. A layer's: "no sorted units", "no detected
 %   spikes", "no <SIGNAL> extract"; events: "no line X" (or of its
 %   sequence), "no paired trials" (trial scope or "Trial"), "no trial
-%   parameter X" (offsetParam); a following layer: "AUX has no recording channel: bind
+%   parameter X" (offsetParam); trials: what its measure (and a scatter's
+%   x measure) needs, for the A event (from) and, for a delay or a count,
+%   the B event (to): "no paired trials" (trial scope or "Trial"), "no
+%   line X", "no trial parameter X" (offsetParam), and a param measure's
+%   column ("no trial parameter X"); a following layer: "AUX has no recording channel: bind
 %   it to fixed channels" (an AUX layer following a unit, or a channel of
 %   another signal), "no unit or channel observed" (a dataset figure); a
 %   source the panel type does not draw, or events drawn as a train on a
@@ -160,6 +167,12 @@ switch p.type
         if isempty(src.probe); r = "no probe map"; end
     case {"spectrum" "spectrogram" "coherence"}
         if ~ChronuxDataset.hasChronux(); r = "Chronux is not on the path"; end
+    case {"trialDist" "trialHist" "trialScatter"}
+        if ~src.hasTrials; r = "no paired trials"; return; end
+        need = reshape(string(sel.groupBy), 1, []);
+        if isfield(o, 'categories') && o.categories == "param"; need(end+1) = o.categoryParam; end
+        if isfield(o, 'series') && o.series == "param"; need(end+1) = o.seriesParam; end
+        r = paramReason(need, vars);
 end
 end
 
@@ -225,8 +238,35 @@ switch s
         end
         r = lineReason(src, ref);
         if r == ""; r = paramReason(ref.offsetParam, vars); end
+    case "trials"
+        ms = L.measure;
+        if p.type == "trialScatter" && isfield(L, 'xMeasure'); ms = [{L.measure} {L.xMeasure}]; else; ms = {ms}; end
+        for i = 1:numel(ms)
+            r = measureReason(src, ms{i}, vars);
+            if r ~= ""; return; end
+        end
     otherwise   % a signal
         if ~hasSignal(src, s); r = "no " + s + " extract"; end
+end
+end
+
+
+function r = measureReason(src, m, vars)
+%measureReason  What a trial measure (a trials layer's measure or x measure) needs that the dataset lacks.
+r = "";
+if m.kind == "param"
+    r = paramReason(m.param, vars); return
+end
+refs = {m.from};
+if ismember(m.kind, ["delay" "count"]); refs{end+1} = m.to; end
+for i = 1:numel(refs)
+    ref = EphysAnalysisConfig.normalizeSection("EventRef", refs{i});
+    if (ref.scope == "trial" || ref.line == "Trial" || ref.offsetParam ~= "") && ~src.hasTrials
+        r = "no paired trials"; return
+    end
+    r = lineReason(src, ref);
+    if r == ""; r = paramReason(ref.offsetParam, vars); end
+    if r ~= ""; return; end
 end
 end
 

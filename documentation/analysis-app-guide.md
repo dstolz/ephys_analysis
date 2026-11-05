@@ -85,7 +85,8 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
      Or press **Set corners** and click two opposite corners on the preview.
    - The preview on the right draws the figure for the unit picked above it.
      Step through the units to look at them one by one. Right-click the plot
-     to change colors, fonts and labels.
+     to change colors, fonts and labels. After a change it draws again on
+     its own when that is quick enough for the **Auto** slider left of it.
 4. **Export.** Tick the formats (png, svg, pdf), press **Run**, then **Open
    report**.
 5. **File → Save config** keeps it all: the alignment, the figures and the
@@ -101,6 +102,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | draw a figure across several recordings | tick **Across datasets** in the figure's Sessions section |
 | draw a small figure at every unit's place on the probe | tick **On the probe** in the figure's Probe layout section |
 | check one unit's figures before a long run | Export tab: **Test report** |
+| choose when the preview redraws after a change | drag the **Auto** slider left of the preview. Left end: never, press **Preview**. Right end: after every change, however slow. In between, the further right, the slower a redraw it starts on its own (the middle: under 2 s; point at the slider to see its limit). A change of colors, fonts or labels only redraws, so it is quick even when computing the figure is slow. **Ctrl+T** turns Auto off and on |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
 | move or resize a panel | press **Arrange** above the preview and drag the panel's box (a corner or an edge resizes it); after a click on the preview the arrow keys nudge it. Or pick it (Ctrl+Click it in the preview) and type its **Position** and **Size** in the Panels section; **Units** picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [Arranging panels on the preview](EphysFigGenApp.md#arranging-panels-on-the-preview)) |
 | move or resize several panels together | with **Arrange** on, **Shift**+click their boxes, then drag one of them: all move by the same amount (resizing one resizes each by the same amount); the arrow keys nudge them all |
@@ -161,6 +163,10 @@ the quickest way to draw the same figures for one group of recordings.
   signal: switch on LFP in the pipeline's Signals tab and run it*, *No paired
   trials: approve the pairing on the pipeline's Trials tab*, and so on. See
   [Why is my figure skipped?](EphysFigGenApp.md#why-is-my-figure-skipped)
+- **The preview says *Out of date*.** The figure changed and was not drawn
+  again: **Auto** is off, or the redraw would take longer than Auto allows
+  (the line under the preview says *slow*). Press **Preview**, or drag the
+  **Auto** slider to the right.
 - **The Export tab's Plan** lists every recording and figure that would run,
   and why any would be skipped, with a *What to do* column, before you run
   anything. Double-click a row to see that figure.

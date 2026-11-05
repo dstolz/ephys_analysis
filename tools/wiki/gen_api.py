@@ -1049,7 +1049,7 @@ ANALYSIS_GROUPS = [
     ("Toolbox connectors: current source density", ["laminarColumns", "epochMatrixCSD", "sessionDataCSD",
                                                     "icsdEstimate", "kcsdEstimate"]),
     ("Figures", ["figureObservations", "figureSkipReason", "figureSkipRemedy", "figureEpochs", "figurePanelRegistry",
-                 "figurePanelLayers", "figureCompute", "figureChronuxSettings", "figureAurocCalls",
+                 "figurePanelLayers", "figureCompute", "figureDataSpec", "figureChronuxSettings", "figureAurocCalls",
                  "renderFigure", "figureCaption", "figureOutputName", "figureLabelVariables"]),
     ("Panel places (free placement)", ["figureNeighbors", "figureRectConvert"]),
     ("Probe figures", ["figureProbeTiles", "figureProbeCompute", "renderProbeFigure"]),

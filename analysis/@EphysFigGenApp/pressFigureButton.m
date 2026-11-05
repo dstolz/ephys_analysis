@@ -2,7 +2,7 @@ function pressFigureButton(obj, key)
 %pressFigureButton  The key of one of the Figures tab's preview buttons: do what pressing it does.
 %   pressFigureButton(obj, KEY) is onKeyPress's Ctrl+KEY (Cmd on a Mac):
 %     "p"  Preview            "r"  Redraw All       "u"  Test report (Export tab)
-%     "t"  Auto, ticked or unticked                 "k"  Export preview
+%     "t"  Auto off, or back where it was           "k"  Export preview
 %     "e"  Export code        "w"  Open in window
 %   A button that is off (no figure selected, a run going) is left alone,
 %   as is Preview while a preview computes or draws; Auto always toggles.
@@ -20,9 +20,15 @@ switch key
         b = obj.FigureCodeButton;
     case "w"
         b = obj.FigureOpenButton;
-    case "t"
-        obj.FigureAutoCheckBox.Value = ~obj.FigureAutoCheckBox.Value;
-        obj.onFigureAutoPreviewToggled();
+    case "t"   % Auto off, or on again where it was (FigureAutoLast)
+        s = obj.FigureAutoSlider;
+        if s.Value > 0
+            obj.FigureAutoLast = s.Value;
+            s.Value = 0;
+        else
+            s.Value = obj.FigureAutoLast;
+        end
+        obj.onFigureAutoRedrawChanged();
         return
     otherwise
         return

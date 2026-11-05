@@ -140,7 +140,9 @@ function buildFiguresTab(obj)
 %           figure's files for every observation are the File menu's
 %           Generate selected figure, onGenerateFigure), Export preview (the
 %           observation picked, written as a run writes it into a preview
-%           folder and shown: onExportPreview), Auto, and < and > on a row
+%           folder and shown: onExportPreview), Auto (a slider from off
+%           to every edit: how slow a redraw an edit may start,
+%           autoRedrawLimit, onFigureAutoRedrawChanged), and < and > on a row
 %           (Page Up / Page Down) -- beside the dataset, the observation
 %           picked (figureObservations' labels) and the Favorites
 %           (buildFavorites: a filter and every starred dataset, channel
@@ -1694,10 +1696,13 @@ obj.FigureExportPreviewColumnButton = uibutton(bg, "Text", "Export preview", "En
     "run writes it (size, formats, dpi, file name) into a preview folder -- not the figure folder -- and shown in a " + ...
     "window. (" + cmdKey + "+K)", "ButtonPushedFcn", @(~,~) obj.onExportPreview());
 obj.FigureExportPreviewColumnButton.Layout.Row = 3;
-obj.FigureAutoCheckBox = uicheckbox(bg, "Text", "Auto", "Value", true, ...
-    "Tooltip", "Redraw on every change while a preview takes under " + obj.AutoPreviewSeconds + " s (one observation is quick). (" + cmdKey + "+T)", ...
-    "ValueChangedFcn", @(~,~) obj.onFigureAutoPreviewToggled());
-obj.FigureAutoCheckBox.Layout.Row = 4;
+% Auto: how slow a redraw an edit may start, 0 (off) to 1 (every edit); the limit in its tooltip (showAutoRedraw)
+ag = uigridlayout(bg, [1 2], "ColumnWidth", {'fit', '1x'}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
+ag.Layout.Row = 4;
+uilabel(ag, "Text", "Auto");
+obj.FigureAutoSlider = uislider(ag, "Limits", [0 1], "Value", obj.AutoRedrawDefault, "MajorTicks", [], "MinorTicks", [], ...
+    "ValueChangedFcn", @(~,~) obj.onFigureAutoRedrawChanged(), "ValueChangingFcn", @(~, e) obj.onFigureAutoRedrawChanged(e.Value));
+showAutoRedraw(obj);
 kg = uigridlayout(bg, [1 2], "ColumnWidth", {'1x', '1x'}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
 kg.Layout.Row = 5;
 obj.FigureObsPrevButton = uibutton(kg, "Text", "<", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onFigureObservationStep(-1), ...

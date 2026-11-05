@@ -31,7 +31,7 @@ K = [ ...
     c + "+P, " + c + "+R",              "Preview, Redraw All (the buttons at the left of the Dataset, Observation and Favorites rows)"
     c + "+G",                           "Generate selected figure (the File menu): its files for every observation on the ticked datasets"
     c + "+U",                           "Test report: every enabled figure for the observation picked (and the dataset's), in the browser"
-    c + "+T",                           "Auto: tick or untick it"
+    c + "+T",                           "Auto: off, or on again where its slider was"
     c + "+E, " + c + "+W",              "Export code, Open in window (the buttons under the preview)"
     "Arrows (Arrange)",                  "Nudge the selected panel by the snap step (the Panels section's Snap step), after a click on the preview"
     "Shift+Arrows (Arrange)",            "Nudge it by ten steps"

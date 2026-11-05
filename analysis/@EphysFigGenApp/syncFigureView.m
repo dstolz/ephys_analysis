@@ -49,6 +49,7 @@ if ~isempty(i) && ~gone(i)   % the figure left keeps what it shows
     V(i).State = obj.FigurePreviewState;
     V(i).Drawn = obj.FigurePreviewDrawn;
     V(i).Seconds = obj.FigurePreviewSeconds;
+    V(i).Cost = obj.FigurePreviewCost;
     V(i).Sessions = obj.FigureSessionResults;
     V(i).Label = string(obj.FigurePreviewLabel.Text);
 end
@@ -87,6 +88,7 @@ obj.FigurePreviewPanel = v.Panel;
 obj.FigurePreviewResult = v.Result;
 obj.FigurePreviewDrawn = v.Drawn;
 obj.FigurePreviewSeconds = v.Seconds;
+obj.FigurePreviewCost = v.Cost;
 obj.FigureSessionResults = v.Sessions;
 obj.FigurePreviewLabel.Text = v.Label;
 K = v.Sessions;

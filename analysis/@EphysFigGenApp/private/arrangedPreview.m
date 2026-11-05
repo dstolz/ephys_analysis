@@ -4,14 +4,14 @@ function arrangedPreview(obj, msg)
 %   autoFigurePreview for an edit of the panels' rects made in Arrange
 %   (Arrange=true). The preview shows the figure (previewShowsFigure) and
 %   the drawing there is laid out at the new rects whatever Auto, the
-%   time a preview takes (FigureAutoPreviewSeconds) and the badge say:
+%   time a redraw would take (previewCost) and the badge say:
 %     - drawn, and only the places changed: laid out in place and current
 %       (inPlaceFigurePreview: renderFigure's in-place path)
 %     - drawn, and the move changes which panels touch which (a time
 %       stack's labels) or the top-left panel, so a whole drawing is due:
 %       laid out at the new places first (renderFigure LayoutOnly, nothing
-%       drawn); then, with Auto on and the last preview quick (under
-%       FigureAutoPreviewSeconds), drawn again (refreshFigurePreview);
+%       drawn); then, with Auto on and the drawing quick enough (previewCost
+%       under autoRedrawLimit), drawn again (refreshFigurePreview);
 %       else marked out of date and the status bar says MSG and "Laid
 %       out; press Preview (or switch Arrange off) to redraw the labels."
 %     - out of date already (an edit Auto did not draw, a slow preview):
@@ -35,8 +35,9 @@ end
 laid = layoutOnly(obj);
 note = " Laid out; press Preview (or switch Arrange off) to redraw the labels.";
 if state0 == "drawn"   % a whole drawing is due: the panels touch others now, or another one is top-left
-    auto = ~isempty(obj.Tabs) && obj.Tabs.SelectedTab == obj.TabFigures && obj.FigureAutoCheckBox.Value;
-    if auto && obj.FigurePreviewSeconds < obj.FigureAutoPreviewSeconds
+    limit = autoRedrawLimit(obj);
+    auto = ~isempty(obj.Tabs) && obj.Tabs.SelectedTab == obj.TabFigures && limit > 0;
+    if auto && previewCost(obj) < limit   % (a place is a look: the drawing's time)
         obj.refreshFigurePreview();
         markFigureTree(obj);
         return

@@ -7,7 +7,9 @@ function layoutFigureEditor(obj)
 %   sections, none of them when it is collapsed. A header reads
 %   "▼  FIGURE   (Alt+1)", "►" when collapsed; the Panel supersection's
 %   names the selected panel ("PANEL  psth_1 (PSTH)") or says none is
-%   picked. What shows takes the editor's first rows, what does not
+%   picked; with several selected (Shift+click) it counts and names them
+%   ("PANEL  3 SELECTED: psth_1, psth_2, raster_1") on the selection's
+%   blue (SelectionColor) instead of the headers' dark gray. What shows takes the editor's first rows, what does not
 %   zero-height rows below it (out of sight, and skipped by Tab), and a
 %   last row the space left (the editor scrolls when they need more).
 %   syncFigureEditor decides what shows; onFigureSectionToggled and
@@ -37,8 +39,9 @@ for u = 1:numel(U)
         end
         h(in) = 0;
     end
-    t = superText(obj, U(u), any(h(in) > 0) || ~U(u).Expanded);
+    [t, back] = superText(obj, U(u), any(h(in) > 0) || ~U(u).Expanded);
     if ~isequal(string(U(u).Header.Text), t); U(u).Header.Text = t; end
+    if ~isequal(U(u).Header.BackgroundColor, back); U(u).Header.BackgroundColor = back; end
     items = [items {U(u).Header} {S(in).Grid}]; %#ok<AGROW>
     hs = [hs 30 * has h(in)]; %#ok<AGROW>
 end
@@ -56,15 +59,20 @@ obj.FigureSections = S;
 end
 
 
-function t = superText(obj, U, shows)
-%superText  A supersection header's text: its arrow, its title in capitals, the selected panel (Panel) and its key.
+function [t, back] = superText(obj, U, shows)
+%superText  A supersection header's text: its arrow, its title in capitals, the selected panel (Panel) and its key; BACK its color.
 arrow = "▼";
 if ~U.Expanded; arrow = "►"; end
 t = arrow + "  " + upper(U.Title);
+back = [0.21 0.26 0.35];   % (superHeader's)
 if U.Name == "panel"
     k = obj.SelectedFigure;
     j = obj.SelectedPanel;
-    if k >= 1 && k <= numel(obj.Config.Figures) && j >= 1 && j <= numel(obj.Config.Figures(k).panels)
+    sel = selectedPanelIds(obj);
+    if numel(sel) > 1   % several selected (Shift+click): they show on the selection's blue
+        t = t + sprintf("   %d SELECTED: ", numel(sel)) + strjoin(sel, ", ");
+        back = EphysFigGenApp.SelectionColor;
+    elseif k >= 1 && k <= numel(obj.Config.Figures) && j >= 1 && j <= numel(obj.Config.Figures(k).panels)
         p = obj.Config.Figures(k).panels(j);
         PT = EphysAnalysisConfig.panelTypes();
         lbl = PT.Label(PT.Type == p.type);

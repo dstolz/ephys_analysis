@@ -19,6 +19,7 @@ other = k ~= obj.SelectedFigure;
 S = [];
 if other
     saveFigureEditorState(obj);   % the editor as the figure left had it
+    obj.FigurePanelExtra = strings(1, 0);   % (the panels Shift+click added were the figure left's)
     obj.SelectedFigure = k;
     obj.SelectedPanel = 1;
     obj.SelectedLayer = 1;

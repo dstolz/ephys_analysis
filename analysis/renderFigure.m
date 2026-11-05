@@ -151,16 +151,18 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     them in its config and draws the figure again. []
 %                     (default): the figure is drawn again here with them
 %                     (they are not kept)
-%     OnSelect        called with a panel's id and whether Ctrl (Cmd on a
-%                     Mac) was down when the panel is clicked with Ctrl or
-%                     the "alt" button (a Ctrl+Click reports "alt", as a
-%                     right-click does, so the caller tells them apart:
-%                     the figure's CurrentModifier is the second argument,
-%                     and the app also has its own record of the key). On
-%                     the panel's axes, labels and anything drawn in them;
-%                     the app makes the panel the selected one of its
-%                     figure editor. [] (default): the panels take no such
-%                     click
+%     OnSelect        called with a panel's id, whether Ctrl (Cmd on a
+%                     Mac) was down and whether Shift was, when the panel
+%                     is clicked with Ctrl, with Shift or with the "alt"
+%                     button (a Ctrl+Click reports "alt", as a right-click
+%                     does, so the caller tells them apart: the figure's
+%                     CurrentModifier is the second argument, and the app
+%                     also has its own record of the key; a Shift+Click
+%                     reports "extend"). On the panel's axes, labels and
+%                     anything drawn in them; the app makes the panel the
+%                     selected one of its figure editor (Shift: adds it to
+%                     the panels selected, or takes it out). []
+%                     (default): the panels take no such click
 %     DataTips        "auto" (default: in a visible figure), true or false:
 %                     data tips that name the point's quantities, trial,
 %                     unit or channel, panel and dataset (FigureDataTips;
@@ -641,7 +643,7 @@ end
 
 if ~isempty(opts.OnSelect)
     for k = find(drawn)
-        figurePickable([axs(k) reshape(extra{k}, 1, [])], @(ctrl) opts.OnSelect(panels(k).id, ctrl));
+        figurePickable([axs(k) reshape(extra{k}, 1, [])], @(ctrl, shift) opts.OnSelect(panels(k).id, ctrl, shift));
     end
 end
 

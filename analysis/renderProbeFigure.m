@@ -98,7 +98,8 @@ function [h, how] = renderProbeFigure(PF, spec, target, opts)
 %   title and the legend only (context.menuRoot: a menu is a web component
 %   each in a uifigure, and a page of tiles has many parts); an edit made
 %   there applies to every tile. OnSelect is called
-%   with a panel's id when any tile's axes of that panel is Ctrl+Clicked.
+%   with a panel's id when any tile's axes of that panel is Ctrl+Clicked
+%   (or Shift+Clicked), as renderFigure's is.
 %
 %   H fields
 %     canvas     what the page is drawn on (TARGET, or the panel made in a
@@ -434,7 +435,7 @@ if figureEditable(opts.Editable, target)
 end
 if ~isempty(opts.OnSelect)
     for k = 1:np
-        if ~isempty(axsOf{k}); figurePickable(axsOf{k}, @(ctrl) opts.OnSelect(panels(k).id, ctrl)); end
+        if ~isempty(axsOf{k}); figurePickable(axsOf{k}, @(ctrl, shift) opts.OnSelect(panels(k).id, ctrl, shift)); end
     end
 end
 tips = opts.DataTips;

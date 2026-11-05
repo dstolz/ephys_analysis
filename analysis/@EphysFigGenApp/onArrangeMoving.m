@@ -18,7 +18,7 @@ function onArrangeMoving(obj, id, evt, alt)
 %   Position and Size fields show it (when it is the selected panel's).
 %   The figure takes the rect when the drag ends (onArrangeMoved), and
 %   the preview is laid out exactly then.
-%   With several panels selected (Shift+click: arrangeSelection) a drag of
+%   With several panels selected (Shift+click: selectedPanelIds) a drag of
 %   any of them moves them all by the same shift, kept on the page as a
 %   group, or resizes them all alike (the same edges by the same amounts:
 %   arrangeGroup); the snapping and the guides are the dragged box's (the
@@ -50,11 +50,11 @@ if mode ~= "drag"
     obj.FigureArrangeFocus = true;
     arrangeClickDone(obj);   % a drag: a click on one of several selected boxes keeps them all
     if C.j > 0 && C.j ~= obj.SelectedPanel   % (no click came first: the box dragged is the primary now)
-        sel = arrangeSelection(obj);
+        sel = selectedPanelIds(obj);
         if any(sel == id)
-            obj.FigureArrangeExtra = [sel(2:end) sel(1)];
+            obj.FigurePanelExtra = [sel(2:end) sel(1)];
         else
-            obj.FigureArrangeExtra = strings(1, 0);
+            obj.FigurePanelExtra = strings(1, 0);
         end
         obj.onPanelSelected(C.j);   % (its fields then show this panel)
         C = arrangeContext(obj, id);
@@ -96,9 +96,9 @@ end
 
 
 function G = dragGroup(obj, id)
-%dragGroup  The other panels selected with the one dragged (arrangeSelection), each with its rect, box and drawn parts as the drag starts.
+%dragGroup  The other panels selected with the one dragged (selectedPanelIds), each with its rect, box and drawn parts as the drag starts.
 G = struct('id', {}, 'rect0', {}, 'w', {}, 'parts', {});
-sel = arrangeSelection(obj);
+sel = selectedPanelIds(obj);
 if numel(sel) < 2 || ~any(sel == id); return; end
 for o = sel(sel ~= id)
     Co = arrangeContext(obj, o);

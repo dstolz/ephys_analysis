@@ -48,11 +48,15 @@ fig = obj.Config.Figures(k);
 hasPanel = obj.SelectedPanel >= 1 && obj.SelectedPanel <= numel(fig.panels);
 type = "";
 if hasPanel; type = fig.panels(obj.SelectedPanel).type; end
+sel = selectedPanelIds(obj);
+several = numel(sel) > 1 && (S.Super == "panel" || any(ismember(e.Keys, ["rectXY" "rectWH"])));   % hidden for a selection of several?
 if ~(S.Visible && (isempty(S.Heights) || any(S.Shown)))   % the section is not shown for this figure
+    if several; obj.setStatus(severalReason(e.Label, sel)); return; end
     obj.setStatus(sectionReason(e, S, fig, hasPanel, type));
     return
 end
 if e.Row > 0 && ~S.Shown(e.Row)
+    if several; obj.setStatus(severalReason(e.Label, sel)); return; end
     obj.setStatus(figureRowReason(e.Label, e.Keys(1), type));
     return
 end
@@ -139,4 +143,12 @@ function restore(F)
 if F.prop ~= "" && isvalid(F.handle)
     try F.handle.(F.prop) = F.saved; catch; end
 end
+end
+
+
+function t = severalReason(label, sel)
+%severalReason  Why a panel's row is hidden while the panels SEL are selected (Shift+click).
+t = sprintf("%s is hidden while %d panels are selected (%s): the editor shows only the settings they all have, " + ...
+    "not a panel's own place, type, layers, note or overlays. Ctrl+Click one panel to see all of its rows.", ...
+    label, numel(sel), strjoin(sel, ", "));
 end

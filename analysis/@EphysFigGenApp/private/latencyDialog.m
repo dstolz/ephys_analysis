@@ -25,7 +25,9 @@ function d = latencyDialog(obj, kind)
 %   OK gives the panel the settings (the window opened on it, by its
 %   figure's and its own id) as one edit, named in the undo history
 %   ("First-spike marks", "Latency box plot": commitFigureEdit), and
-%   closes the window. Cancel closes it, changing nothing. The window's
+%   closes the window; with several panels selected (Shift+click) the
+%   others that take them get them too, in the same step
+%   (spreadPanelEdit). Cancel closes it, changing nothing. The window's
 %   UserData holds its controls (above, with ColorSwatch, Kind, FigureId,
 %   PanelId, Note, Ok, Cancel) for the tests.
 %   Nothing opens, and the status line says why, without a panel of the
@@ -193,8 +195,13 @@ sync();
             return
         end
         cfg.Figures(q).panels(kp).options.(kind) = N;
-        commitFigureEdit(obj, cfg, pid + ": " + lower(extractBefore(name, 2)) + extractAfter(name, 1) + " " + ...
-            latencySummary(N, kind) + ".", Action=name);
+        msg = pid + ": " + lower(extractBefore(name, 2)) + extractAfter(name, 1) + " " + latencySummary(N, kind) + ".";
+        action = name;
+        if q == obj.SelectedFigure && kp == obj.SelectedPanel
+            [cfg, action, shared] = spreadPanelEdit(obj, cfg, name);   % several panels selected: to all of them
+            if shared ~= ""; msg = shared; end
+        end
+        commitFigureEdit(obj, cfg, msg, Action=action);
         delete(d);
     end
 end

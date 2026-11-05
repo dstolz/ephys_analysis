@@ -9,8 +9,9 @@ function stepFigurePanel(obj, how)
 %   down, its height for left and right), the one sharing most when
 %   several are as near, then the one whose middle is most in line with
 %   the selected panel's; with none there the selection stays and the
-%   status bar says so. The panel is selected as Ctrl+Click on it in the
-%   preview selects it (onPanelSelected): the editor
+%   status bar says so. The panel is selected alone, as Ctrl+Click on it
+%   in the preview selects it (onPanelSelected; the panels Shift+click
+%   added let go): the editor
 %   shows it and the preview outlines it (markFigurePanel), with nothing
 %   computed or drawn again.
 arguments
@@ -31,7 +32,7 @@ end
 j = min(max(obj.SelectedPanel, 1), np);
 if ismember(how, ["next" "previous"])
     q = mod(j - 1 + 1 - 2 * (how == "previous"), np) + 1;
-    obj.onPanelSelected(q);
+    selectAlone(obj, q);
     obj.setStatus(sprintf("Selected %s (panel %d of %d).", P(q).id, q, np));
     return
 end
@@ -58,7 +59,19 @@ if isempty(cand)
 end
 [~, best] = sortrows([gap(cand) -over(cand) line(cand) cand.']);
 q = cand(best(1));
-obj.onPanelSelected(q);
+selectAlone(obj, q);
+end
+
+
+function selectAlone(obj, q)
+%selectAlone  Select panel Q alone: the panels Shift+click added let go (onPanelSelected).
+many = ~isempty(obj.FigurePanelExtra);
+obj.FigurePanelExtra = strings(1, 0);
+if q ~= obj.SelectedPanel
+    obj.onPanelSelected(q);
+elseif many
+    obj.syncFigureEditor();   % (the rows are this panel's alone again; one outline)
+end
 end
 
 

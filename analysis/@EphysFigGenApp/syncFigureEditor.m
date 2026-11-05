@@ -123,6 +123,19 @@ function syncFigureEditor(obj)
 %                    group is hidden then. On the probe and Across
 %                    sessions exclude each other: one ticked grays the
 %                    other out
+%   Several panels selected (Shift+click: selectedPanelIds; the shown one
+%   is the first, its values in the rows): a banner over the Panel
+%   section's rows names them, and only the rows each of them shows by
+%   its own type and values are shown (panelRowsShown, judged for the
+%   others by their stored options): their title, box, axis labels, Group
+%   shown, Options and Waveform rows, and Panel alignment when each one is
+%   aligned to events; not the type, the place (Position, Size), Bring
+%   forward and Send back, Options' and Panel alignment's Apply to all
+%   panels, nor Layers, Text note and Overlays (each panel's own). Remove
+%   panel says how many it removes, and the section titles count them.
+%   An edit then goes to all of them (onConfigChanged: spreadPanelEdit).
+%   The selection lets go of the others when the figure's panels change
+%   (one added, removed or renamed: FigurePanelIds).
 %   What is enabled: the binding only where a layer may follow the
 %   observation (figureEditorChoices: Bindable; otherwise it shows Fixed),
 %   the train only on a raster, PSTH or heat map, the response test's rows
@@ -177,6 +190,13 @@ PT = EphysAnalysisConfig.panelTypes();
 np = numel(fig.panels);
 j = obj.SelectedPanel;
 hasPanel = j >= 1 && j <= np;
+pids = strings(1, 0);
+if np > 0; pids = [fig.panels.id]; end
+if ~isequal(obj.FigurePanelIds, pids); obj.FigurePanelExtra = strings(1, 0); end   % a panel added, removed or renamed: the primary alone
+obj.FigurePanelIds = pids;
+sel = selectedPanelIds(obj);   % the shown panel first, then the others selected with Shift+click
+others = find(ismember(pids, sel(2:end)));
+several = hasPanel && ~isempty(others);   % the rows they all have; an edit goes to every one (spreadPanelEdit)
 kind = EphysAnalysisConfig.observeKind(fig);
 spikes = EphysAnalysisConfig.SpikeSources;
 signals = EphysAnalysisConfig.SignalSources;
@@ -245,12 +265,15 @@ en([E.latBaseFrom E.latBaseTo], string(E.latBaseline.Value) == "window");
 E.latNote.Text = latencyNote(fig);
 % arrangement and panel
 v.selPanel = hasPanel; v.noPanel = ~hasPanel;
-v.rectXY = hasPanel; v.rectWH = hasPanel; v.panelButtons = hasPanel;
-en(E.bringForward, hasPanel && j < np);   % the drawing order: forward while a panel is drawn after it
-en(E.sendBack, hasPanel && j > 1);
-axesOn = hasPanel && fig.panels(j).type ~= "legend";   % a legend panel has no axes
-v.panelType = hasPanel; v.panelTitle = hasPanel; v.panelBox = axesOn; v.panelXLabel = axesOn; v.panelYLabel = axesOn;
-v.group = false;
+v.rectXY = hasPanel && ~several; v.rectWH = v.rectXY; v.panelButtons = hasPanel;   % (several: each keeps its place)
+en(E.bringForward, hasPanel && j < np && ~several);   % the drawing order: forward while a panel is drawn after it
+en(E.sendBack, hasPanel && j > 1 && ~several);
+E.removePanel.Text = "Remove panel";
+if several; E.removePanel.Text = sprintf("Remove %d panels", numel(sel)); end
+v.multiNote = several;
+if several; E.multiNote.Text = multiText(sel); end
+v.panelType = hasPanel && ~several; v.panelTitle = hasPanel;   % (several: each keeps its type)
+v.panelBox = false; v.panelXLabel = false; v.panelYLabel = false; v.group = false;   % (panelRowsShown: none on a legend panel)
 % layers and options: off unless the panel uses them
 layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layerBinding" "layerFollows" "layerClasses" ...
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
@@ -281,14 +304,11 @@ if hasPanel
         typeLabel = PT.Label(row);
         optionsTitle = typeLabel + " options";
         paligned = PT.Aligned(row);
-        v.group = PT.OneGroup(row);
     end
     on = [p.layers.enabled];
     first = "";
     if any(on); first = p.layers(find(on, 1)).source; end
-    pointHeat = t == "heatmap" && ~ismember(first, signals);
     rowsNow = string(E.heatRows.Value);   % a heat map's rows: its units / channels, or one unit's epochs
-    trialHeat = t == "heatmap" && rowsNow == "trials";
     ch = figureEditorChoices(t, first);
 
     % layers
@@ -349,87 +369,43 @@ if hasPanel
     en(E.layerDown, i >= 1 && i < nl);
     en(E.addLayer, ~isempty(ch.Sources));
 
-    % options
-    v.binMs = t == "psth" || pointHeat || t == "corrmap"; v.smoothMs = v.binMs;
-    v.measure = t == "psth" || pointHeat || ismember(t, ["rate" "tuning"]);
-    v.baselineMode = ismember(t, ["psth" "continuous" "heatmap" "corrmap" "rate" "tuning"]); v.baseFrom = v.baselineMode;
-    psthHeat = t == "psth" && string(E.psthDisplay.Value) == "heatmap";   % a PSTH drawn as a heat map: no trace rows
-    v.psthDisplay = t == "psth";
-    stackNow = string(E.stack.Value);   % the stack, one row for every type that stacks (stackModes)
-    v.stack = ~isempty(EphysAnalysisConfig.stackModes(t)) && ~psthHeat && ~trialHeat;
-    if ~v.stack; stackNow = "off"; end
-    v.param = t == "tuning";
-    v.rateDisplay = t == "rate";
-    v.waveLayout = t == "waveforms";
-    v.rasterSort = t == "raster" || trialHeat || t == "eventTrace"; v.sortLine = v.rasterSort; v.sortSeqText = v.rasterSort; v.rasterByGroup = v.rasterSort;
-    v.yTicks = t == "raster"; v.tickColor = v.yTicks; v.tickWidth = v.yTicks; v.backColor = v.yTicks;
-    v.firstSpike = t == "raster";
-    v.latencyBox = t == "psth" && ~psthHeat;
-    v.onsetLine = ismember(t, ["raster" "psth"]);
-    v.trialCount = t == "psth";
-    v.heatRows = t == "heatmap";
-    v.contTrials = t == "continuous";
+    % options and the unit waveform: the rows the panel's type and values use (panelRowsShown); with several panels
+    % selected, only the rows every one of them shows (each by its own values)
+    [pv, d] = panelRowsShown(p, editorValues(E), [optionKeys waveKeys]);
+    own = pv;   % the shown panel's own: what its rows' enabling reads
+    for q = others
+        qv = panelRowsShown(fig.panels(q), storedValues(fig.panels(q)), [optionKeys waveKeys]);
+        for f = string(fieldnames(pv)).'
+            pv.(f) = pv.(f) && qv.(f);
+        end
+    end
+    if several; pv.optApplyAll = false; end   % (Apply to all panels gives one panel's options to every other)
+    waveSpiky = pv.waveSection;
+    pv = rmfield(pv, 'waveSection');
+    for f = string(fieldnames(pv)).'
+        v.(f) = pv.(f);
+    end
+    stackNow = d.stack;
+    overTime = d.overTime;
     en(E.maxTrials, string(E.contTrials.Value) ~= "off");
-    v.maskAfterStop = ismember(t, ["raster" "psth"]) || pointHeat;
-    v.histStyle = t == "psth" && ~psthHeat; v.fill = v.histStyle; v.normalize = t == "psth";
-    v.statistic = t == "continuous";
-    v.errorType = ismember(t, ["psth" "continuous" "rate" "tuning"]) && ~psthHeat;   % the panel's own error (its items by type)
-    if v.errorType; errorTypeItems(E.errorType, t); end
+    if own.errorType; errorTypeItems(E.errorType, t); end
     errOn = t ~= "rate" || string(E.rateDisplay.Value) == "bar";   % a rate panel draws its error bars on bars
     en(E.errorType, errOn);
     en(E.errResamples, errOn && string(E.errorType.Value) == "ci95");
-    v.order = t == "heatmap" && ~trialHeat;
-    et = t == "eventTrace";   % an event-trace panel's rows; those its display or trials do not use stay grayed out
-    v.etDisplay = et; v.etTrials = et; v.etColorBy = et; v.etHeight = et; v.etEdge = et; v.etMinWidth = et; v.etLineStyle = et;
-    v.etBaseline = et; v.etBaseStyle = et; v.etRowSpacing = et;
-    bars = string(E.etDisplay.Value) == "bars";
+    bars = string(E.etDisplay.Value) == "bars";   % an event-trace panel's rows its display or trials do not use: grayed out
     en([E.etEdge E.etEdgeWidth E.etMinWidth], bars);
     en([E.etLineStyle E.etLineWidth], ~bars);
     en(E.etGroupBands, string(E.etTrials.Value) == "rows");
     en([E.etBaseColor E.etBaseStyle E.etBaseWidth], E.etBaseline.Value);
-    if trialHeat; v.group = false; end   % a heat map of trials draws every group
-    v.value = t == "probemap";
-    v.legOrient = t == "legend"; v.legAlign = v.legOrient;
-    v.unitLabels = v.value;
-    v.waveColor = v.value;
-    v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric; v.detrend = v.metric;
-    v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning" "spectrum"]) && ~psthHeat;
-    v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram"]) || psthHeat;
-    v.panelColormap = psthHeat;
-    % the spectral panels: the Chronux tab's rows
-    spectral = ismember(t, ["spectrum" "spectrogram" "coherence"]);
-    overTime = t == "coherence" && logical(E.spOverTime.Value);   % a coherogram: an image of one group over time
-    v.spTimeBase = ismember(t, ["spectrum" "coherence"]);
-    ranged = v.spTimeBase && string(E.spTimeBase.Value) == "range";
-    v.spRangeFrom = ranged; v.spSegment = ranged && ~overTime;
-    v.spTaperMode = spectral; v.spTW = spectral; v.spW = spectral; v.spPad = spectral; v.spFmin = spectral; v.spDetrend = spectral;
     en([E.spTW E.spK], string(E.spTaperMode.Value) == "TWK");
     en([E.spW E.spP], string(E.spTaperMode.Value) == "Wp");
-    v.spErr = ismember(t, ["spectrum" "coherence"]) && ~overTime;
-    v.errFace = ismember(t, ["psth" "continuous" "spectrum" "coherence" "waveforms" "probemap"]) && ~psthHeat && ~overTime;   % the bands' look
-    v.errEdge = v.errFace;
-    bandOn = ~(v.errorType && string(E.errorType.Value) == "off");   % its error off: no band to style
+    bandOn = ~(own.errorType && string(E.errorType.Value) == "off");   % its error off: no band to style
     en([E.errFace E.errAlpha E.errEdge], bandOn);
     en([E.errEdgeStyle E.errEdgeWidth], bandOn && lower(strtrim(string(E.errEdge.Value))) ~= "none");
     en(E.spErrP, string(E.spErr.Value) ~= "none");
-    v.spScale = ismember(t, ["spectrum" "spectrogram"]);
-    v.spSpikeFs = spectral && any(ismember([p.layers.source], spikes));
-    v.spOverTime = t == "coherence";
-    v.spWin = t == "spectrogram" || overTime;
-    v.spShowPhase = t == "coherence" && ~overTime;
-    if t == "coherence"
-        v.yLim = ~overTime;
-        v.cLim = overTime;
-        v.group = overTime;
-    end
-    if stackNow ~= "off"; v.group = false; end   % a stack draws every group
-    if t == "spectrogram"; v.baselineMode = true; v.baseFrom = true; end
-    if v.baselineMode; offerItems(E.baselineMode, ch.BaselineModes); end
+    if own.baselineMode; offerItems(E.baselineMode, ch.BaselineModes); end
     en([E.baseFrom E.baseTo], string(E.baselineMode.Value) ~= "none");
-    auOn = (t == "psth" || pointHeat) && string(E.baselineMode.Value) == "auroc";   % the panel's auROC settings
-    v.auMethod = auOn; v.auWinMs = auOn; v.auModFrom = auOn; v.auCutoff = auOn; v.auMarks = auOn;
     auCut = string(E.auCutoff.Value);
-    v.auTest = auOn && ismember(auCut, ["test" "shuffle"]);   % shuffle: its n and alpha
     en(E.auStepMs, string(E.auWindows.Value) == "sliding");
     en(E.auThreshold, auCut == "fixed");
     en([E.auTest E.auCorrection], auCut == "test");
@@ -447,20 +423,10 @@ if hasPanel
     stop = obj.FigureAlignControls.StopOn.Value;
     if isstruct(p.window); stop = obj.PanelAlignControls.StopOn.Value; end
     en(E.maskAfterStop, stop);
-    % Apply to all panels: any other panel (every one takes the axis sides; adoptPanelOptions)
-    v.optApplyAll = known;
-    en(E.optApplyAll, np > 1);
+    en(E.optApplyAll, np > 1);   % Apply to all panels: any other panel (every one takes the axis sides; adoptPanelOptions)
 
-    % the unit waveform: its section for every type whose layers may be spikes, its rows where the type draws one
-    waveSpiky = any(ismember(ch.Sources, spikes));
-    [waveText, draws] = waveformNote(t, string(E.waveLayout.Value));
-    E.waveNote.Text = waveText;
-    inset = ismember(t, EphysAnalysisConfig.WaveformInsetTypes);
-    probe = t == "waveforms" && string(E.waveLayout.Value) == "probe";
-    glyphs = probe || t == "probemap";   % the units' waveforms at their places on the probe
-    v.waveNote = waveSpiky;
-    v.waveMode = draws; v.waveSpikes = draws; v.waveFrom = draws; v.waveAmp = draws; v.wavePP = draws && t ~= "probemap";
-    v.waveWidth = inset || glyphs; v.waveLocation = inset; v.waveSites = probe;
+    % the unit waveform's note (what it sets, or why the type draws none) and its rows' enabling
+    E.waveNote.Text = d.waveText;
     mode = string(E.waveMode.Value);
     waveOn = mode ~= "off";
     en([E.waveSpikes E.waveFrom E.waveTo E.waveAmp E.waveWidth E.waveHeight E.waveLocation E.waveBox E.wavePP E.waveCount ...
@@ -483,7 +449,7 @@ if hasPanel
     if ownSel; en(C2.MinArtifact, C2.ExcludeArtifacts.Value); end
     en(E.panelSame, paligned);
     en(E.panelSameSel, paligned);
-    en(E.alignApplyAll, unlinked || ownSel);
+    en(E.alignApplyAll, (unlinked || ownSel) && ~several);   % (it gives one panel's own to the figure)
     E.palignNote.Text = "";
     if ~paligned
         E.palignNote.Text = typeLabel + " panels are not aligned to events: they use no event or window.";
@@ -508,6 +474,9 @@ if hasPanel
     outlined = isLine || ~ismember(lower(strtrim(string(E.ovEdge.Value))), ["" "none"]);
     en([E.ovStyle E.ovWidth], outlined);
     nOv = numel(items);
+end
+if several   % each keeps its own layers, text note and overlays
+    for f = [layerKeys noteKeys overlayKeys]; v.(f) = false; end
 end
 en(E.removePanel, hasPanel);
 own = false;   % any panel with its own event, window or selection: Re-link all panels has something to do
@@ -546,8 +515,12 @@ for f = string(fieldnames(v)).'
 end
 for i = 1:numel(S)
     switch names(i)
-        case {"panel" "palign" "layers" "options" "note" "overlays"}
+        case {"panel" "options"}
             S(i).Visible = hasPanel;
+        case "palign"
+            S(i).Visible = hasPanel && (~several || all(aligned([j others])));   % several: when each one is aligned to events
+        case {"layers" "note" "overlays"}
+            S(i).Visible = hasPanel && ~several;   % each panel's own
         case "waveform"
             S(i).Visible = hasPanel && waveSpiky;
         case {"ref" "window" "selection"}
@@ -568,6 +541,19 @@ if hasPanel
     S(names == "overlays").Title = "Overlays on " + fig.panels(j).id;
     if nOv > 0; S(names == "overlays").Title = "Overlays (" + nOv + ") on " + fig.panels(j).id; end
 end
+S(names == "panel").Title = "Selected panel";
+S(names == "palign").Title = "Panel alignment";
+if several   % the sections' titles count the panels an edit goes to
+    nSel = numel(sel);
+    S(names == "panel").Title = sprintf("%d selected panels", nSel);
+    S(names == "palign").Title = sprintf("Panel alignment of %d panels", nSel);
+    S(names == "waveform").Title = sprintf("Waveform on %d panels", nSel);
+    if isscalar(unique([fig.panels([j others]).type]))
+        S(names == "options").Title = optionsTitle + sprintf(" (%d panels)", nSel);
+    else
+        S(names == "options").Title = sprintf("Options the %d panels share", nSel);
+    end
+end
 S(names == "layers").Title = "Layers";
 if hasPanel && ~isempty(fig.panels(j).layers)
     S(names == "layers").Title = "Layers (" + numel(fig.panels(j).layers) + ") of " + fig.panels(j).id;
@@ -584,6 +570,140 @@ obj.markFigurePanel();   % the preview outlines the selected panel
 end
 
 
+function [v, d] = panelRowsShown(p, val, keys)
+%panelRowsShown  Which of panel P's own rows show while its rows hold the values VAL: Box, the axis labels, Group shown, its Options and Waveform rows.
+%   [V, D] = panelRowsShown(P, VAL, KEYS): V has a field per key of KEYS
+%   (the Options and Waveform rows', off unless P's type uses them) and
+%   panelBox, panelXLabel, panelYLabel, group and waveSection (the
+%   Waveform section shows: the type's layers may be spikes). VAL holds
+%   the values the showing follows: editorValues (the editor's controls,
+%   for the panel it shows) or storedValues (another selected panel's
+%   options), so each panel selected is judged by its own values. D: what
+%   the enabling of the shown panel's rows reads too (pointHeat,
+%   trialHeat, psthHeat, stack: "off" where the type shows no stack row,
+%   overTime, waveText).
+PT = EphysAnalysisConfig.panelTypes();
+t = p.type;
+row = PT.Type == t;
+known = any(row);
+v = struct();
+for f = keys; v.(f) = false; end
+axesOn = t ~= "legend";   % a legend panel has no axes
+v.panelBox = axesOn; v.panelXLabel = axesOn; v.panelYLabel = axesOn;
+v.group = known && PT.OneGroup(row);
+first = "";
+if ~isempty(p.layers)
+    on = [p.layers.enabled];
+    if any(on); first = p.layers(find(on, 1)).source; end
+end
+ch = figureEditorChoices(t, first);
+pointHeat = t == "heatmap" && ~ismember(first, EphysAnalysisConfig.SignalSources);
+trialHeat = t == "heatmap" && val.heatRows == "trials";   % a heat map of one unit's epochs
+psthHeat = t == "psth" && val.psthDisplay == "heatmap";   % a PSTH drawn as a heat map: no trace rows
+v.binMs = t == "psth" || pointHeat || t == "corrmap"; v.smoothMs = v.binMs;
+v.measure = t == "psth" || pointHeat || ismember(t, ["rate" "tuning"]);
+v.baselineMode = ismember(t, ["psth" "continuous" "heatmap" "corrmap" "rate" "tuning"]); v.baseFrom = v.baselineMode;
+v.psthDisplay = t == "psth";
+v.stack = ~isempty(EphysAnalysisConfig.stackModes(t)) && ~psthHeat && ~trialHeat;   % one row for every type that stacks
+stackNow = val.stack;
+if ~v.stack; stackNow = "off"; end
+v.param = t == "tuning";
+v.rateDisplay = t == "rate";
+v.waveLayout = t == "waveforms";
+v.rasterSort = t == "raster" || trialHeat || t == "eventTrace"; v.sortLine = v.rasterSort; v.sortSeqText = v.rasterSort; v.rasterByGroup = v.rasterSort;
+v.yTicks = t == "raster"; v.tickColor = v.yTicks; v.tickWidth = v.yTicks; v.backColor = v.yTicks;
+v.firstSpike = t == "raster";
+v.latencyBox = t == "psth" && ~psthHeat;
+v.onsetLine = ismember(t, ["raster" "psth"]);
+v.trialCount = t == "psth";
+v.heatRows = t == "heatmap";
+v.contTrials = t == "continuous";
+v.maskAfterStop = ismember(t, ["raster" "psth"]) || pointHeat;
+v.histStyle = t == "psth" && ~psthHeat; v.fill = v.histStyle; v.normalize = t == "psth";
+v.statistic = t == "continuous";
+v.errorType = ismember(t, ["psth" "continuous" "rate" "tuning"]) && ~psthHeat;   % the panel's own error (its items by type)
+v.order = t == "heatmap" && ~trialHeat;
+et = t == "eventTrace";   % an event-trace panel's rows
+v.etDisplay = et; v.etTrials = et; v.etColorBy = et; v.etHeight = et; v.etEdge = et; v.etMinWidth = et; v.etLineStyle = et;
+v.etBaseline = et; v.etBaseStyle = et; v.etRowSpacing = et;
+if trialHeat; v.group = false; end   % a heat map of trials draws every group
+v.value = t == "probemap";
+v.legOrient = t == "legend"; v.legAlign = v.legOrient;
+v.unitLabels = v.value;
+v.waveColor = v.value;
+v.metric = t == "corrmap"; v.correlation = v.metric; v.fisherZ = v.metric; v.detrend = v.metric;
+v.yLim = ismember(t, ["psth" "continuous" "waveforms" "rate" "tuning" "spectrum"]) && ~psthHeat;
+v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram"]) || psthHeat;
+v.panelColormap = psthHeat;
+% the spectral panels: the Chronux tab's rows
+spectral = ismember(t, ["spectrum" "spectrogram" "coherence"]);
+overTime = t == "coherence" && val.overTime;   % a coherogram: an image of one group over time
+v.spTimeBase = ismember(t, ["spectrum" "coherence"]);
+ranged = v.spTimeBase && val.timeBase == "range";
+v.spRangeFrom = ranged; v.spSegment = ranged && ~overTime;
+v.spTaperMode = spectral; v.spTW = spectral; v.spW = spectral; v.spPad = spectral; v.spFmin = spectral; v.spDetrend = spectral;
+v.spErr = ismember(t, ["spectrum" "coherence"]) && ~overTime;
+v.errFace = ismember(t, ["psth" "continuous" "spectrum" "coherence" "waveforms" "probemap"]) && ~psthHeat && ~overTime;   % the bands' look
+v.errEdge = v.errFace;
+v.spScale = ismember(t, ["spectrum" "spectrogram"]);
+v.spSpikeFs = spectral && ~isempty(p.layers) && any(ismember([p.layers.source], EphysAnalysisConfig.SpikeSources));
+v.spOverTime = t == "coherence";
+v.spWin = t == "spectrogram" || overTime;
+v.spShowPhase = t == "coherence" && ~overTime;
+if t == "coherence"
+    v.yLim = ~overTime;
+    v.cLim = overTime;
+    v.group = overTime;
+end
+if stackNow ~= "off"; v.group = false; end   % a stack draws every group
+if t == "spectrogram"; v.baselineMode = true; v.baseFrom = true; end
+auOn = (t == "psth" || pointHeat) && val.baselineMode == "auroc";   % the panel's auROC settings
+v.auMethod = auOn; v.auWinMs = auOn; v.auModFrom = auOn; v.auCutoff = auOn; v.auMarks = auOn;
+v.auTest = auOn && ismember(val.aurocCutoff, ["test" "shuffle"]);   % shuffle: its n and alpha
+v.optApplyAll = known;
+% the unit waveform: its section for every type whose layers may be spikes, its rows where the type draws one
+v.waveSection = any(ismember(ch.Sources, EphysAnalysisConfig.SpikeSources));
+[waveText, draws] = waveformNote(t, val.waveLayout);
+inset = ismember(t, EphysAnalysisConfig.WaveformInsetTypes);
+probe = t == "waveforms" && val.waveLayout == "probe";
+glyphs = probe || t == "probemap";   % the units' waveforms at their places on the probe
+v.waveNote = v.waveSection;
+v.waveMode = draws; v.waveSpikes = draws; v.waveFrom = draws; v.waveAmp = draws; v.wavePP = draws && t ~= "probemap";
+v.waveWidth = inset || glyphs; v.waveLocation = inset; v.waveSites = probe;
+d = struct('pointHeat', pointHeat, 'trialHeat', trialHeat, 'psthHeat', psthHeat, 'stack', stackNow, 'overTime', overTime, ...
+    'waveText', waveText);
+end
+
+
+function val = editorValues(E)
+%editorValues  The values panelRowsShown follows, as the editor's controls show them (the panel the editor shows).
+val = struct('heatRows', string(E.heatRows.Value), 'psthDisplay', string(E.psthDisplay.Value), 'stack', string(E.stack.Value), ...
+    'overTime', logical(E.spOverTime.Value), 'timeBase', string(E.spTimeBase.Value), 'baselineMode', string(E.baselineMode.Value), ...
+    'aurocCutoff', string(E.auCutoff.Value), 'waveLayout', string(E.waveLayout.Value));
+end
+
+
+function val = storedValues(p)
+%storedValues  The values panelRowsShown follows, as panel P's options hold them (another of the panels selected).
+op = p.options;
+val = struct('heatRows', optionText(op, "rows", "items"), 'psthDisplay', optionText(op, "display", ""), ...
+    'stack', optionText(op, "stack", "off"), 'overTime', false, 'timeBase', optionText(op, "timeBase", ""), ...
+    'baselineMode', "", 'aurocCutoff', "", 'waveLayout', optionText(op, "layout", "grid"));
+if isfield(op, 'overTime'); val.overTime = isscalar(op.overTime) && logical(op.overTime); end
+if isfield(op, 'baseline') && isstruct(op.baseline) && isfield(op.baseline, 'Mode'); val.baselineMode = optionText(op.baseline, "Mode", ""); end
+if isfield(op, 'auroc') && isstruct(op.auroc) && isfield(op.auroc, 'cutoff'); val.aurocCutoff = optionText(op.auroc, "cutoff", ""); end
+end
+
+
+function x = optionText(op, f, default)
+%optionText  Option F of OP as one string, else DEFAULT (a type without it, or a value that is not one text).
+x = string(default);
+if ~isfield(op, f); return; end
+y = string(op.(f));
+if isscalar(y) && ~ismissing(y); x = y; end
+end
+
+
 function [up, down] = groupNeighbors(obj, k)
 %groupNeighbors  Whether figure K has a figure before (UP) and after (DOWN) it in its group of the tree (figureGroups).
 up = false;
@@ -595,6 +715,14 @@ group = members{cellfun(@(m) any(m == k), members)};
 i = find(group == k);
 up = i > 1;
 down = i < numel(group);
+end
+
+
+function t = multiText(sel)
+%multiText  The banner over the Panel section's rows while the panels SEL (the shown one first) are selected.
+n = numel(sel);
+t = sprintf("%d panels selected: %s. Only the settings they all have are shown, with %s's values; an edit goes to " + ...
+    "all %d. Shift+click a panel to add it or take it out; Esc keeps %s alone.", n, strjoin(sel, ", "), sel(1), n, sel(1));
 end
 
 

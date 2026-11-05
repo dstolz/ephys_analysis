@@ -2,7 +2,7 @@ function showPanelPlace(obj)
 %showPanelPlace  The Panels section's place rows for the selected figure and panel, in the units picked.
 %   showPanelPlace(OBJ) shows the Units drop-down (FigureRectUnits), the
 %   selected panel's line ("psth_1 (PSTH): 10.2 x 6.0 cm at 0, 0":
-%   rectText) and its rect in the Position and Size fields, the figure's
+%   rectText; with several selected, "3 panels: psth_1, psth_2, raster_1") and its rect in the Position and Size fields, the figure's
 %   Boxes mean and Padding, and Snap with its step (FigureSnap,
 %   FigureSnapStep, in the units picked: snapStepIn), each value converted
 %   to the units on the figure's export page (figurePage) and rounded as
@@ -56,6 +56,8 @@ PT = EphysAnalysisConfig.panelTypes();
 label = PT.Label(PT.Type == p.type);
 if isempty(label); label = p.type; end
 E.selPanel.Text = p.id + " (" + label + "): " + rectText(r, u, pageCm, dpi);
+sel = selectedPanelIds(obj);
+if numel(sel) > 1; E.selPanel.Text = sprintf("%d panels: %s", numel(sel), strjoin(sel, ", ")); end   % (Shift+click: each keeps its place)
 end
 
 

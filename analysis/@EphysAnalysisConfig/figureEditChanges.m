@@ -1,4 +1,4 @@
-function changes = figureEditChanges(before, after, panel)
+function changes = figureEditChanges(before, after, panel, opts)
 %figureEditChanges  The settings an edit of one figure changed that other figures (or panels) could take too.
 %   CHANGES = EphysAnalysisConfig.figureEditChanges(BEFORE, AFTER, PANEL)
 %   compares a figure (a Figures entry) before and after an edit made with
@@ -15,7 +15,9 @@ function changes = figureEditChanges(before, after, panel)
 %   What belongs to one figure is left out: the figure's id, autoId,
 %   title, enabled, panels and remembered looks (aesthetics); the panel's
 %   id, type, title, axis labels, place on the page (rect), layers,
-%   overlays and note text. How the figure's boxes are read and their
+%   overlays and note text; Labels=true compares the panel's title and
+%   axis labels too (the panels selected together in the analysis app
+%   take them: its spreadPanelEdit). How the figure's boxes are read and their
 %   padding (layout.boxesMean, layout.padding) are figure settings like
 %   any other. The panel is compared only when
 %   the edit kept the figure's panels (the same ids) and the panel's type.
@@ -27,6 +29,7 @@ arguments
     before (1,1) struct
     after (1,1) struct
     panel (1,1) double = 0
+    opts.Labels (1,1) logical = false
 end
 changes = struct('scope', {}, 'path', {}, 'value', {});
 skip = ["id" "autoId" "title" "enabled" "panels" "aesthetics"];
@@ -40,6 +43,7 @@ if panel < 1 || panel > numel(pa) || numel(pb) ~= numel(pa) || ~isequal([pb.id],
     return
 end
 skip = ["id" "type" "title" "xLabel" "yLabel" "rect" "layers" "overlays"];
+if opts.Labels; skip = setdiff(skip, ["title" "xLabel" "yLabel"], 'stable'); end
 p0 = pb(panel);
 p1 = pa(panel);
 for f = string(fieldnames(p1)).'

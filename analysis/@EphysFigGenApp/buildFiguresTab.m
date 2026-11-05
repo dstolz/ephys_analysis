@@ -764,6 +764,13 @@ hPanel = superHeader(eg);   % the Panel supersection's header
 
 % the selected panel (the section's key stays "panel")
 S = formSection(eg, 4, "panel", "Selected panel", Color=tint("panel"));
+[S, r] = formRow(S, "multiNote", "", 64);   % several panels selected (Shift+click): which, and what an edit does
+E.multiNote = uilabel(S.Body, "Text", "", "WordWrap", "on", "FontWeight", "bold", "FontColor", [1 1 1], ...
+    "BackgroundColor", EphysFigGenApp.SelectionColor, "VerticalAlignment", "center", "Tag", "multiPanelNote", ...
+    "Tooltip", "Several panels are selected (Shift+click them in the preview, or their boxes in Arrange). The rows " + ...
+    "show the settings every one of them has, with the first one's values; a setting you change goes to all of them. " + ...
+    "Ctrl+Click one panel, or press Esc, to select one again.");
+place(E.multiNote, r, [1 2]);
 [S, r] = formRow(S, "panelType", "Type:");
 E.panelType = uidropdown(S.Body, "Items", PT.Label, "ItemsData", PT.Type, "ValueChangedFcn", @(~,~) obj.onPanelTypeChanged(), ...
     "Tooltip", "The panel's type. A change starts its options afresh (keeping what both types share), drops the " + ...
@@ -1930,7 +1937,9 @@ else
 end
 fig.panels(j) = p;
 cfg.Figures(k) = fig;
-commitFigureEdit(obj, cfg, msg, Action="Trial selection as the figure");
+[cfg, action, shared] = spreadPanelEdit(obj, cfg, "Trial selection as the figure");   % several panels selected: to all of them
+if shared ~= ""; msg = shared; end
+commitFigureEdit(obj, cfg, msg, Action=action);
 end
 
 
@@ -2053,7 +2062,7 @@ try
         OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
         OnGoto=@(role, panel) obj.gotoFigureSetting(spec.id, role, panel), ...
         OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(spec.id, panel, change), ...
-        OnSelect=@(panel, ctrl) obj.onFigurePanelClicked(spec.id, panel, ctrl, false));
+        OnSelect=@(panel, ctrl, shift) obj.onFigurePanelClicked(spec.id, panel, ctrl, false, shift));
 catch
     obj.autoFigurePreview();
 end

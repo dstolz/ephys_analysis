@@ -227,7 +227,7 @@ kF2 = find(app.Runner.Names == F.names(2));
 needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d.search" "5d.layers"; ...
     "5d.outline" "5d.layers"; "5d.goto" "5d.add"; "5d.stale" "5d.layers"; "5d.align" "5d.layers"; ...
     "5d.filter" "5d.add"; "5d.pergroup" "5d.add"; "5d.ownsel" "5d.add"; "5d.conttrials" "5d.layers"; ...
-    "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
+    "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.multi" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
     "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
     "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; "5d.saveprefs" "5d.remove"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
@@ -1749,6 +1749,118 @@ if S.sec("5d.applyall", "Apply to all panels (Options), Re-link all panels (Pane
     toPalign = app.FigureSections([app.FigureSections.Name] == "palign").Expanded;
     app.onKeyPress(pressed('9', {'control'}));
     check(toPalign && app.FigureSections([app.FigureSections.Name] == "options").Expanded, 'Ctrl+7 goes to Panel alignment, Ctrl+9 to Options');
+end
+
+if S.sec("5d.multi", "several panels selected with Shift+click: each outlined, the Panel header and a banner say so, the editor shows the rows they share, an edit goes to each one that takes it (one undo step), Remove panels; Escape, Ctrl+Click, a step, Arrange and the search")
+    app.FigureAutoCheckBox.Value = false;   % no redraw per edit (as 5d.add leaves it)
+    app.FigureHistory = FigureEditHistory();   % the steps counted below start here (the sections before may have filled its Depth, 100)
+    rowShown = @(key) any(arrayfun(@(sc) any(cellfun(@(kk) any(kk == key), sc.Keys) & sc.Shown), app.FigureSections));
+    secShown = @(name) app.FigureSections([app.FigureSections.Name] == name).Visible;
+    fid = app.Config.Figures(1).id;
+    app.FigurePanelExtra = strings(1, 0);
+    app.onPanelSelected(2);   % psth_1
+    app.refreshFigurePreview(Force=true);   % the outlines are read from the preview drawn
+    P = app.FigurePreviewPanel;
+    hdr = app.FigureSupers([app.FigureSupers.Name] == "panel").Header;
+    dark = hdr.BackgroundColor;
+    [~, nm1] = markBox(P);
+    app.onFigurePanelClicked(fid, "raster_1", false, false, true);   % Shift+Click on the raster in the preview
+    [~, nm] = markBox(P);
+    pid = @() app.Config.Figures(1).panels(app.SelectedPanel).id;
+    check(nm1 == 4 && pid() == "raster_1" && isequal(app.FigurePanelExtra, "psth_1") && nm == 8 ...
+        && contains(hdr.Text, "2 SELECTED: raster_1, psth_1") && isequal(hdr.BackgroundColor, EphysFigGenApp.SelectionColor) ...
+        && rowShown("multiNote") && contains(string(FE.multiNote.Text), "2 panels selected: raster_1, psth_1") ...
+        && contains(string(app.StatusBar.Text), "2 panels selected") && contains(string(FE.selPanel.Text), "2 panels: raster_1, psth_1") ...
+        && app.FigureSections([app.FigureSections.Name] == "panel").Title == "2 selected panels", ...
+        sprintf('Shift+Click on raster_1 with psth_1 selected: both selected (raster_1 shown), both outlined (%d strips), the Panel header blue and naming them, the banner, the section title and the status bar say so', nm));
+    check(rowShown("panelTitle") && rowShown("panelYLabel") && rowShown("onsetLine") && rowShown("maskAfterStop") ...
+        && ~rowShown("panelType") && ~rowShown("binMs") && ~rowShown("yTicks") && ~rowShown("rectXY") && ~rowShown("optApplyAll") ...
+        && ~secShown("layers") && ~secShown("note") && ~secShown("overlays") && secShown("palign") ...
+        && FE.removePanel.Text == "Remove 2 panels" && FE.sendBack.Enable == "off" && FE.bringForward.Enable == "off", ...
+        'the editor shows the rows a raster and a PSTH share (title, axis labels, onset line, mask after the stop), not one''s own (type, bins, y ticks, place, layers, note, overlays)');
+    % an edit goes to both, one undo step each
+    p0 = app.Config.Figures(1).panels;
+    nUndo = numel(app.FigureHistory.Undo);
+    FE.onsetLine.Value = "groups";
+    app.onConfigChanged("figure", FE.onsetLine);
+    pp = app.Config.Figures(1).panels;
+    st1 = string(app.StatusBar.Text);
+    went = pp(1).options.onsetLine == "groups" && pp(2).options.onsetLine == "groups" && isequaln(pp(3), p0(3)) ...
+        && numel(app.FigureHistory.Undo) == nUndo + 1 && endsWith(app.FigureHistory.undoLabel(), "(2 panels)") ...
+        && contains(st1, "went to raster_1, psth_1");
+    why = string(sprintf('onset lines %s, %s; continuous kept %d; steps %d; undo "%s"; status "%s"', pp(1).options.onsetLine, ...
+        pp(2).options.onsetLine, isequaln(pp(3), p0(3)), numel(app.FigureHistory.Undo) - nUndo, app.FigureHistory.undoLabel(), st1));
+    FE.panelYLabel.Value = 'Trials, {Line}';
+    app.onConfigChanged("figure", FE.panelYLabel);
+    pp = app.Config.Figures(1).panels;
+    labeled = pp(1).yLabel == "Trials, {Line}" && pp(2).yLabel == "Trials, {Line}" && pp(3).yLabel == p0(3).yLabel;
+    why = why + string(sprintf('; Y labels "%s", "%s"', pp(1).yLabel, pp(2).yLabel));
+    app.onUndoRedo("undo");
+    app.onUndoRedo("undo");
+    back = isequaln(app.Config.Figures(1).panels, p0);
+    check(went && labeled && back && isequal(app.FigurePanelExtra, "psth_1"), ...
+        sprintf(['the onset line, then the Y label, edited: each goes to both panels selected ("... (2 panels)", one undo ' ...
+        'step), the continuous panel keeps its own; two Undos put both back, the selection kept (%s; back %d; extra "%s")'], ...
+        why, back, strjoin(app.FigurePanelExtra, ",")));
+    % a third panel: only what all three share; out again with Shift+Click
+    app.onFigurePanelClicked(fid, "continuous_1", false, false, true);
+    [~, nm] = markBox(P);
+    three = pid() == "continuous_1" && isequal(app.FigurePanelExtra, ["psth_1" "raster_1"]) && nm == 12 ...
+        && FE.removePanel.Text == "Remove 3 panels" && ~rowShown("onsetLine") && ~rowShown("baselineMode") && rowShown("panelTitle");
+    app.onFigurePanelClicked(fid, "raster_1", false, false, true);   % out
+    two = pid() == "continuous_1" && isequal(app.FigurePanelExtra, "psth_1") && rowShown("baselineMode");
+    app.onFigurePanelClicked(fid, "continuous_1", false, false, true);   % the shown one out: the one added last is shown
+    check(three && two && pid() == "psth_1" && isempty(app.FigurePanelExtra) && ~rowShown("multiNote") && secShown("layers"), ...
+        'Shift+Click a third panel (12 strips; the rows all three share: no onset line or baseline); Shift+Click takes raster_1 out, then the shown continuous_1: psth_1 alone, every row of its own back');
+    % a value a panel's type does not take: it keeps its own
+    app.onFigurePanelClicked(fid, "continuous_1", false, false, true);
+    app.onFigurePanelClicked(fid, "psth_1", false, false, true);   % psth_1 out: continuous_1 alone
+    app.onFigurePanelClicked(fid, "psth_1", false, false, true);   % psth_1 in again, shown
+    shownPsth = pid() == "psth_1" && isequal(app.FigurePanelExtra, "continuous_1");
+    p0 = app.Config.Figures(1).panels;
+    FE.baselineMode.Value = "zscore";
+    app.onConfigChanged("figure", FE.baselineMode);
+    pp = app.Config.Figures(1).panels;
+    st = string(app.StatusBar.Text);
+    app.onUndoRedo("undo");
+    check(shownPsth && pp(2).options.baseline.Mode == "zscore" && isequaln(pp(3).options.baseline, p0(3).options.baseline) ...
+        && contains(st, "continuous_1 kept its own") && isequaln(app.Config.Figures(1).panels, p0), ...
+        sprintf('the PSTH''s z-score baseline goes to it alone: the continuous panel keeps its own, and the status bar says so ("%s")', st));
+    % the search names why a row is hidden
+    X = app.FigureSearchIndex;
+    ib = find(arrayfun(@(e) any(e.Keys == "panelType"), X), 1);
+    app.gotoFigureRow(ib);
+    check(contains(string(app.StatusBar.Text), "hidden while 2 panels are selected"), ...
+        "the search's Type row: hidden while two panels are selected, and the status bar says why (" + string(app.StatusBar.Text) + ")");
+    % Escape, Ctrl+Click and a step select one panel alone
+    app.onKeyPress(pressed('escape', {}));
+    [~, nm] = markBox(P);
+    esc = isempty(app.FigurePanelExtra) && pid() == "psth_1" && nm == 4 && isequal(hdr.BackgroundColor, dark) ...
+        && ~rowShown("multiNote") && rowShown("panelType") && FE.removePanel.Text == "Remove panel";
+    app.onFigurePanelClicked(fid, "raster_1", false, false, true);
+    app.onFigurePanelClicked(fid, "psth_1", true, false);   % Ctrl+Click
+    ctrlAlone = isempty(app.FigurePanelExtra) && pid() == "psth_1";
+    app.onFigurePanelClicked(fid, "raster_1", false, false, true);
+    app.onKeyPress(pressed('rightbracket', {'control'}));
+    stepAlone = isempty(app.FigurePanelExtra) && pid() == "psth_1";
+    check(esc && ctrlAlone && stepAlone, ...
+        'Escape keeps the shown panel alone (one outline, the header dark, its own rows back); so do a Ctrl+Click on one and Ctrl+]');
+    % Arrange shares the selection; Remove panels removes them all
+    app.onFigurePanelClicked(fid, "raster_1", false, false, true);
+    arrangeToggle(app, true);
+    blue = [0.05 0.45 0.95];
+    wA = arrangeBox(app, "raster_1"); wB = arrangeBox(app, "psth_1");
+    boxes = ~isempty(wA) && ~isempty(wB) && isequal(wA.Color, blue) && isequal(wB.Color, blue) && FE.setCorners.Enable == "off";
+    arrangeToggle(app, false);
+    kept = isequal(app.FigurePanelExtra, "psth_1");
+    nP = numel(app.Config.Figures(1).panels);
+    FE.removePanel.ButtonPushedFcn(FE.removePanel, []);
+    removed = numel(app.Config.Figures(1).panels) == nP - 2 && app.FigureHistory.undoLabel() == "Remove panels" && isempty(app.FigurePanelExtra);
+    app.onUndoRedo("undo");
+    check(boxes && kept && removed && numel(app.Config.Figures(1).panels) == nP, ...
+        'Arrange on: both boxes blue (Set corners off); Arrange off keeps the selection; Remove 2 panels removes both, one undo step "Remove panels", undone as one');
+    app.FigurePanelExtra = strings(1, 0);
+    app.onPanelSelected(2);   % the PSTH, as 5d.applyall leaves it
 end
 
 if S.sec("5d.look", "the gather / apply round trip, a remembered look and Forget, data tips")
@@ -3422,8 +3534,13 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         && numel(app.FigureHistory.Undo) == nUndo + 2;
     check(focus1 && three && ten && onePx && grown && rectIs(arrangeBox(app, "psth_2").Position, rectOf5("psth_2")), ...
         'the arrows nudge psth_2 by the snap step (three presses one undo step "Move panel"), Shift by ten, Ctrl by a preview pixel; Alt+Right widens it ("Resize panel"); its box follows');
-    pause(1.5);   % the cues' timer
-    hidden = isempty(visibleGuides(app).lines) && isempty(visibleGuides(app).texts);
+    hidden = false;   % the cues' timer: a second after the last press (a loaded machine runs it late: waited for, up to 6 s)
+    t5 = tic;
+    while ~hidden && toc(t5) < 6
+        pause(0.25);
+        hidden = isempty(visibleGuides(app).lines) && isempty(visibleGuides(app).texts);
+    end
+    waited = toc(t5);
     FE.panelTitle.Value = 'nudged';
     FE.panelTitle.ValueChangedFcn(FE.panelTitle, []);
     r2c = rectOf5("psth_2");
@@ -3432,7 +3549,9 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.onArrangeClicked("", []);
     app.onKeyPress(pressed('uparrow', {'control' 'alt'}));
     check(hidden && notNudged && app.SelectedPanel == 1 && isequal(rectOf5("psth_2"), r2c), ...
-        'the guides go a second after the last press; an edit in the editor takes the arrows back; Ctrl+Alt+arrows still select a panel');
+        sprintf(['the guides go a second after the last press; an edit in the editor takes the arrows back; Ctrl+Alt+arrows ' ...
+        'still select a panel (guides hidden %d after %.1f s, not nudged %d, selected panel %d, status "%s")'], hidden, waited, ...
+        notNudged, app.SelectedPanel, string(app.StatusBar.Text)));
     app.FigureHistory.CoalesceSeconds = coalesce5ha;
 
     % several panels at once: Shift+click builds the selection; a drag moves them all (one step), a resize widens each
@@ -3449,7 +3568,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.onArrangeClicked("psth_1", struct('SelectionType', "left"));
     app.onArrangeClicked("psth_2", struct('SelectionType', "shift"));
     wA = arrangeBox(app, "psth_1"); wB = arrangeBox(app, "psth_2"); wC = arrangeBox(app, "raster_1");
-    primaryB = app.Config.Figures(k5).panels(app.SelectedPanel).id == "psth_2" && isequal(app.FigureArrangeExtra, "psth_1");
+    primaryB = app.Config.Figures(k5).panels(app.SelectedPanel).id == "psth_2" && isequal(app.FigurePanelExtra, "psth_1");
     check(primaryB && isequal(wA.Color, blue) && wA.LineWidth == 1 && isequal(wB.Color, blue) && wB.LineWidth == 2 && ~isequal(wC.Color, blue), ...
         'Shift+click adds psth_2 to psth_1: both boxes blue, the last clicked (the editor''s panel) thicker, the raster not');
     rA = rectOf5("psth_1"); rB = rectOf5("psth_2");
@@ -3488,9 +3607,9 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         && app.FigureHistory.undoLabel() == "Move panels";
     app.onUndoRedo("undo");
     app.onArrangeClicked("psth_2", struct('SelectionType', "left"));   % a plain click on one of several: kept for a drag, then alone at the release
-    kept = numel(app.FigureArrangeExtra) == 1 && ~isempty(app.Fig.WindowButtonUpFcn);
+    kept = numel(app.FigurePanelExtra) == 1 && ~isempty(app.Fig.WindowButtonUpFcn);
     app.Fig.WindowButtonUpFcn(app.Fig, []);
-    alone = isempty(app.FigureArrangeExtra) && app.Config.Figures(k5).panels(app.SelectedPanel).id == "psth_2" ...
+    alone = isempty(app.FigurePanelExtra) && app.Config.Figures(k5).panels(app.SelectedPanel).id == "psth_2" ...
         && arrangeBox(app, "psth_1").LineWidth == 1 && ~isequal(arrangeBox(app, "psth_1").Color, blue) && isempty(app.Fig.WindowButtonUpFcn);
     check(nudgedAll && kept && alone, ...
         'with both selected the arrow nudges both ("Move panels"); a plain click on one keeps them for a drag, and without one it alone is selected at the release');
@@ -3504,7 +3623,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     if isscalar(mi)
         mi.MenuSelectedFcn(mi, []);
         removedAll = numel(app.Config.Figures(k5).panels) == nP - 2 && ~any(ismember([app.Config.Figures(k5).panels.id], ["psth_1" "psth_2"])) ...
-            && app.FigureHistory.undoLabel() == "Remove panels" && isempty(app.FigureArrangeExtra);
+            && app.FigureHistory.undoLabel() == "Remove panels" && isempty(app.FigurePanelExtra);
         app.onUndoRedo("undo");
     end
     cmB = arrangeBox(app, "psth_1").ContextMenu;
@@ -3629,7 +3748,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.onFigurePanelClicked(app.Config.Figures(k5).id, "psth_1", true, false);
     app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));
     check(~app.FigureArrange && isempty(app.FigureArrangeOverlay) && isempty(findall(app.FigurePreviewPanel, 'Tag', 'arrangeOverlay')) ...
-        && nmOff == 4 && app.SelectedPanel == 2 && ~contains(app.FigurePreviewHint.Text, "Arrange") && isempty(app.FigureArrangeExtra), ...
+        && nmOff == 4 && app.SelectedPanel == 2 && ~contains(app.FigurePreviewHint.Text, "Arrange") && isempty(app.FigurePanelExtra), ...
         'Arrange off: the overlay and its boxes gone, the selected panel outlined again, Ctrl+Click selects as before');
 
     noFigures();

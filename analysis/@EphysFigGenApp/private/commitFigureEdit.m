@@ -22,14 +22,16 @@ function commitFigureEdit(obj, cfg, msg, opts)
 %   Arrange=true (a panel placed in Arrange: a drag released, an arrow
 %   key, Set corners): the preview is laid out at the new rects whatever
 %   Auto and the time gate say, and drawn again only when it must and may
-%   (arrangedPreview) in place of autoFigurePreview. Since only rects
-%   changed, the editor refills the panel's rows alone (applyFigureEditor
-%   Scope "panel": the Position and Size fields, the rows of a panel a
-%   press selected), and the figure list (no rect in it; its marks follow
-%   in arrangedPreview) and the epoch diagram (no rect in it) are left
-%   as they are -- unless the figure's automatic id follows the move (its
-%   panels' reading order: EphysAnalysisConfig.autoFigureId), which
-%   refills them all as any edit does.
+%   (arrangedPreview) in place of autoFigurePreview. When only rects
+%   changed (onlyRects), the editor's rows show none of them but the
+%   Panels section's place rows: those are shown (showPanelPlace) and the
+%   boxes and outline follow (markFigurePanel), nothing else is refilled
+%   -- the panel's rows too when a press selected the panel lightly
+%   (FigureSelectPending: applyFigureEditor Scope "panel") -- and the
+%   figure list (no rect in it; its marks follow in arrangedPreview), the
+%   observation picker and the epoch diagram are left as they are. A
+%   figure whose automatic id follows the move (its panels' reading
+%   order: EphysAnalysisConfig.autoFigureId) is refilled as after any edit.
 %   The preview settles first, before the editor is refilled: with Auto
 %   on, the figure is drawn from the runner's cache with no busy card,
 %   the panels an edit left alone kept (quickFigurePreview) -- when the
@@ -64,7 +66,7 @@ if k >= 1 && k <= numel(cfg.Figures) && numel(cfg.Figures) == numel(obj.Config.F
     end
 end
 kept = keepsPanels(obj.Config, cfg, k);   % panels removed or reordered, nothing else: every panel left may be kept
-renamed = k < 1 || k > numel(cfg.Figures) || k > numel(obj.Config.Figures) || cfg.Figures(k).id ~= obj.Config.Figures(k).id;
+rects = opts.Arrange && onlyRects(obj.Config, cfg, k);   % a place in Arrange: the editor shows none of it but the place rows
 trackFigureIds(obj, cfg);   % an automatic id that follows the edit
 recordFigureEdit(obj, cfg, opts.Action, Key=opts.Key);
 obj.Config = cfg;
@@ -78,9 +80,13 @@ if ~opts.Arrange
         if open || kept; drew = quickFigurePreview(obj, KeptOnly=~open); end   % no busy card: from the cache, the panels left alone kept
     end
 end
-if opts.Arrange && ~renamed   % the rects alone: the figure's rows, the list and the epoch diagram show none of them
-    obj.applyFigureEditor(Scope="panel");
-    obj.refreshFigureObservations();
+if rects
+    if obj.FigureSelectPending
+        obj.applyFigureEditor(Scope="panel");   % (a press selected the panel: its rows now)
+    else
+        showPanelPlace(obj);
+        obj.markFigurePanel();   % the boxes at the new rects
+    end
 else
     obj.refreshFigureList();
     obj.applyFigureEditor();
@@ -111,6 +117,18 @@ if isempty(a.panels) || isempty(b.panels); return; end
 if ~all(in) || ~isequaln(a.panels, b.panels(at)); return; end   % each panel left as it was
 drop = intersect({'panels' 'id'}, fieldnames(a));
 tf = isequaln(rmfield(a, drop), rmfield(b, drop));
+end
+
+
+function tf = onlyRects(old, new, k)
+%onlyRects  Figure K of NEW is OLD's but its panels' rects (the same id, panels and everything else), and as many figures are there.
+tf = false;
+if k < 1 || k > numel(new.Figures) || numel(new.Figures) ~= numel(old.Figures); return; end
+a = new.Figures(k);
+b = old.Figures(k);
+if numel(a.panels) ~= numel(b.panels); return; end
+for j = 1:numel(a.panels); a.panels(j).rect = b.panels(j).rect; end
+tf = isequaln(a, b);
 end
 
 

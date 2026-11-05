@@ -21,7 +21,7 @@ end
 if ~obj.FigureSections(i).Expanded
     obj.onFigureSectionToggled(name);
 end
-drawnow;   % the layout settles before the scroll
+drawnow nocallbacks;   % the layout settles before the scroll (clicks queued meanwhile wait: none runs nested in this one)
 try
     scroll(obj.FigureEditorGrid, S.Grid);
 catch

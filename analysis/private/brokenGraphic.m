@@ -160,7 +160,8 @@ o = U.overlay;
 if isempty(o) || ~isvalid(o); return; end
 w = fr.MarkerSize * 96 / 72 + 6;
 c = px(1:2) + U.at .* px(3:4);
-o.Position = [c - w / 2, w, w];
+pos = [c - w / 2, w, w];
+if any(abs(o.Position - pos) > 0.01); o.Position = pos; end   % (from a MarkedClean listener: a set when nothing moved would repaint again)
 end
 
 

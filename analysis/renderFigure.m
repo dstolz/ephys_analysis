@@ -218,6 +218,20 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     when it cannot be (HOW is "", H []), so the caller
 %                     can compute and draw as for any other edit (the app:
 %                     autoFigurePreview, with no busy card for a label)
+%     LayoutOnly      false (default) or true: lay the drawing TARGET keeps
+%                     (from a drawing with Reuse) out at SPEC's rects and
+%                     layout, whatever else differs: its parts go back to
+%                     where a new drawing starts and figureLayout lays them
+%                     out at the new places, the legend and the title
+%                     with them; no text is set and nothing is drawn, so a
+%                     time stack's labels and the top-left panel's title
+%                     stay as drawn (HOW "layout"; the drawing kept is
+%                     unchanged, so the next drawing with Reuse compares
+%                     with what it shows). Done only when the drawing has
+%                     SPEC's panels (the same ids, in order) and all its
+%                     parts; else nothing (HOW "", H []). F is not read.
+%                     The app's Arrange lays its preview out so after a
+%                     drag (arrangedPreview), out of date or not
 %     Scale           1 (default): the drawing at the sizes it is exported
 %                     at. S: a drawing shown S times as wide as its export
 %                     page at 96 dpi (the app's preview, drawn to fit its
@@ -239,7 +253,8 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %
 %   HOW: "drawn" (drawn, all of it or the panels Reuse could not keep),
 %   "inplace" (only text set on the drawn handles, and the parts laid out
-%   again), or "" (InPlaceOnly and nothing done).
+%   again), "layout" (LayoutOnly: laid out at SPEC's places), or ""
+%   (InPlaceOnly or LayoutOnly and nothing done).
 %
 %   H fields
 %     layout  what the figure is laid out on (TARGET, or the panel made in
@@ -279,10 +294,15 @@ arguments
     opts.BatchYLim = []
     opts.Reuse (1,1) logical = false
     opts.InPlaceOnly (1,1) logical = false
+    opts.LayoutOnly (1,1) logical = false
     opts.Scale (1,1) double {mustBePositive, mustBeFinite} = 1
 end
+if opts.LayoutOnly   % the drawing kept, laid out at the new places: nothing drawn
+    [h, how] = layoutOnly(spec, target);
+    return
+end
 if isfield(F, 'kind') && string(F.kind) == "probeFigure"   % a probe figure (figureProbeCompute): every tile on one page
-    args = namedargs2cell(opts);
+    args = namedargs2cell(rmfield(opts, 'LayoutOnly'));   % (a probe page has no layout-only path: handled above)
     [h, how] = renderProbeFigure(F, spec, target, args{:});
     return
 end
@@ -853,6 +873,45 @@ D.keys = keys;
 D.txt = txt;
 D.titleVars = titleVars;
 setappdata(target, drawingAppdata(), D);
+end
+
+
+function [h, how] = layoutOnly(spec, target)
+%layoutOnly  renderFigure's LayoutOnly: the drawing TARGET keeps laid out at SPEC's rects and layout, nothing else changed.
+%   As inPlace lays out new places (its parts back where a new drawing
+%   starts, then figureLayout at the new rects), but whatever else SPEC
+%   changes and with the drawing kept as it is (D: what it shows).
+h = [];
+how = "";
+if ~isappdata(target, drawingAppdata()) || ~isappdata(target, 'FigureLayout'); return; end
+D = getappdata(target, drawingAppdata());
+S = getappdata(target, 'FigureLayout');
+if ~isstruct(D) || ~isfield(D, 'spec') || ~isstruct(S) || ~isfield(S, 'panels') || isfield(S, 'layoutFcn'); return; end
+np = numel(spec.panels);
+ids = strings(1, np);
+for k = 1:np; ids(k) = spec.panels(k).id; end
+drawnIds = strings(1, numel(D.spec.panels));
+for k = 1:numel(D.spec.panels); drawnIds(k) = D.spec.panels(k).id; end
+laidIds = strings(1, numel(S.panels));
+for k = 1:numel(S.panels); laidIds(k) = string(S.panels(k).id); end
+if ~isequal(ids, drawnIds) || ~isequal(ids, laidIds); return; end
+drawn = isgraphics(D.axes);
+for k = find(drawn)
+    if ~all(isgraphics(D.parts{k})); return; end
+end
+for k = find(drawn)   % where a new drawing starts: the layout makes what a drawing makes
+    A = D.parts{k};
+    for i = 1:numel(A)
+        set(A(i), 'Units', 'pixels', 'Position', D.pos{k}(i, :));
+        cb = A(i).Colorbar;
+        if ~isempty(cb) && isvalid(cb); cb.Location = cb.Location; end   % placed from its axes again, as a new one is
+    end
+end
+for k = 1:np; S.panels(k).rect = double(spec.panels(k).rect); end
+S.layout = layoutSettings(spec.layout, S.scale);
+figureLayout(target, S);
+h = figureHandles(target, D.spec, D.axes, D.extra, D.notes, D.ovls, D.yExt, D.txt);
+how = "layout";
 end
 
 

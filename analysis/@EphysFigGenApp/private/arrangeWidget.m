@@ -6,7 +6,8 @@ function w = arrangeWidget(ax, rect, id, selected, cb)
 %   Tag "arrangeBox:<ID>", labeled ID when the pointer is over it, kept
 %   on the page (DrawingArea), never deleted by a key or its own menu.
 %   Dragging its face moves it, its handles resize it. SELECTED draws it
-%   as the selected panel (blue and thicker: arrangeWidgetSelect). CB holds
+%   as selected (arrangeWidgetSelect: 2 or true the primary, blue and
+%   thicker; 1 another selected panel, blue; 0 or false none). CB holds
 %   what it calls:
 %     moving   CB.moving(ID, EVT) on every step of a drag (MovingROI)
 %     moved    CB.moved(ID, EVT) when the drag ends (ROIMoved)

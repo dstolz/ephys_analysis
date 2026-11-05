@@ -18,13 +18,18 @@ function commitFigureEdit(obj, cfg, msg, opts)
 %   "Add panel", the Edit menu's "Undo Add panel"); "Edit" by default.
 %   Key=KEY (any value, [] by default) makes a burst of edits with one
 %   key, within a second, one step (recordFigureEdit: the arrow keys'
-%   nudges of a panel, Key "arrangeKeys").
+%   nudges of a panel, Key "arrangeKeys:move" or "arrangeKeys:resize").
+%   Arrange=true (a panel placed in Arrange: a drag released, an arrow
+%   key, Set corners): the preview is laid out at the new rects whatever
+%   Auto and the time gate say, and drawn again only when it must and may
+%   (arrangedPreview) in place of autoFigurePreview.
 arguments
     obj (1,1) EphysFigGenApp
     cfg (1,1) EphysAnalysisConfig
     msg (1,1) string
     opts.Action (1,1) string = "Edit"
     opts.Key = []
+    opts.Arrange (1,1) logical = false
 end
 k = obj.SelectedFigure;
 if k >= 1 && k <= numel(cfg.Figures) && numel(cfg.Figures) == numel(obj.Config.Figures) ...   % the same figures (an automatic id may differ)
@@ -44,6 +49,10 @@ obj.applyFigureEditor();
 obj.refreshFigureObservations();
 obj.refreshEpochDiagram();
 if msg ~= ""; obj.setStatus(msg); end
-obj.autoFigurePreview();
+if opts.Arrange
+    arrangedPreview(obj, msg);
+else
+    obj.autoFigurePreview();
+end
 obj.updateTitle();
 end

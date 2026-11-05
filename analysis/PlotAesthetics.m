@@ -497,7 +497,13 @@ classdef PlotAesthetics
             h = h(isgraphics(h));
             if isempty(h); return; end
             O = findall(h);
-            for ax = reshape(findall(h, 'Type', 'axes'), 1, [])   % (an empty title or label is not always among them)
+            hid = findall(h, 'Type', 'axes', 'HandleVisibility', 'off');   % an app's overlay over the drawing (the analysis app's Arrange): not drawn, not scaled
+            axs = findall(h, 'Type', 'axes');
+            if ~isempty(hid)
+                O = O(~ismember(O, findall(hid)));
+                axs = axs(~ismember(axs, hid));
+            end
+            for ax = reshape(axs, 1, [])   % (an empty title or label is not always among them)
                 labels = [ax.Title ax.Subtitle ax.XLabel ax.ZLabel];
                 for y = reshape(ax.YAxis, 1, []); labels = [labels y.Label]; end %#ok<AGROW>
                 for x = [ax.Colorbar ax.Legend labels]
@@ -920,6 +926,7 @@ classdef PlotAesthetics
                 return
             end
             axs = flipud(findall(target, 'Type', 'axes'));
+            axs = axs(~strcmp(get(axs, {'HandleVisibility'}), 'off'));   % an app's overlay over the drawing (the analysis app's Arrange): no part of it
             if isempty(axs); axs = gobjects(0, 1); return; end   % nothing drawn (a figure without panels): no Tag to read
             axs = axs(~ismember({axs.Tag}, {'legendHost' 'noteHost' 'titleHost'}));   % hidden hosts of a legend outside the grid (placeLegend), of the note (drawNote) and of a figure's title (renderFigure)
             n = numel(axs);

@@ -387,12 +387,13 @@ end
 function buildToolsPanel(obj, parent)
 %buildToolsPanel  Open the active or the ticked datasets in another program.
 %   The scope box chooses the datasets (toolTargets), the label names them
-%   and each button opens them in one program (onOpenTool). Everything
+%   and each button opens them in one program (onOpenTool), or puts their
+%   manifest files on the clipboard (onCopyManifests). Everything
 %   is off until a scan (syncToolsPanel).
 tp = uipanel(parent, "Title", "Tools");
 tp.Layout.Row = 1; tp.Layout.Column = 2;
-tg = uigridlayout(tp, [7 1]);
-tg.RowHeight   = {'fit', 'fit', 30, 30, 30, 30, '1x'};
+tg = uigridlayout(tp, [8 1]);
+tg.RowHeight   = {'fit', 'fit', 30, 30, 30, 30, 30, '1x'};
 tg.ColumnWidth = {'1x'};
 tg.RowSpacing  = 6;
 tg.Padding     = [8 8 8 8];
@@ -407,6 +408,9 @@ obj.ToolsTargetLabel = uilabel(tg, "Text", AppDialog.noProject(), "WordWrap", "o
 obj.ToolsManifestButton = uibutton(tg, "Text", "Manifest viewer", "Enable", "off", ...
     "Tooltip", "Open each dataset's <Name>_manifest.json in the manifest viewer, a window each.", ...
     "ButtonPushedFcn", @(~,~) obj.onOpenTool("manifest"));
+obj.ToolsCopyManifestsButton = uibutton(tg, "Text", "Copy manifests", "Enable", "off", ...
+    "Tooltip", "Put each dataset's <Name>_manifest.json on the clipboard as files, to paste into a folder, an e-mail or a chat. A message then names the files copied.", ...
+    "ButtonPushedFcn", @(~,~) obj.onCopyManifests());
 obj.ToolsAnalysisButton = uibutton(tg, "Text", "Analysis app", "Enable", "off", ...
     "Tooltip", "Open the analysis app (PSTHs, rasters, evoked potentials, rates, tuning, probe maps) on these datasets' outputs, all in one window.", ...
     "ButtonPushedFcn", @(~,~) obj.onOpenTool("analysis"));

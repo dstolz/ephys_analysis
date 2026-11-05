@@ -422,6 +422,13 @@ says how to cut a release.
 
 ### Added
 
+- Pipeline app, Project tab: **Copy manifests** in the Tools panel puts the manifest files of its datasets (the active
+  one, or the ticked ones) on the clipboard as files, to paste into a folder, an e-mail or a chat, and lists in a
+  message the files the clipboard holds and any not copied (`copyFilesToClipboard`, Windows).
+- Pipeline app, Probe tab: **Apply to ticked datasets**, next to **Exclude channels**, gives every dataset ticked in the
+  Project table the field's channel list and saves it in their manifests (the field alone edits the active dataset).
+  The Artifacts tab has the same button under **Bad**: the ticked datasets take the Bad list as their bad channels,
+  set by hand.
 - Figures: label variables. A figure's title, a panel's title, X and Y axis labels and note, and a layer's name
   (the legend) may name variables in braces, filled in for each figure drawn: `"Time (s) re {Line} {Edge}"`,
   `"{Response} trials"`, `"{Unit}"`, `"n = {Epochs}"`. 22 variables, by topic: alignment (`Line`, `Edge`, `Event`,
@@ -443,9 +450,13 @@ says how to cut a release.
   (aligned or flush), their centers and the page's, the page's edges, an equal spacing and (resizing) an equal
   size, else to the snap step's grid; **Alt** held, no snapping. Magenta smart guides show what lines up, the
   distances to the neighbors and the page's edges in the Panels section's units, equal spacing (*= 0.50 cm*) and
-  size (*= raster_1*), and a readout of the place and size. The figure takes the rect on release, one undo step
-  (*Move panel*, *Resize panel*), laid out again in place (no panel drawn again) unless the time stack or the
-  top-left panel changes; Escape during a drag puts the box back. After a click on the preview the arrow keys
+  size (*= raster_1*), and a readout of the place and size. The panel's plots move along with its box during the
+  drag (shifted or scaled, nothing laid out). The figure takes the rect on release, one undo step (*Move panel*,
+  *Resize panel*), and the preview is laid out at the new rects whatever Auto and the time a preview takes, out of
+  date or not (`renderFigure` `LayoutOnly=true`, new, lays a kept drawing out at a spec's rects and draws
+  nothing); a move that changes the time stack or the top-left panel is drawn again with Auto on and a quick
+  preview, else the preview is marked out of date (*Laid out; press Preview ...*). Arrange switched off with Auto
+  on draws the preview again, whatever the time it takes. Escape during a drag puts the box and the plots back. After a click on the preview the arrow keys
   nudge the selected panel by the snap step (Shift: ten, Ctrl: one preview pixel, Alt: resize its right or top
   edge), a burst of presses one undo step. **Set corners** (the Panels section, a box's right-click menu) and New
   panel's *Draw it on the preview (two clicks)* place a panel, or a saved figure's block, by two corner clicks
@@ -454,6 +465,14 @@ says how to cut a release.
   Bring forward, Send back and Remove panel. While Arrange is on the selected panel's outline gives way to its blue
   box and the plot's data tips and right-click editors wait; another figure not drawn, or a probe figure, gets no
   boxes and the status bar says why.
+- Figures, Arrange: several panels at once. Shift+click on a box adds its panel to the selection (or takes it out;
+  the editor's panel is the last one clicked); a drag of any selected box moves them all by the same amount, a
+  resize changes every one's width and height alike about the same edges, the arrow keys nudge them all (one undo
+  step, *Move panels* / *Resize panels*), Escape puts them all back, and a box's Remove panel removes them all
+  (*Remove panels*). A plain click selects one panel alone; Arrange off, another figure or a panel added or removed
+  ends the selection. `PlotAesthetics` (its components, the looks it applies, the right-click menus and
+  `scaleSizes`) leaves out axes with `HandleVisibility` `"off"`, such as Arrange's overlay, so a preview drawn while
+  Arrange is on keeps the boxes' own menus and sizes.
 - Figures: free panel placement, scripting. `EphysAnalysisConfig.placePanel(fig, panel, where, anchorId, rect)` places a panel in the page's largest free
   space (`"free"`, the default), in the far half of an anchor panel's rect (`"below"`, `"above"`, `"left"`,
   `"right"`) or at a rect; `placeBlock` places a figure's panels as one block the same ways, mapped into the target

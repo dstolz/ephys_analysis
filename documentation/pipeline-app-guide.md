@@ -115,11 +115,15 @@ Three ideas make the rest easy:
    look at.
 4. **Probe.** Pick your probe's map and press **Assign to all datasets** (or
    make it the default probe). Type the bad channels of a recording in
-   **Exclude channels**.
+   **Exclude channels**. To leave the same channels out of several
+   recordings, tick them on the Project tab, type the channels and press
+   **Apply to ticked datasets**.
 5. **Artifacts** (optional). Choose a common reference if you want one, press
    **Detect / Preview** to see what the detector finds, and mark extra noisy
    periods by hand on the plot. **Leave out bad channels** finds dead or noisy
-   channels for you.
+   channels for you. To mark the same bad channels on several recordings,
+   tick them on the Project tab, type the channels in **Bad** and press
+   **Apply to ticked datasets**.
 6. **Choose the steps.** Switch on what you need on the Sorting, Signals,
    Spikes, Export and Analysis tabs, and set their options. The defaults are a
    good start. The **Diagram** tab draws what your config will do, from top
@@ -207,6 +211,7 @@ analysis app and the dataset browser show them and filter by them.
 | label datasets (a brain area, a condition) to find them later | [tag them](#tag-your-datasets): Project tab, select rows, **Tags...** |
 | make figures of every processed recording | make them in the [analysis app](analysis-app-guide.md), then choose that config on the Analysis tab |
 | analyze on another computer | **File → Copy files for the analysis app...** copies just what the analysis app reads |
+| send a colleague the record of how datasets were processed | Project tab, Tools panel: **Copy manifests** puts each dataset's manifest file on the clipboard; paste them into a folder, an e-mail or a chat. A message lists the files copied |
 | repeat this processing without the app | **File → Generate script**, or the script every run saves in the project folder |
 | free disk space | [Clean up](EphysPipelineApp.md#clean-up) tab: **Preview**, then remove |
 

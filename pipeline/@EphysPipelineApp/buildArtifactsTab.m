@@ -530,8 +530,8 @@ function buildBadChannelsPanel(obj, parent, changed)
 % refreshReferencePanel fills the dataset part.
 p = uipanel(parent, "Title", "Bad channels, before every step");
 p.Layout.Row = 1;
-bg = uigridlayout(p, [3 2]);
-bg.RowHeight   = {'fit', 30, 'fit'};
+bg = uigridlayout(p, [4 2]);
+bg.RowHeight   = {'fit', 30, 30, 'fit'};
 bg.ColumnWidth = {'fit', '1x'};
 bg.RowSpacing  = 6;
 
@@ -558,8 +558,17 @@ obj.ArtBadSuggestButton = uibutton(xg, "Text", "Suggest", ...
     "mark the channels outside the Good noise band below as bad.", ...
     "ButtonPushedFcn", @(~,~) obj.onSuggestBadChannels());
 
+tg = uigridlayout(bg, [1 2]);
+tg.Layout.Row = 3; tg.Layout.Column = 2;
+tg.Padding = [0 0 0 0];
+tg.ColumnWidth = {'fit', '1x'};
+obj.ArtBadTickedButton = uibutton(tg, "Text", "Apply to ticked datasets", ...
+    "Tooltip", "Give every dataset ticked in the Project table the bad channels in the field, in place of its " + ...
+    "own list (set by hand), and save them in its manifest.", ...
+    "ButtonPushedFcn", @(~,~) obj.onBadChannelsEdited("ticked"));
+
 obj.ArtBadStatusLabel = uilabel(bg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
-obj.ArtBadStatusLabel.Layout.Row = 3; obj.ArtBadStatusLabel.Layout.Column = [1 2];
+obj.ArtBadStatusLabel.Layout.Row = 4; obj.ArtBadStatusLabel.Layout.Column = [1 2];
 end
 
 

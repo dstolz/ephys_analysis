@@ -76,7 +76,7 @@ scale = 1;
 if unit == "ms"; scale = 1000; end
 maxGap = double(fieldOr(m, 'maxGapSec', Inf));
 if isempty(maxGap) || ~isfinite(maxGap); maxGap = Inf; end
-info = struct('kind', kind, 'label', measureLabel(m), 'unit', unit, 'nA', 0, 'nNoB', 0, 'nNoValue', 0);
+info = struct('kind', kind, 'label', trialMeasureLabel(m), 'unit', unit, 'nA', 0, 'nNoB', 0, 'nNoValue', 0);
 switch kind
     case "delay"
         [T, info] = delayValues(src, m, mask, maxGap, scale, info);
@@ -221,66 +221,6 @@ end
 function T = makeTable(trial, value, tA, tB, k)
 T = table(double(trial(:)), double(value(:)), double(tA(:)), double(tB(:)), double(k(:)), ...
     'VariableNames', {'trial', 'value', 'tA', 'tB', 'k'});
-end
-
-
-function s = measureLabel(m)
-%measureLabel  M.label, else trialMeasureLabel's automatic text.
-if exist('trialMeasureLabel', 'file') == 2
-    s = trialMeasureLabel(m);
-    return
-end
-s = autoLabel(m);   % TODO(p1 merge): trialMeasureLabel ships with the schema package; drop this fallback then
-end
-
-
-function s = autoLabel(m)
-%autoLabel  The automatic label (until trialMeasureLabel is on the path): "Stim onset → Platform offset (ms)".
-s = string(fieldOr(m, 'label', ""));
-if s ~= ""; return; end
-kind = string(fieldOr(m, 'kind', "delay"));
-unit = " (" + string(fieldOr(m, 'unit', "ms")) + ")";
-switch kind
-    case "delay"
-        a = piece(eventRef(m.from));
-        b = piece(eventRef(m.to));
-        if string(fieldOr(m, 'direction', "after")) == "before"
-            s = b + " before " + a + unit;
-        else
-            s = a + " " + char(8594) + " " + b + unit;
-        end
-    case "duration"
-        s = eventRef(m.from).line + " duration" + unit;
-    case "count"
-        s = piece(eventRef(m.to)) + "s after " + piece(eventRef(m.from));
-    otherwise
-        s = string(fieldOr(m, 'param', ""));
-end
-end
-
-
-function s = piece(ref)
-%piece  An event in words as eventLatency names it ("last Platform offset", "+ RespLatency (ms)").
-s = eventRefLabel(ref);
-switch ref.which
-    case "last", s = "last " + s;
-    case "nth",  s = ordinalOf(ref.n) + " " + s;
-end
-if ref.offsetParam ~= ""; s = s + " + " + ref.offsetParam + " (" + ref.offsetParamUnit + ")"; end
-if ref.offsetSec ~= 0; s = s + sprintf(" %+g s", ref.offsetSec); end
-end
-
-
-function s = ordinalOf(n)
-suffix = "th";
-if mod(n, 100) < 11 || mod(n, 100) > 13
-    switch mod(n, 10)
-        case 1, suffix = "st";
-        case 2, suffix = "nd";
-        case 3, suffix = "rd";
-    end
-end
-s = n + suffix;
 end
 
 

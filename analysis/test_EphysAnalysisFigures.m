@@ -2752,8 +2752,8 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     tmC = tmD; tmC.measure.kind = "count"; tmC.measure.to = eventRef(line="Trough");
     tmP = tmD; tmP.measure.kind = "param"; tmP.measure.param = "RespLatency";
     cfg = cfg.addFigure(struct('panels', {{struct('id', "td", 'type', "trialDist", 'selection', tmSel, ...
-        'options', struct('categories', "groups", 'series', "layer"), 'layers', [tmD tmC tmP])}}), Id="trials");
-    tmSpec = cfg.figureFor("trials");
+        'options', struct('categories', "groups", 'series', "layer"), 'layers', [tmD tmC tmP])}}), Id="trialdist");
+    tmSpec = cfg.figureFor("trialdist");
     tmF = rn.computeFigure(src, tmSpec);
     tmL = tmF.panels(1).layers;
     [tmMask, tmG, tmGi] = selectTrials(src, tmSel);

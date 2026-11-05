@@ -92,6 +92,18 @@ function hk = drawPsthPanel(ax, P, look)
 %   to its row's label); with one group, which has no legend entry, it
 %   writes the text. The counts are read at draw time from the result, so
 %   they follow the selection, the grouping and the artifact periods.
+%   options.smoothLine (enabled; not with display "heatmap") draws a line
+%   over each item's trace per trial group: its PSTH smoothed on its own,
+%   a Gaussian of SD smoothLine.smoothSec over the bins (gaussianSmooth) of
+%   R.rateUnsmoothed, the rates without bins.SmoothSec (so the histogram's
+%   smoothing and the line's never change each other), divided as the
+%   rates are (normalize), a layer's mean over its units; stacked, in each
+%   row, on the row's scale (the rows' reach takes the line too). In the
+%   group's color (figLayerLook, the item's line style), a darker shade of
+%   it over its own fill, 1.5 x the design's line width, on top of every
+%   trace; role "smoothLine" (the trace's aesthetics group), a legend entry
+%   "Smoothed (SD 25 ms)". A result without R.rateUnsmoothed draws none
+%   and says so in its notes. Not for a merged result's member sessions.
 %   The events layers drawn as marks become latency lines and a rug
 %   (figEventMarks, roles "eventLine" / "eventRug"), and with
 %   options.waveform.mode on the first unit's waveform is an inset. Skipped
@@ -138,7 +150,11 @@ if auroc; norm = "none"; end   % an auROC is on its own 0-1 scale
 ref = 0;
 if auroc; ref = 0.5; end       % bars from chance
 yName = "";
-D = struct('R', {}, 'm', {}, 'lo', {}, 'hi', {}, 'peak', {}, 'name', {}, 'colors', {}, 'u', {}, 'members', {}, 'units', {});
+sl = struct('enabled', false, 'smoothSec', 0);   % options.smoothLine: a smoothed line over each trace
+if isfield(o, 'smoothLine') && isstruct(o.smoothLine); sl = o.smoothLine; end
+wantLine = sl.enabled && o.display ~= "heatmap";
+D = struct('R', {}, 'm', {}, 'lo', {}, 'hi', {}, 'peak', {}, 'name', {}, 'colors', {}, 'u', {}, 'members', {}, 'units', {}, ...
+    'line', {});
 normed = struct();
 for i = 1:nI
     j = items(i, 1);
@@ -151,7 +167,12 @@ for i = 1:nI
         if isfield(R, 'members') && isstruct(R.members) && isfield(R.members, 'rate') && ~isempty(R.members.rate)
             mem = memberRates(R, norm, pn);
         end
-        normed.(key) = struct('rate', rate, 'units', units, 'lo', lo, 'hi', hi, 'members', mem);
+        lr = [];   % the rates without the histogram's smoothing, divided as the rates are: the smoothed line's
+        if wantLine && isfield(R, 'rateUnsmoothed') && isequal(size(R.rateUnsmoothed), size(R.rate))
+            lr = R.rateUnsmoothed;
+            if ~isempty(pn); lr = lr ./ pn; end
+        end
+        normed.(key) = struct('rate', rate, 'units', units, 'lo', lo, 'hi', hi, 'members', mem, 'line', lr);
     end
     N = normed.(key);
     if yName == ""; yName = N.units; end
@@ -176,11 +197,20 @@ for i = 1:nI
         if ~isempty(N.members); mm = reshape(N.members(:, u, :), size(N.members, 1), []); end
     end
     nG = size(m, 3);
+    ln = [];   % the item's smoothed line per group [nBins x nG]
+    if ~isempty(N.line)
+        if u == 0; ln = mean(N.line, 2, 'omitnan'); else; ln = N.line(:, u, :); end
+        ln = smoothLineOf(reshape(ln, [], nG), R.t, sl.smoothSec);
+    end
     D(i) = struct('R', R, 'm', reshape(m, [], nG), 'lo', reshape(mlo, [], nG), 'hi', reshape(mhi, [], nG), ...
-        'peak', peak, 'name', name, 'colors', paletteFor(look, R, style), 'u', u, 'members', mm, 'units', N.units);
+        'peak', peak, 'name', name, 'colors', paletteFor(look, R, style), 'u', u, 'members', mm, 'units', N.units, 'line', ln);
 end
 names = strings(1, nI);
 for i = 1:nI; names(i) = D(i).name; end
+if wantLine && nI > 0 && isempty(D(1).line)
+    P.layers(end+1) = P.layers(items(1, 1));
+    P.layers(end).skip = "no smoothed line: the PSTH holds no unsmoothed rates (preview it again)";
+end
 heat = o.display == "heatmap" && nI > 0;   % the first item as an image, a row per trial group
 stacked = ~heat && o.stack == "groups" && nI > 0 && size(D(1).m, 2) > 1;
 lb = EphysAnalysisConfig.defaults("LatencyBox");   % none on a spec without it
@@ -210,10 +240,11 @@ hl.alpha = min(1, max(0, hl.alpha));
 hl.error = o.errorType ~= "off";   % the band, in its look (drawStack, drawRows)
 hl.band = o.band;
 lss = strings(1, nI);
+hLine = gobjects(1, 0);   % the smoothed lines (options.smoothLine)
 if heat
     yName = drawHeat(ax, D(1), P.layers(items(1, 1)).name, look, o, style, cnt);
 elseif stacked
-    [yName, lss, hk.yExtent] = drawRows(ax, D, Ls, items, hl, style, o, look, boxes, lb, hasMarks, cnt);
+    [yName, lss, hk.yExtent, hLine] = drawRows(ax, D, Ls, items, hl, style, o, look, boxes, lb, hasMarks, cnt);
     for g = 1:size(D(1).m, 2)   % the groups, for the figure's legend (the rows are labeled on the axis)
         gl = string(D(1).R.groups.label(g));
         hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', D(1).colors(g, :), 'LineWidth', style.LineWidth), "rate", gl);
@@ -248,6 +279,16 @@ else
             end
         end
     end
+    for i = 1:nI   % the smoothed lines, over every trace and fill
+        j = items(i, 1);
+        nG = size(D(i).line, 2);
+        for g = 1:nG
+            [c, ls] = figLayerLook(Ls(j), i, D(i).colors(g, :));
+            ls = figSeriesStyle(D(i).R, g, ls, Ls(j));
+            tg = groupTag(names(i), string(D(i).R.groups.label(g)), nI, nG);
+            hLine(end+1) = smoothTrace(ax, D(i).R.t, D(i).line(:, g), c, o.fill && i == 1, ls, style, tg); %#ok<AGROW>
+        end
+    end
     if style.ShowZeroLine
         tagPart(xline(ax, 0, ':', 'Color', [0.3 0.3 0.3], 'HandleVisibility', 'off'), "zeroLine");
     end
@@ -279,6 +320,14 @@ if nI > 1 && ~heat   % the items, by line style (in the group's color when there
         hk.legendLabels(end+1) = names(i);
         hk.legendGroup(end+1) = false;
     end
+end
+if ~isempty(hLine)   % what the line is: its own entry (the line's color with one trace, else gray)
+    c = [0.25 0.25 0.25];
+    if isscalar(hLine); c = hLine.Color; end
+    hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', c, 'LineWidth', hLine(1).LineWidth), "smoothLine");
+    hk.legendLabels(end+1) = "Smoothed (SD " + round(1000 * sl.smoothSec, 1) + " ms)";
+    if ~(sl.smoothSec > 0); hk.legendLabels(end) = "Unsmoothed"; end
+    hk.legendGroup(end+1) = false;
 end
 if numel(look.W) == 2 && look.W(2) > look.W(1); xlim(ax, look.W); end
 if ~stacked && ~heat
@@ -452,13 +501,15 @@ end
 end
 
 
-function [yName, lss, ext] = drawRows(ax, D, Ls, items, hl, style, o, look, boxes, lb, hasMarks, cnt)
+function [yName, lss, ext, hLine] = drawRows(ax, D, Ls, items, hl, style, o, look, boxes, lb, hasMarks, cnt)
 %drawRows  The stack: the first item's rows by drawStack, every further item drawn into the same rows as an outline.
 %   The rows' layout (stackLayout, Zero: every row from its zero; Mode and
 %   Limits the panel's yLimMode: panelYLimits) is taken from every item's
-%   reach in each row (its PSTH, and its band unless errorType is "off"), so each
-%   fits its rows; the y limits of both sides then cover every item's
-%   reach. EXT: the rows' reach in the rates' units, [lo hi] (from 0), not
+%   reach in each row (its PSTH, its smoothed line, and its band unless
+%   errorType is "off"), so each fits its rows; the y limits of both sides
+%   then cover every item's reach. Each item's smoothed line (D.line) is
+%   drawn in its rows last, on the row's scale (HLINE: the lines).
+%   EXT: the rows' reach in the rates' units, [lo hi] (from 0), not
 %   the latency lanes. With BOXES (latencyBoxes: a box per group) each row
 %   also takes a lane above its range (stackLayout's Above: a gap of 0.05
 %   and LB.boxHeight x the row height), so the box stays outside the row's
@@ -476,6 +527,7 @@ for i = 1:nI
     for g = 1:min(nG, size(D(i).m, 2))
         v = D(i).m(:, g);
         if hl.error; v = [v; D(i).lo(:, g); D(i).hi(:, g)]; end %#ok<AGROW>
+        if g <= size(D(i).line, 2); v = [v; D(i).line(:, g)]; end %#ok<AGROW>
         v = v(isfinite(v));
         if isempty(v); continue; end
         rlo(g) = min([rlo(g); v]);
@@ -538,7 +590,8 @@ if ~isempty(boxes)   % each group's box in its row's lane, above the row's range
         yyaxis(ax, 'left');
     end
 end
-if nI < 2; return; end
+hLine = gobjects(1, 0);
+if nI < 2 && isempty(D(1).line); return; end
 yl = ylim(ax);
 lo = yl(1); hi = yl(2);
 hold(ax, 'on');
@@ -562,6 +615,18 @@ for i = 2:nI
         if hl.error; reach = [reach; k * D(i).hi(:, g)]; end %#ok<AGROW>
         hi = max([hi; b + reach(isfinite(reach))]);
         lo = min([lo; b + reach(isfinite(reach))]);
+    end
+end
+for i = 1:nI   % the smoothed lines, in each row on the row's scale, over every trace
+    j = items(i, 1);
+    for g = 1:min(nG, size(D(i).line, 2))
+        y = hl.layout.scale(g) * D(i).line(:, g) + base(g);
+        [c, ls] = figLayerLook(Ls(j), i, D(i).colors(g, :));
+        ls = figSeriesStyle(D(i).R, g, ls, Ls(j));
+        tg = groupTag(D(i).name, string(D(i).R.groups.label(g)), nI, nG);
+        hLine(end+1) = smoothTrace(ax, D(i).R.t, y, c, hl.fill && i == 1, ls, style, tg); %#ok<AGROW>
+        hi = max([hi; y(isfinite(y))]);
+        lo = min([lo; y(isfinite(y))]);
     end
 end
 hold(ax, 'off');
@@ -754,4 +819,32 @@ function colors = paletteFor(look, R, style)
 %paletteFor  The trial groups' colors: the figure's palette when it fits R's groups, else R's own.
 colors = look.colors;
 if size(colors, 1) ~= height(R.groups); colors = groupPalette(R.groups, style); end
+end
+
+
+function y = smoothLineOf(x, t, sd)
+%smoothLineOf  X [nBins x n] smoothed down its bins by a Gaussian of SD seconds (gaussianSmooth on the bins' step T); SD 0: X as it is.
+y = x;
+dt = median(diff(t(:)));
+if sd > 0 && numel(t) > 1 && dt > 0
+    y = gaussianSmooth(x, sd / dt);
+end
+end
+
+
+function h = smoothTrace(ax, t, y, c, overFill, ls, style, tg)
+%smoothTrace  One smoothed line at Y (role "smoothLine", aesthetics group TG): in C, or over its own fill (OVERFILL) a shade of C that stands out on it; 1.5 x the design's line width.
+if overFill; c = shadeOver(c); end
+h = tagPart(plot(ax, t, y, 'Color', c, 'LineWidth', 1.5 * style.LineWidth, 'LineStyle', ls, 'HandleVisibility', 'off'), ...
+    "smoothLine", tg);
+end
+
+
+function c = shadeOver(c)
+%shadeOver  A shade of the fill color C a line stands out on: 45% of the way to black, for a dark C half way to white.
+if [0.299 0.587 0.114] * c(:) < 0.35
+    c = c + (1 - c) * 0.5;
+else
+    c = c * 0.55;
+end
 end

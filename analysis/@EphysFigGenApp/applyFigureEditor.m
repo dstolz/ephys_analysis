@@ -238,6 +238,10 @@ if isfield(op, 'latencyBox'); E.latencyBox.Text = latencySummary(op.latencyBox, 
 if isfield(op, 'onsetLine'); E.onsetLine.Value = char(pickFrom(op.onsetLine, EphysAnalysisConfig.OnsetLines, "off")); end
 if isfield(op, 'trialCount'); E.trialCount.Value = char(pickFrom(op.trialCount, string(E.trialCount.ItemsData), "off")); end
 if isfield(op, 'maskAfterStop'); E.maskAfterStop.Value = op.maskAfterStop; end
+if isfield(op, 'smoothLine')
+    E.smoothLine.Value = op.smoothLine.enabled;
+    E.smoothLineMs.Value = max(0, 1000 * op.smoothLine.smoothSec);
+end
 if isfield(op, 'histStyle')
     offerItems(E.histStyle, ["bar" "line"], op.histStyle);
     E.fill.Value = op.fill;

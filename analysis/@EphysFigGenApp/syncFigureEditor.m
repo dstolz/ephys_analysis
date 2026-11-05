@@ -281,7 +281,7 @@ layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layer
     "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "evSpanStyle" "layerColor" "layerLineStyle"];
 optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "tickWidth" "backColor" ...
     "firstSpike" "latencyBox" "onsetLine" "trialCount" ...
-    "maskAfterStop" "psthDisplay" "histStyle" "fill" "normalize" "statistic" "errorType" "errFace" "errEdge" "order" ...
+    "maskAfterStop" "psthDisplay" "histStyle" "fill" "smoothLine" "normalize" "statistic" "errorType" "errFace" "errEdge" "order" ...
     "value" "unitLabels" "waveColor" "metric" "correlation" "fisherZ" "detrend" "yLim" "cLim" "panelColormap" ...
     "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
@@ -417,6 +417,7 @@ if hasPanel
     lineStack = stackNow ~= "off" && ismember(t, ["psth" "continuous" "spectrum" "coherence" "tuning"]) && ~overTime;
     en(E.panelYSide, ~lineStack);   % a stacked line panel has a y axis on each side
     en(E.fillAlpha, E.fill.Value);
+    en(E.smoothLineMs, E.smoothLine.Value);
     sortOn = ~(t == "eventTrace" && string(E.etTrials.Value) ~= "rows");   % an event trace sorts its sub-rows only
     en([E.rasterSort E.rasterSortOrder E.rasterByGroup], sortOn);
     en([E.sortLine E.sortEdge E.sortSeqText E.sortSeqEdit], sortOn && strtrim(string(E.rasterSort.Value)) == "event");
@@ -621,7 +622,7 @@ v.trialCount = t == "psth";
 v.heatRows = t == "heatmap";
 v.contTrials = t == "continuous";
 v.maskAfterStop = ismember(t, ["raster" "psth"]) || pointHeat;
-v.histStyle = t == "psth" && ~psthHeat; v.fill = v.histStyle; v.normalize = t == "psth";
+v.histStyle = t == "psth" && ~psthHeat; v.fill = v.histStyle; v.smoothLine = v.histStyle; v.normalize = t == "psth";
 v.statistic = t == "continuous";
 v.errorType = ismember(t, ["psth" "continuous" "rate" "tuning"]) && ~psthHeat;   % the panel's own error (its items by type)
 v.order = t == "heatmap" && ~trialHeat;

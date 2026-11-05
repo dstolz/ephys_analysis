@@ -28,7 +28,8 @@ LookFigure = ["id" "autoId" "enabled" "title" "layout" "aesthetics" "style"];
 LookPanel = ["title" "box" "xLabel" "yLabel" "xSide" "ySide" "xShow" "yShow" "rect" "note" "overlays"];
 LookLayer = ["color" "lineStyle"];
 LookOptions = ["tickColor" "tickWidth" "backColor" "yTicks" "firstSpike" "fill" "fillAlpha" "histStyle" "normalize" ...
-    "stack" "stackSpacing" "yLimMode" "yLim" "colormap" "cLim" "group" "order" "colorBy" "height" "alpha" "trialCount" "band"];
+    "stack" "stackSpacing" "yLimMode" "yLim" "colormap" "cLim" "group" "order" "colorBy" "height" "alpha" "trialCount" "band" ...
+    "smoothLine"];   % smoothLine: drawPsthPanel smooths R.rateUnsmoothed itself
 
 d = drop(spec, LookFigure);
 if isfield(d, 'probe') && isstruct(d.probe) && isfield(d.probe, 'enabled')

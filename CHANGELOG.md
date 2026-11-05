@@ -430,6 +430,12 @@ says how to cut a release.
 
 ### Added
 
+- Figures: a PSTH's smoothed line. `options.smoothLine` (`enabled`, `smoothSec`: a Gaussian SD, 0.025 s by default)
+  draws a line over each trial group's trace, the PSTH smoothed on its own from the unsmoothed bins, so
+  `bins.SmoothSec` smooths the histogram alone and neither changes the other; stacked, in each row; role
+  `smoothLine`, with a legend entry *Smoothed (SD 25 ms)*. A change of it only redraws. `spikePSTH` returns
+  `R.rateUnsmoothed` (the rate without `SmoothSec`), which `combineSessions` merges. Analysis app: the PSTH's
+  **Smoothed line** row (**Draw**, **SD (ms)**).
 - Pipeline app, Project tab: **Copy manifests** in the Tools panel puts the manifest files of its datasets (the active
   one, or the ticked ones) on the clipboard as files, to paste into a folder, an e-mail or a chat, and lists in a
   message the files the clipboard holds and any not copied (`copyFilesToClipboard`, Windows).

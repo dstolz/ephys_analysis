@@ -81,7 +81,7 @@ function issues = validate(obj, opts)
 %               size, color -- a warning for not groups or a color --, the
 %               box's line style and width, boxHeight 0.02-0.5, fillAlpha,
 %               the outliers), a raster's or PSTH's onsetLine (off, unit,
-%               groups), continuous
+%               groups), a PSTH's smoothLine.smoothSec (>= 0), continuous
 %               statistic / transform / errorType and its
 %               toolbox, trials (off / faint / only) and
 %               maxTrials (whole, >= 1), heatmap rows (items / trials:
@@ -606,6 +606,9 @@ for k = 1:numel(obj.Figures)
                 checkOnsetLine(op, o0);
                 if ~ismember(op.trialCount, ["off" "text" "legend"])
                     add("Figures", o0 + ".trialCount", "error", "A PSTH's trialCount is off, text (n = 24 per group) or legend (in the legend entries).");
+                end
+                if ~(op.smoothLine.smoothSec >= 0 && isfinite(op.smoothLine.smoothSec))
+                    add("Figures", o0 + ".smoothLine.smoothSec", "error", "The smoothed line's smoothSec (its Gaussian SD, s) must be 0 or more.");
                 end
                 checkFigWaveform(op.waveform, o0 + ".waveform", false);
             case "continuous"

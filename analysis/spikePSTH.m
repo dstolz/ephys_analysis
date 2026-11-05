@@ -65,7 +65,10 @@ function R = spikePSTH(spikeTimes, E, opts)
 %   the bins cover, edges([1 end]); params.Window is the one asked for),
 %   rate / sem / count [nBins x nUnits x nGroups] (rate and sem in the
 %   Measure's unit, or the baseline's; count = spikes summed over the
-%   epochs), measure, nEpochs
+%   epochs), rateUnsmoothed [nBins x nUnits x nGroups] (rate without
+%   SmoothSec: the mean of the unsmoothed epochs, turned by the baseline as
+%   rate is; rate itself when SmoothSec is 0 or with "auroc"; a PSTH
+%   panel's smoothed line smooths it on its own), measure, nEpochs
 %   [nGroups x 1], raster (1 x nUnits struct: times relative to the event,
 %   epoch = row of E, group), epochGroup / epochStop [nEpochs x 1] (group
 %   and t1 - t0 of every epoch), stopMean [nGroups x 1] mean t1 - t0,
@@ -159,6 +162,9 @@ end
 
 rate = NaN(nB, nU, nG); sem = NaN(nB, nU, nG); count = zeros(nB, nU, nG);
 errLo = NaN(nB, nU, nG); errHi = NaN(nB, nU, nG);
+smoothed = opts.SmoothSec > 0 && ~isAuroc;   % the means without SmoothSec are kept too (R.rateUnsmoothed)
+rate0 = [];
+if smoothed; rate0 = NaN(nB, nU, nG); end
 baseRate = NaN(nU, nG); baseSD = NaN(nU, nG);
 raster = struct('times', cell(1, nU), 'epoch', cell(1, nU), 'group', cell(1, nU));
 mask = false(nB, nE);
@@ -190,7 +196,8 @@ for u = 1:nU
     end
     r(mask) = NaN;
     c(mask) = 0;
-    if opts.SmoothSec > 0
+    r0 = r;   % the epochs' unsmoothed rates (rate0)
+    if smoothed
         r = gaussianSmooth(r, opts.SmoothSec / opts.BinSec);
     end
     if batchCI; rAll(:, :, u) = r; end
@@ -252,6 +259,11 @@ for u = 1:nU
                     end
             end
         end
+        if smoothed   % the group's unsmoothed mean, turned by the baseline as the mean is
+            m0 = mean(r0(:, cols), 2, 'omitnan');
+            if useBase; m0 = bandAs(m0, opts.BaselineMode, mu, sd); end
+            rate0(:, u, g) = m0;
+        end
         rate(:, u, g) = m;
         sem(:, u, g) = s;
         errLo(:, u, g) = lo;
@@ -305,6 +317,8 @@ R.t = t;
 R.edges = edges;
 R.window = window;
 R.rate = rate;
+R.rateUnsmoothed = rate;   % SmoothSec 0, or an auROC: the rate itself
+if smoothed; R.rateUnsmoothed = rate0; end
 R.sem = sem;
 R.err = struct('type', opts.ErrorType, 'lo', errLo, 'hi', errHi, 'over', "epochs", 'nBoot', opts.ErrorResamples);
 R.count = count;

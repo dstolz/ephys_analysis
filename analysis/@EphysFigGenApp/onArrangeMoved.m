@@ -1,7 +1,8 @@
 function onArrangeMoved(obj, id, evt)
 %onArrangeMoved  A drag of a panel's box over the preview ended (Arrange): the panel takes the rect, one step of the undo history.
 %   onArrangeMoved(OBJ, ID, EVT) is the ROIMoved listener of panel ID's
-%   widget (arrangeWidget). The smart guides go; EVT.CurrentPosition is
+%   widget (arrangeWidget). The smart guides go, and the selected panels'
+%   size labels come back (arrangeSizeLabels); EVT.CurrentPosition is
 %   snapped again as during the drag (onArrangeMoving: the box may report
 %   where the pointer left it rather than where it was snapped to), kept
 %   on the page with a width and height of at least 0.01, and set as the
@@ -36,6 +37,7 @@ end
 mode = obj.FigureArrangeMode;
 if mode == "corners"; return; end
 obj.FigureArrangeMode = "";
+labels = onCleanup(@() arrangeSizeLabels(obj));   % the selected panels' sizes back, at their rects as they end up
 D = obj.FigureDrag;
 obj.FigureDrag = [];
 parts = [];   % the panel's drawn parts the drag moved (onArrangeMoving)

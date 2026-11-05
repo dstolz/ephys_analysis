@@ -3228,6 +3228,15 @@ if S.sec("5h", "the figure tree, a panel's note and overlays")
     check(axRows && pAx.yLabel == "Rate" && pAx.ySide == "right" && pAx.xSide == "bottom" && app.FigurePreviewState == "drawn" ...
         && strcmp(axP.YAxisLocation, 'right') && string(axP.YLabel.String) == "Rate", ...
         'the X axis and Y axis rows show for the selected panel; its y label and side reach the panel, and the preview draws them');
+    showRow = shown(FE.panelXShow) && shown(FE.panelYShow) && string(FE.panelXShow.Value) == "all" && string(FE.panelYShow.Value) == "all";
+    FE.panelYShow.Value = "ticks";
+    app.onConfigChanged("figure");
+    axP = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    check(showRow && app.Config.Figures(1).panels(2).yShow == "ticks" && app.Config.Figures(1).panels(2).xShow == "all" ...
+        && app.FigurePreviewState == "drawn" && strjoin(string(axP.YLabel.String), "") == "" && ~isempty(axP.YTick), ...
+        'the Show (x, y) row shows for the selected panel; "ticks, no label" on y reaches the panel and blanks the preview''s y label');
+    FE.panelYShow.Value = "all";
+    app.onConfigChanged("figure");
     FE.stack.Value = "groups";
     app.onConfigChanged("figure");
     stackOff = FE.panelYSide.Enable == "off";
@@ -3327,6 +3336,11 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         && contains(app.FigurePreviewHint.Text, "Arrange") && contains(app.StatusBar.Text, "drag") && FE.setCorners.Enable == "on", ...
         ['Arrange on: a hidden overlay axes over the page (0-1 both ways), a box per panel at its rect, the selected one blue ' ...
         'and thicker, the outline hidden; the line under the preview and the status bar say how; Set corners on']);
+    rR = rectOf5("raster_1");
+    S0 = visibleSizes(app);
+    check(numel(S0.texts) == 1 && S0.texts == sprintf("%.2f x %.2f cm", rR(3) * pageCm5(1), rR(4) * pageCm5(2)) ...
+        && abs(S0.pos(1, 1) - (rR(1) + rR(3) / 2)) < 1e-9 && S0.pos(1, 2) < rR(2), ...
+        sprintf('the selected raster_1''s width x height under its box, in cm, with no drag under way (%s)', strjoin(S0.texts, " | ")));
 
     % a resize of psth_1 (Snap off: exact): the box and its fields follow, the figure only on release, laid out in place
     app.FigureSnap = false;
@@ -3337,7 +3351,13 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.onArrangeMoving("psth_1", roiMove(r0, cur));
     during = app.SelectedPanel == 2 && app.FigureArrangeMode == "drag" && rectIs(wP.Position, cur) && rectIs(rectOf5("psth_1"), r0) ...
         && FE.rectW.Value == round(0.45 * pageCm5(1), 2) && numel(app.FigureHistory.Undo) == nUndo;
+    sizesDuring = visibleSizes(app).texts;
     app.onArrangeMoved("psth_1", roiMove(r0, cur));
+    S1 = visibleSizes(app);
+    check(isempty(sizesDuring) && numel(S1.texts) == 1 && S1.texts == sprintf("%.2f x %.2f cm", 0.45 * pageCm5(1), 0.5 * pageCm5(2)) ...
+        && S1.pos(1, 2) > 0.5, ...
+        sprintf(['the size label hides during the drag (the readout has it) and comes back on release with the new size, ' ...
+        'above psth_1 (on the page''s bottom edge) (%s)'], strjoin(S1.texts, " | ")));
     lines1 = findall(figAxes(), 'Type', 'line');
     check(during && rectIs(rectOf5("psth_1"), cur) && numel(app.FigureHistory.Undo) == nUndo + 1 && app.FigureHistory.undoLabel() == "Resize panel" ...
         && app.FigurePreviewState == "drawn" && ~isempty(lines0) && all(isvalid(lines0)) && numel(lines1) == numel(lines0) ...
@@ -5763,6 +5783,18 @@ types = string(get(h, 'Type'));
 G.lines = h(types == "line");
 t = h(types == "text");
 if ~isempty(t); G.texts = reshape(string(get(t, 'String')), [], 1); end
+end
+
+
+function S = visibleSizes(app)
+%visibleSizes  Arrange's size labels showing over the preview: their strings and positions (a row each).
+S = struct('texts', strings(0, 1), 'pos', zeros(0, 3));
+O = app.FigureArrangeOverlay;
+if ~isstruct(O) || ~isvalid(O.axes); return; end
+h = findall(O.axes, 'Tag', 'arrangeSize', 'Visible', 'on');
+if isempty(h); return; end
+S.texts = reshape(string(get(h, 'String')), [], 1);
+S.pos = reshape(vertcat(h.Position), [], 3);
 end
 
 

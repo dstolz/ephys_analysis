@@ -1219,6 +1219,7 @@ follow its id.
 | `box` | `"auto"` | the frame around the panel's axes (and a coherence panel's phase axes): `"auto"` leaves it to the [design](EphysAnalysis.md#plot-designs) (Tufte and Journal turn it off) and to the looks remembered for the panel's kind; `"on"` or `"off"` is the panel's own and wins over all of them, the figure's own `aesthetics` rules included (a right-click edit of a panel's *Box* does not show while `box` is not `"auto"`: set the panel's Box row instead). Validate: `auto`, `on` or `off` |
 | `xLabel`, `yLabel` | `""`, `""` | the panel's own x and y axis labels, any text (no TeX; [label variables](#label-variables) filled in); `""` = automatic: the label the panel type draws (`"Time (s)"` on a time axis, the rate's unit, `"Frequency (Hz)"`, ...). A stack of time panels tells the time once ([shared time axis](#shared-time-axis)): `xLabel` shows where the panel tells it. On a coherence panel with its phase strip the y label is the magnitude's; on a stacked PSTH, its left axis' |
 | `xSide`, `ySide` | `"bottom"`, `"left"` | where the panel's x axis' ticks and label go, `"bottom"` or `"top"`, and its y axis', `"left"` or `"right"`; drawn once the type has drawn, for every type. A coherence panel's x axis on top goes on its magnitude, its phase strip dropping its tick labels; a stacked PSTH keeps its two y axes (left: the groups, right: the peaks) whatever `ySide` says. A color bar outside on the side an axis moves to goes to the opposite side. Validate: `bottom` or `top`, `left` or `right` |
+| `xShow`, `yShow` | `"all"`, `"all"` | what the panel's x and y axes show (`PanelAxisShows`): `"all"` its label and ticks, `"ticks"` its ticks with the label blanked, `"label"` its label with the ticks (marks and numbers) blanked, `"none"` neither (the axis line alone). Applied last, after the [shared time axis](#shared-time-axis) has hidden or named the stack's labels; a blanked part leaves its room to the plot. Every y axis of a stacked line panel goes alike; a coherence panel's phase strip goes with its magnitude. A panel's own `xLabel` is kept while its label is blanked. Not copied by **Apply to all panels** (`adoptPanelOptions`). Validate: one of `PanelAxisShows` |
 | `rect` | `[0 0 1 1]` | the panel's place on the page, `[x y width height]`, normalized 0-1 of the page with the origin at its bottom-left corner (as a MATLAB `Position`): `[0 0.5 1 0.5]` is the top half. It is the panel's plot area or its outer box, as the figure's `layout.boxesMean` says. Panels may overlap; the later one in `panels` is drawn on top (`orderPanel`). The app shows and takes it in `RectUnits` (`figureRectConvert`). [Placing panels](#placing-panels) |
 | `ref`, `window` | `"default"` | `"default"` = the figure's, or the panel's own [EventRef](#eventref) / [EpochWindow](#epochwindow) (aligned types only). A panel with its own cuts its own epochs, with the figure's selection or its own (next row); with the figure's, its groups must match the figure's by label, or the panel is skipped. It then no longer [shares the time axis](#shared-time-axis) |
 | `selection` | `"default"` | `"default"` = the figure's, or the panel's own [TrialSelection](#trialselection) (aligned types only): its own epochs and groups, [colored apart with a legend inside the panel](#panel-types). Its groups are not matched to the figure's, and a per-group figure does not cut them. A panel with only its own `selection` still shares the time axis, which depends on `ref` and `window` alone |
@@ -2291,8 +2292,8 @@ records the unit's channel. The three panels share the time axis, so only
 the bottom one is labeled. The events layer is `fixed`, as every events layer
 is, and its `event` is an [EventMark](#raster-event-marks). The `sessions` block shown
 is the default, a figure drawn per dataset; ticking `enabled` makes it a
-[session figure](#session-figures). Each panel also holds its `xLabel`, `yLabel`, `xSide`
-and `ySide`, a `note` and a list of `overlays` ([Panel fields](#panel-fields)), left out above: `"note"` is a
+[session figure](#session-figures). Each panel also holds its `xLabel`, `yLabel`, `xSide`,
+`ySide`, `xShow` and `yShow`, a `note` and a list of `overlays` ([Panel fields](#panel-fields)), left out above: `"note"` is a
 [note](#panel-notes) (`"text": ""` draws nothing) and `"overlays"` a list of [overlays](#panel-overlays), empty by default.
 
 ### Validating figures
@@ -2425,7 +2426,7 @@ Errors:
   TeX note only such a near miss is reported (its braces group);
 - each panel's text note and overlays, by one function's rules ([Panel notes](#panel-notes), [Panel overlays](#panel-overlays)): a note with no text is not
   checked (a panel of an unknown `type` has its note and overlays checked all the same; `box` is `auto`, `on` or `off`,
-  `xSide` `bottom` or `top`, `ySide` `left` or `right`),
+  `xSide` `bottom` or `top`, `ySide` `left` or `right`, `xShow` and `yShow` `all`, `ticks`, `label` or `none`),
   else its `placement`, a finite `x` and `y` for `"custom"` (`0-1 across and up the panel`), `align`, `valign`,
   `interpreter`, a finite `rotation` and a positive (or `NaN`) `fontSize`; an overlay's
   `shape`, a finite `value` (line) or two different finite `from` and `to` (region), `axis`,

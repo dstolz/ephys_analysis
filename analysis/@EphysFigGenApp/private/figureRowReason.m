@@ -76,7 +76,7 @@ switch key
         tail = "shows when the units are matched by a mapping file (Units matched by: Mapping).";
     case {"selPanel" "rectXY" "rectWH" "panelButtons" "panelType" "panelTitle"}
         tail = "is a setting of the selected panel: pick one with Ctrl+] or Ctrl+Click on it in the preview.";
-    case {"panelBox" "panelXLabel" "panelXSide" "panelYLabel" "panelYSide"}
+    case {"panelBox" "panelXLabel" "panelXSide" "panelYLabel" "panelYSide" "panelXShow" "panelYShow"}
         tail = "is a setting of the selected panel's axes: pick a panel that draws data (a legend panel has no axes).";
     case "group"
         tail = "is an option of heat map, unit correlation and spectrogram panels (and a coherence panel drawn over time); " + ...

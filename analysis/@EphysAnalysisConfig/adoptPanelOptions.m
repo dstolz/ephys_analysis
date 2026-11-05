@@ -21,8 +21,8 @@ function [fig, changed] = adoptPanelOptions(fig, panelId)
 %     to every other panel of the same type
 %   Panels of other types keep their other options.
 %   - the panel's axis sides (xSide, ySide: layout, not options) go to
-%     every other panel; its label texts (xLabel, yLabel), like its title,
-%     stay each panel's own
+%     every other panel; its label texts (xLabel, yLabel) and what its
+%     axes show (xShow, yShow), like its title, stay each panel's own
 %
 %   [FIG, CHANGED] = ... also says what changed: a struct array, one entry
 %   per other panel whose options or sides changed or that kept its

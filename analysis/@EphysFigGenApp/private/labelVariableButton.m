@@ -45,7 +45,7 @@ end
 
 
 function openMenu(b, opts)
-%openMenu  The button pressed: the variables' menu, at the button.
+%openMenu  The button pressed: the variables' menu, at the pointer (menuPoint).
 f = b.UserData;
 if ~isvalid(f) || f.Enable == "off"; return; end
 fig = ancestor(b, 'figure');
@@ -70,11 +70,27 @@ if ~isempty(opts.List)
         'MenuSelectedFcn', @(~, ~) opts.List());
 end
 setappdata(b, 'LabelVariableMenu', cm);
-p = getpixelposition(b, true);
+xy = menuPoint(fig, b);
 try
-    open(cm, p(1), p(2));
+    open(cm, xy(1), xy(2));
 catch   % (no screen: the menu is built, a test picks from it)
 end
+end
+
+
+function xy = menuPoint(fig, b)
+%menuPoint  Where the menu opens, in FIG's pixels from its lower-left: at the mouse pointer (the click on B).
+%   Not at B's getpixelposition: the editor's column scrolls, and a scrolled
+%   container's children are placed in its whole content, so B's position
+%   lands outside the window (open then shows nothing, and raises no error).
+%   A press from code, the pointer off the window: B's position, kept inside it.
+fp = getpixelposition(fig);
+xy = get(groot, 'PointerLocation') - fp(1:2);
+if any(xy < 0) || any(xy > fp(3:4))
+    p = getpixelposition(b, true);
+    xy = p(1:2);
+end
+xy = min(max(xy, 1), fp(3:4) - 1);
 end
 
 

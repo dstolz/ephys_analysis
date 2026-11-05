@@ -24,8 +24,9 @@ function onArrangeMoving(obj, id, evt, alt)
 %   arrangeGroup); the snapping and the guides are the dragged box's (the
 %   others selected are not snapped to), and every selected panel's plots
 %   go with its box.
-%   The first step of a drag selects the panel (when the click did not)
-%   and notes the drag (FigureArrangeMode "drag"); after Escape
+%   The first step of a drag selects the panel (when the click did not),
+%   notes the drag (FigureArrangeMode "drag") and hides the selected
+%   panels' size labels (arrangeSizeLabels) until it ends; after Escape
 %   (cancelArrange) the box stays where it was until the drag ends.
 %   onArrangeMoving(OBJ, ID, EVT, ALT): ALT true or false in place of the
 %   window's CurrentModifier (the tests).
@@ -61,6 +62,7 @@ if mode ~= "drag"
         if isempty(C) || isempty(C.w) || ~isvalid(C.w); return; end
     end
     obj.FigureDrag = struct('id', id, 'parts', {arrangeParts(obj, id, C.rect0)}, 'group', dragGroup(obj, id));   % what moves with the box
+    arrangeSizeLabels(obj);   % hidden: the readout shows the size now
 end
 D = obj.FigureDrag;
 G = struct('id', {}, 'rect0', {}, 'w', {}, 'parts', {});

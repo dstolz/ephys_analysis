@@ -5,8 +5,8 @@ function d = figureDataSpec(spec)
 %     the figure's   id, autoId, enabled, title, layout, aesthetics and
 %                    style (the error a band takes is each panel's:
 %                    figureErrorType)
-%     each panel's   title, box, xLabel, yLabel, xSide, ySide, rect, note and
-%                    overlays, and the options of LookOptions (the draw
+%     each panel's   title, box, xLabel, yLabel, xSide, ySide, xShow, yShow,
+%                    rect, note and overlays, and the options of LookOptions (the draw
 %                    functions' alone: the compute functions read none of
 %                    them); a PSTH's latencyBox and onsetLine count only as
 %                    on or off (they keep its raster rows: their looks are
@@ -25,7 +25,7 @@ function d = figureDataSpec(spec)
 %   See also figureCompute, figureErrorType, EphysAnalysisRunner.computeFigure.
 
 LookFigure = ["id" "autoId" "enabled" "title" "layout" "aesthetics" "style"];
-LookPanel = ["title" "box" "xLabel" "yLabel" "xSide" "ySide" "rect" "note" "overlays"];
+LookPanel = ["title" "box" "xLabel" "yLabel" "xSide" "ySide" "xShow" "yShow" "rect" "note" "overlays"];
 LookLayer = ["color" "lineStyle"];
 LookOptions = ["tickColor" "tickWidth" "backColor" "yTicks" "firstSpike" "fill" "fillAlpha" "histStyle" "normalize" ...
     "stack" "stackSpacing" "yLimMode" "yLim" "colormap" "cLim" "group" "order" "colorBy" "height" "alpha" "trialCount" "band"];

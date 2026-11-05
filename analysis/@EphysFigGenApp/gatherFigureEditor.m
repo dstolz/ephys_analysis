@@ -183,6 +183,8 @@ if j >= 1 && j <= numel(fig.panels)
     p.yLabel = strtrim(string(E.panelYLabel.Value));
     p.xSide = string(E.panelXSide.Value);
     p.ySide = string(E.panelYSide.Value);
+    p.xShow = string(E.panelXShow.Value);
+    p.yShow = string(E.panelYShow.Value);
     % its rect only where a field was edited: the fields round what they show (Validate reports a bad rect); only
     % when they show this panel's rect (showPanelPlace)
     r = double(p.rect);

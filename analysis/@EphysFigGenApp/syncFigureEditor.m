@@ -274,6 +274,7 @@ v.multiNote = several;
 if several; E.multiNote.Text = multiText(sel); end
 v.panelType = hasPanel && ~several; v.panelTitle = hasPanel;   % (several: each keeps its type)
 v.panelBox = false; v.panelXLabel = false; v.panelYLabel = false; v.group = false;   % (panelRowsShown: none on a legend panel)
+v.panelXShow = false;
 % layers and options: off unless the panel uses them
 layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layerBinding" "layerFollows" "layerClasses" ...
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
@@ -590,6 +591,7 @@ v = struct();
 for f = keys; v.(f) = false; end
 axesOn = t ~= "legend";   % a legend panel has no axes
 v.panelBox = axesOn; v.panelXLabel = axesOn; v.panelYLabel = axesOn;
+v.panelXShow = axesOn;
 v.group = known && PT.OneGroup(row);
 first = "";
 if ~isempty(p.layers)

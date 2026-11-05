@@ -352,6 +352,8 @@ switch section
             'yLabel',  "", ...                  % the y axis' label: "" = automatic
             'xSide',   "bottom", ...            % where the x axis' ticks and label go: "bottom" | "top"
             'ySide',   "left", ...              % ... and the y axis': "left" | "right" (not a stacked PSTH's: it has one on each side)
+            'xShow',   "all", ...               % what the x axis shows (PanelAxisShows): "all" (label and ticks) | "ticks" (no label) | "label" (no ticks) | "none"
+            'yShow',   "all", ...               % ... and the y axis'
             'rect',    [0 0 1 1], ...           % [x y width height], normalized 0-1 of the page, origin bottom-left (as a MATLAB Position); its box (Figure.layout.boxesMean)
             'ref',     "default", ...           % "default" (the figure's) or an EventRef
             'window',  "default", ...           % "default" (the figure's) or an EpochWindow (own epochs, the figure's selection)

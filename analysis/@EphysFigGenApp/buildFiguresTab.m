@@ -1391,7 +1391,7 @@ E.trAdjust = uidropdown(adg, "Items", ["Holm" "Benjamini-Hochberg" "Bonferroni" 
     "ValueChangedFcn", changed, "Tooltip", "How the pairs' p values are adjusted for the number of pairs (pAdjust).");
 uilabel(adg, "Text", "alpha:");
 E.trAlpha = uieditfield(adg, "numeric", "Limits", [0 1], "LowerLimitInclusive", "off", "UpperLimitInclusive", "off", ...
-    "Value", 0.05, "ValueChangedFcn", changed, "Tooltip", "The significance level the stars and brackets use (0.05).");
+    "Value", 0.05, "ValueChangedFcn", changed, "Tooltip", "The significance level (0.05): a pair whose adjusted p is below it counts as significant (its bracket is drawn; the stars themselves mark 0.05, 0.01 and 0.001).");
 [S, r] = formRow(S, ["trTestShow" "trBracketPairs"], "Show tests:");
 twg = subgrid(S.Body, r, {'1x', '1x'});
 E.trTestShow = uidropdown(twg, "Items", ["brackets, stars and the p" "the p in a corner" "off (the caption only)"], ...

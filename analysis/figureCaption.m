@@ -146,7 +146,9 @@ elseif across
     if ~isempty(subj); sTxt = sTxt + sprintf(" (%d subject%s)", numel(subj), plural(numel(subj))); end
     ss = spec.sessions;
     if ob.kind == "unit"; what = what + ", matched by " + ss.match; end
-    if n == 1
+    if n == 1 && ob.kind == "dataset"   % the dataset itself (its label names the sessions: not "2 sessions across 2 sessions")
+        first = head + ": the dataset across " + sTxt;
+    elseif n == 1
         star = "";
         if nStar > 0; star = " (starred)"; end
         first = head + ": " + string(T.label(1)) + star + " across " + sTxt;

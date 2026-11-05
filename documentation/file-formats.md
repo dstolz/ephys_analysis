@@ -1540,7 +1540,7 @@ file can be large, since it holds the merged results and each session's own.
 | `observations` | the table `figureSessionObservations` returned, one row per matched observation: `kind`, `label`, `unitId`, `channel`, `column`, `shank`, `depth`, `meta`, `group`, `groupLabel`, `nSessions`, `unitIds` and `perSession` |
 | `results` | a struct array, one element per observation and figure (facet x trial group): `index` (the row of `observations`), `observation` (its label), `facet`, `group`, `label`, `status` (`done`, `skipped`, `error`), `message` and `F`, the merged figure (`[]` unless `done`) |
 | `perSession` | `{nObs x nSessions}`: row `i`, column `k` is session `k`'s own `figureCompute` result for observation `i` (`[]` where the session did not draw it) |
-| `values` | the trial panels' per-trial values of every merged figure in `results`, one table (`TrialDataExport.resultsTable`: `observation`, `figure`, `panel`, `layer`, `measure`, `dataset`, `session`, `sessionKey`, `trial`, `group`, `category`, `series`, `value`, `x`, `tA`, `tB`, then the trial parameters); empty without trial panels |
+| `values` | the trial panels' per-trial values of every merged figure in `results`, one table (`TrialDataExport.resultsTable`: `observation`, `figure`, `panel`, `layer`, `measure`, `dataset`, `session`, `sessionKey`, `trial`, `group`, `groupLabel`, `category`, `categoryLabel`, `series`, `seriesLabel`, `value`, `x`, `tA`, `tB`, then the trial parameters; [the data table](EphysAnalysisConfig.md#the-data-table)); empty without trial panels |
 | `config` | the analysis config as a struct (`EphysAnalysisConfig.toStruct`) |
 | `created` | `yyyy-MM-dd HH:mm:ss` |
 

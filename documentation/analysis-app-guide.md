@@ -2,8 +2,8 @@
 
 The analysis app, `EphysFigGenApp`, draws figures of recordings the
 [pipeline app](pipeline-app-guide.md) has processed: rasters, PSTHs, evoked
-potentials, firing rates, tuning curves, heat maps, probe maps, spectra and
-more. You design a figure once, see it on one unit, and then draw it for
+potentials, firing rates, tuning curves, heat maps, probe maps, spectra, a
+time or a count per trial compared across groups, and more. You design a figure once, see it on one unit, and then draw it for
 every unit of every recording you choose, with an HTML or PDF report that
 collects them. This page is for people who use the app; it needs no
 programming beyond the line that opens it. The
@@ -126,8 +126,8 @@ animal leaving the platform, and whether that differs between trial groups:
 
 1. In the Figures tab, press **Add** (or **New panel...** in a figure you
    have). Pick **Trial distribution**. Under **Key parameters**, set
-   **Measure** to *Delay from an event to another*, **From (A)** to *Stim*
-   *onset* and **To (B)** to *Platform* *offset*. Press **OK**: the panel
+   **Measure** to *Delay from an event to another*, **From (A)** to *Stim
+   onset* and **To (B)** to *Platform offset*. Press **OK**: the panel
    draws one dot per trial.
 2. To change the measure later, find the **Layers** section and press
    **Edit...** beside **Measure**. The *Trial measure* window shows both events
@@ -149,6 +149,8 @@ animal leaving the platform, and whether that differs between trial groups:
 
 For one measure against another, pick **Trial scatter** instead (its **X
 measure** is the x axis); for the shape of one measure, **Trial histogram**.
+Every option is in [Trial measures](EphysAnalysisConfig.md#trial-measures) and
+the [Trial measure window](EphysFigGenApp.md#the-trial-measure-window).
 
 ## Labels that follow the data
 

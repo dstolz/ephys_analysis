@@ -262,8 +262,8 @@ epoch's event the animal left the platform; a raster can be sorted by it
 `trialMeasure(src, m, mask)` turns such relations into one number per
 trial: the delay from one event to another (after or before it), how long
 an interval lasts, how many events follow, or a trial parameter; see
-[Trial measures](#trial-measures). Its delays are `eventLatency`'s, and
-`trialStats` gives the trial panels their summaries, group tests and fits.
+[Trial measures](#trial-measures). Its delays are `eventLatency`'s, and the
+trial panels draw them with their summaries, group tests and fits.
 
 ### `trialSelection`: which trials, in which groups
 
@@ -444,9 +444,12 @@ Pure functions, but for `unitSummary`, which loads the units through
 
 ## Trial measures
 
-One number per trial from the trial's events or parameters: the trial
-panels (`trialDist`, `trialHist`, `trialScatter`) draw them, and a script
-calls `trialMeasure` directly.
+One number per trial from the trial's events or parameters: the trial panels
+(`trialDist`, `trialHist`, `trialScatter`) draw them, a script calls
+`trialMeasure` directly, and `TrialDataExport` hands a figure's values to a
+spreadsheet or a script. What each panel draws and every option are on
+[EphysAnalysisConfig → Trial measures](EphysAnalysisConfig.md#trial-measures);
+this section is the functions and what they return.
 
 ```matlab
 src = loadAnalysisSource(out);
@@ -466,10 +469,10 @@ trial). `T` has one row per value: `trial` (row of `src.trials`), `value`
 column's own values for a parameter), `tA` and `tB` (the A and B events, s
 on the digital clock) and `k` (which interval of its trial A is, as
 `resolveEvents`' `k`). `info` has `kind`, `label` (`m.label`, else the
-automatic one: "Stim onset → Platform offset (ms)"), `unit`, `nA` (A
-events found), `nNoB` (A events with no B, or none within `maxGapSec`) and
-`nNoValue` (A events dropped by `from.offsetParam`, durations with no
-interval, parameter values that are not finite).
+automatic one, `trialMeasureLabel(m)`: "Stim onset → Platform offset (ms)"),
+`unit`, `nA` (A events found), `nNoB` (A events with no B, or none within
+`maxGapSec`) and `nNoValue` (A events dropped by `from.offsetParam`, durations
+with no interval, parameter values that are not finite).
 
 | Kind | Value |
 | --- | --- |
@@ -485,31 +488,32 @@ paired trials) is `trialMeasure:NoParam`, a column that is not one number
 per trial `trialMeasure:BadParam`; `resolveEvents`' other errors are
 rethrown. A figure turns all of them into the layer's skip reason.
 
-### Grouping and statistics
+### A trial figure from a script
 
-A trial panel groups the values two ways, *categories* (the distribution
-panel's x axis) and *series* (the colors), each by the figure's trial
-groups (`"groups"`), a trial parameter's values (`"param"`: each value, n
-equal-width bins, or given bin edges; a text parameter by its strings), the
-session (`"session"`) or the layer (`"layer"`). `trialStats` then computes,
-per category and series, n, the center (mean or median), its error
-(`errorBounds`: sem, std, ci95, iqr), the median, quartiles, minimum and
-maximum; the group test across the categories within each series (across
-the series when there is one category): `"auto"` is `ranksum` for two levels
-and `kruskalwallis` for more, `"ttest2"` / `"anova1"` are the parametric
-choices (`"ranksum"` and `"ttest2"` with more than two levels run
-`kruskalwallis` and `anova1`), and the pairs (`"all"`, or each level against
-the first) by `ranksum` (`ttest2` under a parametric choice), their p
-adjusted per series by `pAdjust` (holm, bh, bonferroni, none) and starred at
-0.05 / 0.01 / 0.001 on the adjusted p (a pair is significant, for the
-brackets, below the panel's `testAlpha`, 0.05 by default; `alpha` is a
-histogram's or scatter's opacity). A level with fewer than two values
-takes no part (NaN, never an error). On a scatter, per series: a fit
-(`linear`, `poly2`, `poly3`: `polyfit`, with the 95% band of the curve from
-`fitlm` and `predict`; `movmean`, `movmedian` over the x-sorted points) and
-a correlation (`corr`, Pearson or Spearman), both in log10 units on a log
-axis (values at or below 0 left out and counted). They need the Statistics
-and Machine Learning Toolbox.
+A trial panel is a panel like any other: add a template, set the layer's
+measure and the panel's options, compute it, and read the values and the
+statistics from the result.
+
+```matlab
+cfg = EphysAnalysisConfig.load("D:\EPHYS\am_quicklook.json");
+cfg.Defaults.Selection = trialSelection(filter="Hit | Miss", groupBy="TrialType");
+[cfg, id] = cfg.addFigure("trialDist", Id="leave_delay");     % one panel, one trials layer
+k = cfg.figureIndex(id);
+L = cfg.Figures(k).panels(1).layers(1);
+L.measure.from = eventRef(line="Stim");                        % A
+L.measure.to = eventRef(line="Platform", edge="offset");       % B
+cfg.Figures(k).panels(1).layers(1) = L;
+cfg.Figures(k).panels(1).options.display = "violin";
+cfg.Figures(k).panels(1).options.test = "ranksum";
+assert(~any(cfg.validate().Severity == "error"))
+
+runner = EphysAnalysisRunner(cfg);
+src = runner.source(1);
+F = runner.computeFigure(src, cfg.figureFor(id));
+T = TrialDataExport.valuesTable(F);            % one row per trial: value, group, category, series, tA, tB, ...
+S = F.panels(1).layers(1).R.stats;             % S.table, S.test, S.pairs (adjusted p, stars)
+lines = trialStatsText(F)                      % the numbers in words, as the report's caption prints them
+```
 
 ### The trial panels' result
 
@@ -525,10 +529,21 @@ category and series parameter columns from the trials, then `category` and
 `nNoValue`, the x measure's `xA`, `xNoB`, `xNoValue`, and `nUnpaired`),
 `options`, `dataset`, `params`, `created`, and, the same in every layer of
 the panel, `categories` and `series` (index, label, color, n, value) and
-`stats` (`trialStats`: `table`, `test`, `pairs`, `fit`, `corr`,
-`options`). The statistics run over all of the panel's layers at once, at
-the end of a dataset's compute and again after a session figure's datasets
-are merged ([The merged result](#the-merged-result)).
+`stats`. The statistics run over all of the panel's layers at once, at the end
+of a dataset's compute and again after a session figure's datasets are merged
+([The merged result](#the-merged-result); a merged trial panel's `drops` also
+has `nNoSeries`, values in no series).
+
+`R.stats` (the grouping and the settings are on [the config
+page](EphysAnalysisConfig.md#trial-measures)):
+
+| Field | Contents |
+| --- | --- |
+| `table` | a row per category and series: `n`, `center` (the mean, or the median), `lo` and `hi` (its error; NaN with `errorType "off"` or fewer than 2 values), `mean`, `median`, `q1`, `q3`, `min`, `max` |
+| `test` | the overall tests (a struct array): `name` (`ranksum`, `ttest2`, `kruskalwallis`, `anova1` or `none`), `label`, `across` (`"categories"` or `"series"`), `per` (the series), `p`, `stat`, `df`, `n`, `levels`. A level with fewer than two values takes no part; too few levels give `p` NaN, never an error |
+| `pairs` | a row per pair compared: `per`, `a`, `b`, `n1`, `n2`, `test`, `p`, `pAdj` (`pAdjust` over a series' pairs), `stars` (`***` below 0.001, `**` 0.01, `*` 0.05, `n.s.`) and `sig` (`pAdj` below the panel's `testAlpha`) |
+| `fit`, `corr` | a scatter's, per series: the fit's `kind`, `coef`, the curve (`xg`, `yg`) and band (`lo`, `hi`), `r2`, `n`, `nLeftOut`; the correlation's `type`, `r`, `p`, `n`. On a log axis both are in log10 units |
+| `options` | the options used |
 
 `lines = trialStatsText(F)` puts a computed figure's trial-panel statistics
 into words, one line per trial panel, as the report captions print them
@@ -539,35 +554,24 @@ scatter's r and fit R², and the values left out, three significant digits:
 0.000123; Hit vs Miss p = 0.000123 (holm)\*\*\*; 3 trials without a
 Platform offset*.
 
-### Drawing and the data table
-
-`renderFigure` draws the trial panels (`drawTrialDistPanel`,
-`drawTrialHistPanel`, `drawTrialScatterPanel`): a distribution as a swarm,
-boxes, violins, jittered points or a line per series, with the significant
-pairs bracketed and starred and the omnibus p in a corner; a histogram as
-bars, an outline or an ECDF; a scatter with its fits, correlations in the
-legend and, optionally, marginal histograms in strips beside the plot. What
-each option draws, and the parts' roles, are in
-[Trial measures](EphysAnalysisConfig.md#trial-measures). A point's data tip
-names its trial, trial group, category and parameters; a bracket's its test.
+### The data table
 
 `TrialDataExport` turns the values into one table, a row per value, for a
 spreadsheet or a script (the right-click **Copy data table** and **Export data
 (CSV)...** of every trial panel do the same):
 
 ```matlab
-F = runner.computeFigure(src, cfg.figureFor("Dist trials"));
 T = TrialDataExport.valuesTable(F);           % every trial panel of F; (F, k) panel k, by index or id
 TrialDataExport.export(F, [], "delays.csv");  % writetable; "" opens a save dialog
 txt = TrialDataExport.tableText(T);           % tab-separated, the header first
 TrialDataExport.copy(F);                      % that text on the clipboard
+T = TrialDataExport.resultsTable(res);        % a session figure's results (res(i).F), an observation column first
 ```
 
-`T`'s columns: `figure`, `panel`, `layer`, `measure`, `dataset`, `session`,
-`sessionKey`, `trial`, `group`, `groupLabel`, `category`, `categoryLabel`,
-`series`, `seriesLabel`, `value`, `x`, `tA`, `tB`, then the trial parameters
-the values carry. `TrialDataExport.attach(F, h)` (`renderFigure` calls it in
-a visible figure) puts the two menu items on a drawn figure's trial panels.
+`T`'s columns, and the errors, are listed under [the data
+table](EphysAnalysisConfig.md#the-data-table). `TrialDataExport.attach(F, h)`
+(`renderFigure` calls it in a visible figure) puts the two menu items on a
+drawn figure's trial panels.
 
 ## Response statistics
 

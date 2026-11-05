@@ -1710,21 +1710,39 @@ A trials layer is always fixed: its `measure`, a **TrialMeasure**, names the
 events or the parameter it reads. One measure per layer, so several layers
 give several measures in one panel, and the layer is a grouping of its own. The
 panels are not aligned to events: their `ref` and `window` stay `"default"`,
-and they read the figure's trial selection, or a `selection` of their own. A
-figure of trial panels alone is drawn for the dataset.
+and they read the figure's trial selection, or a `selection` of their own.
+A figure of trial panels alone is drawn for the dataset. A dataset without
+paired trials skips a trial panel (`no paired trials`). A script that wants the
+numbers without a figure calls
+[`trialMeasure`](EphysAnalysis.md#trial-measures) and reads a figure's values
+with [`TrialDataExport`](#the-data-table).
 
-`EphysAnalysisConfig.defaults("TrialMeasure")`:
+#### What a measure is
+
+`EphysAnalysisConfig.defaults("TrialMeasure")`, a layer's `measure` (a
+scatter's y) and `xMeasure` (a scatter's x; default Trial onset → Stim onset;
+not used on the other types):
 
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `kind` | `"delay"` | `"delay"`: from event A to event B; `"duration"`: A's interval, from its onset to its offset; `"count"`: how many B events follow A; `"param"`: a numeric trial parameter's value (`EphysAnalysisConfig.TrialMeasureKinds`) |
 | `from` | an [EventRef](#eventref), Stim onset | A: the event each value starts from; its `which`, `n`, [sequence](#event-sequences) and shifts pick it in each trial |
-| `to` | an EventRef, Trial offset | B (delay, count): its `which` picks among the B events after A: `"first"`, `"last"`, `"nth"`, or `"all"` (a value per B, so several per trial) |
+| `to` | an EventRef, Trial offset | B (delay, count): its `which` picks among the B events after A: `"first"` (the nearest), `"last"`, `"nth"`, or `"all"` (a value per B, so several per trial) |
 | `direction` | `"after"` | a delay: `"after"` (the first B at or after A, as a stop event is found) or `"before"` (the last B at or before A, a negative value) |
 | `maxGapSec` | `Inf` | a delay: a B farther than this from A is dropped and counted; a count: the window ends at A + `maxGapSec` at the latest (and at the trial's end) |
 | `param` | `""` | `kind "param"`: the numeric trial parameter, e.g. `RespLatency` |
 | `unit` | `"ms"` | a delay's or duration's unit, `"ms"` or `"s"` (a count has none, a parameter keeps its own) |
 | `label` | `""` | the measure's name in labels and legends; `""` = automatic, `trialMeasureLabel` |
+
+The kinds in short (the rules in full, and the `trialMeasure` result, are on
+[the scripting page](EphysAnalysis.md#trial-measures)). A **delay** is B's time
+minus A's, B found among the intervals of A's own trial (in trial or auto
+scope; else over the recording); with `"after"` and `"first"` it is
+`eventLatency`'s delay exactly. A **duration** is the interval's offset minus
+its onset (`"Trial"` is the trial itself). A **count** counts the B events from
+A up to the trial's end (the first low row after the trial is still the
+trial's own) or to `maxGapSec`; a line with no event counts 0. A **param** is
+the trial column's value, a trial without a finite value left out.
 
 `trialMeasureLabel(m)` names a measure: its `label` when set, else *Stim onset →
 Platform offset (ms)* (a delay after), *Platform offset before Stim onset (ms)*
@@ -1733,40 +1751,28 @@ Platform offset (ms)* (a delay after), *Platform offset before Stim onset (ms)*
 offset* or *2nd Trough onset*, as `eventLatency` names it, and an event with a
 sequence reads as `eventRefLabel` writes it. The layer's automatic name, the
 [label variables](#label-variables) `{Measure}` and `{MeasureX}` and the app use
-it. A layer's `measure` is a scatter's y; its `xMeasure` (default Trial onset →
-Stim onset) is a scatter's x and is not used elsewhere.
+it.
 
-**Grouping.** The values are grouped twice: by `categories` (a distribution's x
-axis) and by `series` (the colors in every type). Each is one of
-`EphysAnalysisConfig.TrialGroupings`: `"groups"` (the figure's trial groups, or
-the panel's own selection's), `"param"` (the levels of the trial parameter
-`categoryParam` / `seriesParam`; `categoryBins` / `seriesBins` `[]` makes each
-value a level, a whole number n makes n equal-width bins, two or more
-ascending numbers are the bins' edges), `"session"` (a session figure's
-sessions) or `"layer"` (each trials layer). The categories and the series may
-not group alike (two different parameters may).
+#### The distribution panel
 
-**Statistics.** Each category and series gets its `summary` (`"mean"` or
-`"median"`) with its error (`errorType`, as a continuous panel's:
-`"off"`, `"sem"`, `"std"`, `"ci95"` with `errorResamples` bootstrap resamples,
-or `"iqr"`). A group `test` compares the categories within each series (one
-category: the series): `"auto"` takes the rank sum test for two levels and
-Kruskal-Wallis for more; `"ranksum"`, `"ttest2"`, `"kruskalwallis"` and
-`"anova1"` name one; `"none"` tests nothing (`EphysAnalysisConfig.TrialTests`).
-The pairs (`testPairs` `"all"`, or `"first"`: each against the first level) are
-adjusted by `pAdjust` (`adjust` `"holm"`, `"bh"`, `"bonferroni"` or `"none"`)
-and marked with stars below `testAlpha`. A scatter fits each series (`fit`,
-`EphysAnalysisConfig.TrialFits`: a polynomial of degree 1 to 3 with its 95%
-band, or a moving mean or median over `fitWindow` points) and gives its
-correlation (`corr`). The tests need the Statistics and Machine Learning
-Toolbox.
+`trialDist` puts its categories along x, each labeled (with `showN "ticks"` its
+trial count, *Hit (n = 12)*; past 8 categories the labels turn 45 degrees; with
+`ordinalX` a line's or points' numeric categories at their values), and the
+series side by side in each category's slot. `display`: `"swarm"` (the points
+spread by their density, `swarmchart`), `"points"` (jittered over `jitter` of
+the slot, the same pattern every time), `"box"` (`boxchart`), `"violin"`
+(`violinplot`, MATLAB R2024b or later; an older MATLAB draws boxes and says so
+in the panel; a series without spread draws its points) or `"line"` (each
+series' summary per category with its error bars, joined, in the layer's line
+style). With `showSummary` the swarm, points and violins get a mark at each
+slot's summary with its error.
 
 `opts.trialDist` (look: options only the drawing reads, so changing one
 recomputes nothing):
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `categories` | `"groups"` | the x axis: `"groups"`, `"param"`, `"session"` or `"layer"` |
+| `categories` | `"groups"` | the x axis: `"groups"`, `"param"`, `"session"` or `"layer"` ([grouping](#grouping-the-values)) |
 | `categoryParam`, `categoryBins` | `""`, `[]` | categories `"param"`: the trial parameter, and its bins (`[]`, a count or edges) |
 | `series` | `"layer"` | the colors: `"layer"`, `"groups"`, `"param"` or `"session"` |
 | `seriesParam`, `seriesBins` | `""`, `[]` | series `"param"`: as above |
@@ -1775,15 +1781,25 @@ recomputes nothing):
 | `summary` | `"mean"` | `"mean"` or `"median"`: the summary mark, the line's points and the caption |
 | `errorType`, `errorResamples` | `"sem"`, 1000 | the summary's error |
 | `showSummary` | `true` | look; swarm, points and violin: the summary mark ± its error over the values |
-| `test` | `"auto"` | the group test across the categories in each series |
+| `test` | `"auto"` | the group test across the categories in each series ([tests](#summaries-tests-and-brackets)) |
 | `testPairs` | `"all"` | `"all"` pairs, or `"first"` (each category against the first) |
 | `adjust`, `testAlpha` | `"holm"`, 0.05 | the pairs' p adjustment (`pAdjust`) and the tests' significance level, in (0, 1) |
 | `testShow` | `"brackets"` | look; `"brackets"` (the significant pairs bracketed with stars, the overall p in a corner), `"text"` (the overall p alone) or `"off"` (the caption only) |
 | `bracketPairs` | `"significant"` | look; `"significant"` or `"all"` (n.s. brackets too) |
 | `markerSize`, `jitter` | 4, 0.3 | look; the points' size, and `"points"`' jitter as a share of the category's slot (0 to 1) |
 | `showN` | `"off"` | look; `"ticks"`: each category's trial count in its tick label (*Hit (n = 12)*) |
-| `yScale` | `"linear"` | or `"log"` |
+| `yScale` | `"linear"` | or `"log"` ([scales and limits](#scales-and-limits)) |
 | `yLimMode`, `yLim` | `"auto"`, `[]` | the value axis ([Y limits](#y-limits)) |
+
+#### The histogram panel
+
+`trialHist` counts every series on one set of edges (`binMode`: `histcounts`'
+rule, `binCount` bins or `binWidth`; log-spaced with `xScale "log"`, the values
+at or below 0 left out; covering `xLim` when set) and draws bars at `alpha` (as
+`normalization` says: counts, probabilities or a density), a stair outline, or
+the empirical cumulative distribution (`ecdf`, 0 to 1). `showSummary` draws a
+dotted line at each series' summary. Its y axis reads *Count*, *Probability*,
+*Density (1/unit)* or *Cumulative probability*.
 
 `opts.trialHist`:
 
@@ -1796,93 +1812,136 @@ recomputes nothing):
 | `binCount`, `binWidth` | 20, 10 | look; a whole number >= 1; a positive width |
 | `alpha` | 0.5 | look; the bars' opacity, 0 to 1 |
 | `showSummary` | `true` | look; a dotted line at each series' summary |
-| `summary`, `errorType`, `errorResamples` | `"mean"`, `"sem"`, 1000 | as a distribution's |
+| `summary`, `errorType`, `errorResamples` | `"mean"`, `"sem"`, 1000 | as a distribution's (the error goes into the caption) |
 | `test`, `testPairs`, `adjust`, `testAlpha` | `"auto"`, `"all"`, `"holm"`, 0.05 | across the series |
-| `testShow` | `"text"` | look; `"text"` or `"off"` |
+| `testShow` | `"text"` | look; `"text"` (the overall p in the top right corner, the top left over an ECDF) or `"off"` |
 | `xScale` | `"linear"` | look; or `"log"` (log-spaced bins) |
 | `xLim` | `[]` | look; `[]` (automatic) or `[lo hi]` in the measure's unit |
+
+#### The scatter panel
+
+`trialScatter` draws a point per trial, its y measure against its x
+(`markerSize`, `alpha`), each series' fit over its 95% band (behind the
+points), and lists each series in the legend with its correlation, *Hit (r =
+0.42, p = 0.01)* (ρ for Spearman's). x and y are paired by trial: a measure
+with several values per trial (a delay to every B) pairs its first, and values
+without a partner are counted (`drops.nUnpaired`).
 
 `opts.trialScatter`:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `series`, `seriesParam`, `seriesBins` | `"layer"`, `""`, `[]` | the colors, as a distribution's |
-| `fit` | `"none"` | per series: `"linear"`, `"poly2"`, `"poly3"`, `"movmean"` or `"movmedian"` |
+| `fit` | `"none"` | per series: `"linear"`, `"poly2"`, `"poly3"`, `"movmean"` or `"movmedian"` ([fits](#fits-and-correlations)) |
 | `fitBand` | `true` | a polynomial fit's 95% confidence band |
 | `fitWindow` | 10 | a moving fit's window, a whole number of points >= 2 |
 | `corr` | `"pearson"` | each series' correlation: `"pearson"`, `"spearman"` or `"none"` |
-| `marginals` | `false` | look; a histogram of x above the plot and of y beside it |
+| `marginals` | `false` | look; a histogram of x above the plot and of y beside it ([layout](#marginal-histograms-and-the-layout)) |
 | `marginalSize` | 0.25 | look; the strips' share of the panel's box, 0.1 to 0.5 |
 | `markerSize`, `alpha` | 5, 0.7 | look; the points' size and opacity |
-| `summary`, `errorType`, `errorResamples` | `"mean"`, `"sem"`, 1000 | each series' y summary |
+| `summary`, `errorType`, `errorResamples` | `"mean"`, `"sem"`, 1000 | each series' y summary (the caption) |
 | `test`, `testPairs`, `adjust`, `testAlpha` | `"auto"`, `"all"`, `"holm"`, 0.05 | y across the series |
-| `testShow` | `"text"` | look; `"text"` or `"off"` |
+| `testShow` | `"text"` | look; `"text"` (the overall p in the top left corner) or `"off"` |
 | `xScale`, `yScale` | `"linear"` | or `"log"`; the fits are made in the scale drawn |
 | `xLim` | `[]` | look; the x axis' limits |
 | `yLimMode`, `yLim` | `"auto"`, `[]` | the y axis ([Y limits](#y-limits)) |
 
-A trial panel's `testAlpha` is its tests' significance level; the histogram's
-and the scatter's `alpha` is their opacity, as an event-trace panel's is. The three types share their series, summary, error, tests and scales
-([Copying options between panels](#copying-options-between-panels)); a
-distribution's categories are its own. A dataset without paired trials skips
-a trial panel (`no paired trials`). The templates `"trialDist"`, `"trialHist"`
-and `"trialScatter"` are one panel with one trials layer (Stim onset → Trial
-offset; a scatter's x Trial onset → Stim onset), and their figures' automatic
-ids read *Dist trials*, *Hist trials* and *Scatter trials*.
+The three types share their series, summary, error, tests and scales ([Copying
+options between panels](#copying-options-between-panels)); a distribution's
+categories are its own. `alpha` is the opacity on the histogram and the scatter
+(as an event-trace panel's is), and `testAlpha` the significance level on all
+three.
 
-**Drawing.** A trial panel draws every computed layer's values together, each
-series in its color: the figure's trial groups' colors for `series "groups"`, a
-layer's own `color` (else the palette's) for `"layer"`, and the palette for
-`"param"` and `"session"` (a [plot design](EphysAnalysis.md#plot-designs)'s
-sequential colors for a numeric parameter's ordered levels).
+#### Grouping the values
 
-- A **distribution** puts its categories along x, each labeled (with `showN
-  "ticks"` its trial count, *Hit (n = 12)*; past 8 categories the labels turn
-  45 degrees; with `ordinalX` a line's or points' numeric categories at their
-  values), and the series side by side in each category's slot. `display`:
-  `"swarm"` (the points spread by their density, `swarmchart`), `"points"`
-  (jittered over `jitter` of the slot, the same pattern every time), `"box"`
-  (`boxchart`), `"violin"` (`violinplot`, MATLAB R2024b or later; an older
-  MATLAB draws boxes and says so in the panel; a series without spread draws
-  its points) or `"line"` (each series' summary per category with its error
-  bars, joined, in the layer's line style). With `showSummary` the swarm,
-  points and violins get a mark at each slot's summary with its error.
-  `yScale "log"` draws a log axis; values at or below 0 are left out and a
-  note in the panel counts them.
-- **Tests.** With `testShow "brackets"` the pairs (`bracketPairs
-  "significant"`: those below `testAlpha` after the adjustment; `"all"`: every
-  pair with a p) are drawn as brackets over the data, each with its stars
-  (`*` below 0.05, `**` 0.01, `***` 0.001, adjusted; `n.s.` a point smaller):
-  two categories of one series in that series' slot (in its color when there
-  are several series), two series side by side when there is one category. A
-  bracket takes the lowest level free of the others, the shortest pairs first
-  (pairs that only share an end share a level), the levels stepped by a factor
-  on a log axis; the y axis grows to hold them unless its limits are fixed
-  (`yLimMode "fixed"` or `"batch"`). The omnibus tests go in the top-left
-  corner, a line per series in its color (*Depth 0-0.5: Kruskal-Wallis p =
-  0.003*; a p below `testAlpha` in bold). `testShow "text"` writes those lines
-  alone, `"off"` neither; the report's caption
-  ([`figureCaption`](EphysAnalysis.md#reports)) says what was tested either way.
-- A **histogram** counts every series on one set of edges (`binMode`:
-  `histcounts`' rule, `binCount` bins or `binWidth`; log-spaced with `xScale
-  "log"`, the values at or below 0 left out; covering `xLim` when set) and
-  draws bars at `alpha` (as `normalization` says: counts, probabilities or a
-  density), a stair outline, or the empirical cumulative distribution
-  (`ecdf`, 0 to 1). `showSummary` draws a dotted line at each series'
-  summary. Its test goes in the top-right corner (top left over an ECDF).
-- A **scatter** draws a point per trial, its y measure against its x
-  (`markerSize`, `alpha`), each series' fit over its 95% band (`fitBand`, the
-  polynomial fits; behind the points), and lists each series in the legend
-  with its correlation, *Hit (r = 0.42, p = 0.01)* (ρ for Spearman's). With
-  `marginals` its box holds three axes: the plot, a strip of x histograms over
-  it and a strip of y histograms right of it, flush, each `marginalSize` of
-  the box, the strips' limits linked to the plot's and showing no tick
-  labels (a histogram per series, as probabilities, on one set of edges).
-  With the panel's x axis on top (`xSide`) the x strip goes under the plot,
-  with its y axis on the right (`ySide`) the y strip goes to its left. The
-  layout splits the panel's box so at every layout ([renderFigure](#renderfigure)),
-  the panel's title sits over the top strip, and **Arrange** moves the three
-  together. A scatter drawn into a single axes has no strips.
+The values are grouped twice: by `categories` (a distribution's x axis; a
+histogram and a scatter have one category) and by `series` (the colors in every
+type). Each is one of `EphysAnalysisConfig.TrialGroupings`:
+
+| Grouping | Levels |
+| --- | --- |
+| `"groups"` | the figure's trial groups, or those of the panel's own selection |
+| `"param"` | the values of the trial parameter `categoryParam` / `seriesParam`: with `categoryBins` / `seriesBins` `[]` each value is a level, a whole number n makes n equal-width bins (*Depth 0.25-0.5*), two or more ascending numbers are the bins' edges (values outside them are left out); a text parameter has a level per string |
+| `"session"` | a [session figure's](#session-figures) sessions |
+| `"layer"` | each trials layer (the layer's name is the level's label) |
+
+The categories and the series may not group alike (two different parameters
+may). The series take the trial groups' colors for `"groups"`, the layer's own
+`color` (else the palette's) for `"layer"`, and the palette for `"param"` and
+`"session"`, a [plot design's](EphysAnalysis.md#plot-designs) sequential colors
+for a numeric parameter's ordered levels.
+
+#### Summaries, tests and brackets
+
+Each category and series gets its `summary` (`"mean"` or `"median"`) with its
+error (`errorType`, as a continuous panel's: `"off"`, `"sem"`, `"std"`,
+`"ci95"` with `errorResamples` bootstrap resamples, or `"iqr"`).
+
+A group `test` compares the categories within each series (one category: the
+series): `"auto"` takes the rank sum test (`ranksum`) for two levels and
+Kruskal-Wallis (`kruskalwallis`) for more; `"ranksum"`, `"ttest2"`,
+`"kruskalwallis"` and `"anova1"` name one (`ranksum` with more than two levels
+runs `kruskalwallis`, `ttest2` runs `anova1`); `"none"` tests nothing
+(`EphysAnalysisConfig.TrialTests`). Only levels with at least two values take
+part, and too few give no p, never an error. The pairs (`testPairs` `"all"`, or
+`"first"`: each against the first level) are compared by `ranksum` (`ttest2`
+under a parametric choice) and their p values adjusted per series by `pAdjust`
+(`adjust` `"holm"`, `"bh"`, `"bonferroni"` or `"none"`). Stars follow the
+adjusted p at fixed levels (`*` below 0.05, `**` 0.01, `***` 0.001; `n.s.`
+above); `testAlpha` decides which pairs count as significant: the ones
+`bracketPairs "significant"` draws, and the overall p drawn in bold. The tests
+need the Statistics and Machine Learning Toolbox.
+
+With `testShow "brackets"` the pairs (`bracketPairs "significant"`: those below
+`testAlpha` after the adjustment; `"all"`: every pair with a p) are drawn as
+brackets over the data, each with its stars (`n.s.` a point smaller): two
+categories of one series in that series' slot (in its color when there are
+several series), two series side by side when there is one category. A bracket
+takes the lowest level free of the others, the shortest pairs first (pairs
+that only share an end share a level), the levels stepped by a factor on a log
+axis; the y axis grows to hold them unless its limits are fixed (`yLimMode
+"fixed"` or `"batch"`). The overall tests go in a corner (top left on a
+distribution and a scatter, top right on a histogram), a line per series in its
+color (*Depth 0-0.5: Kruskal-Wallis p = 0.003*; *p < 0.001* below that; a p
+below `testAlpha` in bold; a test across the series in dark gray). `testShow
+"text"` writes those lines alone, `"off"` neither; the report's
+[caption](#the-caption) says what was tested and what it found either way.
+
+#### Fits and correlations
+
+A scatter fits each series (`fit`, `EphysAnalysisConfig.TrialFits`): `"linear"`,
+`"poly2"` or `"poly3"` (`polyfit`: a polynomial of degree 1 to 3, a curve over
+the x range with its 95% band from `fitlm` and `predict`, drawn behind the
+points when `fitBand` is on), or a moving mean or median (`"movmean"`,
+`"movmedian"`) over `fitWindow` points in x order (no band). Each series' `corr`
+is Pearson's or Spearman's coefficient with its p (`corr`, from three points). On a log axis the
+fit and the correlation are made in log10 units, values at or below 0 left out
+and counted; the curve is drawn back in data units. Their numbers go into the
+caption (*Pearson r = 0.61, p = 0.004; linear fit R² = 0.37*).
+
+#### Scales and limits
+
+`yScale "log"` (a distribution, a scatter) and `xScale "log"` (a histogram, a
+scatter) draw a log axis; values at or below 0 are left out and a note in the
+panel counts them. A histogram's bins are then log-spaced. `yLimMode` and `yLim`
+(a distribution, a scatter) and `xLim` (a histogram, a scatter) fix the axes;
+`yLimMode` is as a PSTH's ([Y limits](#y-limits)), and with `"batch"` every
+observation of a run shares the range. A histogram's `xLim` is also the range
+its bins cover.
+
+#### Marginal histograms and the layout
+
+With `marginals` a scatter's box holds three axes: the plot, a strip of x
+histograms over it and a strip of y histograms right of it, flush, each
+`marginalSize` of the box, the strips' limits linked to the plot's and showing no
+tick labels (a histogram per series, as probabilities, on one set of edges).
+With the panel's x axis on top (`xSide`) the x strip goes under the plot, with
+its y axis on the right (`ySide`) the y strip goes to its left. The layout
+splits the panel's box so at every layout ([renderFigure](#renderfigure)), the
+panel's title sits over the top strip, and **Arrange** moves the three together.
+A scatter drawn into a single axes (a probe figure's tile) has no strips.
+
+#### Roles and data tips
 
 The parts' [aesthetics roles](EphysAnalysis.md#plot-aesthetics) are
 `distPoints`, `distBox`, `distViolin`, `distSummary`, `distLine`,
@@ -1895,11 +1954,14 @@ its palette from the points, boxes and bars. A point's
 category and the trial's parameters; a bracket's its pair's test (*ranksum p =
 0.004 (holm 0.012), n = 30 vs 12*).
 
-**The data table.** In the analysis app's preview, and in any visible figure
-`renderFigure` draws, a right-click on a trial panel (its axes, a point, a bar,
-a strip) offers **Copy data table** (tab-separated text with a header, to paste
-into a spreadsheet) and **Export data (CSV)...** (a save dialog, then
-`writetable`). From a script `TrialDataExport` gives the same table:
+#### The data table
+
+In the analysis app's preview, and in any visible figure `renderFigure` draws, a
+right-click on a trial panel (its axes, a point, a bar, a strip) offers **Copy
+data table** (tab-separated text with a header, to paste into a spreadsheet) and
+**Export data (CSV)...** (a save dialog, then `writetable`). From a script
+`TrialDataExport` gives the same table
+([an example script](EphysAnalysis.md#trial-measures)):
 
 ```matlab
 F = runner.computeFigure(src, cfg.figureFor("Dist trials"));
@@ -1918,32 +1980,59 @@ parameters the values carry (the selection's `groupBy`, a category or series
 parameter). `TrialDataExport:NoPanel` for a panel the figure lacks,
 `TrialDataExport:NotTrialPanel` for one that is no trial panel.
 
-**Across sessions.** In a [session figure](#session-figures) a trial panel's
-layers are merged like an event trace's: no units or channels to match, every
-session's per-trial values in one table (`R.values` with `session`, the row of
-`R.sessions`, and `sessionKey`), each value in the merged series of its session
-and trial group. Under `trialGroups "pool"` the series are the sessions (or
-subjects, or all), under `"each"` one figure per trial group with the sessions
-as its series, under `"combine"` a series per session and trial group
-([Trial groups in a session figure](#trial-groups-in-a-session-figure)). The
-grouping `"groups"` then groups by those series. The categories, series and
-tests are made again over the merged values, so `"session"` has the sessions
-as its levels (labeled as the sessions are) and a test compares the sessions'
-values. The drop counts are summed over the sessions.
+#### Trial measures across sessions
 
-**Caption.** A figure with trial panels says in its report caption what each
-measures and how it groups, summarizes and tests: *trial measure: Stim onset →
-Platform offset (ms); categories by Depth; mean ± SEM; rank-sum or
-Kruskal-Wallis test (all pairs, holm, alpha 0.05)*, and on a scatter *linear
-fit, Pearson correlation*. Then come the numbers, a line per trial panel
-(`trialStatsText`): each category's center ± error with its unit and n, the
-overall p, each pair's adjusted p with its stars, a scatter's r and fit R², and
-what was left out (*3 trials without a Platform offset*, *2 unpaired*), e.g.
-*td: Hit 412 ± 18.3 ms (n = 12), Miss 655 ± 40.1 ms (n = 9); Rank-sum p =
-0.000123; Hit vs Miss p = 0.000123 (holm)\*\*\**. Numbers have three
-significant digits. A session figure's data file (`Export.Data.Enabled`) holds
-the merged figures with their `R.values` and a `values` table of every trial
-panel's values, an `observation` column first (`TrialDataExport.resultsTable`).
+In a [session figure](#session-figures) a trial panel's layers are merged like
+an event trace's: no units or channels to match, every session's per-trial values
+in one table (`R.values` with `session`, the row of `R.sessions`, and
+`sessionKey`), each value in the merged series of its session and trial group
+(a value in none is left out and counted, `drops.nNoSeries`). Under
+`trialGroups "pool"` the series are the sessions (or subjects, or all), under
+`"each"` one figure per trial group with the sessions as its series, under
+`"combine"` a series per session and trial group ([Trial groups in a session
+figure](#trial-groups-in-a-session-figure)). The grouping `"groups"` then groups
+by those series (Validate warns under `"pool"`). The categories, series and
+tests are made again over the merged values, so `"session"` has the sessions as
+its levels (labeled as the sessions are) and a test compares the sessions'
+values. The drop counts are summed over the sessions. A session figure's data
+file (`Export.Data.Enabled`) holds the merged figures with their `R.values` and a
+`values` table of every trial panel's values, an `observation` column first
+(`TrialDataExport.resultsTable`; [file
+formats](file-formats.md#session-figure-data-mat)).
+
+#### The caption
+
+A figure with trial panels says in its report caption what each measures and how
+it groups, summarizes and tests: *trial measure: Stim onset → Platform offset
+(ms); categories by Depth; mean ± SEM; rank-sum or Kruskal-Wallis test (all
+pairs, holm, alpha 0.05)*, and on a scatter *linear fit, Pearson correlation*.
+Then come the numbers, a line per trial panel (`trialStatsText`, appended by
+`figureCaption`'s `Results=`): each category's center ± error with its unit and
+n, the overall p, each pair's adjusted p with its stars, a scatter's r and fit
+R², and what was left out (*3 trials without a Platform offset*, *2
+unpaired*), e.g. *td: Hit 412 ± 18.3 ms (n = 12), Miss 655 ± 40.1 ms (n = 9);
+Rank-sum p = 0.000123; Hit vs Miss p = 0.000123 (holm)\*\*\**. Numbers have
+three significant digits.
+
+#### Validating trial panels
+
+[Validate](#validating-figures) checks a trials layer's measure (`kind`, the
+events, `direction`, a `maxGapSec` above 0, the parameter's name, `unit`, the
+label's variables; a scatter's delay to every B warns) and each trial panel's
+options (the enumerations, a parameter named where `"param"` groups, the bins,
+categories and series not alike, the numbers' ranges, the toolbox for the tests
+and for the bootstrap or IQR error); in a session figure it warns of a
+`"groups"` grouping under `trialGroups "pool"`. A layer whose compute fails is
+skipped with the reason (`no paired trials`, `trialMeasure:NoParam`, `no trial
+parameter X`), as other panels are ([Observations and skip
+reasons](#observations-and-skip-reasons)).
+
+#### Trial panel templates
+
+The templates `"trialDist"`, `"trialHist"` and `"trialScatter"` are one panel
+with one trials layer (Stim onset → Trial offset; a scatter's x Trial onset →
+Stim onset), and their figures' automatic ids read *Dist trials*, *Hist trials*
+and *Scatter trials*.
 
 ### Panel options
 

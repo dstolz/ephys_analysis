@@ -132,11 +132,53 @@ raw signals, spike times or files. Stated in the window and in the docs.
 
 ### 6. Cost (estimate; the window shows actual usage)
 
-Opus 5.5: $4 / M input tokens, $20 / M output, cached reads $0.20 / M. The
-system prompt and tools are cached after the first call; a preview image is
-roughly 1.5–2 K input tokens. Expect on the order of cents per request and
-tens of cents per figure-building conversation; Sonnet 5.5 ($2 / $10) is a
-preference change if the owner wants it.
+Prices, USD per million tokens, from the Anthropic pricing page
+(platform.claude.com/docs/en/about-claude/pricing, read 2026-11-05):
+
+| Model | Input | Cache write (5 min) | Cache read | Output |
+| --- | --- | --- | --- | --- |
+| Opus 5.5 (`claude-opus-5-5`) | $4 | $5 | $0.20 | $20 |
+| Sonnet 5.5 (`claude-sonnet-5-5`) | $2 | $2.50 | $0.10 | $10 |
+| Haiku 5.5 (`claude-haiku-5-5`), prompts ≤ 100 K tokens | $0.10 | $0.125 | $0.01 | $0.50 |
+
+**Estimated cost per figure change.** These are modeled numbers, not
+measurements:
+
+| Scenario | Opus 5.5 | Sonnet 5.5 | Haiku 5.5 |
+| --- | --- | --- | --- |
+| Small edit (one option, no preview; 3 requests) | $0.085 | $0.043 | $0.0024 |
+| Typical change (read, edit, validate, preview image; 4 requests) | $0.16 | $0.082 | $0.0045 |
+| First change of a session, cold cache | $0.18 | $0.092 | $0.0048 |
+| 100 typical changes | ≈ $16 | ≈ $8 | ≈ $0.45 |
+
+**Token model behind the estimate** (the same for all three models):
+- System prompt and tools: 6 K tokens. Earlier conversation: 10 K tokens.
+  Both are cached with automatic caching.
+- A typical change takes 4 requests:
+  1. The user's message (0.1 K) → Claude calls `get_figure` and
+     `get_dataset_info` (0.6 K output).
+  2. The tool results (figure JSON 3 K + dataset info 1.5 K) → Claude calls
+     `update_figure` (3 K output, thinking included).
+  3. The validation result (0.2 K) → Claude calls `preview_figure` (0.3 K out).
+  4. The preview image (about 2 K tokens at ≤ 1568 px; roughly one token per
+     28×28 px patch) → Claude's reply (0.8 K out).
+- Each request reads everything sent before it from the cache and writes only
+  its new input. For a typical change that is about 78 K cache reads, 11 K
+  cache writes and 4.7 K output tokens.
+- The largest prompt is about 27 K tokens, below Haiku's 100 K price step.
+
+**What the estimate leaves out:**
+- Output is about 50–57 % of the cost on every model, so the totals move
+  almost in proportion to output tokens. Output depends on the model and the
+  effort setting, which the model does not vary.
+- Each validation rejection and retry adds roughly one request.
+- A cheaper model that misreads the config schema more often will need more
+  rounds, which narrows the gap.
+- Validation catches invalid configs but not a valid figure that differs
+  from what was asked (a wrong window or grouping). That risk depends on the
+  model, not on price, and should decide the choice more than the cost does.
+- Measure before fixing the default: the window's usage line logs the actual
+  tokens per change for each model.
 
 ## Files
 

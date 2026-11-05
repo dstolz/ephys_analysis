@@ -192,7 +192,9 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     an edit that is not inPlace's is drawn again), while
 %                     what every panel depends on is the same too (F but
 %                     its panels, SPEC but its panels' contents and its
-%                     layout, the style, the design, the remembered
+%                     layout, neither one's id: an automatic id that
+%                     follows a panel removed keeps the others; the
+%                     style, the design, the remembered
 %                     "figure" looks, the size of TARGET). Only the other
 %                     panels are drawn again; the kept ones go back to
 %                     where a new panel starts, as it was drawn (their tick
@@ -1166,7 +1168,8 @@ end
 
 function K = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, isLeg, target)
 %drawingKeys  What a drawing depends on (Reuse): global (what every panel's does), the panels' arrangement and each panel's own.
-%   global  F but its panels, creation time and latency summary; SPEC but
+%   global  F but its panels, id, creation time and latency summary (the
+%           title, which names the id, is dressed again); SPEC but
 %           its panels, its latency block (the panels that read it carry
 %           their latencies in their results), its layout (inPlace lays a
 %           new one out) and its id (its title only as there being one:
@@ -1210,7 +1213,7 @@ if np > 0
     k1 = firstPanel(spec, string([P.type]) ~= "legend");
     if k1 > 0; first = P(k1).id; end
 end
-Fg = rmfield(F, intersect({'panels' 'created' 'spec' 'latency'}, fieldnames(F)));
+Fg = rmfield(F, intersect({'panels' 'id' 'created' 'spec' 'latency'}, fieldnames(F)));   % (the id as SPEC's: a rename alone keeps the panels)
 Sg = rmfield(spec, intersect({'panels' 'id' 'autoId' 'enabled' 'title' 'latency' 'layout'}, fieldnames(spec)));
 Sg.titled = spec.title ~= "";
 rules = PlotAesthetics.emptyRules();

@@ -4,7 +4,8 @@ function [tf, why] = previewShowsFigure(obj)
 %   (FigurePreviewPanel) holds a drawing of the selected figure: its badge
 %   Drawn or Out of date (an edit since leaves the page it was laid out
 %   on), the editing context renderFigure kept names that figure (as
-%   markFigurePanel reads it), the layout left its places (appdata
+%   markFigurePanel reads it; or the id it had before a rename:
+%   followedFigureId), the layout left its places (appdata
 %   FigureLayoutResult: figureLayout) and it is no probe figure (whose
 %   panels are drawn in every tile). WHY says what is missing when TF is
 %   false, for the status bar: "Arrange: preview psth units first
@@ -35,7 +36,7 @@ if isstruct(F) && isfield(F, 'kind') && string(F.kind) == "probeFigure"
 end
 if ~isappdata(P, PlotAesthetics.ContextKey) || ~isappdata(P, 'FigureLayoutResult'); return; end
 ctx = getappdata(P, PlotAesthetics.ContextKey);
-if ~isstruct(ctx) || ~isfield(ctx, 'id') || string(ctx.id) ~= fig.id; return; end   % another figure's drawing
+if ~isstruct(ctx) || ~isfield(ctx, 'id') || followedFigureId(obj, ctx.id) ~= fig.id; return; end   % another figure's drawing (one drawn before its automatic id followed an edit is its own)
 R = getappdata(P, 'FigureLayoutResult');
 if ~isstruct(R) || ~isfield(R, 'page') || numel(R.page) ~= 4; return; end
 tf = true;

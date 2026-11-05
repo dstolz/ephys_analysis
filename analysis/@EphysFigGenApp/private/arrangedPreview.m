@@ -32,7 +32,7 @@ if state0 == "drawn" && inPlaceFigurePreview(obj)   % only the places changed: l
     markFigureTree(obj);
     return
 end
-laid = layoutOnly(obj);
+laid = layoutPreview(obj);
 note = " Laid out; press Preview (or switch Arrange off) to redraw the labels.";
 if state0 == "drawn"   % a whole drawing is due: the panels touch others now, or another one is top-left
     limit = autoRedrawLimit(obj);
@@ -46,23 +46,4 @@ if state0 == "drawn"   % a whole drawing is due: the panels touch others now, or
 end
 if laid; obj.setStatus(strtrim(msg + note)); end
 markFigureTree(obj);
-end
-
-
-function ok = layoutOnly(obj)
-%layoutOnly  The drawing in the preview (drawn or out of date) laid out at the figure's rects as they are now, nothing drawn (renderFigure LayoutOnly).
-ok = false;
-F = obj.FigurePreviewResult;
-if ~isstruct(F); return; end
-k = obj.SelectedFigure;
-spec = obj.Config.figureFor(k);
-spec.enabled = true;   % (as refreshFigurePreview draws it)
-try
-    [~, how] = renderFigure(F, spec, obj.FigurePreviewPanel, LayoutOnly=true);
-catch ME
-    obj.log(spec.id + ": the preview could not be laid out at the new places: " + string(ME.message));
-    return
-end
-ok = how == "layout";
-if ok; obj.markFigurePanel(); end   % (the boxes on the page the layout left)
 end

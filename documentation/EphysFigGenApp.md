@@ -615,7 +615,7 @@ the panels over the preview with the mouse, snapping them to one another
 | **Padding** | the clear space between a panel's labels and its neighbors or the page edge (outer box: between the rect's edge and the labels), in the units picked, stored in cm (`layout.padding`; 0.15 cm by default) |
 | **Snap**, **every** | Arrange snaps a panel moved or resized to the other panels' edges and centers, the page and a grid of this step; the arrow keys nudge the selected panel by the step (Shift: ten). Preferences, not part of the config: no undo step (`FigureSnap`, `FigureSnapStep`) |
 | **Set corners** | sets the selected panel's rect with two clicks on the preview: one corner, then the opposite one (snapped as Arrange snaps; Escape or a click off the page cancels). Arrange switches on for it; on while the preview shows the figure. One undo step, *Set corners* |
-| **Remove panel** | removes the panel; the other panels keep their places, and the space it held is left free (*"Removed psth_1."*). With several panels selected it reads **Remove 3 panels** and removes them all, one undo step (*Remove panels*) |
+| **Remove panel** | removes the panel; the other panels keep their places, and the space it held is left free (*"Removed psth_1."*). It goes from the preview at once. With several panels selected it reads **Remove 3 panels** and removes them all, one undo step (*Remove panels*) |
 | **Bring forward**, **Send back** | the drawing order: the panel is drawn after the next panel (over it where they overlap) or before the one drawn before it; each is off at its end of the order. One undo step, *Reorder panel* |
 
 Under the buttons a gray line recalls Arrange: *Arrange (over the preview)
@@ -1200,6 +1200,21 @@ itself: nothing is computed or drawn again and no busy card shows, however
 long the last preview took (`renderFigure` `InPlaceOnly=true`); the badge stays
 **Drawn**. A label or title that shows nothing before or after (a panel's first
 title of its own, one cleared) is drawn as any other edit.
+A panel removed or reordered shows at once, whatever the **Auto** slider says
+(about 0.2 s): **Remove panel** takes the panel off the preview and the other
+panels stay where they were, and **Bring forward** / **Send back** restack
+them. With Auto above 0 the preview then settles within about a second: the
+tick labels, the time stack's labels, the observation's title and the legend
+catch up, and nothing is computed, so no *Computing* card shows. The same
+holds for any edit whose data was computed already (Undo and Redo of such an
+edit, an axis side, an overlay): it is drawn from what the app has, the panels
+the edit left alone kept. With the slider at 0 (off) the removed panel is gone
+at once and the badge says *Out of date* until you press **Preview**. A panel
+that is no longer alone in its column, or whose neighbor was removed, is drawn
+again only when its own look depends on that (a heat map's color bar); the
+others are kept. **Preview** and **Redraw all** always compute and draw, with
+the card. A removal that changes what has to be computed (a panel that widened
+the baseline window) computes with the card as before.
 
 The line under the preview names the figure, the observation, the dataset and
 the time taken (*"figure_1, su12  ch 7  -320 µm on subj1_day1 (0.4 s);

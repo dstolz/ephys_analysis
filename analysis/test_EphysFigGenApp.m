@@ -39,7 +39,10 @@ function test_EphysFigGenApp(opts)
 %   window, a tightened unit filter and one nothing passes, a listing
 %   error, a type change, the gather / apply round trip, a remembered look
 %   and Forget, another config opened, a rect the fields round kept as
-%   stored, Remove panel, Duplicate ("<id> (2)"), New panel by Where (the
+%   stored, a panel removed, Undo and Bring forward settling the preview
+%   from the cache with no busy card, the other panels kept (Auto always,
+%   between and off; a removal that changes the epochs computes), Remove
+%   panel, Duplicate ("<id> (2)"), New panel by Where (the
 %   free space, below / above / right / left of the selected panel, a
 %   rect; the first panel fills the page), the rect's fields in each unit
 %   (a value typed, refused, kept on the page; the units switched), Boxes
@@ -228,7 +231,7 @@ needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d
     "5d.outline" "5d.layers"; "5d.goto" "5d.add"; "5d.stale" "5d.layers"; "5d.align" "5d.layers"; ...
     "5d.filter" "5d.add"; "5d.pergroup" "5d.add"; "5d.ownsel" "5d.add"; "5d.conttrials" "5d.layers"; ...
     "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.multi" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
-    "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
+    "5d.quick" "5d.layers"; "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
     "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.trialmeasure" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; ...
     "5d.saveprefs" "5d.remove"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
@@ -1938,6 +1941,85 @@ if S.sec("5d.otherconfig", "another config opened; sizes the spinners cannot sho
     cfgC.Figures(1).panels(1).rect = rect0;
     cfgC.Figures(1).panels(1).title = "";
     app.applyConfig(cfgC);
+    app.refreshFigurePreview(Force=true);
+end
+
+if S.sec("5d.quick", "a panel removed, Undo, Bring forward: the preview settles from the cache with no busy card, the other panels kept (Auto always, between, off); a removal that changes the epochs computes")
+    restoreAutoLimit = onCleanup(@() resetAutoLimit(app));
+    cfgQ = app.gatherConfig();   % put back at the end
+    app.FigurePanelExtra = strings(1, 0);
+    app.FigureAutoSlider.Value = 1;   % always
+    app.refreshFigurePreview(Force=true);   % drawn, its data in the runner's cache
+    idsQ = [app.Config.Figures(1).panels.id];
+    goQ = idsQ(end);   % continuous_1, as 5d.layers leaves it
+    stayQ = idsQ(1:end-1);
+    axesOf = @(ids) panelAxesOf(app.FigurePreviewPanel, ids);
+    hasAxes = @(id) any(arrayfun(@(a) isappdata(a, 'FigurePanel') && string(getappdata(a, 'FigurePanel')) == id, ...
+        findall(app.FigurePreviewPanel, 'Type', 'axes')));
+    ax0 = axesOf(stayQ);
+    axGo = findPanelAxes(app.FigurePreviewPanel, goQ);
+    n0 = app.FigurePreviewBusyCount;
+    app.onPanelSelected(numel(idsQ));
+    app.onRemovePanel();
+    check(app.FigurePreviewState == "drawn" && ~isvalid(axGo) && ~hasAxes(goQ) && all(isvalid(ax0)) && isequal(axesOf(stayQ), ax0) ...
+        && app.FigurePreviewBusyCount == n0 && numel(figAxes()) == numel(stayQ), ...
+        sprintf('Remove panel (Auto always): %s goes, the preview Drawn (%s) with the other panels'' axes kept (no busy card: %d shown)', ...
+        goQ, app.FigurePreviewState, app.FigurePreviewBusyCount - n0));
+    app.onUndoRedo("undo");
+    check(app.FigurePreviewState == "drawn" && hasAxes(goQ) && isequal(axesOf(stayQ), ax0) && app.FigurePreviewBusyCount == n0 ...
+        && isequal([app.Config.Figures(1).panels.id], idsQ), ...
+        sprintf('Undo brings %s back, drawn from the cache: the others kept, no busy card (%d shown)', goQ, app.FigurePreviewBusyCount - n0));
+    app.onPanelSelected(1);
+    app.onPanelOrder(1);   % Bring forward: the first panel drawn after the second
+    check(isequal([app.Config.Figures(1).panels.id], idsQ([2 1 3:end])) && app.FigurePreviewState == "drawn" ...
+        && isequal(axesOf(stayQ), ax0) && app.FigurePreviewBusyCount == n0, ...
+        'Bring forward restacks the preview: Drawn, every panel kept, no busy card');
+    app.onUndoRedo("undo");
+    % Auto off: the panel goes from the preview at once, the rest Out of date
+    app.FigureAutoSlider.Value = 0;
+    axGo = findPanelAxes(app.FigurePreviewPanel, goQ);
+    app.onPanelSelected(numel(idsQ));
+    app.onRemovePanel();
+    check(~isvalid(axGo) && ~hasAxes(goQ) && all(isvalid(ax0)) && app.FigurePreviewState == "stale" ...
+        && string(app.FigurePreviewBadge.Text.Text) == "Out of date" && app.FigurePreviewBusyCount == n0, ...
+        sprintf('Remove panel with Auto off: %s goes from the preview at once, the rest Out of date (%s), no busy card', goQ, app.FigurePreviewState));
+    app.onUndoRedo("undo");
+    % Auto between: a limit over the drawing's time, under the compute's and the drawing's (a data edit waits)
+    app.FigureAutoSlider.Value = 1;
+    app.refreshFigurePreview(Force=true);   % the times kept, the panels drawn again
+    ax0 = axesOf(stayQ);
+    axGo = findPanelAxes(app.FigurePreviewPanel, goQ);
+    C = app.FigurePreviewCost;
+    C.compute = max(C.compute, 4 * C.draw + 1);   % a slow compute (the fixture's is quick)
+    app.FigurePreviewCost = C;
+    L = C.draw + C.compute / 2;
+    app.FigureAutoSlider.Value = L / (L + app.AutoRedrawScale);   % autoRedrawLimit: AutoRedrawScale * t / (1 - t) = L
+    n0 = app.FigurePreviewBusyCount;
+    app.onPanelSelected(numel(idsQ));
+    app.onRemovePanel();
+    check(app.FigurePreviewState == "drawn" && ~isvalid(axGo) && isequal(axesOf(stayQ), ax0) && app.FigurePreviewBusyCount == n0 ...
+        && isequaln(app.FigurePreviewCost, C), ...
+        sprintf(['Remove panel, Auto under %.2g s (the drawing %.2g s, with the compute %.2g s): settled all the same, every panel kept ' ...
+        '(%s, no busy card: %d shown), the times kept left as they were'], L, C.draw, C.draw + C.compute, app.FigurePreviewState, ...
+        app.FigurePreviewBusyCount - n0));
+    app.onUndoRedo("undo");
+    % a removal that changes the figure's epochs (the panel widened the baseline hull: figureEpochPlan) computes, with the card
+    app.FigureAutoSlider.Value = 1;
+    cfgW = app.gatherConfig();   % baselines no preview computed before: the epochs after the removal are not in the cache
+    jP = find([cfgW.Figures(1).panels.type] == "psth", 1);
+    cfgW.Figures(1).panels(jP).options.baseline.Mode = "subtract";
+    cfgW.Figures(1).panels(jP).options.baseline.Window = [-0.35 0];
+    cfgW.Figures(1).panels(end).options.baseline.Mode = "subtract";
+    cfgW.Figures(1).panels(end).options.baseline.Window = [-0.45 0];
+    app.applyConfig(cfgW);
+    app.refreshFigurePreview(Force=true);
+    n0 = app.FigurePreviewBusyCount;
+    app.onPanelSelected(numel(idsQ));
+    app.onRemovePanel();
+    check(app.FigurePreviewState == "drawn" && ~hasAxes(goQ) && app.FigurePreviewBusyCount == n0 + 1, ...
+        sprintf('Remove panel whose baseline widened the epochs: computed with the busy card (%d shown), Drawn (%s)', ...
+        app.FigurePreviewBusyCount - n0, app.FigurePreviewState));
+    app.applyConfig(cfgQ);
     app.refreshFigurePreview(Force=true);
 end
 
@@ -3696,15 +3778,17 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         sprintf(['psth_2 moved near an equal spacing snaps to it (both gaps read "%s"); its right edge near raster_1''s ' ...
         'width snaps to it (the readout says "= raster_1", raster_1 outlined)'], strjoin(eqTexts, '", "')));
 
-    % a resize that parts psth_1 from the raster: the time stack changes, so the preview is drawn again
+    % a resize that parts psth_1 from the raster: the time stack changes, so the preview is drawn again (psth_1, which
+    % moved; the others kept and dressed anew: renderFigure Reuse)
     app.FigureSnap = false;
-    lines0 = findall(figAxes(), 'Type', 'line');
+    ax1 = findPanelAxes(P, "psth_1");
+    axR = findPanelAxes(P, "raster_1");
     r1 = rectOf5("psth_1");
     app.onArrangeMoving("psth_1", roiMove(r1, [0 0 0.45 0.4]));
     app.onArrangeMoved("psth_1", roiMove(r1, [0 0 0.45 0.4]));
     check(rectIs(rectOf5("psth_1"), [0 0 0.45 0.4]) && app.FigureHistory.undoLabel() == "Resize panel" && app.FigurePreviewState == "drawn" ...
-        && ~all(isvalid(lines0)) && rectIs(arrangeBox(app, "psth_1").Position, [0 0 0.45 0.4]), ...
-        'psth_1 resized off the raster (no longer flush): the preview is drawn again, the boxes kept');
+        && ~isvalid(ax1) && isvalid(axR) && rectIs(arrangeBox(app, "psth_1").Position, [0 0 0.45 0.4]), ...
+        'psth_1 resized off the raster (no longer flush): the preview is drawn again (psth_1 drawn anew, the raster kept), the boxes kept');
     app.onUndoRedo("undo");
     check(rectIs(rectOf5("psth_1"), r1) && rectIs(arrangeBox(app, "psth_1").Position, r1), 'Undo: the rect and its box back');
 
@@ -3714,6 +3798,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.FigureSnap = false;
     nUndo = numel(app.FigureHistory.Undo);
     lines0 = findall(figAxes(), 'Type', 'line');
+    ax12 = [findPanelAxes(P, "psth_1") findPanelAxes(P, "psth_2")];   % the two to move (drawn anew once the preview is drawn)
     r1 = rectOf5("psth_1");
     app.onArrangeMoving("psth_1", roiMove(r1, [0 0 0.45 0.4]));
     app.onArrangeMoved("psth_1", roiMove(r1, [0 0 0.45 0.4]));
@@ -3739,7 +3824,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     arrangeToggle(app, true);
     app.FigureAutoSlider.Value = 1e-6;   % Auto on again, the time gate still exceeded
     arrangeToggle(app, false);
-    offAuto = app.FigurePreviewState == "drawn" && ~all(isvalid(lines0)) && contains(app.StatusBar.Text, "drawn again");
+    offAuto = app.FigurePreviewState == "drawn" && ~any(isvalid(ax12)) && contains(app.StatusBar.Text, "drawn again");
     check(offNoAuto && offAuto, ...
         'Arrange off with Auto off: the preview stays laid out and out of date; with Auto on it is drawn again (the time gate exceeded), labels and stacks caught up');
     arrangeToggle(app, true);
@@ -6005,6 +6090,13 @@ function ax = findPanelAxes(P, id)
 ax = findall(P, 'Type', 'axes');
 ax = ax(arrayfun(@(a) isappdata(a, 'FigurePanel') && string(getappdata(a, 'FigurePanel')) == id, ax));
 ax = ax(1);
+end
+
+
+function A = panelAxesOf(P, ids)
+%panelAxesOf  The preview's (first) axes of each panel of IDS, in their order (findPanelAxes).
+A = gobjects(1, numel(ids));
+for i = 1:numel(ids); A(i) = findPanelAxes(P, ids(i)); end
 end
 
 

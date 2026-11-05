@@ -9,7 +9,7 @@ function trackFigureIds(obj, cfg)
 %   - the observation the figure last showed (FigureObservation, by id)
 %     moves to its new id, and so do its preview container (FigureViews,
 %     FigureViewId: syncFigureView) and the editor state it left
-%     (FigureEditorStates);
+%     (FigureEditorStates), and its kept observation list (FigurePickers);
 %   - FigureIdRenames maps the old id to the new one, for what holds a
 %     figure's id while it lives: the right-click editor of the preview
 %     and of a figure window (rememberFigureAesthetics), which find the
@@ -32,6 +32,10 @@ for k = find(old ~= new)
     if isKey(obj.FigureObservation, from)
         obj.FigureObservation(to) = obj.FigureObservation(from);
         remove(obj.FigureObservation, from);
+    end
+    if isa(obj.FigurePickers, 'containers.Map') && isKey(obj.FigurePickers, from)
+        obj.FigurePickers(to) = obj.FigurePickers(from);
+        remove(obj.FigurePickers, from);
     end
     if isa(obj.FigureEditorStates, 'containers.Map') && isKey(obj.FigureEditorStates, from)
         obj.FigureEditorStates(to) = obj.FigureEditorStates(from);

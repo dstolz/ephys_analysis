@@ -76,6 +76,7 @@ for k = ks
     end
 end
 opts.InPlaceOnly = false;   % drawn as it was (Reuse: a label's text set on it)
+opts.KeptOnly = false;      % (whatever must be drawn is)
 args = namedargs2cell(opts);
 renderFigure(F, spec, target, args{:});
 end

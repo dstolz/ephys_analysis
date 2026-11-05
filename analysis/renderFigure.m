@@ -828,6 +828,13 @@ end
 end
 
 
+function S = dressSet(S, h, prop, value)
+%dressSet  dressState's S with H's PROP taken as VALUE: a text set on a drawn panel (inPlace) is the one its drawing left.
+at = arrayfun(@(s) isequal(s.h, h) && s.prop == prop, S);
+[S(at).value] = deal(value);
+end
+
+
 function restoreDress(S)
 %restoreDress  Put a panel's axes back as dressState S took them: each value, then its mode "auto" where it was.
 %   In S's order (an axes' font size before its rulers' and texts', which
@@ -884,7 +891,10 @@ function h = inPlace(F, spec, target, keys, opts, own, design, follows, raw, tit
 %   title and axis edits); and the drawing kept records SPEC, so the next
 %   one compares with it (but where its panels' drawings start: they were
 %   drawn at the old places, so the next drawing with Reuse draws a moved
-%   panel again). Only texts and interpreters are set, no size:
+%   panel again), its dressState of each panel the new texts as a drawing
+%   leaves them before the dressing across the panels (panelAxes' label,
+%   the panel's title), so a panel the next drawing keeps goes back to them
+%   (restoreDress). Only texts and interpreters are set, no size:
 %   drawn at a Scale (in the global key, so the same one), the fonts keep
 %   the scaled sizes they have, and figureLayout lays the parts out with
 %   the scale it kept, as after a whole drawing at that scale.
@@ -926,11 +936,20 @@ for k = find(drawn)
     if ~all(isgraphics(D.parts{k})); return; end
 end
 sets = cell(0, 3);    % each text to set: its object, String, Interpreter ("" = as it is)
+dress = cell(0, 4);   % each text as the panel's drawing leaves it (D.pre, restoreDress): panel, object, String, Interpreter
 tips = false(1, np);  % the panels whose data tips name their quantities anew
 for k = find(drawn)
     p = P(k);
     q = Q(k);
     L = D.labels{k};
+    if p.xLabel ~= q.xLabel && isgraphics(L.x)   % panelAxes' text, before the time stack names it or blankAxes blanks it
+        [s, i] = ownOr(p.xLabel, L.xAuto);
+        dress(end+1, :) = {k, L.x.XLabel, s, i}; %#ok<AGROW>
+    end
+    if p.yLabel ~= q.yLabel && isgraphics(L.y)
+        [s, i] = ownOr(p.yLabel, L.yAuto);
+        dress(end+1, :) = {k, L.y.YAxis(1).Label, s, i}; %#ok<AGROW>
+    end
     if p.xLabel ~= q.xLabel && hidesPart(p.xShow, "label")   % blanked (blankAxes): it stays so
         tips(k) = true;
     elseif p.xLabel ~= q.xLabel
@@ -966,6 +985,7 @@ for k = find(drawn)
         ttl = p.title;
         if own(k); ttl = groupingTitle(ttl, p, spec); end
         sets(end+1, :) = {D.axes(k).Title, ttl, ""}; %#ok<AGROW>
+        dress(end+1, :) = {k, D.axes(k).Title, ttl, "none"}; %#ok<AGROW>
     end
 end
 txt = D.txt;
@@ -1008,6 +1028,11 @@ if any(tips) && figureEditable(opts.DataTips, target)
 end
 if figureEditable(opts.Editable, target) && isappdata(target, PlotAesthetics.ContextKey)
     setappdata(target, PlotAesthetics.ContextKey, figureEditContext(F, raw, target, opts, target, design, follows, txt));
+end
+for i = 1:size(dress, 1)   % a panel kept by the next drawing with Reuse goes back to the new texts, as a new drawing of it makes them
+    k = dress{i, 1};
+    D.pre{k} = dressSet(D.pre{k}, dress{i, 2}, "String", dress{i, 3});
+    D.pre{k} = dressSet(D.pre{k}, dress{i, 2}, "Interpreter", dress{i, 4});
 end
 D.spec = spec;
 keys.start = D.keys.start;   % the parts stay where they were drawn

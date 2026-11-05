@@ -3452,15 +3452,17 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         sprintf(['psth_2 moved near an equal spacing snaps to it (both gaps read "%s"); its right edge near raster_1''s ' ...
         'width snaps to it (the readout says "= raster_1", raster_1 outlined)'], strjoin(eqTexts, '", "')));
 
-    % a resize that parts psth_1 from the raster: the time stack changes, so the preview is drawn again
+    % a resize that parts psth_1 from the raster: the time stack changes, so the preview is drawn again (psth_1, which
+    % moved; the others kept and dressed anew: renderFigure Reuse)
     app.FigureSnap = false;
-    lines0 = findall(figAxes(), 'Type', 'line');
+    ax1 = findPanelAxes(P, "psth_1");
+    axR = findPanelAxes(P, "raster_1");
     r1 = rectOf5("psth_1");
     app.onArrangeMoving("psth_1", roiMove(r1, [0 0 0.45 0.4]));
     app.onArrangeMoved("psth_1", roiMove(r1, [0 0 0.45 0.4]));
     check(rectIs(rectOf5("psth_1"), [0 0 0.45 0.4]) && app.FigureHistory.undoLabel() == "Resize panel" && app.FigurePreviewState == "drawn" ...
-        && ~all(isvalid(lines0)) && rectIs(arrangeBox(app, "psth_1").Position, [0 0 0.45 0.4]), ...
-        'psth_1 resized off the raster (no longer flush): the preview is drawn again, the boxes kept');
+        && ~isvalid(ax1) && isvalid(axR) && rectIs(arrangeBox(app, "psth_1").Position, [0 0 0.45 0.4]), ...
+        'psth_1 resized off the raster (no longer flush): the preview is drawn again (psth_1 drawn anew, the raster kept), the boxes kept');
     app.onUndoRedo("undo");
     check(rectIs(rectOf5("psth_1"), r1) && rectIs(arrangeBox(app, "psth_1").Position, r1), 'Undo: the rect and its box back');
 
@@ -3470,6 +3472,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.FigureSnap = false;
     nUndo = numel(app.FigureHistory.Undo);
     lines0 = findall(figAxes(), 'Type', 'line');
+    ax12 = [findPanelAxes(P, "psth_1") findPanelAxes(P, "psth_2")];   % the two to move (drawn anew once the preview is drawn)
     r1 = rectOf5("psth_1");
     app.onArrangeMoving("psth_1", roiMove(r1, [0 0 0.45 0.4]));
     app.onArrangeMoved("psth_1", roiMove(r1, [0 0 0.45 0.4]));
@@ -3495,7 +3498,7 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     arrangeToggle(app, true);
     app.FigureAutoSlider.Value = 1e-6;   % Auto on again, the time gate still exceeded
     arrangeToggle(app, false);
-    offAuto = app.FigurePreviewState == "drawn" && ~all(isvalid(lines0)) && contains(app.StatusBar.Text, "drawn again");
+    offAuto = app.FigurePreviewState == "drawn" && ~any(isvalid(ax12)) && contains(app.StatusBar.Text, "drawn again");
     check(offNoAuto && offAuto, ...
         'Arrange off with Auto off: the preview stays laid out and out of date; with Auto on it is drawn again (the time gate exceeded), labels and stacks caught up');
     arrangeToggle(app, true);

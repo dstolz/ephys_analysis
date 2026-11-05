@@ -21,7 +21,8 @@ function R = combineSessions(Rs, sessions, opts)
 %                  session's units on it averaged; "mapping": one tile per
 %                  row of Mapping. Signal results match channels by
 %                  recording channel; heatmap and waveforms results always
-%                  pool; behavior and eventTrace have no tiles
+%                  pool; eventTrace and the trial kinds (trialDist,
+%                  trialHist, trialScatter) have no tiles
 %     Mapping      Match "mapping": a table with a column "cell" (the tile
 %                  names) and one column per session key (SESSIONS.key,
 %                  names kept as they are) holding that session's unit
@@ -35,7 +36,7 @@ function R = combineSessions(Rs, sessions, opts)
 %                  (R.members) to draw faintly under its summary
 %     MinSessions  site / mapping / signal channels: a tile is kept only
 %                  when at least this many sessions have data on it; other
-%                  matchings (and behavior, eventTrace): at least this many sessions
+%                  matchings (and eventTrace, the trial kinds): at least this many sessions
 %                  must have a result (default 1)
 %     ColorOrder   "palette" (default; groupColors(1:n, false)) |
 %                  "sequential" (groupColors(1:n, true): in table order,
@@ -77,16 +78,17 @@ function R = combineSessions(Rs, sessions, opts)
 %                  when it has no result), status ("done" | "missing"; a
 %                  status SESSIONS already holds is kept for a session
 %                  without a result), nItems (units or channels of its
-%                  result; behavior: its epochs with a value; 0 when
+%                  result; the trial kinds: its values; 0 when
 %                  missing) and nEpochs (rows of its epochs, after Group
-%                  slicing; 0 when missing)
-%     sessionSeries  struct (named so, not "series", which tuning and
-%                  behavior results hold as their series labels): mode (the
+%                  slicing; the trial kinds: its trials with a value; 0
+%                  when missing)
+%     sessionSeries  struct (named so, not "series", which tuning results
+%                  hold as their series labels): mode (the
 %                  series used: "all" for a heatmap,
 %                  "session" for waveforms), error (Error), errorNote ("95%
 %                  CI, t" | "1.96 × SEM" for ci95 across sessions, else ""),
 %                  match (the matching used: "pool" | "site" | "mapping" |
-%                  "channel" (signals) | "none" (behavior, eventTrace)), minSessions,
+%                  "channel" (signals) | "none" (eventTrace, the trial kinds)), minSessions,
 %                  group (Group's label, "" for none), trialGroups
 %     epochs       vertcat of each session's epochs (session order) with
 %                  epoch renumbered 1..N and new columns session (the row of
@@ -97,18 +99,18 @@ function R = combineSessions(Rs, sessions, opts)
 %                  nEvents, nDroppedNoValue, nDroppedNoSequence,
 %                  nDroppedNoStop, nDroppedEdge, nDroppedArtifact, nTrials
 %                  and nTrialsSelected summed, sessions (the count with a
-%                  result) and dataset (R.dataset). A waveforms result has
-%                  epochs []. Tuning and behavior keep every epoch of each
-%                  session even when Group slices their series
+%                  result) and dataset (R.dataset). A waveforms result and
+%                  the trial kinds have epochs []. Tuning keeps every epoch
+%                  of each session even when Group slices its series
 %     tiles        struct: match, key [nT x 1] ("<sessionKey>|<unitId>" for
 %                  pool, "ch<channel>" for site and signals, the cell for
-%                  mapping, "all" for behavior and eventTrace), units {nT x nSessions} (row
+%                  mapping, "all" for eventTrace and the trial kinds), units {nT x nSessions} (row
 %                  indices into each session's meta, i.e. its result's
 %                  unit / channel columns; [] where the session has none
 %                  there), nUnits [nT x nSessions], labels and meta (as R's),
 %                  channel (site / signals / mapping: each tile's recording
 %                  channel; pool: empty)
-%     labels, meta one row per tile (behavior: none). labels: pool
+%     labels, meta one row per tile (eventTrace, trial kinds: none). labels: pool
 %                  "<label before its first _> · <session label>" (e.g. "su12
 %                  · SYNTH-01 2026-09-08"); site the channel name, else
 %                  "ch<channel>"; mapping the cell; signals the first
@@ -180,13 +182,6 @@ function R = combineSessions(Rs, sessions, opts)
 %                  series / seriesValues (the series labels), seriesParam
 %                  ("session" | "subject" | ""; combine: "<that>, <the base
 %                  plot's seriesParam>"), param
-%     behavior     x (union), xIsNumeric, values (one row per value: epoch
-%                  (row of R.epochs), xIndex (into x), seriesIndex (its
-%                  session's series), y, session (row of R.sessions)), mean
-%                  / sem / median / n [nX x nS] (series subject / all:
-%                  across the member sessions' means), nEpochs, nMissing
-%                  (summed), yName, units, param, series, seriesValues,
-%                  seriesParam
 %     heatmap      (Kind "heatmap") a psth result: pool matching and one
 %                  series ("All sessions"; with TrialGroups "each" or
 %                  "combine" the trial groups, by label, are the series, so
@@ -199,16 +194,32 @@ function R = combineSessions(Rs, sessions, opts)
 %                  per tile; note joined), n = nT, probe from the first;
 %                  groups = the sessions (series session), so meta.session
 %                  picks a tile's color
-%     eventTrace   no tiles (match "none", as behavior): line, label from
+%     eventTrace   no tiles (match "none"): line, label from
 %                  the first; every session's intervals (epoch offset to
 %                  rows of R.epochs, on, off) and epochs (window [nE x 2],
 %                  epochStop, rasterSortEvent as psth's) concatenated,
 %                  nEpochs their count, epochGroup [nE x 1] each epoch's
 %                  series; nothing averaged
+%     trialDist, trialHist, trialScatter   no tiles (match "none"):
+%                  values (computeTrialPanel's table) of every session
+%                  stacked (columns unioned), with session (the row of
+%                  R.sessions), sessionKey, layer kept, and group the
+%                  merged series of the value's (session, trial group):
+%                  the session's series (pool), the group's own (Group:
+%                  the sliced group, each), "<session> · <group>"
+%                  (combine); 0 for a value in no trial group. kind,
+%                  measure, label, unit, xMeasure, xLabel, xUnit,
+%                  options, params from the first; groupIndex =
+%                  values.group; n = height(values); drops summed field
+%                  by field, plus nNoSeries (values in no series).
+%                  categories, series and stats are left out:
+%                  figureSessionCompute runs trialPanelStats again over
+%                  the merged values (the "session" grouping reads
+%                  R.sessions)
 %
 %   Errors: combineSessions:Kind (results of different kinds),
 %   combineSessions:Bins (PSTH bins differ), combineSessions:TimeBase
-%   (evoked t / fs differ), combineSessions:MixedLevels (a tuning / behavior
+%   (evoked t / fs differ), combineSessions:MixedLevels (a tuning
 %   x numeric in some sessions, text in others), combineSessions:Mapping
 %   (no Mapping, no cell column, or no column for a session key),
 %   combineSessions:TooFew (no session has a result, or no tile reaches
@@ -304,7 +315,7 @@ single = mode == "session";
 match = opts.Match;
 if isHeat || isWave; match = "pool"; end
 if rkind == "evoked"; match = "channel"; end
-if ismember(rkind, ["behavior" "eventTrace"]); match = "none"; end
+if ismember(rkind, ["eventTrace" trialKinds()]); match = "none"; end
 if ismember(match, ["pool" "none"]) && numel(P) < opts.MinSessions
     error('combineSessions:TooFew', '%d session(s) have a result; MinSessions is %d.', numel(P), opts.MinSessions);
 end
@@ -324,15 +335,15 @@ switch rkind
     case "tuning"
         tiles = tileMap(Rs, P, sessions, match, opts.Mapping, opts.MinSessions);
         R = mergeTuning(Rs, tiles, info, opts.Series, combine);
-    case "behavior"
-        tiles = oneTile(P, nAll);
-        R = mergeBehavior(Rs, tiles, info, opts.Series, combine);
     case "waveforms"
         tiles = tileMap(Rs, P, sessions, "pool", [], opts.MinSessions);
         R = mergeWaveforms(Rs, tiles, info);
     case "eventTrace"
         tiles = oneTile(P, nAll);
         R = mergeEventTrace(Rs, info);
+    case cellstr(trialKinds())
+        tiles = oneTile(P, nAll);
+        R = mergeTrialValues(Rs, info);
     otherwise
         error('combineSessions:Kind', 'A %s result is not merged across sessions.', rkind);
 end
@@ -686,6 +697,57 @@ if ~isempty(se); R.rasterSortEvent = se; end
 end
 
 
+function R = mergeTrialValues(Rs, info)
+%mergeTrialValues  trialDist / trialHist / trialScatter: every session's per-trial values stacked, each in its series.
+%   The categories, series and statistics are not merged: figureSessionCompute
+%   runs trialPanelStats over the merged values.
+P = info.P;
+R1 = Rs{P(1)};
+pairs = info.pairs;
+pairOf = pairIndex(pairs, info.nAll);
+parts = cell(numel(P), 1);
+nNoSeries = 0;
+for j = 1:numel(P)
+    k = P(j);
+    V = Rs{k}.values;
+    h = height(V);
+    g = double(V.group);
+    ok = g >= 1 & g <= size(pairOf, 2);
+    idx = zeros(h, 1);
+    idx(ok) = pairOf(sub2ind(size(pairOf), repmat(k, nnz(ok), 1), g(ok)));
+    s = zeros(h, 1);
+    s(idx > 0) = pairs.s(idx(idx > 0));
+    nNoSeries = nNoSeries + nnz(s == 0);
+    V.group = s;
+    V.session = repmat(k, h, 1);
+    V.sessionKey = repmat(info.sessions.key(k), h, 1);
+    for c = ["category" "series"]   % trialPanelStats' columns: made again over the merged values
+        if ismember(c, string(V.Properties.VariableNames)); V.(c) = []; end
+    end
+    parts{j} = V;
+end
+V = stackTables(parts);
+if width(V) == 0   % no session has a value: the first's (empty) columns
+    V = parts{1};
+end
+D = R1.drops;
+for f = reshape(string(fieldnames(D)), 1, [])
+    D.(f) = sum(cellfun(@(r) double(fieldOr(r.drops, f, 0)), Rs(P)));
+end
+D.nNoSeries = nNoSeries;
+R = struct();
+for f = ["kind" "measure" "label" "unit" "xMeasure" "xLabel" "xUnit"]
+    R.(f) = fieldOr(R1, f, "");
+end
+R.values = V;
+R.groupIndex = V.group;
+R.n = height(V);
+R.drops = D;
+R.options = fieldOr(R1, 'options', struct());
+R.params = fieldOr(R1, 'params', struct());
+end
+
+
 %% =====================================================================================
 %  series, tiles, epochs
 %  =====================================================================================
@@ -901,7 +963,7 @@ end
 
 
 function tiles = oneTile(P, nAll)
-%oneTile  Behavior: one tile, every session's only "unit".
+%oneTile  eventTrace and the trial kinds: one tile, every session's only "unit".
 units = cell(1, nAll);
 units(P) = {1};
 tiles = struct('match', "none", 'key', "all", 'units', {units}, 'nUnits', double(~cellfun(@isempty, units)));
@@ -1043,8 +1105,10 @@ for k = P
     series(k) = pairs.b(find(pairs.k == k, 1));
     status(k) = "done";
     r = Rs{k};
-    if r.kind == "behavior"
+    if ismember(r.kind, trialKinds())
         nItems(k) = height(r.values);
+        tr = r.values.trial;
+        nEpochs(k) = numel(unique(tr(isfinite(tr))));
     elseif isfield(r, 'labels')
         nItems(k) = numel(r.labels);
     end
@@ -1074,18 +1138,15 @@ end
 %  values: per member pair, then per series
 %  =====================================================================================
 
-function A = arrays3(r, field, asRow, asCol)
+function A = arrays3(r, field, asRow)
 %arrays3  A result's value, SEM and band as [nRows x nUnits x nGroups] arrays: {mean, sem, lo, hi}.
-%   asRow: a [nUnits x nGroups] field becomes [1 x nUnits x nGroups] (rate);
-%   asCol: a [nRows x nGroups] field becomes [nRows x 1 x nGroups] (behavior).
+%   asRow: a [nUnits x nGroups] field becomes [1 x nUnits x nGroups] (rate).
 if nargin < 3; asRow = false; end
-if nargin < 4; asCol = false; end
 m = r.(field);
 s = r.sem;
 [lo, hi] = resultBounds(r, field);
 shape = @(x) x;
 if asRow; shape = @(x) reshape(x, 1, size(x, 1), []); end
-if asCol; shape = @(x) reshape(x, size(x, 1), 1, []); end
 A = {shape(m), shape(s), shape(lo), shape(hi)};
 end
 
@@ -1413,14 +1474,13 @@ switch r.kind
         r = sliceErr(r, @(x) x(:, :, g));
         r.n = r.n(:, g);
         r.series = r.series(g); r.seriesValues = r.seriesValues(g);
-    case "behavior"
+    case cellstr(trialKinds())
         V = r.values;
-        V = V(V.seriesIndex == g, :);
-        V.seriesIndex(:) = 1;
+        V = V(V.group == g, :);
+        V.group(:) = 1;
         r.values = V;
-        r.mean = r.mean(:, g); r.sem = r.sem(:, g); r.median = r.median(:, g); r.n = r.n(:, g);
-        r = sliceErr(r, @(x) x(:, g));
-        r.series = r.series(g); r.seriesValues = r.seriesValues(g);
+        r.groupIndex = V.group;
+        r.n = height(V);   % drops stay the session's (every group's)
     case "eventTrace"
         keep = r.epochGroup(:) == g;
         map = zeros(numel(keep), 1);
@@ -1514,6 +1574,12 @@ end
 function v = fieldOr(r, f, d)
 v = d;
 if isfield(r, f); v = r.(f); end
+end
+
+
+function k = trialKinds()
+%trialKinds  The trial panels' result kinds (EphysAnalysisConfig.TrialPanelTypes).
+k = EphysAnalysisConfig.TrialPanelTypes;
 end
 
 

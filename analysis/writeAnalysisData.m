@@ -5,7 +5,9 @@ function file = writeAnalysisData(file, S, opts)
 %   added when FILE has no extension), so load(FILE) gives S's fields back
 %   and S = load(FILE) the struct: for a session figure's data the
 %   variables schema, figure, spec, sessions, observations, results,
-%   perSession, config and created. EphysDataset.saveAtomically writes it:
+%   perSession, config and created (a figure with trial panels will also
+%   hold values, their per-trial table, once the trial panels' data export
+%   lands: see the TODO in runSessionFigure). EphysDataset.saveAtomically writes it:
 %   to "~<name>.partial.mat" next to FILE, checked (no save warning, every
 %   field present) and then renamed, so a failed or canceled save never
 %   leaves a complete-looking file. The folder is made when it is not

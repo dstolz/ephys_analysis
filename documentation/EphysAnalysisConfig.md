@@ -1830,6 +1830,33 @@ and `"trialScatter"` are one panel with one trials layer (Stim onset → Trial
 offset; a scatter's x Trial onset → Stim onset), and their figures' automatic
 ids read *Dist trials*, *Hist trials* and *Scatter trials*.
 
+**Across sessions.** In a [session figure](#session-figures) a trial panel's
+layers are merged like an event trace's: no units or channels to match, every
+session's per-trial values in one table (`R.values` with `session`, the row of
+`R.sessions`, and `sessionKey`), each value in the merged series of its session
+and trial group. Under `trialGroups "pool"` the series are the sessions (or
+subjects, or all), under `"each"` one figure per trial group with the sessions
+as its series, under `"combine"` a series per session and trial group
+([Trial groups in a session figure](#trial-groups-in-a-session-figure)). The
+grouping `"groups"` then groups by those series. The categories, series and
+tests are made again over the merged values, so `"session"` has the sessions
+as its levels (labeled as the sessions are) and a test compares the sessions'
+values. The drop counts are summed over the sessions.
+
+**Caption.** A figure with trial panels says in its report caption what each
+measures and how it groups, summarizes and tests: *trial measure: Stim onset →
+Platform offset (ms); categories by Depth; mean ± SEM; rank-sum or
+Kruskal-Wallis test (all pairs, holm, alpha 0.05)*, and on a scatter *linear
+fit, Pearson correlation*. Then come the numbers, a line per trial panel
+(`trialStatsText`): each category's center ± error with its unit and n, the
+overall p, each pair's adjusted p with its stars, a scatter's r and fit R², and
+what was left out (*3 trials without a Platform offset*, *2 unpaired*), e.g.
+*td: Hit 412 ± 18.3 ms (n = 12), Miss 655 ± 40.1 ms (n = 9); Rank-sum p =
+0.000123; Hit vs Miss p = 0.000123 (holm)\*\*\**. Numbers have three
+significant digits. A session figure's data file (`Export.Data.Enabled`) holds
+the merged figures with their `R.values`; a `values` table of every trial
+panel's values comes with the trial panels' data export.
+
 ### Panel options
 
 A panel's `options` are the type's (`panelTypes().DefaultOptions`); a field
@@ -2911,7 +2938,9 @@ heat map of trials is not merged across sessions*), and a whole panel of a type
 in `EphysAnalysisConfig.FigureSessionUnmerged` (*probe map panels are not merged
 across sessions*, the type named by its label; likewise unit correlation, power
 spectrum, spectrogram and coherence panels). An event-trace panel is merged:
-every session's epochs, as a raster's ([Event traces](#event-traces)). Events drawn as spans are skipped as marks are. A merge that fails (`combineSessions:TooFew`, `:Bins`,
+every session's epochs, as a raster's ([Event traces](#event-traces)). A trial
+panel is merged too: every session's per-trial values, each in its series, its
+statistics made again over them ([Trial measures](#trial-measures)). Events drawn as spans are skipped as marks are. A merge that fails (`combineSessions:TooFew`, `:Bins`,
 `:TimeBase`, ...) skips that layer with its message, and the rest of the figure
 is drawn. That is what `figureSessionCompute` and so the app's preview do with
 an unmerged panel type. Validate refuses such a figure, though, and so does
@@ -2976,7 +3005,8 @@ them, and `figureSessionSpec` applies it to the compute and the render alike:
   ...*, then the alignment and the series (*a color per session*, *a color per
   subject, its sessions averaged*, *all sessions averaged*), the handling of the
   trial groups (*trial groups pooled*, *one figure per trial group*, *trial
-  groups by line style*) and *one figure per subject*.
+  groups by line style*) and *one figure per subject*. A figure with trial
+  panels adds their statistics ([Trial measures](#trial-measures)).
 - With `Export.Data.Enabled`, one `.mat` per session figure holds the merged
   and each dataset's own figures, `<Data.Folder>/<Data.FilenamePattern>.mat`
   with `{Name}` `all`, `{Plot}` the figure's id and `{Kind}` `figure`

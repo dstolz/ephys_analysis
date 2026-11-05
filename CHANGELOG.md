@@ -432,6 +432,8 @@ says how to cut a release.
   shape loads with its unknown fields dropped and named in `LoadWarnings`, and `validate` refuses a retired export
   format), manifest schema `intan-dataset-manifest/1` (`ManifestSchemasAccepted` is the current schema only) and
   `DatasetTracker`'s reading of a run with results but no status file as `"done"` (its `State` is empty).
+- `combineSessions`' merge of version-1 `behavior` results (`mergeBehavior`): no figure makes them since figures
+  replaced plots.
 
 ### Added
 
@@ -452,6 +454,16 @@ says how to cut a release.
   `anova1`) with pairwise tests adjusted by `pAdjust`, starred, and significant below the panel's `testAlpha`; linear, polynomial and moving fits with 95% bands
   and Pearson or Spearman correlations, in log10 units on a log axis. Suite `test_TrialMeasure`. See
   [EphysAnalysis](documentation/EphysAnalysis.md#trial-measures).
+- Session figures: the trial panels are merged across sessions (`combineSessions` kinds `trialDist`, `trialHist`,
+  `trialScatter`): every session's per-trial values in one table, each in its series (the sessions under
+  `trialGroups "pool"`, a figure per trial group under `"each"`, session x trial group under `"combine"`), and
+  `figureSessionCompute` makes the categories, series and tests again over the merged values, so the `"session"`
+  grouping has the sessions as its levels.
+- Reports: a figure with trial panels says in its caption what each measures, how it groups, summarizes and tests
+  (`figureCaption`), and `figureCaption(..., Results=)` appends their statistics; the runner and the standalone script
+  pass each figure's computed result. The new `trialStatsText(F)` writes them, a line per trial panel: each
+  category's center ± error and n, the overall p, the pairs' adjusted p with stars, a scatter's r and fit R², and the
+  values left out.
 - Pipeline app, Project tab: **Copy manifests** in the Tools panel puts the manifest files of its datasets (the active
   one, or the ticked ones) on the clipboard as files, to paste into a folder, an e-mail or a chat, and lists in a
   message the files the clipboard holds and any not copied (`copyFilesToClipboard`, Windows).

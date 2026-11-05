@@ -29,7 +29,8 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %   observation(s)", Files. With Report each label is one entry of r.Report
 %   (in the section run started, "Across sessions"), its pages the
 %   observations', captioned by figureCaption(SPEC, <its observations>,
-%   Sessions=<its facet's sessions, as merged>). With
+%   Sessions=<its facet's sessions, as merged>, Results=<its last page's
+%   trial panels (keptPart)>: their statistics, trialStatsText). With
 %   Export.Data.Enabled the computed figures are saved (writeAnalysisData:
 %   one .mat in Export.Data.Folder named by Data.FilenamePattern with
 %   {Name} "all", {Kind} "figure") holding schema, figure, spec, sessions,
@@ -233,7 +234,7 @@ for q = 1:numel(E)
     if ~isempty(E(q).why); msg = msg + "; not drawn: " + strjoin(E(q).why, "; "); end
     if opts.Report
         obj.Report = addReportFigure(obj.Report, rspec, E(q).F, Files=E(q).files, Images=E(q).images, Pages=E(q).pages, ...
-            Caption=figureCaption(spec, T(E(q).rows, :), Sessions=E(q).F.sessions, YShared=nShared));   % this figure's observations and its facet's sessions
+            Caption=figureCaption(spec, T(E(q).rows, :), Sessions=E(q).F.sessions, YShared=nShared, Results={E(q).F.trial}));   % this figure's observations and its facet's sessions
     end
     obj.Results(end+1, :) = {label, id, "figure", "done", msg, strjoin(E(q).files, "; "), E(q).seconds};
     obj.log("%s: %s done (%d observation(s), %d file(s), %.1f s)", label, id, E(q).done, numel(E(q).files), E(q).seconds);
@@ -245,6 +246,9 @@ if withData && any([E.done] > 0)
         S = struct('schema', "ephys-analysis-session-figure/1", 'figure', id, 'spec', spec, 'sessions', lastSessions, ...
             'observations', T, 'results', results, 'perSession', {perSession}, 'config', cfg.toStruct(), ...
             'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));
+        % TODO(trial-measures p3 merge): S.values = TrialDataExport.valuesTable(...) -- the trial panels' per-trial
+        % table of every merged figure in results (figure, panel, layer, measure, dataset, session, trial, group,
+        % category, series, value, x, tA, tB, parameter columns), stacked; writeAnalysisData documents it
         dname = figureFileName(X.Data.FilenamePattern, struct('Name', "all", 'Plot', id, 'Kind', "figure", ...
             'Group', "all", 'Unit', "all", 'Index', 1));
         dfile = fullfile(figureFileName(X.Data.Folder, tokens, Kind="folder"), dname + ".mat");
@@ -320,8 +324,11 @@ end
 
 
 function K = keptPart(F)
-%keptPart  What the report reads of a page's figure (addReportFigure, figureCaption Sessions=): its kind and sessions.
-K = struct('kind', "figure", 'sessions', []);
+%keptPart  What the report reads of a page's figure (addReportFigure, figureCaption Sessions=, Results=): its kind,
+%   sessions and, in trial.panels, its trial panels (their statistics for the caption, trialStatsText; a trial
+%   panel's values are small). Not in K.panels: addReportFigure's label variables read panels by the spec's order.
+K = struct('kind', "figure", 'sessions', [], 'trial', struct('panels', []));
 if isfield(F, 'kind'); K.kind = F.kind; end
 if isfield(F, 'sessions'); K.sessions = F.sessions; end
+if isfield(F, 'panels'); K.trial.panels = F.panels(ismember([F.panels.type], EphysAnalysisConfig.TrialPanelTypes)); end
 end

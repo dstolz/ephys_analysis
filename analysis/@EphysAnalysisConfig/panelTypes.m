@@ -5,12 +5,13 @@ function T = panelTypes()
 %     Type            "raster" | "psth" | "continuous" | "heatmap" |
 %                     "waveforms" | "probemap" | "corrmap" | "rate" |
 %                     "tuning" | "spectrum" | "spectrogram" | "coherence" |
-%                     "eventTrace" | "legend"
+%                     "eventTrace" | "trialDist" | "trialHist" |
+%                     "trialScatter" | "legend"
 %     Label           name shown in the app
 %     Short           one word: the type's part of an automatic figure id
 %                     (autoFigureId: "Raster+PSTH units")
 %     Categories      the source categories its layers draw
-%                     (sourceCategories: point, continuous, unit)
+%                     (sourceCategories: point, continuous, unit, trial)
 %     Aligned         true when it is cut into epochs around events (its
 %                     ref and window are used)
 %     SharesTime      its x axis is time from the event: while its ref and
@@ -31,7 +32,8 @@ function T = panelTypes()
 %   automatic, else [lo hi]) live in the options because one figure holds
 %   different axes; a figure's Style.YLim / Style.CLim are not used. Every
 %   type with a y axis of values (PSTH, continuous, waveforms, rate,
-%   tuning, spectrum, coherence) takes options.yLimMode, one vocabulary
+%   tuning, spectrum, coherence, trial distribution and scatter) takes
+%   options.yLimMode, one vocabulary
 %   (EphysAnalysisConfig.YLimModes):
 %     "auto"   (default) each axis fits its data (the type's own: an auROC
 %              and a coherence 0 to 1); in a stack each row fits itself,
@@ -163,6 +165,27 @@ function T = panelTypes()
 %   size. It takes events layers only (categoryOf) and their eventsAs is
 %   not used. A session figure draws every session's epochs in it, as a
 %   raster does, its series (sessions, subjects or all) as the groups.
+%   The trial panels (EphysAnalysisConfig.TrialPanelTypes: "trialDist",
+%   "trialHist", "trialScatter") draw one number per trial: each trials
+%   layer's measure (Layer.measure, a TrialMeasure: the delay from an
+%   event A to an event B, A's interval's duration, the count of B events
+%   after A, or a trial parameter; trialMeasure computes it), a scatter's
+%   against its xMeasure. They take trials layers only, always fixed (the
+%   measure names its events), and are not aligned: no ref or window of
+%   their own, but a trial selection of their own (Panel.selection) is
+%   theirs to take. Their values are grouped by categories (a
+%   distribution's x axis) and series (the colors), each one of
+%   TrialGroupings: the figure's trial groups, a trial parameter's levels
+%   (categoryParam / seriesParam, binned by categoryBins / seriesBins: []
+%   each value, n equal-width bins, or ascending edges), the session or
+%   the layer. Each draws a summary (mean or median) with its error
+%   (AuxErrorTypes), a group test (test: TrialTests; testPairs, adjust,
+%   testAlpha: the significance level; alpha is a histogram's or scatter's
+%   opacity, as an event trace's)
+%   shown as brackets or text (testShow), a distribution as a swarm, box,
+%   violin, points or line, a histogram as bars, an outline or an ECDF,
+%   a scatter with a fit per series (TrialFits), a correlation and
+%   marginal histograms; xScale / yScale "log" draw a log axis.
 %   A "legend" panel draws no data: it is where the figure's legend goes
 %   (Style.LegendLocation "auto"), placed and sized as any panel (its rect
 %   a frame the legend sits in, never scaled to fill it). It takes no
@@ -381,6 +404,79 @@ opts.eventTrace = struct( ...
     'baselineWidth', 0.5, ...           % points
     'rowSpacing',    1.25, ...          % the step between the lines' rows, in row heights (1: the rows touch)
     'groupBands',    true);             % trials "rows": a pale band of each trial group's color behind its sub-rows
+% the trial panels: one value per trial (a trials layer's measure), grouped; a grouping is "groups" (the figure's trial
+% groups) | "param" (a trial parameter's levels: its *Param, binned by its *Bins) | "session" | "layer" (TrialGroupings)
+opts.trialDist = struct( ...
+    'categories',     "groups", ...     % the x axis: "groups" | "param" | "session" | "layer"
+    'categoryParam',  "", ...           % categories "param": the trial parameter
+    'categoryBins',   [], ...           % categories "param": [] (each value a level) | n (n equal-width bins) | >= 2 ascending edges
+    'series',         "layer", ...      % the colors within each category: "layer" | "groups" | "param" | "session"
+    'seriesParam',    "", ...           % series "param": the trial parameter
+    'seriesBins',     [], ...           % series "param": as categoryBins
+    'display',        "swarm", ...      % "swarm" | "box" | "violin" | "points" (jittered) | "line" (the summary per category, a line per series)
+    'ordinalX',       false, ...        % display "line" / "points": numeric categories at their values (else evenly spaced)
+    'summary',        "mean", ...       % "mean" | "median": the summary mark, the line display's points and the caption
+    'errorType',      "sem", ...        % the summary's error: "off" | "sem" | "std" | "ci95" | "iqr" (AuxErrorTypes)
+    'errorResamples', 1000, ...         % errorType "ci95": bootstrap resamples
+    'showSummary',    true, ...         % display "swarm" / "points" / "violin": the summary mark +/- its error over the values
+    'test',           "auto", ...       % across the categories in each series: "auto" (ranksum for 2, kruskalwallis for more) | "none" | "ranksum" | "ttest2" | "kruskalwallis" | "anova1"
+    'testPairs',      "all", ...        % the pairs compared: "all" | "first" (each category against the first)
+    'adjust',         "holm", ...       % the pairs' p values adjusted (pAdjust): "holm" | "bh" | "bonferroni" | "none"
+    'testAlpha',      0.05, ...         % the tests' significance level (0-1, exclusive)
+    'testShow',       "brackets", ...   % "brackets" (pairs bracketed with stars, the omnibus p in a corner) | "text" (the omnibus p alone) | "off" (the caption only)
+    'bracketPairs',   "significant", ...% testShow "brackets": "significant" (the pairs below alpha) | "all" (n.s. too)
+    'markerSize',     4, ...            % the points' size, points
+    'jitter',         0.3, ...          % display "points": the jitter's width, a share of the category's slot (0-1)
+    'showN',          "off", ...        % "off" | "ticks" (each category's trial count in its tick label: "Hit (n = 12)")
+    'yScale',         "linear", ...     % "linear" | "log"
+    'yLimMode',       "auto", ...       % as a PSTH's (EphysAnalysisConfig.YLimModes)
+    'yLim',           []);
+opts.trialHist = struct( ...
+    'series',         "layer", ...      % a histogram each: "layer" | "groups" | "param" | "session"
+    'seriesParam',    "", ...           % series "param": the trial parameter
+    'seriesBins',     [], ...           % series "param": [] (each value a level) | n (n equal-width bins) | >= 2 ascending edges
+    'display',        "bars", ...       % "bars" | "outline" (stairs) | "ecdf" (the empirical cumulative distribution)
+    'normalization',  "count", ...      % bars / outline: "count" | "probability" | "pdf"
+    'binMode',        "auto", ...       % "auto" (histcounts' rule, one set of edges for every series) | "count" (binCount bins) | "width" (binWidth)
+    'binCount',       20, ...           % binMode "count": how many bins
+    'binWidth',       10, ...           % binMode "width": the bin width, in the measure's unit
+    'alpha',          0.5, ...          % the bars' opacity 0-1
+    'showSummary',    true, ...         % a dotted vertical line at each series' summary
+    'summary',        "mean", ...       % "mean" | "median"
+    'errorType',      "sem", ...        % the summary's error (the caption): "off" | "sem" | "std" | "ci95" | "iqr"
+    'errorResamples', 1000, ...         % errorType "ci95": bootstrap resamples
+    'test',           "auto", ...       % across the series: as a distribution's
+    'testPairs',      "all", ...        % "all" | "first"
+    'adjust',         "holm", ...       % pAdjust's method
+    'testAlpha',      0.05, ...         % the tests' significance level (0-1, exclusive)
+    'testShow',       "text", ...       % "text" (the omnibus p in a corner) | "off" (the caption only)
+    'xScale',         "linear", ...     % "linear" | "log" (log-spaced bins)
+    'xLim',           []);              % [] = automatic, else [lo hi] in the measure's unit
+opts.trialScatter = struct( ...
+    'series',         "layer", ...      % the colors: "layer" | "groups" | "param" | "session"
+    'seriesParam',    "", ...           % series "param": the trial parameter
+    'seriesBins',     [], ...           % series "param": [] (each value a level) | n (n equal-width bins) | >= 2 ascending edges
+    'fit',            "none", ...       % per series: "none" | "linear" | "poly2" | "poly3" | "movmean" | "movmedian" (TrialFits)
+    'fitBand',        true, ...         % fit linear / poly*: its 95% confidence band
+    'fitWindow',      10, ...           % fit movmean / movmedian: the window, a whole number of points (>= 2)
+    'corr',           "pearson", ...    % the correlation per series: "pearson" | "spearman" | "none"
+    'marginals',      false, ...        % a histogram of x above the plot and of y beside it
+    'marginalSize',   0.25, ...         % marginals: their strips' share of the panel's box (0.1-0.5)
+    'markerSize',     5, ...            % the points' size, points
+    'alpha',          0.7, ...          % the points' opacity 0-1
+    'summary',        "mean", ...       % "mean" | "median": each series' y summary (the caption)
+    'errorType',      "sem", ...        % its error: "off" | "sem" | "std" | "ci95" | "iqr"
+    'errorResamples', 1000, ...         % errorType "ci95": bootstrap resamples
+    'test',           "auto", ...       % y across the series: as a distribution's
+    'testPairs',      "all", ...        % "all" | "first"
+    'adjust',         "holm", ...       % pAdjust's method
+    'testAlpha',      0.05, ...         % the tests' significance level (0-1, exclusive)
+    'testShow',       "text", ...       % "text" (the omnibus p in a corner) | "off" (the caption only)
+    'xScale',         "linear", ...     % "linear" | "log" (the fits are made in the scale drawn)
+    'yScale',         "linear", ...     % "linear" | "log"
+    'xLim',           [], ...           % [] = automatic, else [lo hi] in the x measure's unit
+    'yLimMode',       "auto", ...       % as a PSTH's (EphysAnalysisConfig.YLimModes)
+    'yLim',           []);
 opts.legend = struct( ...
     'orientation', "auto", ...          % "auto" (horizontal when the rect is wider than tall, else vertical) | "vertical" | "horizontal"
     'align',       "center", ...        % where the legend sits in its rect when narrower: "left" | "center" | "right"
@@ -402,7 +498,10 @@ rows = {
     "spectrogram", "Spectrogram",      "Spectrogram", ["continuous" "point"],  true,   true,      true,    false,     "observation",  "A channel's or a unit's multitaper power over time from the event and frequency (Chronux), one trial group"
     "coherence",  "Coherence",         "Coherence",   ["point" "continuous"],  true,   false,     false,   true,      "observation",  "Multitaper coherence (Chronux) of a seed layer with a partner layer: field-field, spike-field or unit-unit"
     "eventTrace", "Event traces",      "EventTraces", "point",                 true,   true,      false,   true,      "fixed",        "Digital or derived lines as a logic analyzer shows them: a row per line, a bar (or a level) from each onset to its offset, epochs overlaid or a sub-row each"
-    "legend",     "Legend",            "Legend",      string.empty(1, 0),      false,  false,     false,   false,     "",             "The figure's legend in a panel of its own"
+    "trialDist",  "Trial distribution", "Dist",       "trial",                 false,  false,     false,   true,      "fixed",        "One value per trial (a delay, duration, count or parameter) by category: swarm, box, violin, points or a line, with group tests"
+    "trialHist",  "Trial histogram",   "Hist",        "trial",                 false,  false,     false,   true,      "fixed",        "The distribution of one value per trial: bars, an outline or the cumulative distribution, per series"
+    "trialScatter", "Trial scatter",   "Scatter",     "trial",                 false,  false,     false,   true,      "fixed",        "One value per trial against another, per series: points, fits and correlations, marginal histograms"
+    "legend",    "Legend",            "Legend",      string.empty(1, 0),      false,  false,     false,   false,     "",             "The figure's legend in a panel of its own"
     };
 n = size(rows, 1);
 Type = strings(n, 1); Label = strings(n, 1); Short = strings(n, 1); DefaultBinding = strings(n, 1); Description = strings(n, 1);

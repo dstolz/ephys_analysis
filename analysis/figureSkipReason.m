@@ -30,12 +30,13 @@ function [reason, layerReasons] = figureSkipReason(src, spec)
 %   no numeric trial parameter), or whose param or seriesParam the trials
 %   lack ("no trial parameter X"); a spectrum, spectrogram or coherence
 %   panel without the Chronux toolbox on the path ("Chronux is not on the
-%   path"). A spectrum or coherence panel on timeBase "range" is not
+%   path"); a trial distribution, histogram or scatter panel without
+%   paired trials ("no paired trials"). A spectrum or coherence panel on timeBase "range" is not
 %   aligned to events: it needs none of the alignment's lines, trials or
 %   parameters. A layer's: "no sorted units", "no detected
 %   spikes", "no <SIGNAL> extract"; events: "no line X" (or of its
 %   sequence), "no paired trials" (trial scope or "Trial"), "no trial
-%   parameter X" (offsetParam); a following layer: "AUX has no recording channel: bind
+%   parameter X" (offsetParam); trials: "no paired trials"; a following layer: "AUX has no recording channel: bind
 %   it to fixed channels" (an AUX layer following a unit, or a channel of
 %   another signal), "no unit or channel observed" (a dataset figure); a
 %   source the panel type does not draw, or events drawn as a train on a
@@ -160,6 +161,8 @@ switch p.type
         if isempty(src.probe); r = "no probe map"; end
     case {"spectrum" "spectrogram" "coherence"}
         if ~ChronuxDataset.hasChronux(); r = "Chronux is not on the path"; end
+    case {"trialDist" "trialHist" "trialScatter"}   % one value per trial: the trials' events and parameters
+        if ~src.hasTrials; r = "no paired trials"; end
 end
 end
 
@@ -225,6 +228,8 @@ switch s
         end
         r = lineReason(src, ref);
         if r == ""; r = paramReason(ref.offsetParam, vars); end
+    case "trials"   % a trial measure
+        if ~src.hasTrials; r = "no paired trials"; end
     otherwise   % a signal
         if ~hasSignal(src, s); r = "no " + s + " extract"; end
 end

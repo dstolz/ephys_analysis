@@ -6,7 +6,9 @@ function [type, nBoot] = figureErrorType(panel)
 %                   unless it is "off"
 %     rate          the same, with display "bar" (its error bars)
 %     continuous    the panel's options.errorType ("sem", "std", "ci95" or
-%                   "iqr") unless it is "off"
+%     trialDist,    "iqr") unless it is "off" (a trial panel's: its
+%     trialHist,    summary's error)
+%     trialScatter
 %   and "sem" otherwise (rasters, heat maps, waveforms, probe and
 %   correlation maps draw no band; a panel whose error is "off" draws
 %   none): what every compute function makes anyway, so no bootstrap is
@@ -26,7 +28,7 @@ if isfield(o, 'errorResamples'); nBoot = o.errorResamples; end
 type = "sem";
 if ~isfield(o, 'errorType') || o.errorType == "off"; return; end
 switch panel.type
-    case {"psth" "tuning" "continuous"}
+    case {"psth" "tuning" "continuous" "trialDist" "trialHist" "trialScatter"}
         type = o.errorType;
     case "rate"
         if o.display == "bar"; type = o.errorType; end

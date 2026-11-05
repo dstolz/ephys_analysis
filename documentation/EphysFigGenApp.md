@@ -709,7 +709,7 @@ it, or drag a neighbor over it with Arrange.
 
 **The New panel window** (**New panel...**, and **Add** after it makes a blank
 figure; *New panel*, modal) adds one panel to the selected figure. On the left a
-tile per [panel type](EphysAnalysisConfig.md#panel-types), all fourteen
+tile per [panel type](EphysAnalysisConfig.md#panel-types), all seventeen
 (`EphysAnalysisConfig.panelTypes()`: a type added there shows here too), each a
 small representative plot of the type over its label (the type's description is
 its tooltip): the type drawn by its real draw function on a small synthetic

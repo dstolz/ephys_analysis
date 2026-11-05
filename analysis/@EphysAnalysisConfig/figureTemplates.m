@@ -12,7 +12,9 @@ function T = figureTemplates()
 %   panel type that draws data has a template of its own: one panel
 %   ("<type>_1") over the whole page ([0 0 1 1]) holding
 %   defaultLayer(type) (a coherence panel two: the observed unit, then the
-%   LFP of its channel, a spike-field coherence); a legend panel has none
+%   LFP of its channel, a spike-field coherence; a trial panel a trials
+%   layer: Stim onset -> Trial offset, a scatter's x Trial onset -> Stim
+%   onset); a legend panel has none
 %   (it shows the other panels' legend). "blank" has no panels.
 %
 %   See also EphysAnalysisConfig.addFigure, EphysAnalysisConfig.panelTypes.
@@ -22,7 +24,7 @@ P = EphysAnalysisConfig.panelTypes();
 rp = struct();
 rp.panels = {panelOf("raster", [0 0.5 1 0.5]), panelOf("psth", [0 0 1 0.5])};
 
-order = ["psth" "raster" "continuous" "eventTrace" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" "spectrum" "spectrogram" "coherence"];
+order = ["psth" "raster" "continuous" "eventTrace" "trialDist" "trialHist" "trialScatter" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" "spectrum" "spectrogram" "coherence"];
 n = numel(order) + 2;
 Template = strings(n, 1); Label = strings(n, 1); Description = strings(n, 1); Figure = cell(n, 1);
 Template(1) = "rasterPsth";

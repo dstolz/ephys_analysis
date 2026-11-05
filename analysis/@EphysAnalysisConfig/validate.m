@@ -45,8 +45,9 @@ function issues = validate(obj, opts)
 %               the later one is drawn on top); a legend panel's
 %               orientation, align, valign and whole columns >= 0 (a
 %               warning for layers on it: it draws none); a panel's own ref /
-%               window / selection only on aligned types (its selection
-%               checked as the figure's), a "between" window only on a
+%               window / selection only on aligned types (a selection on
+%               a trial panel too; its selection checked as the
+%               figure's), a "between" window only on a
 %               unit correlation, firing rate or tuning curve panel;
 %               layers: a source the type draws
 %               (categoryOf), the binding ("observation" only for spikes
@@ -118,7 +119,26 @@ function issues = validate(obj, opts)
 %               panel's display, trials, colorBy,
 %               height, alpha, line styles and positive widths and
 %               rowSpacing, with warnings for an edge or baseline color
-%               that is not one); each panel's text note
+%               that is not one); the trial panels (TrialPanelTypes:
+%               trials layers only, and a trials layer only there, always
+%               fixed; a selection of their own though not aligned): each
+%               layer's measure ("<...>.layers(<j>).measure.<field>", a
+%               scatter's xMeasure too: kind, from and -- delay, count --
+%               to as event references, direction, maxGapSec > 0, a
+%               param kind's parameter name, unit ms / s, the label's
+%               variables; a warning for a scatter's delay to "all" B
+%               events, which pairs the first value per trial) and
+%               options (categories / series: TrialGroupings, a
+%               "param" one naming its parameter, not the same grouping
+%               twice, bins [] / a whole count / ascending edges;
+%               display, summary, errorType (AuxErrorTypes), test
+%               (TrialTests), testPairs, adjust, testShow (brackets on a
+%               distribution only), bracketPairs, showN, normalization,
+%               binMode, fit (TrialFits), corr, the scales; testAlpha in
+%               (0, 1), alpha (opacity) and jitter 0-1, markerSize, binWidth > 0,
+%               whole binCount >= 1 and fitWindow >= 2, marginalSize
+%               0.1-0.5, x / y limits; the Statistics and Machine
+%               Learning Toolbox for a test other than none); each panel's text note
 %               ("<figure>.<panel>.note.<field>": placement, alignment,
 %               rotation, font size and interpreter; a color that is not
 %               one is a warning) and overlays
@@ -147,7 +167,9 @@ function issues = validate(obj, opts)
 %               without keys; showMembers with series "session";
 %               trialGroups "pool" while the selection groups trials;
 %               "combine" with a PSTH panel drawn as bars (drawn as
-%               lines); a heat map of trials (not merged: skipped); probe
+%               lines); a heat map of trials (not merged: skipped); a
+%               trial panel grouped by "groups" (its categories or
+%               series) under trialGroups "pool"; probe
 %               (a probe figure, "<figure>.probe.<field>"): layout
 %               (ProbeLayouts), overlap (ProbeOverlaps) and labels
 %               (ProbeTileLabels) known values, lanes, maxTiles and
@@ -396,9 +418,12 @@ for k = 1:numel(obj.Figures)
         A = "A " + label + " panel";
         if startsWith(label, "event"); A = "An " + label + " panel"; end
 
+        isTrial = ismember(pj.type, EphysAnalysisConfig.TrialPanelTypes);   % one value per trial: no events to align to, but trials to select
         for af = ["ref" "window" "selection"]
             if ~isstruct(pj.(af)); continue; end
-            if ~tr.Aligned
+            if af == "selection" && isTrial
+                checkSelection(pj.selection, "Figures", p0 + ".selection");
+            elseif ~tr.Aligned
                 add("Figures", p0 + "." + af, "error", A + " is not aligned to events: its " + af + " must be ""default"".");
             elseif af == "ref"
                 checkRef(pj.ref, "Figures", p0 + ".ref");
@@ -439,6 +464,15 @@ for k = 1:numel(obj.Figures)
                 continue
             end
             isEvents = L.source == "events";
+            isTrials = L.source == "trials";
+            if isTrial && ~isTrials
+                add("Figures", l0 + ".source", "error", A + " draws trials layers only (a trial measure each), not " + L.source + ".");
+                continue
+            elseif isTrials && ~isTrial
+                add("Figures", l0 + ".source", "error", "Trials layers (one value per trial) go on trial distribution, " + ...
+                    "histogram and scatter panels, not on " + lower(A) + ".");
+                continue
+            end
             if isEvents && ~tr.SharesTime
                 add("Figures", l0 + ".source", "error", "Events layers go on panels that share the time axis (raster, PSTH, " + ...
                     "continuous signal, heat map), not on " + lower(A) + ".");
@@ -459,6 +493,8 @@ for k = 1:numel(obj.Figures)
             elseif L.binding == "observation"
                 if isEvents
                     add("Figures", l0 + ".binding", "error", "An events layer is always fixed: it names its line (event).");
+                elseif isTrials
+                    add("Figures", l0 + ".binding", "error", "A trials layer is always fixed: its measure names its events or parameter.");
                 elseif ismember(pj.type, ["heatmap" "probemap" "corrmap"]) ...
                         && ~(pj.type == "heatmap" && isfield(pj.options, 'rows') && pj.options.rows == "trials" ...
                         && ismember(L.source, EphysAnalysisConfig.SpikeSources))   % a heat map of one unit's trials may follow it
@@ -540,6 +576,10 @@ for k = 1:numel(obj.Figures)
             if L.lineStyle ~= "" && ~ismember(L.lineStyle, EphysAnalysisConfig.OverlayLineStyles)
                 add("Figures", l0 + ".lineStyle", "error", "A layer's line style is """" (by layer order) or one of " + ...
                     strjoin(EphysAnalysisConfig.OverlayLineStyles, "  ") + ".");
+            end
+            if isTrials
+                checkMeasure(L.measure, l0 + ".measure", pj.type == "trialScatter");
+                if pj.type == "trialScatter"; checkMeasure(L.xMeasure, l0 + ".xMeasure", true); end
             end
         end
         if pj.type == "raster" && any(on)
@@ -710,6 +750,8 @@ for k = 1:numel(obj.Figures)
                 checkSpectral(pj, op, pw, Lp(on), o0, p0, find(on));
             case "eventTrace"
                 checkEventTrace(op, o0);
+            case {"trialDist" "trialHist" "trialScatter"}
+                checkTrialOptions(op, o0, A, pj.type);
             case "legend"
                 if ~ismember(op.orientation, ["auto" "vertical" "horizontal"])
                     add("Figures", o0 + ".orientation", "error", "A legend panel's orientation is auto, vertical or horizontal.");
@@ -908,6 +950,124 @@ issues = table(Section, Field, Severity, Message);
                 add("Figures", hO0 + ".rasterSort", "warning", "An event trace has no spikes to take a first-spike latency from: " + ...
                     "the sub-rows stay in time order.");
             end
+        end
+    end
+
+    function checkMeasure(hM, hM0, hScatter)
+        %checkMeasure  A trials layer's TrialMeasure (HM0: its field, "<...>.layers(<i>).measure" or ".xMeasure").
+        %   HSCATTER: on a trial scatter, whose x and y pair one value per trial (a "which all" B gives several).
+        hKinds = EphysAnalysisConfig.TrialMeasureKinds;
+        if ~ismember(hM.kind, hKinds)
+            add("Figures", hM0 + ".kind", "error", "A trial measure's kind is " + strjoin(hKinds, ", ") + ...
+                " (delay: A to B; duration: A's interval; count: B events after A; param: a trial parameter), not """ + hM.kind + """.");
+        end
+        checkRef(hM.from, "Figures", hM0 + ".from");
+        if ismember(hM.kind, ["delay" "count"])
+            checkRef(hM.to, "Figures", hM0 + ".to");
+        end
+        if ~ismember(hM.direction, ["after" "before"])
+            add("Figures", hM0 + ".direction", "error", "A delay's direction is after (the first B at or after A) or before " + ...
+                "(the last B at or before A).");
+        end
+        if ~(isscalar(hM.maxGapSec) && hM.maxGapSec > 0)
+            add("Figures", hM0 + ".maxGapSec", "error", "maxGapSec is above 0 s (Inf = no limit).");
+        end
+        if hM.kind == "param" && ~isvarname(hM.param)
+            add("Figures", hM0 + ".param", "error", "A param measure names a numeric trial parameter, not """ + hM.param + """.");
+        end
+        if ~ismember(hM.unit, ["ms" "s"])
+            add("Figures", hM0 + ".unit", "error", "A trial measure's unit is ms or s (a time's; a count and a parameter keep their own).");
+        end
+        checkLabelText(hM.label, hM0 + ".label", false);
+        if hScatter && hM.kind == "delay" && hM.to.which == "all"
+            add("Figures", hM0 + ".to.which", "warning", "Every B after A gives several values per trial, but a scatter " + ...
+                "pairs one x with one y per trial: the first value of each trial is paired.");
+        end
+    end
+
+    function checkTrialOptions(hOp, hO0, hWho, hType)
+        %checkTrialOptions  A trial distribution's, histogram's or scatter's options (HWHO: "A trial ... panel").
+        hEnums = struct('categories', EphysAnalysisConfig.TrialGroupings, 'series', EphysAnalysisConfig.TrialGroupings, ...
+            'summary', ["mean" "median"], 'errorType', EphysAnalysisConfig.AuxErrorTypes, ...
+            'test', EphysAnalysisConfig.TrialTests, 'testPairs', ["all" "first"], 'adjust', ["holm" "bh" "bonferroni" "none"], ...
+            'testShow', ["text" "off"], 'bracketPairs', ["significant" "all"], 'showN', ["off" "ticks"], ...
+            'normalization', ["count" "probability" "pdf"], 'binMode', ["auto" "count" "width"], ...
+            'fit', EphysAnalysisConfig.TrialFits, 'corr', ["pearson" "spearman" "none"], ...
+            'xScale', ["linear" "log"], 'yScale', ["linear" "log"]);
+        if hType == "trialDist"
+            hEnums.display = ["swarm" "box" "violin" "points" "line"];
+            hEnums.testShow = ["brackets" "text" "off"];
+        elseif hType == "trialHist"
+            hEnums.display = ["bars" "outline" "ecdf"];
+        end
+        for hF = string(fieldnames(hEnums)).'
+            if isfield(hOp, hF) && ~ismember(hOp.(hF), hEnums.(hF))
+                add("Figures", hO0 + "." + hF, "error", hWho + "'s " + hF + " is one of " + strjoin(hEnums.(hF), ", ") + ...
+                    ", not """ + hOp.(hF) + """.");
+            end
+        end
+        % a parameter's levels: the parameter named, binned by nothing, a count or edges
+        for hD = ["category" "series"]
+            hDim = hD;
+            if hD == "category"; hDim = "categories"; end
+            if ~isfield(hOp, hDim); continue; end
+            hP = hOp.(hD + "Param");
+            if hOp.(hDim) == "param" && ~isvarname(hP)
+                hNot = ".";
+                if hP ~= ""; hNot = ", not """ + hP + """."; end
+                add("Figures", hO0 + "." + hD + "Param", "error", hDim + " ""param"" groups by a trial parameter: name it in " + ...
+                    hD + "Param" + hNot);
+            elseif hP ~= "" && ~isvarname(hP)
+                add("Figures", hO0 + "." + hD + "Param", "error", """" + hP + """ is not a trial parameter's name.");
+            end
+            hB = hOp.(hD + "Bins");
+            hWhole = isscalar(hB) && isfinite(hB) && hB >= 1 && hB == round(hB);
+            hEdges = numel(hB) >= 2 && all(isfinite(hB)) && all(diff(hB) > 0);
+            if ~(isempty(hB) || hWhole || hEdges)
+                add("Figures", hO0 + "." + hD + "Bins", "error", hD + "Bins is [] (each value a level), a whole number of " + ...
+                    "equal-width bins, or two or more ascending edges.");
+            end
+        end
+        if isfield(hOp, 'categories') && hOp.categories == hOp.series ...
+                && ~(hOp.categories == "param" && hOp.categoryParam ~= hOp.seriesParam)
+            add("Figures", hO0 + ".series", "error", "The series group the values as the categories do (" + hOp.series + ...
+                "): pick another series (a series per category tells nothing apart).");
+        end
+        if ~(isscalar(hOp.testAlpha) && hOp.testAlpha > 0 && hOp.testAlpha < 1)
+            add("Figures", hO0 + ".testAlpha", "error", "testAlpha, the tests' significance level, is between 0 and 1 (e.g. 0.05).");
+        end
+        if isfield(hOp, 'alpha') && ~(isscalar(hOp.alpha) && hOp.alpha >= 0 && hOp.alpha <= 1)
+            add("Figures", hO0 + ".alpha", "error", "alpha, the opacity, is from 0 to 1.");
+        end
+        if isfield(hOp, 'markerSize') && ~(isscalar(hOp.markerSize) && isfinite(hOp.markerSize) && hOp.markerSize > 0)
+            add("Figures", hO0 + ".markerSize", "error", "markerSize must be positive (points).");
+        end
+        if isfield(hOp, 'jitter') && ~(isscalar(hOp.jitter) && hOp.jitter >= 0 && hOp.jitter <= 1)
+            add("Figures", hO0 + ".jitter", "error", "jitter is a share of the category's slot, from 0 to 1.");
+        end
+        if isfield(hOp, 'binCount') && ~isWhole(hOp.binCount)
+            add("Figures", hO0 + ".binCount", "error", "binCount is a whole number of bins, at least 1.");
+        end
+        if isfield(hOp, 'binWidth') && ~(isscalar(hOp.binWidth) && isfinite(hOp.binWidth) && hOp.binWidth > 0)
+            add("Figures", hO0 + ".binWidth", "error", "binWidth must be positive (in the measure's unit).");
+        end
+        if isfield(hOp, 'fitWindow') && ~(isWhole(hOp.fitWindow) && hOp.fitWindow >= 2)
+            add("Figures", hO0 + ".fitWindow", "error", "fitWindow is a whole number of points, at least 2.");
+        end
+        if isfield(hOp, 'marginalSize') && ~(isscalar(hOp.marginalSize) && hOp.marginalSize >= 0.1 && hOp.marginalSize <= 0.5)
+            add("Figures", hO0 + ".marginalSize", "error", "marginalSize is the strips' share of the panel's box, from 0.1 to 0.5.");
+        end
+        if isfield(hOp, 'xLim'); checkFigLim(hOp.xLim, hO0 + ".xLim", "x"); end
+        if isfield(hOp, 'yLim'); checkFigLim(hOp.yLim, hO0 + ".yLim", "y"); end
+        hStats = license('test', 'Statistics_Toolbox');
+        if ismember(hOp.test, EphysAnalysisConfig.TrialTests) && hOp.test ~= "none" && ~hStats
+            add("Figures", hO0 + ".test", "error", "The group tests need the Statistics and Machine Learning Toolbox (ranksum, " + ...
+                "ttest2, kruskalwallis, anova1): take test none without it.");
+        end
+        if hOp.errorType == "ci95" && ~(hStats && exist('bootci', 'file'))
+            add("Figures", hO0 + ".errorType", "error", "The bootstrap 95% CI needs the Statistics and Machine Learning Toolbox (bootci).");
+        elseif hOp.errorType == "iqr" && ~(hStats && exist('prctile', 'file'))
+            add("Figures", hO0 + ".errorType", "error", "The interquartile range needs the Statistics and Machine Learning Toolbox (prctile).");
         end
     end
 
@@ -1217,8 +1377,8 @@ issues = table(Section, Field, Severity, Message);
     end
 
     function checkPanelError(hType, hO, hO0)
-        %checkPanelError  A panel's own error: its errorType (a continuous panel's is checked with its other options), errorResamples and band.
-        if isfield(hO, 'errorType') && hType ~= "continuous"
+        %checkPanelError  A panel's own error: its errorType (a continuous or trial panel's is checked with its other options), errorResamples and band.
+        if isfield(hO, 'errorType') && ~ismember(hType, ["continuous" EphysAnalysisConfig.TrialPanelTypes])
             if ~ismember(hO.errorType, EphysAnalysisConfig.PanelErrorTypes)
                 add("Figures", hO0 + ".errorType", "error", "The errorType is one of " + strjoin(EphysAnalysisConfig.PanelErrorTypes, ", ") + ...
                     " (off: none; sem: +/- SEM; std: +/- SD; ci95: bootstrap 95% CI).");
@@ -1574,6 +1734,15 @@ issues = table(Section, Field, Severity, Message);
             end
             if sxP.type == "heatmap" && isfield(sxO, 'rows') && sxO.rows == "trials"
                 add("Figures", sxP0 + ".rows", "warning", "A heat map of trials is not merged across sessions: the session figure skips it.");
+            end
+            if sx.trialGroups == "pool" && ismember(sxP.type, EphysAnalysisConfig.TrialPanelTypes)
+                for sxD = ["categories" "series"]
+                    if isfield(sxO, sxD) && sxO.(sxD) == "groups"
+                        add("Figures", sxP0 + ".options." + sxD, "warning", "trialGroups ""pool"" merges the figure's trial " + ...
+                            "groups across sessions: grouped by groups, the " + sxD + " are the sessions' series (trialGroups " + ...
+                            "each or combine keeps the trial groups; or group by session or a parameter).");
+                    end
+                end
             end
         end
     end

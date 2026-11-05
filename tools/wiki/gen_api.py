@@ -1035,6 +1035,7 @@ ANALYSIS_GROUPS = [
     ("Compute", ["spikePSTH", "firingRate", "tuningCurve", "evokedPotential", "unitCorrelation",
                  "unitSummary", "probeMapValues"]),
     ("Latency and onset", ["eventLatency", "firstSpikeLatency", "responseOnset", "latencyMethodText"]),
+    ("Trial measures", ["trialMeasureLabel"]),
     ("Response tests and auROC", ["responseEpochs", "responseStats", "pAdjust", "aurocCurves", "aurocCall"]),
     ("Population analysis", ["populationAnalysis", "populationSummary", "renderPopulation", "writePopulation"]),
     ("Chronux analyses", ["chronuxSettings", "chronuxTimeBase", "chronuxSpectrum", "chronuxSpecgram",

@@ -41,7 +41,11 @@ function [T, V] = figureLabelVariables(spec, F, opts)
 %                  for one dataset)
 %     Figure       Figure (its id), Panel (the panel's id), Bin and Smooth
 %                  (the panel's bin width and smoothing, ms; blank for a
-%                  type without bins), Date (today, yyyy-MM-dd)
+%                  type without bins), Measure and MeasureX (a trial
+%                  panel's measure and a trial scatter's x measure,
+%                  trialMeasureLabel of its first enabled trials layer's;
+%                  for the figure's own text, K = 0, its first trial
+%                  panel's; blank without one), Date (today, yyyy-MM-dd)
 %
 %   See also figureFileName, renderFigure, eventRefLabel.
 
@@ -92,6 +96,8 @@ rows = {
     "Panel",       "Figure",      "The panel's id", "psth_1"
     "Bin",         "Figure",      "The panel's bin width, ms (blank for a type without bins)", "10"
     "Smooth",      "Figure",      "The panel's smoothing (Gaussian SD), ms (0: none)", "10"
+    "Measure",     "Figure",      "The panel's trial measure (its first trials layer's; blank for a panel without one)", "Stim onset → Platform offset (ms)"
+    "MeasureX",    "Figure",      "A trial scatter's x measure (blank for other panels)", "Trial onset → Stim onset (ms)"
     "Date",        "Figure",      "Today's date", "2026-11-04"
     };
 T = cell2table(rows, 'VariableNames', {'Name', 'Topic', 'Meaning', 'Example'});
@@ -174,7 +180,25 @@ if ~isempty(p)
         V.Smooth = string(sprintf('%g', 1000 * b.SmoothSec));
     end
 end
+[V.Measure, V.MeasureX] = measuresOf(spec, p);
 V.Date = string(datetime('now', 'Format', 'yyyy-MM-dd'));
+end
+
+
+function [y, x] = measuresOf(spec, p)
+%measuresOf  The trial measure (and a scatter's x measure) of panel P's first enabled trials layer; P [] = the figure's first such panel.
+[y, x] = deal("");
+P = p;
+if isempty(P) && isfield(spec, 'panels'); P = spec.panels; end
+for q = 1:numel(P)
+    L = field(P(q), 'layers');
+    if ~isstruct(L) || isempty(L) || ~isfield(L, 'source') || ~isfield(L, 'measure'); continue; end
+    i = find([L.enabled] & [L.source] == "trials", 1);
+    if isempty(i); continue; end
+    y = trialMeasureLabel(L(i).measure);
+    if string(field(P(q), 'type')) == "trialScatter"; x = trialMeasureLabel(L(i).xMeasure); end
+    return
+end
 end
 
 

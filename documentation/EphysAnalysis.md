@@ -200,7 +200,10 @@ complete is left out before `which` picks, and counted
 event, so the CR selection applies to the trial that ended. Steps whose
 fields differ go in a cell: `sequence={struct('line', "Trough"),
 struct('line', "Trough", 'edge', "offset")}`. `eventRefLabel(ref)` names
-it: `"Trial offset then Trough onset"`.
+it: `"Trial offset then Trough onset"`; `eventRefLabel(ref, Detail=true)` also
+says which event (`"last Platform offset"`, `"2nd Trough onset"`) and its
+shifts (`" + RespLatency (ms)"`, `" +0.05 s"`), as `eventLatency` and
+`trialMeasureLabel` name an event.
 
 `resolveEvents(src, ref, mask)` returns the event times `t`, the trial row of
 each (`NaN` outside trials) and its rank. An interval belongs to the trial

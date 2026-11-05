@@ -1440,6 +1440,7 @@ if S.sec("5d.stale", "Out of date with Auto off; Cancel on the busy card")
     app.onKeyPress(pressed('t', mods5));
     saidOff = app.FigureAutoSlider.Value == 0 && contains(app.StatusBar.Text, "off") && contains(string(app.FigureAutoSlider.Tooltip), "is off");
     app.onKeyPress(pressed('t', mods5));
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % Ctrl let go: the edits below stay with their figure
     check(said && saidOff && app.FigureAutoSlider.Value == 0.9, sprintf(['the Auto slider says its limit (0.92 to 0.9: under 18 s), ' ...
         'Ctrl+T turns it off and on again at 0.9 (status bar: "%s")'], app.StatusBar.Text));
     % the redraw predicted from the last preview's two parts (previewCost): with computing its data taking 100 s, an edit of

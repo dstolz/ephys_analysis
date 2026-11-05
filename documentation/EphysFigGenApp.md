@@ -66,8 +66,9 @@ EphysFigGenApp("D:\EPHYS_synthetic")     % a project root processed by the pipel
    Standalone** writes a script that draws the same figures without the
    app.
 
-A figure the dataset cannot draw says why instead of drawing (no sorted
-units, no LFP extract, no paired trials, ...): see
+A figure the dataset cannot draw shows a "cannot draw" sign instead of
+drawing; point at it or click it to read why (no sorted units, no LFP
+extract, no paired trials, ...): see
 [Why is my figure skipped?](#why-is-my-figure-skipped)
 
 ## Launching
@@ -1223,9 +1224,19 @@ sorted units, no LFP extract, no paired trials, ...) in plain words with what
 to do about it (*"No LFP signal: switch on LFP in the pipeline's Signals tab and
 run it."*), or that no unit or channel passes the Observations filter. Under it
 a gray line reminds you to *"Right-click the plot to change colors, fonts and
-labels."* With no figure at all the preview is a card with **Add figure** (as **Add**). A layer that cannot be drawn for the
-observation is kept: its panel draws the other layers and prints the reason
-in small gray text. A colored badge at its left says where the preview is:
+labels."* With no figure at all the preview is a card with **Add figure** (as **Add**).
+
+**The "cannot draw" sign.** No reason is written over the figure, where a
+long one would run past the panels. A figure that cannot be drawn, or that
+failed, shows a sign in the middle of the preview instead: a gray square
+struck through in red, with *Cannot draw this figure* or *The figure
+failed* under it. Point at the sign to read the reason (its tooltip), or
+click it to read it in a window over the app; the line under the preview
+says it too. A panel works the same way: a panel with nothing to draw shows
+the sign in its middle, and a panel that drew some of its layers shows a
+small one at its bottom left that lists the layers left out and why.
+Pointing at a panel's sign shows the reasons; a click shows them in a
+window (`brokenGraphic`, `brokenGraphicTips`). A colored badge at its left says where the preview is:
 
 | Badge | Means |
 | --- | --- |

@@ -20,9 +20,14 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            labels). Panels put flush stay flush; plot edges that line up
 %            stay lined up. An axes TARGET draws panel 1 only.
 %   Panels   each panel type's draw function (figurePanelRegistry: no
-%            switch on the type here) draws its layers; a skipped layer
-%            says why in the panel, a panel with nothing to draw says so in
-%            its middle. SPEC.panels(k).title, when set, titles the panel;
+%            switch on the type here) draws its layers. A panel with
+%            nothing to draw shows a "cannot draw" sign in its middle (a
+%            gray square struck through in red), one that skipped some of
+%            its layers a small one at its bottom left (figLayerNotes,
+%            brokenGraphic): the reasons are never written in the panel;
+%            they show on a click on the sign, and on hover in an app's
+%            panel or tab (brokenGraphicTips: a clear image over the sign
+%            with the reasons as its tooltip). SPEC.panels(k).title, when set, titles the panel;
 %            with a title of the figure's own (SPEC.title, which names no
 %            observation), the top-left panel names the observation.
 %   Axes     once the type has drawn, the panel's own axis sides and labels
@@ -695,6 +700,7 @@ if figureEditable(opts.Editable, target)
     PlotAesthetics.enableEditing(target, figureEditContext(F, raw, target, opts, root, design, follows, txt));
 end
 
+brokenGraphicTips(root);   % in an app's panel: each "cannot draw" sign tells why on hover (a kept panel's again)
 if ~isempty(opts.OnSelect)
     for k = find(drawn)
         figurePickable([axs(k) reshape(extra{k}, 1, [])], @(ctrl, shift) opts.OnSelect(panels(k).id, ctrl, shift));

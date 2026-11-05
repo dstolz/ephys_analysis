@@ -765,7 +765,7 @@ room for it. The legend gets an entry *Smoothed (SD 25 ms)*. Role `smoothLine` (
 the trace's), which the aesthetics editor can restyle or hide; the right-click menu
 goes to **Smoothed line** in the PSTH's options. Not drawn with `display "heatmap"`,
 nor for the member sessions of a [session figure](#session-figures). A result computed
-before `R.rateUnsmoothed` existed draws no line and says so in its notes (preview it
+before `R.rateUnsmoothed` existed draws no line and its "cannot draw" sign says so (preview it
 again).
 
 ### Unit waveforms
@@ -2243,8 +2243,9 @@ A layer that **follows the observation** reads (the private
 Under a dataset observation there is nothing to follow: a following point or
 signal layer is skipped (`no unit or channel observed`), and validate refuses
 the combination. A layer that cannot be resolved for an observation is skipped
-with its reason, which the panel prints in small gray text; the panel's other
-layers are still drawn. The reasons: `the observed unit has no recording
+with its reason, which a small "cannot draw" sign at the panel's bottom left
+holds (point at it or click it to read it); the panel's other layers are still
+drawn. The reasons: `the observed unit has no recording
 channel` (a unit on no mapped channel; a channel observation says `the observed
 channel ...`), `no LFP column records channel 7`, `the observed AUX channel has
 no recording channel for LFP to follow`, and the AUX one above. A layer that finds
@@ -2531,8 +2532,18 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
   The layout is deterministic: the same figure at the same size is drawn the
   same, pixel for pixel. Into an axes target only panel 1 is drawn.
 - **Panels.** Each type's draw function (through `figurePanelRegistry`) draws its
-  layers; a skipped layer says why in the panel, a panel with nothing to draw says
-  so in its middle. Every object carries an aesthetics role, so the editor lists
+  layers. No reason is written in a panel, where a long one would run over its
+  neighbors: a panel with nothing to draw shows a "cannot draw" sign in its
+  middle (`brokenGraphic`: a light gray square struck through by a red cross,
+  two marker lines of role `layerNote` that keep their size in pixels and
+  their place as the axes change), a panel that skipped some layers a small
+  one at its bottom left. The sign keeps the reasons (appdata `LayerNote`, a
+  line each), which are its data tip and show in a window (`uialert`) on a
+  click; in a visible figure drawn in a panel or tab (the analysis app's
+  preview), `brokenGraphicTips` lays a clear image over each sign whose
+  tooltip is the reasons, so pointing at it shows them. A figure window and
+  an export get no image (print writes no SVG of a figure holding UI
+  components). Every object carries an aesthetics role, so the editor lists
   the components, the tiles by panel id; the figure adds the roles `eventLine`,
   `eventRug`, `eventSpan`, `layerNote` and the event-trace panel's `eventBar`,
   `eventTick`, `eventLevel`, `eventBaseline` and `eventGroupBand`, and a continuous panel's per-trial traces are the
@@ -3778,8 +3789,8 @@ new rects and a new padding or `boxesMean` laid out in place with `Reuse` (the l
 drawn, `Reuse` keeping panels by id when one is removed or moved up the list (the time labels, the observation's title, the
 legend, the tick sizes and a heat map's color bar as a whole drawing's; `KeptOnly`; `LayoutOnly` dropping a panel), a compute and a draw function for every panel type (the legend panel's too), every type
 drawn into an axes, uiaxes, figure, panel and grid layout with every component
-tagged, the titles, one time axis down a stack, one legend, skipped layers'
-notes, events as marks, latency lines and a rug, a stacked PSTH (a row and a
+tagged, the titles, one time axis down a stack, one legend, skipped layers' signs
+(their reasons on hover in a panel), events as marks, latency lines and a rug, a stacked PSTH (a row and a
 baseline per group, the legend's groups once, one group overlaid, a second
 layer in the rows), an auROC PSTH (a 0-1 axis, the chance line, the modulation
 window, the calls; stacked too) and heat map (the diverging colormap, 0-1),

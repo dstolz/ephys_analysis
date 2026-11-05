@@ -48,8 +48,11 @@ function [h, how] = renderProbeFigure(PF, spec, target, opts)
 %            FontSize - 2): probe.labels "short" (the observation label's
 %            first part: the unit, "LFP ch 7"), "full" (its label), "none".
 %            A tile whose compute was skipped (PF.tiles(i).skip) or whose
-%            every panel is skipped is one empty axes saying why (role
-%            "note"). A tile without a position is not drawn. The panels'
+%            every panel is skipped is one empty axes with a "cannot draw"
+%            sign (brokenGraphic, role "layerNote") whose message says
+%            why, on hover (brokenGraphicTips, in an app's panel) and on a
+%            click; so is the probe axes when no tile has a position. A
+%            tile without a position is not drawn. The panels'
 %            notes and overlays and their own legends are not drawn in
 %            tiles.
 %   Shared y with probe.sharedY (default), each panel id whose y is a
@@ -273,13 +276,12 @@ for i = find(placed)
     tb = tileBox(area, L.box(i, :));
     D.px(i, :) = tb;   % (placeProbe places it at TARGET's size)
     lab = tileLabel(tiles(i), o.labels);
-    if ~drawable(i)   % one empty axes saying why
+    if ~drawable(i)   % one empty axes with a "cannot draw" sign: why, on hover or a click
         na = axes(canvas, 'Units', 'pixels', 'Position', [tb(1:2) max(tb(3:4), 1)], 'XTick', [], 'YTick', [], 'Box', 'on', ...
             'XLim', [0 1], 'YLim', [0 1], 'Color', 'none', 'XColor', [0.8 0.8 0.8], 'YColor', [0.8 0.8 0.8]);
         setappdata(na, 'ProbeTile', i);
         tagPart(na, "axes", "", "skipped");
-        tagPart(text(na, 0.5, 0.5, why(i), 'Units', 'normalized', 'HorizontalAlignment', 'center', 'VerticalAlignment', 'middle', ...
-            'FontSize', max(6, style.FontSize - 3), 'Interpreter', 'none', 'Color', [0.45 0.45 0.45], 'Clipping', 'on'), "note");
+        brokenGraphic(na, why(i), FontSize=max(6, style.FontSize - 3), Title=strtrim("Cannot draw tile " + lab));
         if lab ~= ""; labelTile(na, lab, style); end
         D.notes{i} = na;
         continue
@@ -421,6 +423,7 @@ D.scale = opts.Scale;
 setappdata(canvas, 'ProbeFigureLayout', D);
 figureLayout(canvas, struct('layoutFcn', @placeProbe));
 D = getappdata(canvas, 'ProbeFigureLayout');
+brokenGraphicTips(canvas);   % in an app's panel: each "cannot draw" sign tells why on hover
 
 if figureEditable(opts.Editable, target)
     % the right-click editor: its menus on the probe axes, one tile (the scale tile, else the first drawn), the title and the
@@ -625,9 +628,8 @@ if string(o.layout) == "physical" && o.leaders && any(L.moved)
     end
     tagPart(line(pax, X, Y, 'Color', [0.55 0.55 0.55], 'LineWidth', 0.5, 'Clipping', 'off', quiet{:}), "tileLeaders");
 end
-if L.n == 0 || ~any(all(isfinite(L.box), 2))
-    tagPart(text(pax, 0.5, 0.5, "No unit or channel with a probe position", 'HorizontalAlignment', 'center', ...
-        'FontSize', fs, 'Color', [0.45 0.45 0.45], 'Interpreter', 'none', quiet{:}), "note");
+if L.n == 0 || ~any(all(isfinite(L.box), 2))   % no tile: a "cannot draw" sign, why on hover or a click
+    brokenGraphic(pax, "No unit or channel with a probe position", FontSize=fs, Title="Nothing to draw on the probe");
 end
 end
 

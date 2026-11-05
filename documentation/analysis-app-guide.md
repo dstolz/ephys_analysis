@@ -35,7 +35,8 @@ its processed files.
 The recordings must have been processed by the pipeline: sorted units or
 detected spikes for the spike figures, the LFP or MUA signals for the signal
 figures, and paired behavior trials to choose or group trials by the
-behavior. A figure the data cannot support says why instead of drawing
+behavior. A figure the data cannot support shows a gray square with a red
+cross instead; point at it to see why
 ([Why is my figure skipped?](EphysFigGenApp.md#why-is-my-figure-skipped)).
 
 ## Open the app
@@ -199,9 +200,12 @@ the quickest way to draw the same figures for one group of recordings.
 
 ## When something goes wrong
 
-- **A figure says it cannot be drawn.** It says why and what to do: *No LFP
-  signal: switch on LFP in the pipeline's Signals tab and run it*, *No paired
-  trials: approve the pairing on the pipeline's Trials tab*, and so on. See
+- **A figure or a panel shows a gray square with a red cross.** It cannot be
+  drawn. Point at the square to see why, or click it to read why in a window.
+  The reason says what to do: *No LFP signal: switch on LFP in the pipeline's
+  Signals tab and run it*, *No paired trials: approve the pairing on the
+  pipeline's Trials tab*, and so on. A small square in a panel's bottom left
+  corner means some of its layers were left out. See
   [Why is my figure skipped?](EphysFigGenApp.md#why-is-my-figure-skipped)
 - **The preview says *Out of date*.** The figure changed and was not drawn
   again: **Auto** is off, or the redraw would take longer than Auto allows

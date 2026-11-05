@@ -265,11 +265,12 @@ end
 
 function objs = tipObjects(ax)
 %tipObjects  The parts of an axes a tip can point at: data objects (no text, constant lines or legend stand-ins).
+%   A "cannot draw" sign (brokenGraphic) keeps its own tip: its message.
 kids = allchild(ax);
 keep = false(size(kids));
 for i = 1:numel(kids)
     o = kids(i);
-    if ~isprop(o, 'XData') || isa(o, 'matlab.graphics.primitive.Text'); continue; end
+    if ~isprop(o, 'XData') || isa(o, 'matlab.graphics.primitive.Text') || isappdata(o, 'LayerNote'); continue; end
     x = o.XData;
     if ~isnumeric(x) || isempty(x) || all(isnan(x(:)))
         if ~(isa(o, 'matlab.graphics.chart.primitive.BoxChart')); continue; end

@@ -205,19 +205,7 @@ catch ME
     end
     return
 end
-secs = toc(t0);
-keepCost(obj, dataKey, secsCompute, secs - secsCompute);
-obj.FigurePreviewSeconds = secs;
-if ~obj.FigurePreviewWarm   % the first figure drawn also loads the graphics: its time does not stop auto-preview
-    obj.FigurePreviewSeconds = 0;
-    obj.FigurePreviewCost = struct('compute', 0, 'draw', 0, 'key', {dataKey});   % (nor its parts)
-    obj.FigurePreviewWarm = true;
-end
-obj.FigurePreviewDrawn = drawnKey;
-obj.setFigurePreviewState("drawn");
-if obj.FigurePreviewRedo; obj.setFigurePreviewState("stale"); end
-L.Text = sprintf("%s, %s on %s (%.1f s); right-click to change colors, lines and fonts", spec.id, obs.label, src.name, secs);
-L.Text = L.Text + slowNote(obj) + batchNote(spec);
+finishPreview(obj, spec, obs, src, drawnKey, dataKey, secsCompute, toc(t0));   % its time, key, badge and status line (as quickFigurePreview's)
 end
 
 
@@ -417,48 +405,6 @@ end
 txt = sprintf("%s on %s: %d tile%s", spec.id, src.name, PF.nTiles, repmat('s', 1, PF.nTiles ~= 1));
 if nLeft > 0; txt = txt + sprintf(", %d left out", nLeft); end
 L.Text = txt + sprintf(" (%.1f s); right-click to change colors, lines and fonts", secs) + slowNote(obj);
-end
-
-
-function keepCost(obj, key, secsCompute, secsDraw)
-%keepCost  The two parts of the preview just drawn (FigurePreviewCost), which previewCost predicts the next one from.
-%   KEY is the data key it computed (previewDataKey). The compute's time
-%   is kept when the data were computed: another key, or a time longer
-%   than the one kept (the runner had forgotten them). A preview of the
-%   same data reused them and took next to no time to compute, which
-%   says nothing of what the next edit of the data costs: the time kept
-%   stays. The drawing's time is always the last one.
-C = obj.FigurePreviewCost;
-if ~isequaln(C.key, key) || secsCompute > C.compute
-    C.compute = secsCompute;
-end
-C.key = key;
-C.draw = max(secsDraw, 0);
-obj.FigurePreviewCost = C;
-end
-
-
-function t = slowNote(obj)
-%slowNote  The status line's word when the Auto slider's limit leaves edits of the figure just drawn waiting for Preview.
-%   "" when Auto is off or always redraws, or the time was not counted.
-t = "";
-limit = autoRedrawLimit(obj);
-if limit == 0 || isinf(limit) || obj.FigurePreviewSeconds == 0; return; end
-C = obj.FigurePreviewCost;
-if C.draw >= limit
-    t = ": slow to draw, so edits wait for Preview";
-elseif C.compute + C.draw >= limit
-    t = ": slow to compute, so only edits of the look (colors, fonts, labels, places) redraw; the others wait for Preview";
-end
-end
-
-
-function t = batchNote(spec)
-%batchNote  The status line's word on panels whose y range a run shares (yLimMode "batch"): the preview draws its own.
-t = "";
-ids = figureBatchPanels(spec);
-if isempty(ids); return; end
-t = "; Y limits of " + strjoin(ids, ", ") + " are shared by every observation when generated (here this one's own range)";
 end
 
 

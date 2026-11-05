@@ -11,7 +11,9 @@ function setFigurePreviewState(obj, state, opts)
 %   state is the shown figure's (each figure's container keeps its own:
 %   syncFigureView), and the figure tree's marks follow it
 %   (markFigureTree), and so does Arrange's overlay (syncArrangeOverlay:
-%   over a drawing, drawn or out of date; else taken away). States:
+%   over a drawing, drawn or out of date; else taken away). Each time the
+%   state becomes computing (the card shows), FigurePreviewBusyCount adds
+%   one. States:
 %     idle       no preview (no figure, no scan, no dataset)
 %     computing  computeFigure runs for the observation picked (cancelable)
 %     drawing    renderFigure draws it
@@ -26,6 +28,9 @@ arguments
     obj (1,1) EphysFigGenApp
     state (1,1) string {mustBeMember(state, ["idle" "computing" "drawing" "drawn" "stale" "waiting" "skipped" "failed" "canceled"])}
     opts.Message (1,1) string = ""
+end
+if state == "computing" && obj.FigurePreviewState ~= "computing"
+    obj.FigurePreviewBusyCount = obj.FigurePreviewBusyCount + 1;   % (a busy card shown: what the tests count)
 end
 [limit, txt] = autoRedrawLimit(obj);
 if limit == 0

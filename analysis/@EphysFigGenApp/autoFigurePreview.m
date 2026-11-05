@@ -17,6 +17,10 @@ function autoFigurePreview(obj)
 %   nothing computed, no busy card, no panel drawn again), when it is
 %   current but for that edit; with Auto on, that is done whatever its
 %   limit.
+%   A redraw whose data the runner holds already (Undo and Redo, an edit
+%   of the looks, a panel removed) is drawn from them with no busy card,
+%   the panels the edit left alone kept (quickFigurePreview); else it is
+%   computed and drawn with the card (refreshFigurePreview).
 %   A session figure (sessions.enabled) is not redrawn on an edit: it
 %   computes every session, so it waits for Preview (or a pick in the
 %   observation list); the status line says so. The figure tree's marks
@@ -43,6 +47,10 @@ end
 if ~auto || previewCost(obj) >= limit
     if obj.FigurePreviewState == "drawn"; obj.setFigurePreviewState("stale"); end
     markFigureTree(obj);   % the other figures' previews too (another dataset, the defaults)
+    return
+end
+if quickFigurePreview(obj)   % all of it in the runner's cache: drawn with no busy card, the panels left alone kept
+    markFigureTree(obj);
     return
 end
 obj.refreshFigurePreview();

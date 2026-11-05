@@ -408,6 +408,7 @@ classdef EphysFigGenApp < handle
         FigureAutoLast (1,1) double = 0.5   % the Auto slider's last setting above 0: Ctrl+T turns Auto on again at it (pressFigureButton)
         FigurePreviewState (1,1) string = "idle"   % what the figure preview's badge says (setFigurePreviewState)
         FigurePreviewRedo (1,1) logical = false    % an edit or a Preview press came in while one computed: it ends Out of date
+        FigurePreviewBusyCount (1,1) double = 0    % the busy card's showings: each time the state becomes "computing" (setFigurePreviewState); the tests read it
         FigureAddSource (1,1) string = "units"     % the source Add layer adds, when the panel's type draws it
         FigureSessionResults = []           % a session figure's last preview: struct(res (figureSessionCompute's RES), spec, what, label, seconds)
         FigureProbeTiles = []               % a probe figure's tiles on the active dataset, counted once per key (private/probeTileCount: key, T, left, words)

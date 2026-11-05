@@ -604,7 +604,7 @@ classdef EphysFigGenApp < handle
         refreshTemplates(obj, pick)
         onApplyTemplate(obj, name, opts)
         onFigureTemplate(obj, action, opts)
-        applyFigureEditor(obj)
+        applyFigureEditor(obj, opts)
         fig = gatherFigureEditor(obj)
         applyFigureEditorDefaults(obj)
         syncFigureEditor(obj)

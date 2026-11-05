@@ -1,4 +1,4 @@
-function applyFigureEditor(obj)
+function applyFigureEditor(obj, opts)
 %applyFigureEditor  Show the selected figure, its selected panel and that panel's selected layer in the editor.
 %   The figure's own rows (id, title, observations, across sessions, on
 %   the probe, alignment, first-spike latency, appearance, looks), then
@@ -14,6 +14,18 @@ function applyFigureEditor(obj)
 %   <dataset>)". syncFigureEditor then shows the rows they use, and the
 %   Panels section's place rows in the units picked (showPanelPlace: the
 %   panel's rect, Boxes mean, Padding, Snap).
+%
+%   applyFigureEditor(OBJ, Scope="panel") leaves the figure's own rows as
+%   they are and fills the panel's and its layer's alone: another panel or
+%   layer of the same figure picked (onPanelSelected, onLayerSelected),
+%   while the figure's rows show its values already. It skips the figure's
+%   rows, its page size and preview shape (showFigureSize, fitFigureViews)
+%   and its alignment rows. Scope "figure" (the default) fills them all:
+%   another figure, an edit, a config opened.
+arguments
+    obj (1,1) EphysFigGenApp
+    opts.Scope (1,1) string {mustBeMember(opts.Scope, ["figure" "panel"])} = "figure"
+end
 E = obj.FigureEditor;
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures)
@@ -32,6 +44,33 @@ fig = obj.Config.Figures(k);
 np = numel(fig.panels);
 obj.SelectedPanel = min(max(obj.SelectedPanel, 1), np);
 [lines, params] = sourceItems(obj);
+if opts.Scope == "figure"
+    applyFigureRows(obj, E, fig, params);
+end
+[ref, win, sel] = figureAlignment(obj, fig);   % what the panel's alignment rows show while it has none of its own
+if opts.Scope == "figure"
+    obj.fillAlignItems(obj.FigureAlignControls);
+    obj.applyAlignControls(obj.FigureAlignControls, ref, win, sel);
+    obj.fillAlignItems(obj.PanelAlignControls);   % (the active dataset's lines: the same for every panel)
+end
+
+% the panel, its alignment, options and layers
+j = obj.SelectedPanel;
+if j >= 1
+    p = fig.panels(j);
+    applyPanel(obj, E, fig, p, ref, win, sel, lines, params);
+else
+    obj.SelectedLayer = 0;
+    set(E.layerList, "Items", {}, "ItemsData", []);
+    overlayList(E, repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), 0);
+end
+closeTrialMeasureDialog(obj);   % a Trial measure window open on a layer not shown now goes
+obj.syncFigureEditor();
+end
+
+
+function applyFigureRows(obj, E, fig, params)
+%applyFigureRows  The figure's own rows: id and title, the observations, across sessions, on the probe, the latency, appearance, looks, the alignment's Defaults boxes.
 showFigureId(obj);   % the editor's title too
 E.title.Value = char(fig.title);
 E.enabled.Value = fig.enabled;
@@ -143,27 +182,10 @@ n = numel(fig.aesthetics);
 E.looksText.Text = sprintf("%d remembered look(s); right-click the preview to edit.", n);
 E.looksForget.Enable = matlab.lang.OnOffSwitchState(n > 0);
 
-% the figure's alignment: its own, or the Defaults it uses
+% the figure's alignment: its own, or the Defaults it uses (its rows: applyFigureEditor)
 E.defaultRef.Value = isequal(fig.ref, "default");
 E.defaultWindow.Value = isequal(fig.window, "default");
 E.defaultSelection.Value = isequal(fig.selection, "default");
-[ref, win, sel] = figureAlignment(obj, fig);
-obj.fillAlignItems(obj.FigureAlignControls);
-obj.applyAlignControls(obj.FigureAlignControls, ref, win, sel);
-
-% the panel, its alignment, options and layers
-obj.fillAlignItems(obj.PanelAlignControls);
-j = obj.SelectedPanel;
-if j >= 1
-    p = fig.panels(j);
-    applyPanel(obj, E, fig, p, ref, win, sel, lines, params);
-else
-    obj.SelectedLayer = 0;
-    set(E.layerList, "Items", {}, "ItemsData", []);
-    overlayList(E, repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), 0);
-end
-closeTrialMeasureDialog(obj);   % a Trial measure window open on a layer not shown now goes
-obj.syncFigureEditor();
 end
 
 

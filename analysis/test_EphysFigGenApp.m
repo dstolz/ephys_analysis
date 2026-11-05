@@ -1854,9 +1854,25 @@ if S.sec("5d.multi", "several panels selected with Shift+click: each outlined, t
     ctrlAlone = isempty(app.FigurePanelExtra) && pid() == "psth_1";
     app.onFigurePanelClicked(fid, "raster_1", false, false, true);
     app.onKeyPress(pressed('rightbracket', {'control'}));
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % (no Ctrl left held: an edit stays with its figure)
     stepAlone = isempty(app.FigurePanelExtra) && pid() == "psth_1";
     check(esc && ctrlAlone && stepAlone, ...
         'Escape keeps the shown panel alone (one outline, the header dark, its own rows back); so do a Ctrl+Click on one and Ctrl+]');
+    % a Ctrl+Click select fills the panel's rows alone: nothing computed or drawn again (applyFigureEditor Scope "panel")
+    busy0 = app.FigurePreviewBusyCount;
+    ax0 = findall(app.FigurePreviewPanel, 'Type', 'axes');
+    tSel = tic;
+    app.onFigurePanelClicked(fid, "raster_1", true, false);   % Ctrl+Click on the raster
+    drawnow;
+    tSel = toc(tSel);
+    ax1 = findall(app.FigurePreviewPanel, 'Type', 'axes');
+    rp = app.Config.Figures(1).panels(app.SelectedPanel);
+    check(pid() == "raster_1" && app.FigurePreviewBusyCount == busy0 && isequal(ax0, ax1) && string(FE.panelType.Value) == "raster" ...
+        && string(FE.panelTitle.Value) == rp.title && startsWith(string(FE.selPanel.Text), "raster_1") && secShown("layers"), ...
+        sprintf(['a Ctrl+Click on raster_1 selects it with nothing drawn again (the busy card shown %d times more, the same %d ' ...
+        'axes: %d) and the panel''s rows show it (type "%s", selected "%s"; %.2f s with the drawnow)'], app.FigurePreviewBusyCount - busy0, ...
+        numel(ax0), isequal(ax0, ax1), string(FE.panelType.Value), string(FE.selPanel.Text), tSel));
+    app.onPanelSelected(2);   % the PSTH again, as before
     % Arrange shares the selection; Remove panels removes them all
     app.onFigurePanelClicked(fid, "raster_1", false, false, true);
     arrangeToggle(app, true);

@@ -1560,8 +1560,15 @@ if S.sec("5d.filter", "a tightened unit filter, one nothing passes, a listing er
     app.FigureObservationDropDown.UserData = U;   % as when figureObservations throws
     app.FigureObservations = [];
     app.refreshFigurePreview(Force=true);
-    check(app.FigurePreviewState == "failed" && contains(string(app.FigurePreviewLabel.Text), "a test error"), ...
-        'when the observations cannot be listed, the preview says why');
+    brk = findall(app.FigurePreviewPanel, 'Tag', 'previewBroken');
+    said = "";
+    for lb = reshape(findall(app.FigurePreviewPanel, 'Type', 'uilabel'), 1, [])
+        said = said + " " + strjoin(string(lb.Text), " ");
+    end
+    check(app.FigurePreviewState == "failed" && contains(string(app.FigurePreviewLabel.Text), "a test error") ...
+        && isscalar(brk) && contains(string(brk.Tooltip), "a test error") && isa(brk.ImageClickedFcn, 'function_handle') ...
+        && ~contains(said, "a test error"), ...
+        'when the observations cannot be listed, the preview shows a "cannot draw" sign whose tooltip says why (the status line too), not the message');
     app.refreshFigureObservations(Force=true);
     app.refreshFigurePreview(Force=true);
     check(height(app.FigureObservations) == n0 && app.FigurePreviewState == "drawn", 'listed again, the figure draws');

@@ -114,7 +114,7 @@ spec.enabled = true;   % a figure that is off is still previewed
 try
     src = obj.Runner.source(obj.ActiveIdx);
 catch ME
-    clearPanel(obj, "Cannot read the dataset: " + string(ME.message));
+    clearPanel(obj, "Cannot read the dataset: " + string(ME.message), "failed");
     obj.setFigurePreviewState("failed");
     return
 end
@@ -123,7 +123,7 @@ if reason ~= ""
     obj.FigurePreviewResult = [];
     what = figureSkipRemedy(reason);   % the reason in plain words, with what to do
     if what == ""; what = reason + "."; end
-    clearPanel(obj, spec.id + " cannot be drawn for " + src.name + ". " + what);
+    clearPanel(obj, spec.id + " cannot be drawn for " + src.name + ". " + what, "skipped");
     obj.setFigurePreviewState("skipped");
     return
 end
@@ -134,16 +134,16 @@ if ~istable(T) || height(T) == 0 || ~isnumeric(i) || i < 1 || i > height(T)
     obj.FigurePreviewResult = [];
     U = obj.FigureObservationDropDown.UserData;
     if isstruct(U) && isfield(U, 'error') && U.error ~= ""   % the list could not be made: say why
-        clearPanel(obj, spec.id + " on " + src.name + ": " + U.error);
+        clearPanel(obj, spec.id + " on " + src.name + ": " + U.error, "failed");
         obj.setFigurePreviewState("failed");
         return
     end
     if spec.probe.enabled
         clearPanel(obj, spec.id + " has nothing to draw on " + src.name + ": no " + spec.observe.kind + ...
-            " has a site the Probe layout section lays out (" + string(obj.FigureEditor.obsCount.Text) + ")");
+            " has a site the Probe layout section lays out (" + string(obj.FigureEditor.obsCount.Text) + ")", "skipped");
     else
         clearPanel(obj, spec.id + " has nothing to draw on " + src.name + ": no " + spec.observe.kind + ...
-            " passes the Observations section's filter.");
+            " passes the Observations section's filter.", "skipped");
     end
     obj.setFigurePreviewState("skipped");
     return
@@ -196,10 +196,10 @@ catch ME
             obj.log(spec.id + " figure preview canceled.");
             obj.setFigurePreviewState("canceled");
         case {"EphysAnalysisRunner:FigureSkipped" "EphysAnalysisRunner:NoObservation"}
-            clearPanel(obj, string(ME.message));
+            clearPanel(obj, string(ME.message), "skipped");
             obj.setFigurePreviewState("skipped");
         otherwise
-            clearPanel(obj, spec.id + " failed: " + string(ME.message));
+            clearPanel(obj, spec.id + " failed: " + string(ME.message), "failed");
             obj.log(spec.id + " figure preview failed: " + string(ME.message));
             obj.setFigurePreviewState("failed");
     end
@@ -236,12 +236,12 @@ if ~istable(T) || height(T) == 0 || ~isnumeric(i) || i < 1 || i > height(T)
     showSessionPicker(obj, []);
     U = dd.UserData;
     if isstruct(U) && isfield(U, 'error') && U.error ~= ""
-        clearPanel(obj, spec.id + " across sessions: " + U.error);
+        clearPanel(obj, spec.id + " across sessions: " + U.error, "failed");
         obj.setFigurePreviewState("failed");
         return
     end
     clearPanel(obj, spec.id + " has nothing to draw across the sessions: no " + spec.observe.kind + ...
-        " is matched in enough of them (Sessions: Min. sessions).");
+        " is matched in enough of them (Sessions: Min. sessions).", "skipped");
     obj.setFigurePreviewState("skipped");
     return
 end
@@ -270,10 +270,10 @@ catch ME
             clearPanel(obj, spec.id + " was canceled: press Preview to compute it.");
             obj.setFigurePreviewState("canceled");
         case {"EphysAnalysisRunner:FigureSkipped" "EphysAnalysisRunner:NoObservation"}
-            clearPanel(obj, string(ME.message));
+            clearPanel(obj, string(ME.message), "skipped");
             obj.setFigurePreviewState("skipped");
         otherwise
-            clearPanel(obj, spec.id + " across sessions failed: " + string(ME.message));
+            clearPanel(obj, spec.id + " across sessions failed: " + string(ME.message), "failed");
             obj.log(spec.id + " session figure preview failed: " + string(ME.message));
             obj.setFigurePreviewState("failed");
     end
@@ -304,7 +304,7 @@ obj.FigureSessionResults.label = e.label;
 spec = K.spec;
 if e.status ~= "done"
     obj.FigurePreviewResult = [];
-    clearPanel(obj, spec.id + " (" + e.label + ") is not drawn across the sessions: " + e.message);
+    clearPanel(obj, spec.id + " (" + e.label + ") is not drawn across the sessions: " + e.message, "skipped");
     obj.setFigurePreviewState("skipped");
     return
 end
@@ -321,7 +321,7 @@ try
 catch ME
     if ~isvalid(obj) || ~isvalid(obj.Fig); return; end
     obj.FigurePreviewResult = [];
-    clearPanel(obj, spec.id + " failed: " + string(ME.message));
+    clearPanel(obj, spec.id + " failed: " + string(ME.message), "failed");
     obj.log(spec.id + " session figure preview failed: " + string(ME.message));
     obj.setFigurePreviewState("failed");
     return
@@ -387,10 +387,10 @@ catch ME
             obj.log(spec.id + " figure preview canceled.");
             obj.setFigurePreviewState("canceled");
         case {"EphysAnalysisRunner:FigureSkipped" "EphysAnalysisRunner:NoObservation"}
-            clearPanel(obj, string(ME.message));
+            clearPanel(obj, string(ME.message), "skipped");
             obj.setFigurePreviewState("skipped");
         otherwise
-            clearPanel(obj, spec.id + " failed: " + string(ME.message));
+            clearPanel(obj, spec.id + " failed: " + string(ME.message), "failed");
             obj.log(spec.id + " figure preview failed: " + string(ME.message));
             obj.setFigurePreviewState("failed");
     end
@@ -492,10 +492,36 @@ if isvalid(rn); rn.PollFcn = []; end
 end
 
 
-function clearPanel(obj, msg)
+function clearPanel(obj, msg, broken)
 %clearPanel  The preview panel empty but for MSG, which the status line under it says too.
+%   clearPanel(OBJ, MSG, BROKEN) for a figure that cannot be drawn
+%   (BROKEN "skipped") or failed ("failed"): MSG is not written in the
+%   panel, where a long one ran past its edges, but held by a "cannot
+%   draw" sign in its middle (icons/status/broken.svg, Tag
+%   "previewBroken": a gray square struck through in red, as a panel of a
+%   figure shows): its tooltip is MSG, a click shows MSG in a window over
+%   the app (uialert), and a short line under it says so.
+arguments
+    obj
+    msg (1,1) string
+    broken (1,1) string {mustBeMember(broken, ["" "skipped" "failed"])} = ""
+end
 delete(obj.FigurePreviewPanel.Children);
-g = uigridlayout(obj.FigurePreviewPanel, [1 1]);
-uilabel(g, "Text", msg, "WordWrap", "on", "HorizontalAlignment", "center", "FontColor", [0.4 0.4 0.4]);
 obj.FigurePreviewLabel.Text = msg;
+if broken == ""
+    g = uigridlayout(obj.FigurePreviewPanel, [1 1]);
+    uilabel(g, "Text", msg, "WordWrap", "on", "HorizontalAlignment", "center", "FontColor", [0.4 0.4 0.4]);
+    return
+end
+head = "Cannot draw this figure";
+icon = "warning";
+if broken == "failed"; head = "The figure failed"; icon = "error"; end
+g = uigridlayout(obj.FigurePreviewPanel, [4 1], "RowHeight", {'1x', 64, 'fit', '1x'}, "RowSpacing", 6);
+im = uiimage(g, "ImageSource", fullfile(fileparts(fileparts(mfilename("fullpath"))), "icons", "status", "broken.svg"), ...
+    "ScaleMethod", "fit", "Tag", "previewBroken", "Tooltip", msg, ...
+    "ImageClickedFcn", @(~, ~) uialert(obj.Fig, msg, head, "Icon", icon));
+im.Layout.Row = 2;
+l = uilabel(g, "Text", [head; "Point at the sign, or click it, to see why."], "HorizontalAlignment", "center", ...
+    "VerticalAlignment", "top", "FontColor", [0.4 0.4 0.4]);
+l.Layout.Row = 3;
 end

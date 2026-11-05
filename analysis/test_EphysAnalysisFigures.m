@@ -2713,7 +2713,7 @@ if S.sec("7", "compute: observations, bindings, panels and layers")
     Fgone = rn.computeFigure(src, spg, Observation=struct('kind', "unit", 'unitId', Tu.unitId(1), 'channel', Tu.channel(1), ...
         'group', 99, 'groupLabel', "nope"));
     hgone = renderFigure(Fgone, Fgone.spec, figure('Visible', 'off'));
-    goneNotes = strjoin(string(get(findall(hgone.layout, 'Tag', 'layerNote'), 'String')), " | ");
+    goneNotes = signText(hgone.layout);
     close(ancestor(hgone.layout, 'figure'));
     check(contains(Fgone.skip, "nope") && all([Fgone.panels.skip] == Fgone.skip) && height(Fgone.epochs) == 0 && contains(goneNotes, "nope"), ...
         'an observation of a trial group with no epoch here is no error: F.skip and its panels say why, and it draws with notes');
@@ -3738,15 +3738,65 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         && hpg2.title == "Card · " + Tpg.groupLabel(2), ...
         sprintf('one trial group''s figure names its group in the title ("%s")', hpg.title));
 
-    % skipped layers say why
+    % skipped layers say why: a "cannot draw" sign holds the reason, no text in the panel
     hr = renderFigure(F3, F3.spec, fig);   % again: the checks above drew other figures into fig
-    notes = findall(hr.layout, 'Tag', 'layerNote');
-    noteText = strjoin(string(get(notes, 'String')), " | ");
-    check(~isempty(notes) && contains(noteText, auxMsg), sprintf('a skipped layer shows its reason in its panel ("%s")', noteText));
+    sr = signsIn(hr.layout);
+    noteText = signText(hr.layout);
+    words = "";
+    for tx = reshape(findall(hr.layout, 'Type', 'text'), 1, [])
+        words = words + " " + strjoin(string(tx.String), " ");
+    end
+    noWords = ~contains(words, auxMsg);
+    check(~isempty(sr) && contains(noteText, auxMsg) && noWords, sprintf('a skipped layer: a sign holds its reason, not written in the panel ("%s")', noteText));
     hn = renderFigure(Fn, Fn.spec, fig);
-    notes = findall(hn.layout, 'Tag', 'layerNote');
-    check(isscalar(notes) && contains(string(notes.String), auxMsg) && notes.HorizontalAlignment == "center", ...
-        'a panel with nothing to draw says why, in its middle');
+    sn = signsIn(hn.layout);
+    okMid = false;
+    okTip = false;
+    if isscalar(sn)
+        axn = ancestor(sn, 'axes');
+        okMid = abs(sn.XData - mean(axn.XLim)) < 1e-9 * max(1, diff(axn.XLim)) && abs(sn.YData - mean(axn.YLim)) < 1e-9 * max(1, diff(axn.YLim));
+        tipText = "";
+        for r = reshape(sn.DataTipTemplate.DataTipRows, 1, [])
+            tipText = tipText + " " + string(r.Value);
+        end
+        okTip = contains(tipText, extractBefore(auxMsg + " ", 20));
+    end
+    check(isscalar(sn) && contains(signText(hn.layout), auxMsg) && okMid && okTip && numel(findall(hn.layout, 'Tag', 'layerNote')) == 2 ...
+        && isempty(findall(hn.layout, 'Type', 'text', 'Tag', 'layerNote')), ...
+        sprintf('a panel with nothing to draw: one sign (square and cross) in its middle (%d), its reason its data tip (%d), no text', okMid, okTip));
+    % in a visible app's panel: a clear image over the sign tells the reason on hover, follows the axes, goes with them
+    uv = uifigure('Position', [100 100 700 500]);
+    pv = uipanel(uv, 'Units', 'pixels', 'Position', [1 1 700 500], 'BorderType', 'none');
+    hv = renderFigure(Fn, Fn.spec, pv);
+    drawnow;
+    sv = signsIn(hv.layout);
+    ov = findall(pv, 'Tag', 'layerNoteTip');
+    okOv = false;
+    okMove = false;
+    if isscalar(sv) && isscalar(ov)
+        axv = ancestor(sv, 'axes');
+        mid = @() axv.InnerPosition(1:2) + axv.InnerPosition(3:4) / 2;
+        okOv = norm(ov.Position(1:2) + ov.Position(3:4) / 2 - mid()) < 1 && contains(strjoin(string(ov.Tooltip), " "), extractBefore(auxMsg + " ", 20)) ...
+            && isa(ov.ImageClickedFcn, 'function_handle');
+        axv.Position = axv.Position + [20 10 -40 -20];
+        drawnow;
+        okMove = norm(ov.Position(1:2) + ov.Position(3:4) / 2 - mid()) < 1;
+    end
+    renderFigure(Fn, Fn.spec, pv, Reuse=true);
+    hv2 = renderFigure(Fn, Fn.spec, pv, Reuse=true);   % drawn again with Reuse: one image still
+    drawnow;
+    nKept = numel(findall(pv, 'Tag', 'layerNoteTip'));
+    renderFigure(F3, F3.spec, pv);   % drawn over: one image per sign, none left behind
+    drawnow;
+    nOver = numel(findall(pv, 'Tag', 'layerNoteTip'));
+    check(okOv && okMove && isscalar(signsIn(hv2.layout)) && nKept == 1 && nOver == numel(signsIn(pv)), ...
+        sprintf('in a visible panel the sign has a clear image whose tooltip is the reason (%d), it follows the axes (%d); kept by Reuse %d, drawn over %d', ...
+        okOv, okMove, nKept, nOver));
+    delete(uv);
+    fw = figure('Visible', 'off');
+    renderFigure(Fn, Fn.spec, fw);
+    check(isempty(findall(fw, 'Tag', 'layerNoteTip')), 'an invisible figure (an export) gets no image over its sign');
+    delete(fw);
 
     % events: raster marks, PSTH latency lines and rug
     he = renderFigure(Fe, Fe.spec, fig);
@@ -3793,7 +3843,7 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     check(numel(bars) == 2 && isequal(sort(groupsOf), ["Platform" "Stim"]) && size(bPlat.Faces, 1) == kept(onP, offP) ...
         && min(vx(:, 1)) >= Wt(1) - 1e-9 && max(vx(:, 1)) <= Wt(2) + 1e-9 && abs(bPlat.FaceAlpha - 0.3) < 1e-9 ...
         && numel(bl) == 2 && isequal(string(axT.YTickLabel).', ["Platform" "Stim"]) && isequal(xlim(axT), Wt) ...
-        && any(contains(string(get(findall(axT, 'Tag', 'layerNote'), 'String')), "do not draw units")), ...
+        && contains(signText(axT), "do not draw units"), ...
         sprintf('event traces: a row per line (Stim on top), %d Platform bars clipped to the window, translucent when overlaid, a baseline each; the units layer noted', ...
         size(bPlat.Faces, 1)));
     long = offP > Wt(2) | onP < Wt(1);
@@ -3868,9 +3918,7 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     try
         Fk1 = rn.computeFigure(src, cfg.figureFor("cmarks"));
         hk1 = renderFigure(Fk1, Fk1.spec, fig);
-        nt = findall(hk1.axes(1), 'Tag', 'layerNote');
-        noteText = "";
-        if ~isempty(nt); noteText = strjoin(string(get(nt, 'String')), " "); end
+        noteText = signText(hk1.axes(1));
         sk1 = Fk1.panels(1).layers(1).skip;
         ok1 = sk1 ~= "" && sk1 ~= "disabled" && Fk1.panels(1).layers(2).skip == "" ...
             && isscalar(findall(hk1.axes(1), 'Tag', 'eventRug')) && contains(noteText, sk1);
@@ -4263,9 +4311,7 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     Fno.panels(2).layers(1).R = rmfield(Fno.panels(2).layers(1).R, 'rateUnsmoothed');
     hNo = renderFigure(Fno, sSl, fig);
     ntNo = "";
-    for x = reshape(findall(hNo.panels(2).axes, 'Tag', 'layerNote'), 1, [])
-        ntNo = ntNo + " " + strjoin(string(x.String), " ");
-    end
+    ntNo = ntNo + " " + signText(hNo.panels(2).axes);
     okSh = isempty(findall(hSh.panels(2).axes, 'Tag', 'smoothLine')) ...
         && isempty(finiteLines(findall(hNo.panels(2).axes, 'Tag', 'smoothLine'))) && any(contains(ntNo, "no smoothed line"));
     check(okSl, sprintf(['a PSTH''s smoothed line: each group''s unsmoothed rates (spikePSTH''s rateUnsmoothed, the same ' ...
@@ -4372,9 +4418,9 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     sm.panels(2).options.display = "heatmap";   % stack stays ticked: not used by a heat map
     hm2 = renderFigure(Fs2, sm, fig);
     im2 = findall(hm2.axes(2), 'Type', 'image');
-    nt2 = findall(hm2.axes(2), 'Tag', 'layerNote');
+    nt2 = signsIn(hm2.axes(2));
     check(isscalar(im2) && isequaln(im2.CData, reshape(Fs2.panels(2).layers(1).R.rate(:, 1, :), [], nGs).') && isscalar(nt2) ...
-        && contains(strjoin(string(nt2.String), " "), "not in the heat map") && contains(strjoin(string(nt2.String), " "), Fs2.panels(2).layers(2).name) ...
+        && contains(signText(hm2.axes(2)), "not in the heat map") && contains(signText(hm2.axes(2)), Fs2.panels(2).layers(2).name) ...
         && isempty(findall(hm2.axes(2), 'Tag', 'stackBase')), ...
         'a PSTH heat map of two layers draws the first item; the other is noted at the bottom left; stack is not used');
     sa2 = Fau.spec;
@@ -4974,9 +5020,9 @@ if S.sec("9", "spectral panels (Chronux)")
             spectral = ismember([Foff.panels.type], ["spectrum" "spectrogram" "coherence"]);
             offOk = all(arrayfun(@(P) P.skip == "Chronux is not on the path" && all([P.layers.skip] == "Chronux is not on the path"), Foff.panels(spectral)));
             hOff = renderFigure(Foff, specS, fig);
-            notes = findall(hOff.layout, 'Tag', 'layerNote');
+            notes = signText(hOff.layout);
             check(offOk && Foff.panels(pid == "ras").layers.skip == "" && any([LRoff.reason] == "Chronux is not on the path") ...
-                && any(contains(string(get(notes, 'String')), "Chronux is not on the path")), ...
+                && contains(notes, "Chronux is not on the path"), ...
                 'Chronux off the path: every spectral panel is skipped with "Chronux is not on the path" (and says so), the raster is drawn');
         else
             fprintf('  SKIP: Chronux was on the path before the suite (not toolboxes/chronux): the check without it is left out\n');
@@ -6323,10 +6369,10 @@ if S.sec("16", "probe figures: layout and render (probeTileLayout, renderProbeFi
     PFs.tiles(3).skip = "no spikes here";
     PFs.tiles(3).F = [];
     hS = renderProbeFigure(PFs, spP, fgF);
-    nt = findall(hS.tiles(3).note, 'Tag', 'note');
-    check(hS.tiles(3).skipped && isgraphics(hS.tiles(3).note) && isscalar(nt) && string(nt.String) == "no spikes here" ...
+    nt = signsIn(hS.tiles(3).note);
+    check(hS.tiles(3).skipped && isgraphics(hS.tiles(3).note) && isscalar(nt) && signText(hS.tiles(3).note) == "no spikes here" ...
         && ~any(isgraphics(hS.tiles(3).axes)) && numel(tileAxesOf(fgF)) == (nS - 1) * np + 1, ...
-        'a skipped tile is one empty axes saying why (role note); the others drawn');
+        'a skipped tile is one empty axes with a "cannot draw" sign that holds why; the others drawn');
     hD = renderFigure(PF8, spP, fgF);
     check(isfield(hD, 'probeAxes') && numel(tileAxesOf(fgF)) == nS * np && numel(hD.tiles) == nS, ...
         'renderFigure draws a probe figure (kind "probeFigure") through renderProbeFigure');
@@ -6839,6 +6885,22 @@ end
 function deleteQuiet(f)
 %deleteQuiet  Delete file F when it is there.
 if isfile(f); delete(f); end
+end
+
+
+function S = signsIn(root)
+%signsIn  The "cannot draw" signs under ROOT (brokenGraphic): their squares, each holding its message.
+S = findall(root, '-function', @(o) isappdata(o, 'LayerNoteSign'));
+end
+
+
+function t = signText(root)
+%signText  The messages of the "cannot draw" signs under ROOT, joined by " | " ("" without one).
+t = strings(1, 0);
+for s = reshape(signsIn(root), 1, [])
+    t(end+1) = string(getappdata(s, 'LayerNote')); %#ok<AGROW>
+end
+if isempty(t); t = ""; else; t = strjoin(t, " | "); end
 end
 
 

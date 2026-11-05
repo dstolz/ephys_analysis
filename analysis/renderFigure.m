@@ -128,7 +128,8 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            probe) is drawn by renderProbeFigure with the same options,
 %            before anything is cleared, and its H and HOW are returned
 %            (H: renderProbeFigure's fields; data tips there only with
-%            DataTips=true; Reuse ignored, InPlaceOnly drawing nothing).
+%            DataTips=true; Reuse ignored, InPlaceOnly and KeptOnly drawing
+%            nothing).
 %
 %   Options
 %     Design          "" (default): the user's design (PlotDesign.current;
@@ -177,28 +178,36 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %     Reuse           false (default) or true (the app's preview): TARGET (a
 %                     figure, panel or tab) keeps what was drawn (appdata
 %                     FigureDrawing), and the next drawing with Reuse keeps
-%                     the panels of the last one that would be drawn alike:
-%                     the same result (F.panels(k), with the latencies it
-%                     reads: an edit of the latency block draws again only
-%                     the panels that read them), panel spec, group colors
-%                     and batch range, while what every panel depends on is
-%                     the same too (F but its panels, SPEC but its panels'
-%                     contents and its layout, every panel's sides, time
-%                     axis and note, which panels touch which and lie in
-%                     one column (figureNeighbors of the rects) and the
-%                     top-left one, the style, the design, the remembered
-%                     looks, the size of TARGET; not the rects themselves:
-%                     a moved panel keeps its automatic ticks until it is
-%                     drawn again). Only the other panels are drawn
-%                     again; the kept ones go back to where a new panel
-%                     starts and everything drawn across the panels (tick
-%                     sizes, the time stack, the legend, the title, the
-%                     looks, the layout) is done again over all of them, so
-%                     the figure is the one a whole drawing makes. A time
-%                     panel drawn again whose x limits are not the figure's
-%                     window (it could change its neighbors' time axis)
-%                     draws everything; so does any other change. Kept
-%                     parts keep their right-click menus and data tips.
+%                     each panel of the last one that would be drawn alike,
+%                     found by its id (a panel removed or moved up the list
+%                     leaves the others kept): the same result (F.panels(k),
+%                     with the latencies it reads: an edit of the latency
+%                     block draws again only the panels that read them),
+%                     panel spec, group colors, batch range, the user's
+%                     remembered looks of its kind, whether another time
+%                     panel shares its column (inTimeColumn: a heat map's
+%                     color bar goes inside it then) and the place where a
+%                     new drawing of it starts (its plot area before the
+%                     layout, from the rects: a panel moved or resized by
+%                     an edit that is not inPlace's is drawn again), while
+%                     what every panel depends on is the same too (F but
+%                     its panels, SPEC but its panels' contents and its
+%                     layout, the style, the design, the remembered
+%                     "figure" looks, the size of TARGET). Only the other
+%                     panels are drawn again; the kept ones go back to
+%                     where a new panel starts, as it was drawn (their tick
+%                     values, tick labels, fonts, titles and labels as
+%                     their type and panelAxes left them: dressState,
+%                     restoreDress), and everything drawn across the panels
+%                     (tick sizes, the time stack, blanked axes, the
+%                     top-left panel's observation, the legend, the title,
+%                     the looks, the layout) is done again over all of
+%                     them, so the figure is the one a whole drawing makes
+%                     whichever panels went or moved. A time panel drawn
+%                     again whose x limits are not the figure's window (it
+%                     could change its neighbors' time axis) draws
+%                     everything; so does any other change. Kept parts keep
+%                     their right-click menus and data tips.
 %                     An edit of text only -- a panel's xLabel, yLabel or
 %                     title, the figure's own title -- draws nothing: the
 %                     new text is set on the label or title drawn and the
@@ -216,13 +225,22 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     where a new drawing starts and figureLayout lays
 %                     them out at the new rects (inPlace); one that
 %                     changes which panels touch which (a time stack's
-%                     labels change) or the top-left panel is drawn as
-%                     above. Any other edit is drawn as above.
+%                     labels change), the top-left panel, or the panels or
+%                     their order is drawn as above. Any other edit is
+%                     drawn as above.
 %     InPlaceOnly     false (default) or true: with Reuse (implied), only
 %                     an edit inPlace can set is made; nothing is drawn
 %                     when it cannot be (HOW is "", H []), so the caller
 %                     can compute and draw as for any other edit (the app:
 %                     autoFigurePreview, with no busy card for a label)
+%     KeptOnly        false (default) or true: with Reuse (implied), only a
+%                     drawing that keeps every panel (HOW "kept", or
+%                     "inplace") is made; when any panel would be drawn
+%                     again, nothing is done (HOW "", H []; TARGET as it
+%                     was), so the caller can compute and draw as for any
+%                     other edit (the app: a panel removed or moved up the
+%                     list settles so, with no busy card). A probe figure
+%                     draws nothing with it
 %     LayoutOnly      false (default) or true: lay the drawing TARGET keeps
 %                     (from a drawing with Reuse) out at SPEC's rects and
 %                     layout, whatever else differs: its parts go back to
@@ -230,13 +248,20 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     out at the new places, the legend and the title
 %                     with them; no text is set and nothing is drawn, so a
 %                     time stack's labels and the top-left panel's title
-%                     stay as drawn (HOW "layout"; the drawing kept is
+%                     stay as drawn (HOW "layout"). SPEC may leave panels
+%                     of the drawing out and give the rest in another
+%                     order (by id): the panels left out are deleted (the
+%                     figure's legend with its legend panel), the rest
+%                     stacked in SPEC's order, and the drawing kept loses
+%                     them, so the next drawing with Reuse keeps the rest by
+%                     id and dresses them anew (else the drawing kept is
 %                     unchanged, so the next drawing with Reuse compares
-%                     with what it shows). Done only when the drawing has
-%                     SPEC's panels (the same ids, in order) and all its
-%                     parts; else nothing (HOW "", H []). F is not read.
-%                     The app's Arrange lays its preview out so after a
-%                     drag (arrangedPreview), out of date or not
+%                     with what it shows). Done only when every panel of
+%                     SPEC is in the drawing with all its parts; else
+%                     nothing (HOW "", H []). F is not read. The app's
+%                     Arrange lays its preview out so after a drag
+%                     (arrangedPreview), out of date or not, and a panel
+%                     removed goes from the preview at once
 %     Scale           1 (default): the drawing at the sizes it is exported
 %                     at. S: a drawing shown S times as wide as its export
 %                     page at 96 dpi (the app's preview, drawn to fit its
@@ -257,9 +282,10 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     reads and sets the exported sizes
 %
 %   HOW: "drawn" (drawn, all of it or the panels Reuse could not keep),
-%   "inplace" (only text set on the drawn handles, and the parts laid out
-%   again), "layout" (LayoutOnly: laid out at SPEC's places), or ""
-%   (InPlaceOnly or LayoutOnly and nothing done).
+%   "kept" (Reuse kept every panel: only what is drawn across the panels
+%   done again), "inplace" (only text set on the drawn handles, and the
+%   parts laid out again), "layout" (LayoutOnly: laid out at SPEC's
+%   places), or "" (InPlaceOnly, KeptOnly or LayoutOnly and nothing done).
 %
 %   H fields
 %     layout  what the figure is laid out on (TARGET, or the panel made in
@@ -299,6 +325,7 @@ arguments
     opts.BatchYLim = []
     opts.Reuse (1,1) logical = false
     opts.InPlaceOnly (1,1) logical = false
+    opts.KeptOnly (1,1) logical = false
     opts.LayoutOnly (1,1) logical = false
     opts.Scale (1,1) double {mustBePositive, mustBeFinite} = 1
 end
@@ -307,12 +334,17 @@ if opts.LayoutOnly   % the drawing kept, laid out at the new places: nothing dra
     return
 end
 if isfield(F, 'kind') && string(F.kind) == "probeFigure"   % a probe figure (figureProbeCompute): every tile on one page
-    args = namedargs2cell(rmfield(opts, 'LayoutOnly'));   % (a probe page has no layout-only path: handled above)
+    if opts.KeptOnly   % a probe page keeps nothing of its last drawing
+        h = [];
+        how = "";
+        return
+    end
+    args = namedargs2cell(rmfield(opts, {'LayoutOnly' 'KeptOnly'}));   % (a probe page has no layout-only path: handled above)
     [h, how] = renderProbeFigure(F, spec, target, args{:});
     return
 end
 how = "drawn";
-if opts.InPlaceOnly; opts.Reuse = true; end
+if opts.InPlaceOnly || opts.KeptOnly; opts.Reuse = true; end
 
 if isfield(F, 'nSessions') && isfield(spec, 'sessions')
     spec = figureSessionSpec(spec);   % merged across sessions: drawn as computed (e.g. "combine" draws a PSTH's bars as lines)
@@ -359,7 +391,7 @@ isLeg = types == "legend";   % a legend panel: its hidden axes hold the figure's
 kept = false(1, np);   % the panels whose drawing is kept from the last one (Reuse)
 prior = [];
 if opts.Reuse
-    keys = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, target);
+    keys = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, isLeg, target);
     h = inPlace(F, spec, target, keys, opts, own, design, follows, raw, titleVars);
     if ~isempty(h)   % only text changed: set on what is drawn
         how = "inplace";
@@ -372,7 +404,14 @@ if opts.Reuse
     end
     prior = priorDrawing(target, keys);
     if ~isempty(prior); kept = prior.same; end
+    if opts.KeptOnly && (isempty(prior) || ~all(kept))   % a panel to draw: nothing done
+        h = [];
+        how = "";
+        return
+    end
+    if ~isempty(prior) && all(kept); how = "kept"; end
 end
+pre = cell(1, np);   % each panel's axes as drawn, before what is drawn across the panels (Reuse: dressState)
 if any(kept)
     canvas = target;
     ax0 = [];
@@ -411,6 +450,8 @@ for k = 1:nDraw
             cb = A(i).Colorbar;
             if ~isempty(cb) && isvalid(cb); cb.Location = cb.Location; end   % placed from its axes again, as a new one is
         end
+        pre{k} = prior.pre{k};
+        restoreDress(pre{k});   % its ticks, fonts and texts as drawn: the dressing below starts from there, as on a new panel
         continue
     end
     band = [];
@@ -488,15 +529,10 @@ if opts.Reuse && ~isempty(canvas)   % each panel's parts where they are before t
         q = get(A, 'Position');
         if ~iscell(q); q = {q}; end
         pos{k} = vertcat(q{:});
+        if ~kept(k); pre{k} = dressState([axs(k) reshape(extra{k}, 1, [])]); end   % (a kept panel's: as it was first drawn)
     end
     if any(kept)   % the kept axes are older: every panel's axes in panel order again (the aesthetics editor numbers its tiles so)
-        A = reshape([parts{:}], [], 1);
-        kids = canvas.Children;   % newest first
-        at = arrayfun(@(c) any(c == A), kids);
-        if nnz(at) == numel(A) && ~isequal(kids(at), flipud(A))
-            kids(at) = flipud(A);
-            canvas.Children = kids;
-        end
+        restack(canvas, parts);
     end
 end
 multi = nnz(drawn) > 1;
@@ -665,7 +701,7 @@ end
 if opts.Reuse && ~isempty(canvas) && isequal(canvas, target)   % what the next drawing with Reuse can keep
     setappdata(target, drawingAppdata(), struct('keys', keys, 'axes', axs, 'extra', {extra}, 'hks', {hks}, 'notes', {notes}, ...
         'bands', {bands}, 'ovls', {ovls}, 'yExt', yExt, 'parts', {parts}, 'pos', {pos}, 'legend', lgd, 'title', th, ...
-        'spec', spec, 'labels', {labs}, 'hidden', hidden, 'txt', txt, 'titleVars', titleVars));
+        'spec', spec, 'labels', {labs}, 'hidden', hidden, 'txt', txt, 'titleVars', titleVars, 'pre', {pre}));
 elseif isappdata(target, drawingAppdata())
     rmappdata(target, drawingAppdata());
 end
@@ -747,6 +783,65 @@ end
 end
 
 
+function S = dressState(A)
+%dressState  What the dressing across the panels sets on a panel's axes A, as its drawing left it: restoreDress puts it back.
+%   S = dressState(A): one element per object and property (h, prop,
+%   value, auto: its mode, where it has one, "auto"), taken once the panel
+%   is drawn (its type, panelAxes, its overlays and note) and before
+%   anything is drawn across the panels, at the export's sizes. What that
+%   dressing sets: tileTicks the axes' and texts' font sizes and thinned y
+%   ticks; figureTimeStack the x tick labels, the x label's text, font
+%   size and interpreter, a raster's y ticks (clearRasterEdge);
+%   blankAxes the x ticks, y ticks and labels; the observation's title on
+%   the top-left panel (its text, weight, interpreter). The looks then
+%   set on a title or label only while it shows something (its color,
+%   font, weight, angle, size, Visible: PlotAesthetics lists no empty
+%   text), so a text that stops showing keeps the drawing's looks too.
+%   Each axes: FontSize, XTick, XTickLabel; each ruler's FontSize (the
+%   axes' sets it); each y ruler's TickValues and TickLabels; its title's,
+%   x label's and every y label's String, Interpreter, FontSize,
+%   FontWeight, FontAngle, FontName, Color and Visible.
+S = struct('h', {}, 'prop', {}, 'value', {}, 'auto', {});
+for a = reshape(A(isgraphics(A)), 1, [])
+    S = dressTake(S, a, ["FontSize" "XTick" "XTickLabel"]);
+    for r = [reshape(a.XAxis, 1, []) reshape(a.YAxis, 1, [])]
+        S = dressTake(S, r, "FontSize");
+    end
+    for r = reshape(a.YAxis, 1, [])
+        S = dressTake(S, r, ["TickValues" "TickLabels"]);
+    end
+    for t = [a.Title a.XLabel reshape([a.YAxis.Label], 1, [])]
+        S = dressTake(S, t, ["String" "Interpreter" "FontSize" "FontWeight" "FontAngle" "FontName" "Color" "Visible"]);
+    end
+end
+end
+
+
+function S = dressTake(S, h, props)
+%dressTake  Add H's PROPS (their values, and whether their modes are "auto") to dressState's S.
+for p = props
+    auto = isprop(h, p + "Mode") && strcmp(h.(p + "Mode"), 'auto');
+    S(end+1) = struct('h', h, 'prop', p, 'value', {h.(p)}, 'auto', auto); %#ok<AGROW>
+end
+end
+
+
+function restoreDress(S)
+%restoreDress  Put a panel's axes back as dressState S took them: each value, then its mode "auto" where it was.
+%   In S's order (an axes' font size before its rulers' and texts', which
+%   follow it in mode "auto"; tick values before tick labels). A value in
+%   mode "auto" is set and its mode put back, so it follows again (ticks
+%   and tick labels are worked out anew, a label's font size follows its
+%   axes', a label's color its axis').
+for i = 1:numel(S)
+    s = S(i);
+    if ~isvalid(s.h); continue; end
+    set(s.h, char(s.prop), s.value);
+    if s.auto; set(s.h, char(s.prop + "Mode"), 'auto'); end
+end
+end
+
+
 function tf = hidesPart(show, part)
 %hidesPart  True when an axis showing SHOW (EphysAnalysisConfig.PanelAxisShows) leaves out PART ("label" or "ticks").
 if part == "label"
@@ -762,8 +857,10 @@ function h = inPlace(F, spec, target, keys, opts, own, design, follows, raw, tit
 %   Only when SPEC differs from the spec drawn in text and places alone --
 %   a panel's xLabel, yLabel, title or rect, the figure's own title, its
 %   layout -- and everything else a drawing depends on (drawingKeys: F,
-%   the style, design and looks, which panels touch which and the top-left
-%   one, the target's size, each panel's result and colors) is the same.
+%   the style, design and looks, the target's size, each panel's result
+%   and colors; the panels, in order, which of them touch which and the
+%   top-left one: its arrange key, since the time stack and the
+%   observation's title are not done again here) is the same.
 %   New rects and layout go into what figureLayout lays out (appdata
 %   FigureLayout: each panel's rect, layout's boxesMean and paddingPx).
 %   Each text is set where a drawing puts it: a panel's own label,
@@ -783,7 +880,9 @@ function h = inPlace(F, spec, target, keys, opts, own, design, follows, raw, tit
 %   whose labels changed are made again (they name their quantities after
 %   the labels); the right-click editor's context takes SPEC (its redraw,
 %   title and axis edits); and the drawing kept records SPEC, so the next
-%   one compares with it. Only texts and interpreters are set, no size:
+%   one compares with it (but where its panels' drawings start: they were
+%   drawn at the old places, so the next drawing with Reuse draws a moved
+%   panel again). Only texts and interpreters are set, no size:
 %   drawn at a Scale (in the global key, so the same one), the fonts keep
 %   the scaled sizes they have, and figureLayout lays the parts out with
 %   the scale it kept, as after a whole drawing at that scale.
@@ -791,8 +890,9 @@ h = [];
 if ~isappdata(target, drawingAppdata()); return; end
 D = getappdata(target, drawingAppdata());
 np = numel(keys.panels);
-if ~isstruct(D) || ~isfield(D, 'spec') || numel(D.keys.panels) ~= np || ~isequaln(D.keys.global, keys.global) ...
-        || ~isequal(D.keys.ownTime, keys.ownTime)
+if ~isstruct(D) || ~isfield(D, 'spec') || ~isfield(D.keys, 'arrange') || numel(D.keys.panels) ~= np ...
+        || ~isequal(drawnIds(D), panelIds(keys)) || ~isequaln(D.keys.global, keys.global) ...
+        || ~isequaln(D.keys.arrange, keys.arrange) || ~isequal(D.keys.ownTime, keys.ownTime)
     return
 end
 named = ["Unit" "Observation" "Group"];   % a title that starts or stops naming these changes the top-left panel's title or the group's: drawn
@@ -908,6 +1008,7 @@ if figureEditable(opts.Editable, target) && isappdata(target, PlotAesthetics.Con
     setappdata(target, PlotAesthetics.ContextKey, figureEditContext(F, raw, target, opts, target, design, follows, txt));
 end
 D.spec = spec;
+keys.start = D.keys.start;   % the parts stay where they were drawn
 D.keys = keys;
 D.txt = txt;
 D.titleVars = titleVars;
@@ -919,24 +1020,62 @@ function [h, how] = layoutOnly(spec, target)
 %layoutOnly  renderFigure's LayoutOnly: the drawing TARGET keeps laid out at SPEC's rects and layout, nothing else changed.
 %   As inPlace lays out new places (its parts back where a new drawing
 %   starts, then figureLayout at the new rects), but whatever else SPEC
-%   changes and with the drawing kept as it is (D: what it shows).
+%   changes and with the drawing kept as it is (D: what it shows). SPEC's
+%   panels may be some of the drawing's, in any order (by id): the others'
+%   parts are deleted with their color bars and legends (S.legend goes
+%   with a legend panel left out), the rest stacked and laid out in SPEC's
+%   order, and D and figureLayout's S keep only them, in that order (D.spec
+%   their drawn specs; its arrange key stays the drawn one, so inPlace
+%   takes no next edit and the next drawing with Reuse dresses the panels
+%   kept anew).
 h = [];
 how = "";
 if ~isappdata(target, drawingAppdata()) || ~isappdata(target, 'FigureLayout'); return; end
 D = getappdata(target, drawingAppdata());
 S = getappdata(target, 'FigureLayout');
-if ~isstruct(D) || ~isfield(D, 'spec') || ~isstruct(S) || ~isfield(S, 'panels') || isfield(S, 'layoutFcn'); return; end
+if ~isstruct(D) || ~isfield(D, 'spec') || ~isfield(D, 'pre') || ~isstruct(S) || ~isfield(S, 'panels') ...
+        || isfield(S, 'layoutFcn')
+    return
+end
 np = numel(spec.panels);
 ids = strings(1, np);
 for k = 1:np; ids(k) = spec.panels(k).id; end
-drawnIds = strings(1, numel(D.spec.panels));
-for k = 1:numel(D.spec.panels); drawnIds(k) = D.spec.panels(k).id; end
+was = drawnIds(D);
 laidIds = strings(1, numel(S.panels));
 for k = 1:numel(S.panels); laidIds(k) = string(S.panels(k).id); end
-if ~isequal(ids, drawnIds) || ~isequal(ids, laidIds); return; end
+[in, f] = ismember(ids, was);   % F(k): panel k's place in the drawing
+if ~isequal(was, laidIds) || ~all(in) || numel(unique(ids)) ~= np; return; end
 drawn = isgraphics(D.axes);
 for k = find(drawn)
     if ~all(isgraphics(D.parts{k})); return; end
+end
+if ~isequal(f, 1:numel(was))   % panels left out or in another order: the drawing and its layout keep the rest, in SPEC's order
+    for j = find(drawn & ~ismember(1:numel(was), f))
+        for a = reshape(D.parts{j}, 1, [])
+            if isprop(a, 'Colorbar') && ~isempty(a.Colorbar) && isvalid(a.Colorbar); delete(a.Colorbar); end
+            if isprop(a, 'Legend') && ~isempty(a.Legend) && isvalid(a.Legend); delete(a.Legend); end
+        end
+        delete(D.parts{j});
+    end
+    if isstruct(S.legend) && ~isempty(S.legend) && string(S.legend.mode) == "panel"
+        S.legend.panel = find(f == S.legend.panel, 1);
+        if isempty(S.legend.panel); S.legend = []; end
+    end
+    S.panels = S.panels(f);
+    if ~isempty(D.legend) && ~isgraphics(D.legend); D.legend = []; end
+    for x = ["extra" "hks" "notes" "bands" "ovls" "parts" "pos" "labels" "pre"]
+        D.(x) = D.(x)(f);
+    end
+    D.axes = D.axes(f);
+    D.yExt = D.yExt(f, :);
+    D.hidden = D.hidden(f);
+    D.spec.panels = D.spec.panels(f);
+    D.keys.panels = D.keys.panels(f);
+    D.keys.ownTime = D.keys.ownTime(f);
+    D.keys.start = D.keys.start(f);
+    setappdata(target, drawingAppdata(), D);
+    restack(target, D.parts);
+    drawn = isgraphics(D.axes);
 end
 for k = find(drawn)   % where a new drawing starts: the layout makes what a drawing makes
     A = D.parts{k};
@@ -951,6 +1090,32 @@ S.layout = layoutSettings(spec.layout, S.scale);
 figureLayout(target, S);
 h = figureHandles(target, D.spec, D.axes, D.extra, D.notes, D.ovls, D.yExt, D.txt);
 how = "layout";
+end
+
+
+function restack(canvas, parts)
+%restack  CANVAS's children made of PARTS (each panel's axes, note band and further axes, by panel) put in panel order, the first lowest.
+%   As a drawing makes them; the other children keep their places.
+A = reshape([gobjects(1, 0) parts{:}], [], 1);
+kids = canvas.Children;   % newest first
+at = arrayfun(@(c) any(c == A), kids);
+if nnz(at) == numel(A) && ~isequal(kids(at), flipud(A))
+    kids(at) = flipud(A);
+    canvas.Children = kids;
+end
+end
+
+
+function ids = drawnIds(D)
+%drawnIds  The ids of the panels of the drawing D keeps (renderFigure's appdata FigureDrawing), in its order.
+ids = panelIds(D.keys);
+end
+
+
+function ids = panelIds(keys)
+%panelIds  The panel ids of drawingKeys' KEYS, in panel order.
+ids = strings(1, numel(keys.panels));
+for k = 1:numel(keys.panels); ids(k) = string(keys.panels{k}.p.id); end
 end
 
 
@@ -999,23 +1164,36 @@ k = 'FigureDrawing';
 end
 
 
-function K = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, target)
-%drawingKeys  What a drawing depends on (Reuse): global (what every panel's does) and each panel's own.
+function K = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, isLeg, target)
+%drawingKeys  What a drawing depends on (Reuse): global (what every panel's does), the panels' arrangement and each panel's own.
 %   global  F but its panels, creation time and latency summary; SPEC but
 %           its panels, its latency block (the panels that read it carry
 %           their latencies in their results), its layout (inPlace lays a
 %           new one out) and its id (its title only as there being one:
-%           the top-left panel then names the observation); each panel's
-%           id, type, sides, time axis and note; which panels touch which
-%           and lie in one column (figureNeighbors of the rects at
-%           RectTol: below, above, left, right, inColumn; the time stack
-%           and the draw functions' inTimeColumn read them) and the
-%           top-left panel's id, but not the rects themselves; the style,
-%           the design, the user's remembered looks of the panels' kinds
-%           and of "figure"; BatchYLim; editing and data tips on; TARGET's
-%           size in pixels; Scale
+%           the top-left panel then names the observation); the style,
+%           the design, the user's remembered looks of "figure";
+%           BatchYLim; editing and data tips on; TARGET's size in pixels;
+%           Scale
+%   arrange  what only the dressing across the panels reads (the time
+%           stack, the observation's title on the top-left panel), which
+%           a drawing with Reuse does again over kept panels but inPlace
+%           does not: each panel's id, type, sides, time axis and note, in
+%           order; which panels touch which and lie in one column
+%           (figureNeighbors of the rects at RectTol: below, above, left,
+%           right, inColumn) and the top-left panel's id; not the rects
+%           themselves
 %   panels  each one's result (F.panels(k)), spec but its rect, group
-%           colors, time axis and batch range
+%           colors, time axis, batch range, the user's remembered looks of
+%           its kind (PlotAesthetics.userRules: a look applied over the
+%           last one is no reset) and, for a type whose draw function
+%           reads it (a heat map, a spectrogram, a PSTH drawn as a heat
+%           map), whether another time panel lies in its column
+%           (inTimeColumn: a color bar inside the axes)
+%   start   each panel's plot area and note band before the layout
+%           (firstLayout at TARGET's size): where its drawing starts, so
+%           its automatic ticks and limits. priorDrawing keeps a panel
+%           only where it is the same; inPlace, which lays moved panels
+%           out without drawing them, keeps the drawn one
 %   ownTime  each panel on a time axis whose x limits are not the
 %           figure's window (its own window, or one from event to event)
 P = spec.panels;
@@ -1035,53 +1213,90 @@ end
 Fg = rmfield(F, intersect({'panels' 'created' 'spec' 'latency'}, fieldnames(F)));
 Sg = rmfield(spec, intersect({'panels' 'id' 'autoId' 'enabled' 'title' 'latency' 'layout'}, fieldnames(spec)));
 Sg.titled = spec.title ~= "";
-rules = struct();
-if opts.UserAesthetics
-    for t = unique([string([P.type]) "figure"])
-        if isvarname(t); rules.(t) = PlotAesthetics.userRules(t); end
-    end
-end
+rules = PlotAesthetics.emptyRules();
+if opts.UserAesthetics; rules = PlotAesthetics.userRules("figure"); end
 sz = [0 0];
 try
     q = getpixelposition(target);
     sz = q(3:4);
 catch
 end
+L0 = firstLayout(target, spec, P, isLeg, style, opts.Scale);
 K = struct();
-K.global = struct('F', Fg, 'spec', Sg, 'place', place, 'neighbors', rel, 'first', first, 'style', style, 'design', design, ...
-    'rules', rules, 'batch', {opts.BatchYLim}, 'editable', figureEditable(opts.Editable, target), ...
-    'tips', figureEditable(opts.DataTips, target), 'size', sz, 'scale', opts.Scale);
+K.global = struct('F', Fg, 'spec', Sg, 'style', style, 'design', design, 'rules', rules, 'batch', {opts.BatchYLim}, ...
+    'editable', figureEditable(opts.Editable, target), 'tips', figureEditable(opts.DataTips, target), 'size', sz, ...
+    'scale', opts.Scale);
+K.arrange = struct('place', place, 'neighbors', rel, 'first', first);
 K.panels = cell(1, np);
+K.start = cell(1, np);
 K.ownTime = false(1, np);
 for k = 1:np
+    kind = PlotAesthetics.emptyRules();
+    if opts.UserAesthetics && isvarname(P(k).type); kind = PlotAesthetics.userRules(P(k).type); end
+    column = false;   % (drawHeatmapPanel, drawPsthPanel's heat map, drawSpectrogramPanel: a color bar inside)
+    heat = P(k).type == "psth" && isfield(P(k).options, 'display') && string(P(k).options.display) == "heatmap";
+    if P(k).sharesTime && (ismember(P(k).type, ["heatmap" "spectrogram"]) || heat)
+        column = inTimeColumn(struct('spec', spec, 'panel', P(k)));
+    end
     K.panels{k} = struct('P', F.panels(k), 'p', rmfield(P(k), 'rect'), 'colors', colorsOf{k}, 'isTime', isTime(k), ...
-        'batch', {figureBatchFor(opts.BatchYLim, P(k).id)});
+        'batch', {figureBatchFor(opts.BatchYLim, P(k).id)}, 'rules', kind, 'column', column);
+    K.start{k} = struct('box', L0.panels(k).box, 'band', L0.panels(k).band);
     K.ownTime(k) = isTime(k) && ~(P(k).sharesTime && ~isempty(figureFixedWindow(P(k).window)));
 end
 end
 
 
 function prior = priorDrawing(target, keys)
-%priorDrawing  TARGET's last drawing (Reuse) with same(k) true for each panel that would be drawn alike now; [] = draw everything.
-%   Only a figure, panel or tab (its own canvas) keeps one. Everything is
-%   drawn when the global key differs, when the panels differ in number,
-%   or when a time panel with x limits of its own is drawn again (its
-%   neighbors' time axis could change: figureTimeStack).
+%priorDrawing  TARGET's last drawing (Reuse), its panels by KEYS' (by id), with same(k) true for each panel that would be drawn alike now; [] = draw everything.
+%   Only a figure, panel or tab (its own canvas) keeps one. Panel k of
+%   KEYS takes the drawn panel of its id: it is the same when its parts
+%   are all there, its key is equal (drawingKeys' panels) and its drawing
+%   starts at the same place (start, to 1e-6 px). PRIOR is the drawing D
+%   with axes, extra, hks, notes, bands, ovls, yExt, parts, pos, labels
+%   and pre in the order of KEYS (empty where a panel is not the same; a
+%   panel of the drawing that KEYS lacks is in none of them: keepOnly
+%   deletes it), and same. Everything is drawn when the global key
+%   differs, or when a time panel with x limits of its own is drawn again
+%   (its neighbors' time axis could change: figureTimeStack).
 prior = [];
 if ~(isa(target, 'matlab.ui.Figure') || isa(target, 'matlab.ui.container.Panel') || isa(target, 'matlab.ui.container.Tab')) ...
         || ~isappdata(target, drawingAppdata())
     return
 end
 D = getappdata(target, drawingAppdata());
+if ~isstruct(D) || ~isfield(D, 'pre') || ~isfield(D.keys, 'start') || ~isequaln(D.keys.global, keys.global); return; end
 np = numel(keys.panels);
-if ~isstruct(D) || numel(D.keys.panels) ~= np || ~isequaln(D.keys.global, keys.global); return; end
+[in, from] = ismember(panelIds(keys), drawnIds(D));   % FROM(k): panel k's place in the drawing
 same = false(1, np);
-for k = 1:np
-    same(k) = isgraphics(D.axes(k)) && all(isgraphics(D.parts{k})) && isequaln(D.keys.panels{k}, keys.panels{k});
+for k = find(in)
+    j = from(k);
+    same(k) = isgraphics(D.axes(j)) && all(isgraphics(D.parts{j})) && isequaln(D.keys.panels{j}, keys.panels{k}) ...
+        && sameStart(D.keys.start{j}, keys.start{k});
 end
 if any(~same & keys.ownTime); return; end
 prior = D;
+prior.axes = gobjects(1, np);
+prior.yExt = NaN(np, 2);
+cells = ["extra" "hks" "notes" "bands" "ovls" "parts" "pos" "labels" "pre"];
+for x = cells
+    prior.(x) = cell(1, np);
+end
+for k = find(same)
+    j = from(k);
+    prior.axes(k) = D.axes(j);
+    prior.yExt(k, :) = D.yExt(j, :);
+    for x = cells
+        prior.(x){k} = D.(x){j};
+    end
+end
 prior.same = same;
+end
+
+
+function tf = sameStart(a, b)
+%sameStart  Two panels' drawings start at the same place: their plot areas and note bands (drawingKeys' start) within 1e-6 px.
+near = @(u, v) isequal(size(u), size(v)) && all(abs(double(u(:)) - double(v(:))) < 1e-6);
+tf = near(a.box, b.box) && near(a.band, b.band);
 end
 
 

@@ -908,15 +908,23 @@ The options are `Design`,
 `UserAesthetics`, `Editable` and `OnRemember`
 ([Plot aesthetics](#plot-aesthetics)), and `Reuse` (the app's preview): the
 target keeps what was drawn, and the next drawing with `Reuse` keeps every panel
-that would come out the same (the same result, panel spec, group colors and
-batch range, and nothing every panel depends on changed: `F` but its panels, the
-spec but its panels' contents and its layout, every panel's sides, time axis and
-note, which panels touch which and the top-left one, the style, design and
-remembered looks, the target's size; not the rects themselves, so a moved panel
-keeps its automatic ticks until it is drawn again). Only the other
-panels are drawn again; the time stack, tick sizes, legend, title, looks and
-layout are done over all of them, so the figure is the one a whole drawing
-makes (a kept color bar may sit within a pixel of a new one's place). A time
+that would come out the same, found by its id, so removing a panel or moving it
+up the list keeps the others (the same result, panel spec, group colors, batch
+range and remembered looks of its kind, the same answer to whether another time
+panel shares its column, which puts a heat map's color bar inside it, and the
+same place where its drawing starts, from the rects: a panel moved or resized is
+drawn again; and nothing every panel depends on changed: `F` but its panels, the
+spec but its panels' contents and its layout, the style, design and remembered
+figure looks, the target's size). Only the other panels are drawn again. The
+kept ones go back to their ticks, fonts, titles and labels as they were drawn,
+and the time stack, tick sizes, blanked axes, the top-left panel's observation,
+legend, title, looks and layout are done again over all of them. So the figure
+is the one a whole drawing makes whichever panels went or moved: the panel above
+a removed bottom panel gets its time labels back, and the observation moves to
+the new top-left panel (a kept color bar may sit within a pixel of a new one's
+place). When every panel is kept the second output, `how`, says `"kept"`; with
+`KeptOnly=true` nothing is done unless every panel is kept (`how` `""`), so the
+app can settle a removal or reorder without a busy card. A time
 panel drawn again whose x limits are its own, not the figure's window, draws
 everything. An edit of text alone -- a panel's `xLabel`, `yLabel` or `title`,
 the figure's own `title` -- draws nothing: the new text is set on the label or
@@ -931,13 +939,18 @@ drawn as above; so is any edit of more than text, such as a side. An edit of
 the panels' rects or the figure's `layout` alone (with or without such text)
 draws nothing either: what is drawn is laid out again at the new places (a drag
 in the app re-lays out without a redraw), unless it changes which panels touch
-which (a time stack's labels change) or the top-left panel, which is drawn as
-above.
-`InPlaceOnly=true` makes only such an edit and draws nothing otherwise (the
-second output, `how`, says `"inplace"`, `"drawn"` or `""`), so the app can
+which (a time stack's labels change), the top-left panel, or the panels or their
+order, which is drawn as above.
+`InPlaceOnly=true` makes only such an edit and draws nothing otherwise (`how`
+says `"inplace"`, `"kept"`, `"drawn"` or `""`), so the app can
 skip its compute and busy card for it. `LayoutOnly=true` only lays what is
 drawn out at the spec's rects, whatever else changed (`how` `"layout"`): the
-app's Arrange does so after a drag on a preview it will not draw again yet. [`renderFigure`](EphysAnalysisConfig.md#renderfigure)
+app's Arrange does so after a drag on a preview it will not draw again yet. The
+spec may leave panels of the drawing out, or give them in another order: the
+panels left out are deleted at once (with the legend, when its legend panel
+goes), the rest stacked and laid out in the new order, and the next drawing with
+`Reuse` keeps them by id and dresses them anew. The app shows a removed panel
+gone so before anything is computed. [`renderFigure`](EphysAnalysisConfig.md#renderfigure)
 on the config page describes the layout, titles, legend and look in full.
 
 Four map and waveform drawings are public functions of their own, which the

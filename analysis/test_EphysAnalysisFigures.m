@@ -97,7 +97,14 @@ function test_EphysAnalysisFigures(opts)
 %   a whole one's, the data tips and editor context following; InPlaceOnly
 %   drawing nothing for a side, a title back to none drawn; new rects, a
 %   new padding or boxesMean laid out in place, the lines kept; a move
-%   that breaks a stack drawn);
+%   that breaks a stack drawn; panels kept by id, each against a whole
+%   drawing: the bottom of a stack removed (the panel above tells the
+%   time), the top-left one removed and put back (the observation's title
+%   moves and leaves), the PSTH that gave the legend its groups removed,
+%   down to one panel (tileTicks undone), a reorder (the handles kept, in
+%   panel order), a heat map left alone in its column drawn again (its
+%   color bar outside); KeptOnly; LayoutOnly dropping a panel, a legend
+%   panel's index following, the next Reuse keeping the rest);
 %   one observation drawn in under a second; data tips (FigureDataTips:
 %   a PSTH line's rows, a raster tick's trial and group, a heat map cell's
 %   and a heat map of trials' tips, a bar's rows, the chosen fields a
@@ -4032,6 +4039,155 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     check(howJ == "drawn" && DJ.axes(1) ~= DP.axes(1) && ~isempty(DJ.axes(1).XTickLabel) && string(DJ.axes(1).XLabel.String) == "Time (s)" ...
         && rJ(2) - qJ(2) - qJ(4) >= tiJ(2) + s3j.layout.padding * 96 / 2.54 - 0.5, ...
         'a move that breaks the stack (a gap under the raster) is drawn: the raster tells its own time, its labels clear of the PSTH');
+    % Reuse by id: a panel removed or moved up the list keeps the others, dressed anew as a whole drawing dresses them
+    ids3 = [s3.panels.id];   % a flush stack: raster, PSTH, continuous
+    renderFigure(F3, s3, pA, Reuse=true);
+    D0 = getappdata(pA, 'FigureDrawing');
+    hid0 = isempty(D0.axes(2).XTickLabel);   % the PSTH in the stack: no time tick labels
+    [F3r, s3r] = dropPanels(F3, s3, ids3(3));   % the bottom one: the PSTH over it tells the time now
+    [~, howR] = renderFigure(F3r, s3r, pA, Reuse=true);
+    DR = getappdata(pA, 'FigureDrawing');
+    renderFigure(F3r, s3r, pB);
+    drawnow;
+    [sameR, whyR] = sameDrawing(pA, pB);
+    [textR, whyTR] = sameTexts(pA, pB);
+    labR = strjoin(string(DR.axes(2).XLabel.String), "");
+    check(howR == "kept" && isequal(DR.axes, D0.axes(1:2)) && hid0 && ~isempty(DR.axes(2).XTickLabel) ...
+        && labR ~= "" && sameR && textR && isequal(drawnSizes(pA), drawnSizes(pB)), ...
+        sprintf(['Reuse with the bottom panel of a stack removed: the other two kept ("%s"), the PSTH over it now tells the ' ...
+        'time ("%s"), the drawing, texts and sizes a whole one''s (%s; texts: %s)'], howR, labR, whyR, whyTR));
+    renderFigure(F3, s3c, pA, Reuse=true);   % a title of the figure's own: the top-left panel names the observation
+    DT0 = getappdata(pA, 'FigureDrawing');
+    obsT = string(F3.observation.label);
+    wasT = strjoin(string(DT0.axes(1).Title.String), "") == obsT && strjoin(string(DT0.axes(2).Title.String), "") == "";
+    [F3t, s3t] = dropPanels(F3, s3c, ids3(1));   % the raster, top left
+    [~, howT] = renderFigure(F3t, s3t, pA, Reuse=true);
+    DT = getappdata(pA, 'FigureDrawing');
+    renderFigure(F3t, s3t, pB);
+    drawnow;
+    [sameT, whyT1] = sameDrawing(pA, pB);
+    [textT, whyT2] = sameTexts(pA, pB);
+    movedT = wasT && strjoin(string(DT.axes(1).Title.String), "") == obsT;
+    [~, howU] = renderFigure(F3, s3c, pA, Reuse=true);   % put back: it takes the title again, the PSTH's goes
+    DU = getappdata(pA, 'FigureDrawing');
+    renderFigure(F3, s3c, pB);
+    drawnow;
+    [sameU, whyU] = sameDrawing(pA, pB);
+    [textU, whyTU] = sameTexts(pA, pB);
+    check(howT == "kept" && isequal(DT.axes, DT0.axes(2:3)) && movedT && sameT && textT && howU == "drawn" ...
+        && isequal(DU.axes(2:3), DT0.axes(2:3)) && DU.axes(1) ~= DT0.axes(1) && strjoin(string(DU.axes(2).Title.String), "") == "" ...
+        && strjoin(string(DU.axes(1).Title.String), "") == obsT && sameU && textU, ...
+        sprintf(['Reuse with the top-left panel removed: the observation''s title ("%s") moves to the PSTH, now top left, the ' ...
+        'others kept (%s; texts: %s); put back, it leaves the PSTH again (%s; texts: %s)'], obsT, whyT1, whyT2, whyU, whyTU));
+    renderFigure(F3, s3, pA, Reuse=true);
+    DL0 = getappdata(pA, 'FigureDrawing');
+    lg0 = findall(pA, 'Type', 'legend');
+    [F3l, s3l] = dropPanels(F3, s3, ids3(2));   % the PSTH, whose groups the legend lists first
+    [~, howL] = renderFigure(F3l, s3l, pA, Reuse=true);
+    DL = getappdata(pA, 'FigureDrawing');
+    renderFigure(F3l, s3l, pB);
+    drawnow;
+    [sameL, whyL] = sameDrawing(pA, pB);
+    [textL, whyTL] = sameTexts(pA, pB);
+    lgL = findall(pA, 'Type', 'legend');
+    lgB = findall(pB, 'Type', 'legend');
+    check(howL == "kept" && isequal(DL.axes, DL0.axes([1 3])) && ~isempty(lg0) && isscalar(lgL) && isscalar(lgB) ...
+        && isequal(lgL.String, lgB.String) && sameL && textL && ~isempty(DL.axes(1).XTickLabel), ...
+        sprintf(['Reuse with the PSTH that gave the legend its groups removed: the legend made again from the panels kept ' ...
+        '(%s), the raster over the gap tells its own time (%s; texts: %s)'], strjoin(string(lgL.String), ", "), whyL, whyTL));
+    renderFigure(F3, s3, pA, Reuse=true);
+    DO0 = getappdata(pA, 'FigureDrawing');
+    fsO = DO0.axes(1).FontSize;   % the raster's tick font in the stack (tileTicks)
+    [F3o, s3o] = dropPanels(F3, s3, ids3(2:3));   % down to one panel: no small tiles' ticks
+    [~, howO] = renderFigure(F3o, s3o, pA, Reuse=true);
+    DO = getappdata(pA, 'FigureDrawing');
+    renderFigure(F3o, s3o, pB);
+    drawnow;
+    [sameO, whyO] = sameDrawing(pA, pB);
+    [textO, whyTO] = sameTexts(pA, pB);
+    check(howO == "kept" && DO.axes == DO0.axes(1) && DO.axes.FontSize ~= fsO && sameO && textO ...
+        && isequal(drawnSizes(pA), drawnSizes(pB)), ...
+        sprintf(['Reuse down to one panel: the raster kept, tileTicks'' tick font (%g in the stack) undone (%g), the drawing, ' ...
+        'texts and sizes a whole one''s (%s; texts: %s)'], fsO, DO.axes.FontSize, whyO, whyTO));
+    renderFigure(F3, s3, pA, Reuse=true);
+    DQ0 = getappdata(pA, 'FigureDrawing');
+    ordQ = [3 1 2];   % moved up the list: the same places, another order
+    s3q = s3;
+    s3q.panels = s3.panels(ordQ);
+    F3q = F3;
+    F3q.panels = F3.panels(ordQ);
+    [~, howQ] = renderFigure(F3q, s3q, pA, Reuse=true);
+    DQ = getappdata(pA, 'FigureDrawing');
+    renderFigure(F3q, s3q, pB);
+    drawnow;
+    [sameQ, whyQ] = sameDrawing(pA, pB);
+    kidsQ = flipud(findall(pA, '-depth', 1, 'Type', 'axes'));
+    kidsQ = kidsQ(ismember(kidsQ, DQ.axes));
+    check(howQ == "kept" && isequal(DQ.axes, DQ0.axes(ordQ)) && isequal(reshape(kidsQ, 1, []), DQ.axes) && sameQ, ...
+        sprintf('Reuse with the panels in another order: every one kept, the canvas''s axes in the new panel order, the drawing a whole one''s (%s)', whyQ));
+    sHm = F1.spec;   % a PSTH heat map under a raster: its color bar inside, in line with the raster's time axis
+    sHm.panels(2).options.display = "heatmap";
+    renderFigure(F1, sHm, pA, Reuse=true);
+    DH0 = getappdata(pA, 'FigureDrawing');
+    locH0 = "none";
+    if ~isempty(DH0.axes(2).Colorbar); locH0 = string(DH0.axes(2).Colorbar.Location); end
+    [F1h, sHm1] = dropPanels(F1, sHm, sHm.panels(1).id);   % alone in its column now: its color bar outside
+    [~, howH1] = renderFigure(F1h, sHm1, pA, Reuse=true);
+    DH = getappdata(pA, 'FigureDrawing');
+    renderFigure(F1h, sHm1, pB);
+    drawnow;
+    [sameH1, whyH1] = sameDrawing(pA, pB);
+    locH = "none";
+    if ~isempty(DH.axes(1).Colorbar); locH = string(DH.axes(1).Colorbar.Location); end
+    check(howH1 == "drawn" && DH.axes(1) ~= DH0.axes(2) && locH0 == "east" && locH == "eastoutside" && sameH1, ...
+        sprintf(['Reuse with a heat map left alone in its column: drawn again, its color bar now %s (%s with the raster), ' ...
+        'the drawing a whole one''s (%s)'], locH, locH0, whyH1));
+    % KeptOnly: nothing done when a panel must be drawn; "kept" when none must
+    renderFigure(F3, s3, pA, Reuse=true);
+    DK0 = getappdata(pA, 'FigureDrawing');
+    kidsK0 = allchild(pA);
+    [hK1, howK1] = renderFigure(F3, s3b, pA, KeptOnly=true);   % a PSTH look and a panel title: two panels to draw
+    DK1 = getappdata(pA, 'FigureDrawing');
+    noneK = isempty(hK1) && howK1 == "" && isequal(allchild(pA), kidsK0) && all(isvalid(kidsK0)) && isequal(DK1.axes, DK0.axes) ...
+        && isequaln(DK1.spec, DK0.spec);
+    [hK2, howK2] = renderFigure(F3r, s3r, pA, KeptOnly=true);
+    DK2 = getappdata(pA, 'FigureDrawing');
+    check(noneK && howK2 == "kept" && isequal(DK2.axes, DK0.axes(1:2)) && isequal(hK2.axes, DK2.axes), ...
+        sprintf(['KeptOnly: an edit that draws a panel does nothing ("%s", the drawing as it was); a panel removed keeps the ' ...
+        'rest ("%s")'], howK1, howK2));
+    % LayoutOnly with a panel left out: its parts go at once, the next Reuse keeps the rest by id
+    renderFigure(F3, s3, pA, Reuse=true);
+    DY0 = getappdata(pA, 'FigureDrawing');
+    [hY, howY] = renderFigure(F3r, s3r, pA, LayoutOnly=true);
+    DY = getappdata(pA, 'FigureDrawing');
+    SY = getappdata(pA, 'FigureLayout');
+    goneY = ~isvalid(DY0.axes(3)) && isequal(DY.axes, DY0.axes(1:2)) && isequal(string({SY.panels.id}), ids3(1:2)) ...
+        && isequal(hY.axes, DY0.axes(1:2)) && isempty(DY0.axes(2).XTickLabel);
+    [~, howY2] = renderFigure(F3r, s3r, pA, Reuse=true);
+    DY2 = getappdata(pA, 'FigureDrawing');
+    renderFigure(F3r, s3r, pB);
+    drawnow;
+    [sameY, whyY] = sameDrawing(pA, pB);
+    check(howY == "layout" && goneY && howY2 == "kept" && isequal(DY2.axes, DY0.axes(1:2)) && sameY, ...
+        sprintf(['LayoutOnly with a panel left out: its axes deleted, the rest laid out (%s; the time labels as drawn); the ' ...
+        'next Reuse keeps them (%s) and dresses them as a whole drawing (%s)'], howY, howY2, whyY));
+    renderFigure(Fl, Fl.spec, pA, Reuse=true);   % a legend panel after the stack: its index in the layout follows
+    DY3 = getappdata(pA, 'FigureDrawing');
+    [Flr, slr] = dropPanels(Fl, Fl.spec, Fl.spec.panels(1).id);   % the raster: the PSTH (the legend's groups) stays
+    [~, howY3] = renderFigure(Flr, slr, pA, LayoutOnly=true);
+    SY3 = getappdata(pA, 'FigureLayout');
+    RY3 = getappdata(pA, 'FigureLayoutResult');
+    lgY3 = findall(pA, 'Type', 'legend');
+    legY3 = isstruct(SY3.legend) && isequal(SY3.legend.panel, 2);
+    inY3 = isscalar(lgY3) && isequal(DY3.axes(3).Legend, lgY3);
+    [~, howY4] = renderFigure(Flr, slr, pA, KeptOnly=true);
+    renderFigure(Flr, slr, pB);
+    drawnow;
+    [sameY4, whyY4] = sameDrawing(pA, pB);
+    check(howY3 == "layout" && legY3 && RY3.legendMode == "panel" && inY3 && howY4 == "kept" && sameY4, ...
+        sprintf(['LayoutOnly leaving out the raster before a legend panel: the legend stays in its panel, now the 2nd ' ...
+        '(%s; S.legend.panel 2: %d; mode "%s"; on the legend panel: %d); KeptOnly then keeps both (%s), the drawing a ' ...
+        'whole one''s (%s)'], howY3, legY3, RY3.legendMode, inY3, howY4, whyY4));
     delete([pA pB]);
 
     % one observation draws fast
@@ -5872,6 +6028,16 @@ function P = noCreated(P)
 %noCreated  A panel result without its layers' creation times (a compute made at another second).
 for j = 1:numel(P.layers)
     if isstruct(P.layers(j).R) && isfield(P.layers(j).R, 'created'); P.layers(j).R = rmfield(P.layers(j).R, 'created'); end
+end
+end
+
+
+function [F, s] = dropPanels(F, s, ids)
+%dropPanels  A computed figure F and its spec S without the panels IDS, as EphysAnalysisConfig.removePanel leaves a spec (the others where they were).
+for id = reshape(string(ids), 1, [])
+    k = find([s.panels.id] == id, 1);
+    s = EphysAnalysisConfig.removePanel(s, id);
+    F.panels(k) = [];
 end
 end
 

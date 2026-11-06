@@ -3,7 +3,7 @@ function onFigureSuperToggled(obj, name)
 %   NAME is "figure" (Observations, Event reference, Epoch window, Trial
 %   selection, Sessions, Panels), "panel" (Panel, Panel alignment,
 %   Layers, Analysis, Display, Axes, Waveform, Annotations) or "look"
-%   (Appearance, Looks).
+%   (Style, Design and looks).
 %   Its sections keep their own collapsed state inside it. It stays as
 %   left when another figure is selected, and between sessions
 %   (preference FigureSupersectionsCollapsed).

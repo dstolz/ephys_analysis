@@ -135,9 +135,13 @@ function syncFigureEditor(obj)
 %                    line's position and color, a patch's edges,
 %                    fill and outline; the line style and width with a line
 %                    or an outline); titled with the panel's id
-%     Appearance     all rows; the site size with a probe map, the heat
+%     Style          all rows; the site size with a probe map, the heat
 %                    colors with a heat map, probe map, correlation map or
-%                    a PSTH drawn as a heat map
+%                    a PSTH drawn as a heat map; the legend's place,
+%                    orientation and box enabled while its Show is ticked
+%     Design and     all rows (the design list, Save look as design...,
+%     looks          Edit aesthetics..., the remembered-looks line with
+%                    Forget enabled while there are any, the order note)
 %     Sessions       Across sessions; with it ticked every row (the keys
 %                    with "These datasets", Units matched by for a unit
 %                    observation and the mapping file with "mapping", the
@@ -240,7 +244,7 @@ end
 
 v = struct();
 for f = ["id" "title" "size" "sizeWidth" "enabled" "summary" "observe" "obsStarred" "sesEnabled" "prbEnabled" "obsPerGroup" "obsCount" "newPanel" "rectUnits" "boxesMean" "padding" "snap" "arrangeHint" ...
-        "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showStop" "legendLoc" "looksText"]
+        "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showStop" "grid" "legendLoc" "design" "editAesthetics" "looksText" "looksOrder"]
     v.(f) = true;   % the rows every figure shows
 end
 % observations
@@ -533,7 +537,7 @@ hs(1:2) = hs(1:2) * ~(hasPanel && ismember(fig.panels(j).type, EphysAnalysisConf
 pg.RowHeight = {note, 30, hs(1), hs(2), 22, hs(3)};
 S(names == "palign").BodyHeight = note + 30 + hs(1) + hs(2) + 22 + hs(3) + 5 * pg.RowSpacing;
 
-% appearance
+% style
 types = strings(1, 0);
 if np > 0; types = [fig.panels.type]; end
 v.siteSize = any(types == "probemap");

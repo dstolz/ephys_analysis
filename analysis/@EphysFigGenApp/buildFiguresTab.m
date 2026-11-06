@@ -101,7 +101,7 @@ function buildFiguresTab(obj)
 %           the panel's Annotations (for the selected panel: its Text note
 %           and its Overlays, each under a sub-heading: onAddFigureOverlay,
 %           onFigureOverlayPicked),
-%           Appearance, Looks and Sessions (Across sessions: the figure
+%           Style, Design and looks and Sessions (Across sessions: the figure
 %           drawn once over the ticked or picked datasets, its facet, colors,
 %           error band, unit matching with the mapping file's Browse... and
 %           Edit..., minimum sessions and trial groups; then the picker
@@ -131,13 +131,13 @@ function buildFiguresTab(obj)
 %           Epoch window, Trial selection, First-spike latency, Sessions,
 %           Probe layout, Panels), Panel
 %           (Panel, Panel alignment, Layers, Analysis, Display, Axes, Waveform, Annotations;
-%           its header names the selected panel) and Look (Appearance,
-%           Looks), built in that order so Tab follows it. Alt+1 to Alt+3
+%           its header names the selected panel) and Look (Style,
+%           Design and looks), built in that order so Tab follows it. Alt+1 to Alt+3
 %           go to a supersection (gotoFigureSuper), Ctrl+1 to Ctrl+9 and
 %           Ctrl+0 to the first ten sections, Observations to Annotations
 %           (gotoFigureSection; onKeyPress); First-spike latency, Sessions,
 %           Probe layout, Waveform,
-%           Appearance and Looks have no key. Over the editor, a search field
+%           Style and Design and looks have no key. Over the editor, a search field
 %           (Ctrl+F; onFigureSearch) lists the rows whose label (or
 %           tooltip) has the words typed, "Supersection > Section > Row",
 %           in a list under it; Enter or a click goes there (gotoFigureRow),
@@ -173,9 +173,10 @@ function buildFiguresTab(obj)
 %           with their star toggle (starButton, onStarToggled) and note
 %           button (noteButton: the NotePad, onNoteButton). The Design
 %           drop-down is right of the dataset (the design every figure is
-%           drawn in, also in the Design menu: onDesignChosen; Save look as
-%           design... under it: the preview's look as a design of yours,
-%           onSaveDesign). Under them a row: Template: (your figure
+%           drawn in, also in the Design menu: onDesignChosen; the Look
+%           section Design and looks has the same list, kept equal to it by
+%           refreshDesigns, with Save look as design...: the preview's look
+%           as a design of yours, onSaveDesign). Under them a row: Template: (your figure
 %           templates, FigureTemplate: the drop-down, re-listed as it
 %           opens, refreshTemplates; Apply... into figures picked or as a
 %           new figure, onApplyTemplate; Save as..., Update, Remove,
@@ -1107,7 +1108,7 @@ E.heatRows = uidropdown(Sa.Body, "Items", ["the layer's units or channels" "one 
 place(E.heatRows, r, 2);
 [Sa, r] = formRow(Sa, "order", "Row order:");
 E.order = uidropdown(Sa.Body, "Items", ["probe" "peak" "modulation"], "ValueChangedFcn", changed, ...
-    "Tooltip", "probe: the rows follow the sort options (Appearance); peak: by the time of each row's maximum; " + ...
+    "Tooltip", "probe: the rows follow the sort options (Style); peak: by the time of each row's maximum; " + ...
     "modulation (the auROC baseline): by the mean auROC in the call window, highest first.");
 place(E.order, r, 2);
 [Sa, r] = formRow(Sa, "group", "Trial group drawn:");
@@ -1634,7 +1635,7 @@ E.yLim = uieditfield(yg, "text", "Placeholder", "lo hi", "ValueChangedFcn", chan
     "Tooltip", "Fixed: the y axis' two ascending values (a stack: every row's range).");
 [Sx, r] = formRow(Sx, "panelColormap", "Colormap:");
 E.panelColormap = uidropdown(Sx.Body, "Editable", "on", "Items", ["auto" "parula" "turbo" "hot" "gray" "jet" "cool" "blueWhiteRed"], ...
-    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "This panel's colors: auto = Heat colors (Appearance), else " + ...
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "This panel's colors: auto = Heat colors (Style), else " + ...
     "the design's heat colormap (an auROC: its diverging one); or the name of a colormap function.");
 place(E.panelColormap, r, 2);
 [Sx, r] = formRow(Sx, "cLim", "Color limits:");
@@ -1690,7 +1691,7 @@ E.annFont = uidropdown(fg2, "Editable", "on", "Items", ["auto" "Arial" "Helvetic
     "Segoe UI" "Verdana" "Georgia" "Palatino Linotype"], "Value", "auto", "ValueChangedFcn", changed, ...
     "Tooltip", "auto: the design's font. Or any installed font's name.");
 E.annSize = uieditfield(fg2, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "auto", "Limits", [1 200], ...
-    "ValueChangedFcn", changed, "Tooltip", "Points; blank is the figure's font size (Appearance).");
+    "ValueChangedFcn", changed, "Tooltip", "Points; blank is the figure's font size (Style).");
 [S, r] = formRow(S, ["annBold" "annItalic" "annBox"], "Style:");
 stg = subgrid(S.Body, r, {'fit', 'fit', 'fit', '1x'});
 stg.ColumnSpacing = 12;
@@ -1788,8 +1789,9 @@ sec(end+1) = S;
 
 hLook = superHeader(eg);   % the Look supersection's header
 
-% appearance: the figure's style (no tiles or limits: the panels have those)
-S = formSection(eg, 12, "style", "Appearance", Color=tint("style"));
+% style: the figure's style (no tiles or limits: the panels have those), in four groups
+S = formSection(eg, 12, "style", "Style", Color=tint("style"));
+[S, ~] = formSubheading(S, "textLines", "Text and lines");
 [S, r] = formRow(S, "fontSize", "Font size:");
 E.fontSize = uispinner(S.Body, "Limits", [5 24], "Value", 9, "ValueChangedFcn", changed);
 place(E.fontSize, r, 2);
@@ -1801,6 +1803,7 @@ place(E.lineWidth, r, 2);
 E.siteSize = uispinner(S.Body, "Limits", [1 40], "Step", 1, "Value", 8, "ValueChangedFcn", changed, ...
     "Tooltip", "Probe map: size of the plotted sites (points).");
 place(E.siteSize, r, 2);
+[S, ~] = formSubheading(S, "colors", "Colors");
 [S, r] = formRow(S, "colormap", "Group colors:");
 E.colormap = uidropdown(S.Body, "Editable", "on", "Items", ["lines" "parula" "turbo" "jet" "hot" "cool" "gray" "black"], ...
     "Value", "lines", "ValueChangedFcn", changed, "Tooltip", "lines: the trial selection's colors; a colormap function; " + ...
@@ -1810,6 +1813,19 @@ place(E.colormap, r, 2);
 E.heatColormap = uidropdown(S.Body, "Items", ["auto" "parula" "turbo" "hot" "gray" "jet" "cool" "blueWhiteRed"], ...
     "ValueChangedFcn", changed, "Tooltip", "auto: parula; blueWhiteRed for unit correlation.");
 place(E.heatColormap, r, 2);
+[S, ~] = formSubheading(S, "legendGroup", "Legend");
+[S, r] = formRow(S, ["legend" "legendLoc" "legendOrient" "legendBox"], "Legend:");
+lgg = subgrid(S.Body, r, {'fit', '1x', '1x', 'fit'});
+E.legend = uicheckbox(lgg, "Text", "Show", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Draw the figure's legend (its place, orientation and box are set at its right).");
+E.legendLoc = uidropdown(lgg, "Items", ["Auto" "Inside" "None"], "ItemsData", ["auto" "inside" "none"], ...
+    "Value", "auto", "ValueChangedFcn", changed, ...
+    "Tooltip", "Auto: the figure's legend panel when it has one, else floating in free space, else inside the first " + ...
+    "panel. Drag the floating legend with Arrange on to make it a panel.");
+E.legendOrient = uidropdown(lgg, "Items", ["Auto" "Vertical" "Horizontal"], "ItemsData", ["auto" "vertical" "horizontal"], ...
+    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "How the legend's entries line up.");
+E.legendBox = uicheckbox(lgg, "Text", "Box", "ValueChangedFcn", changed, "Tooltip", "Draw the legend's outline and background.");
+[S, ~] = formSubheading(S, "labelsMarks", "Labels and marks");
 [S, r] = formRow(S, ["sortDepth" "sortShank"], "Sort by:");
 sog = subgrid(S.Body, r, {'fit', 'fit', '1x'});
 sog.ColumnSpacing = 12;
@@ -1821,35 +1837,51 @@ lag = subgrid(S.Body, r, {'fit', 'fit', '1x'});
 lag.ColumnSpacing = 12;
 E.labelDepth = uicheckbox(lag, "Text", "Depth", "ValueChangedFcn", changed, "Tooltip", "Append each unit's / channel's probe depth to its label.");
 E.labelShank = uicheckbox(lag, "Text", "Shank", "ValueChangedFcn", changed, "Tooltip", "Append each unit's / channel's shank to its label.");
-[S, r] = formRow(S, ["showStop" "showArtifactNote" "legend" "grid"], "Show:");
-shg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
+[S, r] = formRow(S, ["showStop" "showArtifactNote"], "Marks:");
+shg = subgrid(S.Body, r, {'fit', 'fit', '1x'});
 shg.ColumnSpacing = 12;
 E.showStop = uicheckbox(shg, "Text", "Stop marks", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Mark each epoch's stop event (the Epoch window's).");
 E.showArtifactNote = uicheckbox(shg, "Text", "Artifact note", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Under the title, say how many of the drawn epochs touch an artifact period (kept when the " + ...
     "trial selection's Artifacts: Exclude epochs is off).");
-E.legend = uicheckbox(shg, "Text", "Legend", "Value", true, "ValueChangedFcn", changed);
-E.grid = uicheckbox(shg, "Text", "Grid", "Value", true, "ValueChangedFcn", changed);
-[S, r] = formRow(S, ["legendLoc" "legendOrient" "legendBox"], "Legend:");
-lgg = subgrid(S.Body, r, {'1x', '1x', 'fit'});
-E.legendLoc = uidropdown(lgg, "Items", ["Auto" "Inside" "None"], "ItemsData", ["auto" "inside" "none"], ...
-    "Value", "auto", "ValueChangedFcn", changed, ...
-    "Tooltip", "Auto: the figure's legend panel when it has one, else floating in free space, else inside the first " + ...
-    "panel. Drag the floating legend with Arrange on to make it a panel.");
-E.legendOrient = uidropdown(lgg, "Items", ["Auto" "Vertical" "Horizontal"], "ItemsData", ["auto" "vertical" "horizontal"], ...
-    "Value", "auto", "ValueChangedFcn", changed, "Tooltip", "How the legend's entries line up.");
-E.legendBox = uicheckbox(lgg, "Text", "Box", "ValueChangedFcn", changed, "Tooltip", "Draw the legend's outline and background.");
+[S, r] = formRow(S, "grid", "Grid:");
+E.grid = uicheckbox(S.Body, "Text", "Grid lines", "Value", true, "ValueChangedFcn", changed, ...
+    "Tooltip", "Draw the grid lines of the panels' axes.");
+place(E.grid, r, 2);
 sec(end+1) = S;
 
-% the looks remembered for the figure (the preview's right-click editor)
-S = formSection(eg, 13, "looks", "Looks", Color=tint("looks"));
+% the design and the looks of the figure: the design list (the preview has the same one; refreshDesigns keeps them equal),
+% the two buttons that make a look of the preview, the looks remembered for the figure (the preview's right-click editor),
+% and where a part's look comes from
+S = formSection(eg, 13, "looks", "Design and looks", Color=tint("looks"));
+[S, r] = formRow(S, "design", "Design:");
+E.design = uidropdown(S.Body, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
+    "ValueChangedFcn", @(dd, ~) obj.onDesignChosen(dd.Value), ...
+    "Tooltip", "The look of every figure: its ground, colors, fonts, axes, ticks, lines and marks. " + ...
+    "Choosing one redraws every figure on screen; runs draw their figures in it too. The preview's Design list is this one.");
+place(E.design, r, 2);
+[S, r] = formRow(S, ["saveDesign" "editAesthetics"], "", 30);
+bg = uigridlayout(S.Body, [1 3], "ColumnWidth", {'fit', 'fit', '1x'}, "ColumnSpacing", 8, "Padding", [0 0 0 0]);
+place(bg, r, [1 2]);
+obj.SaveDesignButton = uibutton(bg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
+    "Tooltip", "Keep the preview's look -- every property of every component, its ground and its group " + ...
+    "colors -- as a design of your own, to choose for any figure. The axes of heat map, probe map, " + ...
+    "correlation map and spectrogram panels are kept for those panel types only. Preview first if the " + ...
+    "preview is out of date.");
+% (settings-p4) enabled once onEditAesthetics lands
+E.editAesthetics = uibutton(bg, "Text", "Edit aesthetics...", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onEditAesthetics(), ...
+    "Tooltip", "Opens the aesthetics editor on the selected panel (right-click the preview meanwhile)");
 [S, r] = formRow(S, ["looksText" "looksForget"], "", 30);
 kg = subgrid(S.Body, r, {'1x', 'fit'});
 place(kg, r, [1 2]);
 E.looksText = uilabel(kg, "Text", "", "WordWrap", "on");
 E.looksForget = uibutton(kg, "Text", "Forget", "ButtonPushedFcn", @(~,~) onForgetLooks(obj), ...
     "Tooltip", "Forget the looks remembered for this figure (colors, lines, fonts set in the right-click editor).");
+[S, r] = formRow(S, "looksOrder", "", 44);
+E.looksOrder = uilabel(S.Body, "Text", "A part's look comes from, in this order: the panel's own rows (Display, Axes), this figure's " + ...
+    "remembered looks, your looks for the panel type, the design.", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
+place(E.looksOrder, r, [1 2]);
 sec(end+1) = S;
 
 names = [sec.Name];
@@ -1859,7 +1891,7 @@ for i = 2:numel(sec)
     k = find(keyed == name);
     if ~isempty(k); sec(i).Key = string(mod(k, 10)); end   % Ctrl+1 ... Ctrl+9, then Ctrl+0 for the tenth (onKeyPress)
 end
-for i = find(ismember(names, ["annotations" "style" "looks" "sessions" "probe"]))
+for i = find(ismember(names, ["annotations" "style" "sessions" "probe"]))
     sec(i).Expanded = false;   % collapsed until opened (then kept: FigureSectionsCollapsed)
 end
 % the supersections: each collapses its sections under a dark header, which Alt+1 to Alt+3 go to (onKeyPress)
@@ -1895,7 +1927,7 @@ obj.FigureSearchIndex = figureSearchIndex(obj.FigureSections, U);   % the rows a
 
 % --- right: the observation picker and the preview ----------------------------------------------
 % the buttons in a column of their own at the left, beside the Dataset, Observation and Favorites rows (three rows
-% tall enough for its five); Design and Save look as design sit at the right of Dataset and Observation; the
+% tall enough for its five); Design sits at the right of Dataset (Save look as design is in the Look section); the
 % template row (and Apply last change) above the preview. Ctrl is Cmd on a Mac (onKeyPress).
 pg = uigridlayout(g, [7 5]);
 pg.RowHeight = {46, 46, 46, 34, '1x', 30, 20};
@@ -1947,7 +1979,7 @@ obj.FiguresDatasetNote = noteButton(obj, sg, "dataset");
 l = uilabel(pg, "Text", "Observation:");
 l.Layout.Row = 2; l.Layout.Column = 2;
 sg = uigridlayout(pg, [1 3], "ColumnWidth", {'1x', 34, 34}, "ColumnSpacing", 4, "Padding", [0 0 0 0]);
-sg.Layout.Row = 2; sg.Layout.Column = 3;
+sg.Layout.Row = 2; sg.Layout.Column = [3 5];   % (the cells under Design are free: the Observation row takes the width)
 obj.FigureObservationDropDown = uidropdown(sg, "Items", "(no observation)", "ItemsData", 0, ...
     "ValueChangedFcn", @(~,~) obj.onFigureObservationChanged(), ...
     "Tooltip", "What the preview draws the figure for: one of the units, channels or the dataset the Observations " + ...
@@ -1958,8 +1990,8 @@ l = uilabel(pg, "Text", "Favorites:");
 l.Layout.Row = 3; l.Layout.Column = 2;
 obj.FigureFavorites = buildFavorites(obj, pg, "FigureFavorites");   % every starred dataset, channel and unit
 obj.FigureFavorites.Grid.Layout.Row = 3; obj.FigureFavorites.Grid.Layout.Column = [3 5];
-% the design every figure is drawn in (PlotDesign; also the Design menu), right of the Dataset and Observation
-% drop-downs, and the preview's look kept as one
+% the design every figure is drawn in (PlotDesign; also the Design menu), right of the Dataset drop-down; the Look
+% section's Design and looks has the same list
 l = uilabel(pg, "Text", "Design:");
 l.Layout.Row = 1; l.Layout.Column = 4;
 obj.DesignDropDown = uidropdown(pg, "Items", PlotDesign.DefaultName, "ItemsData", PlotDesign.DefaultName, ...
@@ -1967,12 +1999,6 @@ obj.DesignDropDown = uidropdown(pg, "Items", PlotDesign.DefaultName, "ItemsData"
     "Tooltip", "The look of every figure: its ground, colors, fonts, axes, ticks, lines and marks. " + ...
     "Choosing one redraws every figure on screen; runs draw their figures in it too.");
 obj.DesignDropDown.Layout.Row = 1; obj.DesignDropDown.Layout.Column = 5;
-obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPushedFcn", @(~,~) obj.onSaveDesign(), ...
-    "Tooltip", "Keep the preview's look -- every property of every component, its ground and its group " + ...
-    "colors -- as a design of your own, to choose for any figure. The axes of heat map, probe map, " + ...
-    "correlation map and spectrogram panels are kept for those panel types only. Preview first if the " + ...
-    "preview is out of date.");
-obj.SaveDesignButton.Layout.Row = 2; obj.SaveDesignButton.Layout.Column = [4 5];
 % the figure templates of yours (FigureTemplate: a figure's settings, copied into figures when applied), and Apply
 % (Apply last change is at the top of the settings column), in the row above the preview; Arrange at its right
 tg = uigridlayout(pg, [1 10], "ColumnWidth", {'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'}, ...

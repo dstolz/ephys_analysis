@@ -478,15 +478,15 @@ with the key of each in brackets:
 | Annotations: Text note | the selected panel's `note`: a block of descriptive text on the panel ([Panel notes](EphysAnalysisConfig.md#panel-notes)). **Text** (a new line starts a new line; blank draws nothing; [label variables](#label-variables) are filled in), **Place** (*Below*, *Above*, *Right of* or *Left of the panel*, which give up a band of the panel's tile beside its axes; nine places *Over the panel*, in its axes; or *At x, y*), **At x, y** (0-1 across and up the panel's axes; on with *At x, y*), **Align** (across and up), **Rotation**, **Font** and its size, **Style** (*Bold*, *Italic*, *Outline*), **Colors** (text and ground) and **Interpreter** (*As typed* or *TeX*). Every row but the text is grayed out until the text has words. In the preview a note over the panel is a component the right-click editor lists; one in a band beside it is not (its looks still apply, and the figure's rules still reach it). |
 | Annotations: Overlays | the selected panel's `overlays`, counted in the sub-heading's title, *Overlays (2)* ([Panel overlays](EphysAnalysisConfig.md#panel-overlays)). A list of the panel's lines and semitransparent patches, with **Add line**, **Add patch**, **Duplicate** (the picked one, look and all, named *name copy*) and **Remove**. A new or duplicated overlay gets a name no overlay of the figure has, on this panel or any other (*Line 1*, *Line 2*, ...: a look remembered for a name reaches every overlay of that name). The rows of the one picked: **Name** and **Enabled**; **Shape** (a vertical or horizontal line, a patch between two x or two y values); **At** or **From / to**; the **Stacking** (*Over* or *Under the data*); a line's **Color** and opacity, or a patch's **Fill** color and opacity and **Outline**; the **Line** style and width. There is no *Show on* row: a panel's overlays are all drawn on its own axes, in its axis' units. |
 | **LOOK** (Alt+3) | the two sections below: how the figure looks |
-| Appearance | the figure's `style` (below); no key; collapsed until opened |
-| Looks | how many looks are remembered for the figure (*"1 remembered look(s); right-click the preview to edit."*) and **Forget**, which drops them and redraws; no key; collapsed until opened |
+| Style | the figure's `style` in four groups (below): *Text and lines*, *Colors*, *Legend* and *Labels and marks*; no key; collapsed until opened |
+| Design and looks | every panel's look in one place; no key; open at the start. **Design:** (the design every figure is drawn in; the same list as the preview's **Design:**, which it stays equal to), **Save look as design...** and **Edit aesthetics...** (the right-click aesthetics editor, opened on the selected panel; grayed until the editor can be opened from here), how many looks are remembered for the figure (*"1 remembered look(s); right-click the preview to edit."*) with **Forget**, which drops them and redraws, and a gray line saying where a part's look comes from, in this order: the panel's own rows (Display, Axes), this figure's remembered looks, your looks for the panel type, the design |
 
 Each of the seventeen headed sections has a title color (a shade of its
 supersection's) and ten a key: **Ctrl+1** to **Ctrl+9** and **Ctrl+0**
 (**Cmd** on a Mac; the number pad too) go to the section of that number, in
 the order above: Observations is 1, Event reference 2, Panels 3, Panel 4,
 Panel alignment 5, Layers 6, Analysis 7, Display 8, Axes 9 and Annotations 0.
-Epoch window, Trial selection, First-spike latency, Sessions, Probe layout, Waveform, Appearance and Looks have no key (the
+Epoch window, Trial selection, First-spike latency, Sessions, Probe layout, Waveform, Style and Design and looks have no key (the
 search finds them). The key opens the section, and its supersection, if
 collapsed, scrolls the editor to it and puts the keyboard focus on its
 header. **Alt+1**, **Alt+2** and **Alt+3** (**Option** on a Mac) go the same
@@ -724,7 +724,7 @@ the nudged place and go a second after the last press. **Ctrl+Alt+arrows**
 still select the panel above, below, left or right.
 
 **The floating legend.** When the figure's legend floats in free space
-(Appearance → **Legend** *Auto* and no legend panel), Arrange gives it a
+(Style → **Legend** *Auto* and no legend panel), Arrange gives it a
 dashed box too: drag or resize it, or right-click it and choose **Make it a
 legend panel here**, and a legend panel takes that place (one undo step, *Add
 panel*), so the legend stays where you put it instead of following the free
@@ -1038,7 +1038,7 @@ colored by its rate (after measure, smoothing, baseline and normalize). The
 colors span that unit's rows only, not the other units', so each unit's
 preview fills the scale; **Color limits** fixes the scale (an auROC is on 0
 to 1) and **Colormap** picks the colors (*auto*: **Heat colors** in
-Appearance, else the design's; or a colormap function's name). A color bar
+Style, else the design's; or a colormap function's name). A color bar
 in the measure's unit is the legend. With several units or layers the first
 is drawn and the others are noted on the panel. Switch back to *trace* to
 see the bars or lines again; every other option is kept. A firing rate
@@ -1094,12 +1094,15 @@ and one panel is selected. So a stack's time axis goes to the top in one step:
 set the X axis side to *top* on one panel and press Apply to all panels in Axes
 (or use **Move every panel's X axis to top**, below).
 
-**Appearance** is the figure's `style`: font size, line width, site size
-(probe maps), group colors, heat colors (heat map, probe map and unit
-correlation panels, a PSTH drawn as a heat map), **Sort by** and **Label with** depth and shank (they
-order and label the observation picker too), **Show** stop marks,
-the artifact note (under the title, how many of the drawn epochs touch an
-artifact period when **Artifacts: Exclude epochs** is off), legend and grid lines, the legend's place, orientation and box. The error a
+**Style** is the figure's `style`, in four groups. *Text and lines*: **Font size**,
+**Line width** and **Site size** (probe maps). *Colors*: **Group colors** and **Heat colors**
+(heat map, probe map and unit correlation panels, a PSTH drawn as a heat map).
+*Legend*: one row, **Legend:** with **Show**, the legend's place (*Auto*, *Inside* or *None*),
+its orientation and **Box**; the place, orientation and box are grayed while **Show** is not ticked.
+*Labels and marks*: **Sort by** and **Label with** depth and shank (they
+order and label the observation picker too), **Marks** (stop marks and
+the artifact note: under the title, how many of the drawn epochs touch an
+artifact period when **Artifacts: Exclude epochs** is off) and **Grid** (grid lines). The error a
 panel draws and its bands' look are the panel's own (**Error**, **Band fill** and
 **Band edge** in Analysis and Display: [Error bands](EphysAnalysisConfig.md#error-bands)). It has no tiles per page, tile spacing
 or y and color limits: a figure is one observation, the spacing is the
@@ -1126,10 +1129,10 @@ only that unit's spikes or that channel's column are read) and
 | **Export preview** | (**Ctrl+K**) under **Redraw All** in the column of buttons, and again left of **Export code**, at the right of the status line under the preview. A spot check of the [Export tab](#export-tab)'s settings before a run: the selected figure, for the observation picked (a figure across sessions: the **Figure:** pick too), drawn as a run draws it -- the page at the export size, in the design chosen -- and written in each format ticked, at its dpi, under the name the file-name pattern gives it, but into a preview folder (`ExportPreviewFolder`, `tempdir\ephys_export_preview`, emptied each time), never the figure folder. The Export controls count as they are, saved or not, and **Write figure files** need not be ticked. An *Out of date* preview is computed first. The *Export preview* window shows the PNG as written (one at the dpi is written for it alone when png is not ticked), under the files' names, the page's size in cm, the dpi and the pixels, and the folder a run writes them to (and whether files are there already: kept or replaced, as **Overwrite existing** says); **Open the files** opens each in its own program, **Open the folder** the preview folder. One window, reused by the next preview. Off with no figure selected and while a run goes |
 | **Preview** | (**Ctrl+P**) computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, heading a column of buttons (**Preview**, **Redraw All**, **Export preview**, **Auto**, **<** **>**) left of **Dataset**, **Observation** and **Favorites**, and turns orange while the figure is *Out of date* |
 | **Auto** | (**Ctrl+T**: off, or on again where it was) a slider from off (left end) to every edit (right end): how slow a redraw an edit may start. Left end: every edit waits for **Preview**. Right end: every edit redraws the preview, however long that takes. Between them an edit redraws when that is predicted to take less than the slider's limit: *0.67 s* a quarter of the way, *2 s* in the middle (the default), *6 s* at three quarters, *18 s* at 0.9; the tooltip says the limit, and so does the status bar while you drag (the slider goes in steps of 0.05). The prediction comes from the figure's last preview, timed in two parts: computing its data and drawing them. An edit of colors, fonts, labels, titles or places reuses the data computed, so only the drawing counts; an edit of what is computed (the event, the window, the bins, the trials, the layers) counts both. A figure too slow for the limit says so under the preview: *"slow to compute, so only edits of the look (colors, fonts, labels, places) redraw; the others wait for Preview"*, or *"slow to draw, so edits wait for Preview"*. Remembered (the preference `FigureAutoRedraw`). A figure across sessions, which computes every session, waits for **Preview** (or a pick in the observation list) whatever the setting; so does a preview that failed or was canceled. A figure just shown, a figure on another dataset and the first figure drawn after the app starts (which also loads the graphics) are drawn once, then timed. The limit is `AutoRedrawScale` x T / (1 - T) seconds at the slider's value T (`AutoRedrawScale` = 2, `AutoRedrawDefault` = 0.5: constants of the app) |
-| **Design:** | the look every figure is drawn in (Default, Tufte, Journal, Night, Talk, Gray panel, and yours; the Design menu offers the same): picking one redraws the preview, and every other figure on screen, at once; runs draw their figures in it. It sits right of the **Dataset** drop-down, with **Save look as design...** under it, right of **Observation** |
+| **Design:** | the look every figure is drawn in (Default, Tufte, Journal, Night, Talk, Gray panel, and yours; the Design menu offers the same): picking one redraws the preview, and every other figure on screen, at once; runs draw their figures in it. It sits right of the **Dataset** drop-down. The Look section's **Design and looks** has the same list, equal to it: choose in either |
 | **Template:** | the row above the preview: your figure templates ([Figure templates](#figure-templates)). The list (read again each time it opens; its tooltip gives the picked template's description, its shape -- *2 x 1: raster, psth; observes units* --, when it was saved and what reading it reported; *(!)* after a name that reported something; right-click it for **Open my templates folder**, **Keep my templates in...** and the template issue and feature items), then **Apply...** (green: into the figures you tick, or as a new figure), **Save as...** (the figure shown as a new template), **Update** (the template picked made again from the figure shown, after asking), **Remove** (red, after asking), **Import...**, **Export...** and **Report issue** (a GitHub issue about templates, prefilled). Apply, Update, Remove and Export are off with no template |
 | **Apply last change...** | at the top of the settings column, above **Find a setting by name**, in the same colors as **Preview**: **Edit → Apply last change to figures...** (**Ctrl+Shift+A**) as a button ([Apply a change to other figures](#apply-a-change-to-other-figures)). On and off with the menu item (with Undo, while that edit has something other figures can take; off for a panel moved), its tooltip naming the edit it would give (*Apply last change to figures: Font size (Ctrl+Shift+A)*), as the Undo tool's names its step |
-| **Save look as design...** | keeps the preview's look -- every property of every component, its ground and its group colors -- as a design of yours, and picks it. The look is read per panel type, from the panels as the preview drew them (not the config, which may have changed since): the rules of a heat map, probe map, unit correlation or spectrogram panel's tile (those axes are drawn their own way) go under the design's `kinds` for that panel type, and those of the figure's other panels are common rules (the same attribution as the preview's right-click **Save this look as a design...**). It saves nothing while the preview is *Out of date* (the status bar says *Preview first: the drawing is out of date*) |
+| **Save look as design...** | (in the Look section **Design and looks**, not in the preview's column) keeps the preview's look -- every property of every component, its ground and its group colors -- as a design of yours, and picks it. The look is read per panel type, from the panels as the preview drew them (not the config, which may have changed since): the rules of a heat map, probe map, unit correlation or spectrogram panel's tile (those axes are drawn their own way) go under the design's `kinds` for that panel type, and those of the figure's other panels are common rules (the same attribution as the preview's right-click **Save this look as a design...**). It saves nothing while the preview is *Out of date* (the status bar says *Preview first: the drawing is out of date*) |
 
 **The selected panel** is outlined in the preview: a blue frame, 3 px wide,
 round its axes and the room their tick labels, axis labels and title take (a
@@ -1229,7 +1232,7 @@ ground). It is drawn as the export is and then scaled by the same factor as
 the page (the width drawn over the page's width at 96 dpi, kept between 0.35
 and 3; `renderFigure`'s `Scale`): every font size, line width, marker size,
 error bar cap, probe-map site and legend token, and the layout's margin and
-gaps, whatever set them -- the Appearance settings, the panel type's own
+gaps, whatever set them -- the Style settings, the panel type's own
 markers, the design, the remembered looks or the figure's own -- so everything
 has the proportion to the page it has in the exported files and in the report
 (which shows the exported pages). The aesthetics editor shows and sets the
@@ -1404,7 +1407,7 @@ find what controls it: the error band goes to its panel's **Error** (Analysis > 
 the colorbar to **Heat colors** (on a PSTH drawn as a heat map, to its **Colormap**). The part's panel is selected, its supersection and
 section open, the editor scrolls to the row, the control takes the keyboard focus
 and its label is highlighted for a moment. A part with no setting of its own goes
-to the Appearance section; a setting the panel does not show (an option of another
+to the Style section; a setting the panel does not show (an option of another
 panel type) is named in the status bar. A figure opened with **Open in window**
 does the same while the app is open. On a panel's x or y label it goes to the
 panel's **X axis** or **Y axis** row.
@@ -1451,7 +1454,7 @@ shows each change at once, applies it to that component, the same one in every
 tile, every group of its role or the ticked rows, and has **Reset**, **Cancel** and
 **OK**. **Remember for future figures** keeps the changes with *This figure
 (saved in the config)* (its `aesthetics`, saved with the config so runs and reports
-match the preview, and counted by the Looks section) or for *Every figure (my
+match the preview, and counted by the Design and looks section) or for *Every figure (my
 preferences)* (group `PlotAesthetics`, one rule set per panel type and one for
 `"figure"`); its **Remembered** tab lists both sets, *This figure* and *My figures*,
 and forgets rules. A look remembered for PSTH panels dresses every PSTH panel of
@@ -1492,9 +1495,9 @@ marks. **Tufte** follows Edward Tufte's data-ink (an off-white page, serif type,
 box or grid, quiet axes, gray data with muted color); **Journal** is print-ready and
 color-blind safe; **Night** is dark; **Talk** has big type and thick lines for slides;
 **Gray panel** looks like ggplot2. Pick one in the **Design:** list above, the
-**Design** menu, or the right-click **Design** submenu of any figure. To make your
-own, style the preview as you like (the Appearance rows, **Edit aesthetics...**) and
-press **Save look as design...**: the design keeps everything the preview shows, and
+**Design** menu, the Look section's **Design and looks**, or the right-click **Design** submenu of any figure. To make your
+own, style the preview as you like (the Style rows, **Edit aesthetics...**) and
+press **Save look as design...** (in **Design and looks**): the design keeps everything the preview shows, and
 what it does not show (a tuning curve's marks, say, when the preview is a PSTH) comes
 from the design it was drawn in. Your designs are JSON files in your designs folder
 (**Design → Open my designs folder**); copy one to a colleague, who adds it with
@@ -1682,7 +1685,7 @@ marked out of date in the tree.
 
 **Example: one look for every unit figure.** Set up a raster over a PSTH as you
 want it (bins, the PSTH's *Shared by rows* y limits, a 6 x 4 in page, larger
-fonts in Appearance), then **Save as...** *Unit card*, *raster over PSTH for the
+fonts in Style), then **Save as...** *Unit card*, *raster over PSTH for the
 lab meeting*. In another config, pick *Unit card*, press **Apply...**, tick
 **Also add it as a new figure** and **Apply**: the figure is there, observing
 units, its event reference the new config's default. Later, change the bins in
@@ -1823,7 +1826,7 @@ Every color field of the editor has a swatch at its right: a layer's
 **Color** and an event's **Mark color**, a raster's **Colors** (ticks,
 bands), an event-trace panel's **Bar outline** and **Baseline**, a text
 note's **Colors** (text, ground), an overlay's **Color**, **Fill** and
-**Outline**, the Appearance's **Group colors**, a panel's **Band
+**Outline**, the Style's **Group colors**, a panel's **Band
 fill** and **Band edge**, and the **Color** of the First-spike latency and
 Latency box plot windows. The swatch shows the field's color (a word such as
 *groups*, *auto* or *none*, which names no one color, shows *...*) and is
@@ -2269,7 +2272,7 @@ that is a figure's setting, not a panel type.
 | | **Apply last change to figures...** (Ctrl+Shift+A) | offers the last edit of the figures to the other figures or panels that can take it ([Apply a change to other figures](#apply-a-change-to-other-figures)); on with Undo while that edit has something other figures can take. The Figures tab's **Apply last change...** button, above the preview, does the same |
 | | **Reset panel options to defaults** | the selected panel takes its type's default options, as one undo step, and the options remembered for its type are forgotten ([Remembered panel options](#remembered-panel-options)) |
 | | **Forget remembered panel options** | new panels start from their types' defaults again; no panel changes |
-| Design | the designs | Default, the built-in designs, then yours (*(mine)*); the one chosen is ticked. Picking one redraws every figure on screen in it ([Plot designs](EphysAnalysis.md#plot-designs)); the Figures tab's **Design:** list is the same choice |
+| Design | the designs | Default, the built-in designs, then yours (*(mine)*); the one chosen is ticked. Picking one redraws every figure on screen in it ([Plot designs](EphysAnalysis.md#plot-designs)); the Figures tab's **Design:** lists (the preview's, and the Look section's **Design and looks**) are the same choice |
 | | **Save the preview's look as a design...** | asks for a name and a description, saves the Figures tab's figure preview's look in your designs folder (read per panel type) and picks it (asks before replacing one of yours) |
 | | **Import a design file...** | copies a design `.json` into your designs folder and picks it |
 | | **Delete one of my designs** | deletes the file of the one picked (asks first); Default is chosen if it was |
@@ -2388,7 +2391,7 @@ is in the config.
 | `FigureAutoRedraw` | the Figures tab's Auto slider, 0 to 1: 0 off, 1 every edit redraws; between, an edit redraws when that takes under 2 s x T / (1 - T) (0.5, the default when not set: 2 s) |
 | `FigureGroupBy` | how the figure tree groups (`observe`, the default; `status`; `none`) |
 | `FigureGroupsCollapsed` | the figure tree's collapsed groups, by key (`observe:unit`, `status:Off`, ...); the selected figure's group opens whatever is kept |
-| `FigureSectionsCollapsed` | the figure editor's collapsed sections (Annotations, Appearance, Looks, Sessions and Probe layout start collapsed) |
+| `FigureSectionsCollapsed` | the figure editor's collapsed sections (Annotations, Style, Sessions and Probe layout start collapsed; Design and looks starts open) |
 | `FigureSupersectionsCollapsed` | the figure editor's collapsed supersections (`figure`, `panel`, `look`; all start open) |
 | `ApplyTicked`, `ApplySeen` | **Apply to figures**: the figures and panels ticked when it was last shown, and every one it has listed (`<figure id>`, `<figure id>/<panel id>`; one never listed is ticked) |
 | `ApplyReplot` | **Apply to figures**: its **Replot the changed figures now** box (off by default) |
@@ -2460,7 +2463,7 @@ results, on the Log tab and in the report.
 | several panels selected | `private/togglePanelSelection` (Shift+Click: `onFigurePanelClicked`, from `renderFigure`'s `OnSelect` over `analysis/private/figurePickable`; `onArrangeClicked`), `private/selectedPanelIds` (`FigurePanelExtra`), the rows they share `syncFigureEditor` (its `panelRowsShown`), the outlines `markFigurePanel`, the header `layoutFigureEditor`, an edit given to each `private/spreadPanelEdit` (`onConfigChanged`, `private/latencyDialog`, the own trial selection) |
 | one edit to other figures | `onApplyToFigures` (Ctrl held: `onKeyPress` / `onKeyRelease` and `onConfigChanged`; Edit → Apply last change and the Apply last change button: the undo history, the button's state and tooltip set by `private/refreshEditMenu`), its window `private/applyToFiguresDialog`, over `EphysAnalysisConfig.figureEditChanges`, `changeTargets`, `panelTakes` and `applyChanges` |
 | figure templates | `refreshTemplates` (the Template list), `onApplyTemplate` (its window `private/applyTemplateDialog`, then `analysis/copyFigureSettings` from the template's figure), `onFigureTemplate` (Save as, Update, Remove, Import, Export, the folder, the issue window; the name window `private/askTemplateName`); the templates themselves: `analysis/FigureTemplate.m` |
-| plot designs | `refreshDesigns` (the Design menu and list; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
+| plot designs | `refreshDesigns` (the Design menu and the two lists, the preview's and the Look section's; `PlotDesign.listen` keeps them current), `onDesignChosen`, `onSaveDesign`, `onImportDesign`, `onDeleteDesign`, `onDesignsFolder`; the designs themselves: `PlotDesign`, `analysis/designs` |
 | running | `onValidate`, `onPlan`, `onRunExport`, `onGenerateFigure` (**File → Generate selected figure**: `onRunExport` for the selected figure alone, then the status bar's text), `onCancelRun` (also stops a Generate and Redraw All) |
 | files | `onNewConfig`, `onOpenConfig`, `openConfigFile`, `onSaveConfig`, `onSaveConfigAs`, `onGenerateScript`, `loadPreferences`, `savePreferences` |
 | help | `onHelp`, `helpURL` (the wiki page and anchor of each tab; `tools/wiki/test_gen_pages.py` checks that the page made from this file has them) |
@@ -2488,13 +2491,13 @@ and section 3, the Figures tab: the toolbar's Preview, pressed from another
 tab, showing the Figures tab and drawing the selected figure; the header (the
 buttons in a column at the left, a row each -- Preview, Redraw All, Export preview,
 Auto, **<** **>** -- beside the Dataset, Observation and Favorites rows, Design
-and Save look as design... right of Dataset and Observation; every button's
+right of Dataset; every button's
 key named in its tooltip, and Ctrl+W, Ctrl+T and Ctrl+P pressing theirs); **Export code**
 (left of Open in window under the preview: its script, run in a workspace of its
 own, computes the same result as the preview, but for the time it was made,
 and draws the same panels in a window of its own); the Design row
 (the list and the menu, a design chosen redrawing the figure preview without
-touching the config, **Save look as design...** from the figure preview, a
+touching the config, the Look section's Design list kept equal to it, **Save look as design...** (the Look section's button) from the figure preview, the Legend row's enabling, a
 heat map figure's axes rules kept under the design's heat map kind, deleting a
 design); the epoch diagram window (opened for the figure, redrawn on an
 edit of its pre, *Use default* again, an edit of the defaults, closing);
@@ -2615,7 +2618,7 @@ events layer to the raster draws its marks. Ctrl+1 opens the collapsed
 Observations section; Event reference is Ctrl+2, Panels Ctrl+3, Panel Ctrl+4,
 Panel alignment Ctrl+5, Layers Ctrl+6, Analysis Ctrl+7, Display Ctrl+8, Axes
 Ctrl+9, Annotations Ctrl+0 (each goes to its section, opening it), and
-Waveform, Appearance and Sessions have no key. The three supersections head their sections in order
+Waveform, Style, Design and looks and Sessions have no key. The three supersections head their sections in order
 (Figure, Panel naming the raster, Look); collapsing Panel hides its sections,
 Ctrl+6 opens it again with Layers, Alt+2 opens it and Ctrl+Alt+2 (AltGr) does
 nothing. Ctrl+F and *bin* list *Panel > Analysis — Raster > Bin width (ms)* first, and

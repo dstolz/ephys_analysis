@@ -12,7 +12,7 @@ function why = figureRowReason(label, key, type)
 %   what else it needs), the Waveform rows by the panel's type
 %   (waveformNote: why a type draws no waveform; an inset's place, a
 %   probe layout's glyphs), the overlay rows by the overlay picked, the
-%   Appearance rows by the figure's panel types. A key it does not know
+%   Style rows by the figure's panel types. A key it does not know
 %   gets a plain "is not used by this figure, its selected panel or layer".
 %
 %   See also EphysFigGenApp.gotoFigureRow, syncFigureEditor.

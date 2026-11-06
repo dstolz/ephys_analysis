@@ -8,7 +8,7 @@ function ok = gotoFigureSetting(obj, id, role, panel)
 %   row, its control takes the keyboard focus (the exact control: the
 %   "Error" box of the Show row, say) and its label is highlighted for a
 %   moment (gotoFigureRow). A part with no setting of its own goes to the
-%   Appearance section. When no candidate is shown for the panel, the
+%   Style section. When no candidate is shown for the panel, the
 %   status bar says why for the first (figureRowReason). OK is true when
 %   it went to a setting.
 %

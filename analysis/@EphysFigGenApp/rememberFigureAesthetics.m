@@ -4,7 +4,7 @@ function rememberFigureAesthetics(obj, id, rules)
 %   when its changes are remembered for "this figure": they go into the
 %   config (Figures(k).aesthetics), so the figure is drawn that way wherever
 %   it is drawn, and the title shows unsaved changes. RULES [] forgets them
-%   (the Looks section's Forget). The editor redraws the preview itself.
+%   (the Design and looks section's Forget). The editor redraws the preview itself.
 %   The change is a step of the undo history (recordFigureEdit: "Remember
 %   looks", "Forget looks").
 %

@@ -4,8 +4,8 @@ function gotoFigureSection(obj, name)
 %   call this on the Figures tab (onKeyPress), the keys following the
 %   editor's order: Observations 1, Alignment 2, Layout 3, Panel 4, Panel
 %   alignment 5, Layers 6, Analysis 7, Display 8, Axes 9, Annotations 0;
-%   First-spike latency, Sessions, Probe layout, Waveform, Appearance and
-%   Looks have none. A section the figure does not show (no panel picked, say)
+%   First-spike latency, Sessions, Probe layout, Waveform, Style and
+%   Design and looks have none. A section the figure does not show (no panel picked, say)
 %   stays where it is, and the status bar says so.
 i = find([obj.FigureSections.Name] == name, 1);
 if isempty(i); return; end

@@ -19,6 +19,18 @@ says how to cut a release.
   under a folded one opens it first. Folded groups are remembered (preference `FigureSubheadingsCollapsed`). Section
   header colors say the scope, blue FIGURE, green PANEL, violet LOOK, a shade per section, from one table at the top of
   `buildFiguresTab`, instead of 17 hues.
+- Analysis app, Figures tab: the settings are regrouped by scope (FIGURE: Observations, Alignment, Layout, First-spike
+  latency, Sessions, Probe layout; PANEL: Panel, Panel alignment, Layers, Analysis, Display, Axes, Waveform, Annotations;
+  LOOK: Style, Design and looks) and relabeled so that one concept has one label, the same in the editor, the New panel
+  window, the Trial measure and latency windows, the search, the hidden-row reasons and the Undo names: **Page size**;
+  **On channels** (a unit filter's recording channels) and **Signal channels** (an extract's columns); the response
+  test's **Windows (s)**, **Parameter** and **Correction, alpha**; **Trial measure** and **Trial measure (x)**; **Bin
+  width (ms)**, **Smoothing SD (ms)**, **Baseline window (s)**, **Trial group drawn**, **Color by** (a probe map's),
+  **Power scale**, **Frequency (Hz)**, **Spike sampling (Hz)**, **Draw as** and **Trace**, **Single trials**,
+  **First-spike marks** and **Latency box plot**, **Tick color** and **Row bands**, **Row line** and **Row line
+  style**, **Also show**, **Axes box**, **Stacking** and **Shape** (an overlay's), **One page per** (Sessions),
+  and the Waveform section's **Waveform**, **Time span (ms)**, **Amplitude range**, **Inset size** or **Glyph size**
+  (by role) and **Labels**. The Copy settings tree names the same settings the same way.
 - `EphysAnalysisConfig.adoptPanelOptions(fig, id, Fields=names)` copies only the named options (and `"xSide"` /
   `"ySide"`); left out it copies as before.
 - Analysis app, Figures tab: Arrange places panels without drawing the preview again. A release, an arrow nudge or

@@ -105,7 +105,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | ...do this | Do this |
 | --- | --- |
 | change how a figure looks (colors, line widths, fonts, axis labels) | right-click a part of the preview and edit it there, or open **Design and looks** under LOOK in the settings column: pick a ready-made look in **Design** (journal, talk, ...; the **Design** menu and the list beside **Dataset** are the same choice), press **Edit aesthetics...** to edit the selected panel's colors, lines and fonts (or right-click the preview), and **Save look as design...** to keep the preview's look as a design of your own. Fonts, line widths, colors and the legend are under **Style** |
-| draw a smooth line over a PSTH's bars | select the PSTH and, in its options, tick **Smoothed line: Draw**. **SD (ms)** sets how smooth the line is; **Smooth (ms)** still sets the bars' own smoothing, apart from the line's |
+| draw a smooth line over a PSTH's bars | select the PSTH and, in its options, tick **Smoothed line: Draw**. **SD (ms)** sets how smooth the line is; **Smoothing SD (ms)** still sets the bars' own smoothing, apart from the line's |
 | write a label that follows the data, such as *Time (s) re Stim onset* or *Hit trials* | type a variable in braces in a title, an axis label, a layer's name or a note: **Time (s) re {Line} {Edge}**, **{Response} trials**. Each figure fills it in. The **{x}** button beside the field lists them, with what each means (see [Labels that follow the data](#labels-that-follow-the-data)) |
 | give one figure its own event or window | in the figure's panel settings, set its own event reference and epoch window; the Alignment tab is only the default |
 | draw a figure across several recordings | in the figure's Observations section, set **Pages** to *Across datasets*; its settings are in the Sessions section that appears |
@@ -135,18 +135,18 @@ animal leaving the platform, and whether that differs between trial groups:
 
 1. In the Figures tab, press **Add** (or **New panel...** in a figure you
    have). Pick **Trial distribution**. Under **Key parameters**, set
-   **Measure** to *Delay from an event to another*, **From (A)** to *Stim
+   **Trial measure** to *Delay from an event to another*, **From (A)** to *Stim
    onset* and **To (B)** to *Platform offset*. Press **OK**: the panel
    draws one dot per trial.
 2. To change the measure later, find the **Layers** section and press
-   **Edit...** beside **Measure**. The *Trial measure* window shows both events
+   **Edit...** beside **Trial measure**. The *Trial measure* window shows both events
    with every option the Alignment tab has (which one, its scope, a sequence).
    The gray line at the bottom shows the name the measure will get. Press
    **OK**.
 3. In **Analysis**, pick what goes along the x axis in **Categories**: *trial
    groups* (the groups of the figure's trial selection, such as *Depth*), *a
    trial parameter* (type its name, and the number of bins beside it), or
-   *measure (layer)* to put several measures side by side. **Display** draws
+   *measure (layer)* to put several measures side by side. In **Display**, **Draw as** draws
    the values as a swarm, boxes, violins, points or a line.
 4. The group test is drawn with the panel: brackets with stars over the pairs
    that differ, and the overall p in a corner. **Test** picks the test (*auto*

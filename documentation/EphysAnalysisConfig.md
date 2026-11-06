@@ -1105,7 +1105,7 @@ give the fields below; every field exists on every entry.
 | `style` | [Style](#style) | the figure's look: fonts, line widths, legend, colors and probe sorting apply (the error a panel draws and its bands' look are the panel's options: [Error bands](#error-bands)). `XLim`, `YLim`, `CLim`, `MaxTiles` and `TileSpacing` are not used: the time panels show the window, each panel has its own `options.yLim` / `cLim`, and the panels are placed by their `rect` |
 | `aesthetics` | none | remembered looks of the figure's components, a list of rules `{role, group, property, value}` ([Plot aesthetics](EphysAnalysis.md#plot-aesthetics)) |
 
-`size` (the page the figure is exported on, `figureExportSize` ([Export and reports](EphysAnalysis.md#export-and-reports)); the app's **Size** row, which also shapes the preview):
+`size` (the page the figure is exported on, `figureExportSize` ([Export and reports](EphysAnalysis.md#export-and-reports)); the app's **Page size** row, which also shapes the preview):
 
 | Field | Default | Meaning |
 | --- | --- | --- |

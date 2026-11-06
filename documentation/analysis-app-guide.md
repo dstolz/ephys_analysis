@@ -119,7 +119,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | move or resize several panels together | **Shift+Click** them, then press **Arrange** (or press Arrange and **Shift**+click their boxes), then drag one of them: all move by the same amount (resizing one resizes each by the same amount); the arrow keys nudge them all |
 | put the legend where you want it | with **Arrange** on, drag the legend's dashed box where you want it: it becomes a legend panel there. Or **New panel...** → *Legend*: a panel of its own that holds the figure's legend; place and size it as any panel. Appearance → **Legend** picks *Auto*, *Inside* or *None*; the legend never makes a plot smaller |
 | keep labels from running into the next panel, or make a rect mean the whole panel with its labels | in the **Panels** section, **Padding** is the clear space kept around labels, and **Boxes mean** says whether a rect is the plot area (labels kept clear) or the outer box (labels inside it) |
-| hide a panel's axis label or tick numbers (say, on the inner panels of a grid) | select the panel, and in **Selected panel** set **Show (x, y)** to *ticks, no label*, *label, no ticks* or *neither* for that axis |
+| hide a panel's axis label or tick numbers (say, on the inner panels of a grid) | select the panel, and in **Axes** set **Show (x, y)** to *ticks, no label*, *label, no ticks* or *neither* for that axis |
 | copy a change to the other figures | **Edit → Apply last change to figures...** |
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysFigGenApp.md#notes)) |
@@ -143,7 +143,7 @@ animal leaving the platform, and whether that differs between trial groups:
    with every option the Alignment tab has (which one, its scope, a sequence).
    The gray line at the bottom shows the name the measure will get. Press
    **OK**.
-3. In **Options**, pick what goes along the x axis in **Categories**: *trial
+3. In **Analysis**, pick what goes along the x axis in **Categories**: *trial
    groups* (the groups of the figure's trial selection, such as *Depth*), *a
    trial parameter* (type its name, and the number of bins beside it), or
    *measure (layer)* to put several measures side by side. **Display** draws

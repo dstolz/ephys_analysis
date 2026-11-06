@@ -36,7 +36,7 @@ K = [ ...
     c + "+U",                           "Test report: every enabled figure for the observation picked (and the dataset's), in the browser"
     c + "+T",                           "Auto: off, or on again where its slider was"
     c + "+E, " + c + "+W",              "Export code, Open in window (the buttons under the preview)"
-    "Arrows (Arrange)",                  "Nudge the selected panel by the snap step (the Panels section's Snap step), after a click on the preview"
+    "Arrows (Arrange)",                  "Nudge the selected panel by the snap step (the Layout section's Snap step), after a click on the preview"
     "Shift+Arrows (Arrange)",            "Nudge it by ten steps"
     c + "+Arrows (Arrange)",            "Nudge it by one pixel of the preview: the finest move the screen shows"
     a + "+Arrows (Arrange)",            "Resize it: its right or top edge by one step (with Shift, ten)"

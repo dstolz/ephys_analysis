@@ -110,7 +110,7 @@ if e.Row == 0; what = "The " + S.Title + " section"; end
 switch S.Name
     case {"panel" "palign" "layers" "analysis" "display" "axes" "waveform" "annotations"}
         if isempty(fig.panels)
-            why = what + " is a panel's: add a panel to the figure first (Panels: New panel...).";
+            why = what + " is a panel's: add a panel to the figure first (Layout: New panel...).";
         elseif ~hasPanel
             why = what + " is a panel's: pick a panel: Ctrl+Click it in the preview, or Ctrl+] steps through them.";
         elseif S.Name == "waveform"
@@ -118,8 +118,12 @@ switch S.Name
         else
             why = what + " is not shown for this panel.";
         end
-    case {"ref" "window" "selection"}
-        why = what + " (" + S.Title + ") is not used: every panel of this figure is of a type not aligned to events.";
+    case "align"
+        why = what + " is not used: every panel of this figure is of a type not aligned to events.";
+    case "sessions"
+        why = what + " is for a figure across datasets: pick 'Across datasets' in Observations > Pages.";
+    case "probe"
+        why = what + " is for a figure on the probe: pick 'On the probe' in Observations > Pages.";
     otherwise
         why = what + " is not shown for this figure.";
 end

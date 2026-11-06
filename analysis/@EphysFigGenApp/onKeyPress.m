@@ -7,7 +7,9 @@ function onKeyPress(obj, evt)
 %     Alt+1 to Alt+3        a supersection: Figure, Panel, Look
 %                           (gotoFigureSuper; Option on a Mac)
 %     Ctrl+1 to Ctrl+9, 0   a section, named in its header (formLayout):
-%                           the first ten, Observations to Annotations
+%                           Observations 1, Alignment 2, Layout 3, Panel 4,
+%                           Panel alignment 5, Layers 6, Analysis 7,
+%                           Display 8, Axes 9, Annotations 0
 %                           (gotoFigureSection)
 %     Ctrl+F                the search field (its matches: onFigureSearch)
 %     F6, Shift+F6          the next or previous column: the figure list,

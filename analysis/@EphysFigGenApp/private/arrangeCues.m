@@ -8,7 +8,7 @@ function arrangeCues(obj, rect, g, opts)
 %     distances         a short double-ended line across each gap read
 %                       out (to the nearest panel or the page's edge on a
 %                       side, under a quarter of the page), its length at
-%                       its middle in the Panels section's units
+%                       its middle in the Layout section's units
 %                       (FigureRectUnits, on the figure's export page:
 %                       figurePage): "0.50 cm"
 %     equal spacing     both gaps of the pair read "= 0.50 cm"

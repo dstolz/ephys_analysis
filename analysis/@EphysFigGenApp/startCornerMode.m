@@ -2,7 +2,7 @@ function ok = startCornerMode(obj, what, payload)
 %startCornerMode  Set corners: wait for two clicks on the preview, the corners of a panel's rect, then place what WHAT says there.
 %   OK = startCornerMode(OBJ, WHAT, PAYLOAD), WHAT:
 %     "set"    the selected panel takes the rect ("Set corners": Set
-%              corners in the Panels section, a box's right-click menu)
+%              corners in the Layout section, a box's right-click menu)
 %     "new"    a new panel: PAYLOAD holds onNewPanel's options (Type,
 %              Id, Title, Options, ...: New panel's "Draw it on the
 %              preview (two clicks)"), placed at the rect as Where "rect"

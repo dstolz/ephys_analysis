@@ -1,5 +1,5 @@
 function onSnapChanged(obj)
-%onSnapChanged  The Panels section's Snap box or its step: Arrange's snapping and the arrow keys' nudge.
+%onSnapChanged  The Layout section's Snap box or its step: Arrange's snapping and the arrow keys' nudge.
 %   Snap (FigureSnap) and the step (FigureSnapStep: its value in the
 %   Units shown) are preferences (saved at once: savePreferences), not part of the
 %   config: nothing is edited and no undo step is made. A step that is

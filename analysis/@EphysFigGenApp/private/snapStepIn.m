@@ -6,7 +6,7 @@ function step = snapStepIn(step, units, pageCm, dpi)
 %   at DPI: between cm, in and px the same length; between normalized and
 %   % the same share of each side; from a length to a share of the page or
 %   back, measured along the page's width (figureRectConvert, axis "x").
-%   The value is rounded as the Panels section shows it (unitsShown), but
+%   The value is rounded as the Layout section shows it (unitsShown), but
 %   never to 0: the smallest value it can show instead. A STEP that is not
 %   a positive value in known units becomes the default, 0.5 cm, first.
 %

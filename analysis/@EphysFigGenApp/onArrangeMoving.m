@@ -147,7 +147,7 @@ end
 
 
 function showRect(obj, rect, C)
-%showRect  The Position and Size fields showing RECT in the Panels section's units (no callback runs).
+%showRect  The Position and Size fields showing RECT in the Layout section's units (no callback runs).
 E = obj.FigureEditor;
 if ~isfield(E, 'rectX') || ~isvalid(E.rectX); return; end
 was = obj.Applying;

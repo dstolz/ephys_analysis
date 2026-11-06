@@ -1,5 +1,5 @@
 function [pageCm, dpi] = figurePage(obj, fig)
-%figurePage  The page a figure is exported on, [width height] cm, and the Export tab's dpi: what the Panels section's lengths are measured on.
+%figurePage  The page a figure is exported on, [width height] cm, and the Export tab's dpi: what the Layout section's lengths are measured on.
 %   [PAGECM, DPI] = figurePage(OBJ) is the page of the selected figure
 %   (figureExportSize: its own size, else the Export tab's) and the Export
 %   section's Dpi (150 when it has none); [18 12] cm with no figure

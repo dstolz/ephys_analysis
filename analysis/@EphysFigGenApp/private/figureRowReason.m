@@ -5,8 +5,9 @@ function why = figureRowReason(label, key, type)
 %   selected panel's type ("" = none). The reasons follow what
 %   syncFigureEditor shows: the Observations rows by the data observed,
 %   the First-spike latency rows by the figure's panels and the method,
-%   the Sessions rows by Across datasets, the Probe layout rows by On the
-%   probe, the selected panel's rows, the
+%   the Sessions rows by Pages: Across datasets, the Probe layout rows by
+%   Pages: On the probe, the Alignment bodies by the panel types, the
+%   selected panel's rows, the
 %   picked layer's by its source and binding, the Analysis, Display and Axes rows by the
 %   panel's type (an option of the selected type that is still hidden says
 %   what else it needs), the Waveform rows by the panel's type
@@ -54,14 +55,20 @@ switch key
     case "obsChannels"
         tail = "is for a signal: pick LFP, MUA, SPIKE or AUX in Observe.";
     case "obsPerGroup"
-        tail = "is not used by a figure across datasets (its Trial groups row, Sessions, decides) or on the probe (Probe layout).";
+        tail = "is not used by a figure across datasets (its Trial groups row, Sessions, decides) or on the probe (Probe layout): see Pages.";
     case {"prbLayout" "prbOverlap" "prbLanes" "prbShanks" "prbChannels" "prbDepth" "prbMaxTiles" "prbPerSite" "prbTileWidth" ...
             "prbTileHeight" "prbScale" "prbLabels" "prbSharedY" "prbScaleTile" "prbShowSites" "prbLeaders" "prbNote"}
-        tail = "shows once On the probe is ticked (Probe layout).";
+        tail = "is for a figure on the probe: pick 'On the probe' in Observations > Pages.";
     case {"sesDatasets" "sesFacet" "sesSeries" "sesColorOrder" "sesTrialGroups" "sesMinSessions" "sesShowMembers" "sesError" "sesNote"}
-        tail = "shows once Across datasets is ticked (Sessions).";
+        tail = "is for a figure across datasets: pick 'Across datasets' in Observations > Pages.";
     case "sesKeys"
-        tail = "shows with Across datasets ticked and Datasets: These datasets.";
+        tail = "shows with Datasets: These datasets (a figure across datasets: Observations > Pages).";
+    case {"refBody" "windowBody"}
+        tail = "is for panels aligned to events: every panel of this figure is of a type that is not.";
+    case "selectionBody"
+        tail = "is for panels aligned to events and trial panels: every panel of this figure is of another type.";
+    case "latLinks"
+        tail = "shows while a panel of the figure reads the first-spike latency.";
     case {"latNote" "latMethod" "latFrom" "latBaseline" "latCusum" "latCusumSD"}
         tail = "is the figure's first-spike latency: it shows while the figure has a raster, PSTH or heat map panel.";
     case "latRate"

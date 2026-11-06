@@ -1,5 +1,5 @@
 function [v, digits, tail] = unitsShown(v, from, units, pageCm, dpi, axis)
-%unitsShown  Values as the Panels section shows them in UNITS: converted, and rounded to its fields' precision.
+%unitsShown  Values as the Layout section shows them in UNITS: converted, and rounded to its fields' precision.
 %   V = unitsShown(V, FROM, UNITS, PAGECM, DPI, AXIS) converts V from the
 %   units FROM to UNITS (EphysAnalysisConfig.RectUnits) on the page PAGECM
 %   ([width height] cm) at DPI, along AXIS ("x", "y" or "rect":

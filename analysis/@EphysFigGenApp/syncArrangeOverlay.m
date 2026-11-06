@@ -45,7 +45,7 @@ function [shown, why] = syncArrangeOverlay(obj, opts)
 %   signs, each sign placed anew. While a
 %   preview computes or draws nothing changes: the drawing calls this
 %   again when done. SHOWN: the overlay shows now.
-%   The Panels section's Set corners is on while the preview shows the
+%   The Layout section's Set corners is on while the preview shows the
 %   selected figure and one panel is selected.
 %   Called by markFigurePanel (after a preview is drawn, laid out again in
 %   place or drawn again; the selection, an edit: syncFigureEditor;

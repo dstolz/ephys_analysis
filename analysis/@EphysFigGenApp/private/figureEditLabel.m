@@ -6,9 +6,9 @@ function label = figureEditLabel(obj, src)
 %   box), else the title of the section holding it. A SRC that is a string
 %   is the name itself (a dialog's OK, a button, a key: the caller names
 %   the step). "Edit" for any other SRC outside the editor, or none.
-%   An edit of the Probe layout section (the figure's probe block) is
-%   "Probe layout" for its On the probe box, "Probe layout: <row>" for
-%   one of its rows ("Probe layout: Max tiles").
+%   An edit of a Probe layout row (the figure's probe block) is named
+%   "Probe layout: <row>" ("Probe layout: Max tiles"); the Pages row that
+%   turns the block on is "Pages".
 label = "Edit";
 if isstring(src) && isscalar(src) && strlength(strtrim(src)) > 0; label = strtrim(src); return; end
 if isempty(src) || ~isscalar(src) || ~isobject(src) || ~isprop(src, 'Parent') || ~isvalid(src); return; end
@@ -46,9 +46,7 @@ function label = named(e)
 %named  A search entry's name as an edit's: its label, but "Probe layout" (and the row, its words before a bracket) in the Probe layout section.
 label = e.Label;
 if e.Section ~= "probe"; return; end
-if any(e.Keys == "prbEnabled")
-    label = "Probe layout";
-elseif contains(label, " (")
+if contains(label, " (")
     label = "Probe layout: " + extractBefore(label, " (");   % "Shared y (each panel ...)": Shared y
 else
     label = "Probe layout: " + label;

@@ -1,5 +1,5 @@
 function showPanelPlace(obj)
-%showPanelPlace  The Panels section's place rows for the selected figure and panel, in the units picked.
+%showPanelPlace  The Layout section's place rows for the selected figure and panel, in the units picked.
 %   showPanelPlace(OBJ) shows the Units drop-down (FigureRectUnits), the
 %   selected panel's line ("psth_1 (PSTH): 10.2 x 6.0 cm at 0, 0":
 %   rectText; with several selected, "3 panels: psth_1, psth_2, raster_1") and its rect in the Position and Size fields, the figure's

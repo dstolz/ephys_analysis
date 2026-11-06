@@ -18,7 +18,7 @@ arguments
     layout (1,1) string = "grid"
 end
 draws = true;
-alt = " Put a Unit waveforms panel beside it (Panels: New panel...) to show the unit's waveform.";
+alt = " Put a Unit waveforms panel beside it (Layout: New panel...) to show the unit's waveform.";
 if ismember(type, EphysAnalysisConfig.WaveformInsetTypes)
     txt = "The panel's first unit's waveform, as an inset in a corner of the panel (a layer drawn as its units' " + ...
         "mean has none). Time and Amplitude set its x and y scales, Size its width and height.";

@@ -554,7 +554,9 @@ classdef EphysAnalysisConfig
             %   [F, UNKNOWN] = EphysAnalysisConfig.normalizeFigures(V, PRIOR):
             %   PRIOR (optional) the figures already normalized, as the config
             %   holds them: an entry of V equal to the one at its place in
-            %   PRIOR is kept as it is, not normalized again (set.Figures
+            %   PRIOR is kept as it is, not normalized again, and so is one
+            %   that differs only in its panels' rects (four finite numbers
+            %   each, taken as a row: Arrange's places) (set.Figures
             %   passes the config's own, so an edit of one figure normalizes
             %   that one alone, not every figure of a long config). The id
             %   pass below runs over every entry all the same.
@@ -583,6 +585,9 @@ classdef EphysAnalysisConfig
                 end
                 if k <= numel(prior) && isequaln(v{k}, prior(k))
                     f = prior(k);   % normalized already, and unchanged (no unknown fields: it has the schema's alone)
+                elseif k <= numel(prior) && rectsAlone(v{k}, prior(k))
+                    f = prior(k);   % its panels' rects alone changed (Arrange): normalized already but for them
+                    for j = 1:numel(f.panels); f.panels(j).rect = double(reshape(v{k}.panels(j).rect, 1, 4)); end
                 else
                     [f, u] = EphysAnalysisConfig.normalizeFigure(v{k}, "Figures(" + k + ")");
                     unknown = [unknown, u]; %#ok<AGROW>
@@ -898,4 +903,20 @@ classdef EphysAnalysisConfig
             id = base + " (" + n + ")";
         end
     end
+end
+
+
+function tf = rectsAlone(a, b)
+%rectsAlone  Figure struct A is the normalized figure B but its panels' rects (each four finite numbers).
+tf = false;
+if ~isstruct(a) || ~isscalar(a) || ~isfield(a, 'panels') || ~isstruct(a.panels) || numel(a.panels) ~= numel(b.panels) ...
+        || isempty(b.panels) || ~isequal(fieldnames(a), fieldnames(b)) || ~isequal(fieldnames(a.panels), fieldnames(b.panels))
+    return
+end
+for j = 1:numel(a.panels)
+    r = a.panels(j).rect;
+    if ~isnumeric(r) || ~isreal(r) || numel(r) ~= 4 || ~all(isfinite(r)); return; end
+    a.panels(j).rect = b.panels(j).rect;
+end
+tf = isequaln(a, b);
 end

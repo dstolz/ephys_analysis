@@ -1,24 +1,23 @@
 function [S, h] = formLayout(S)
-%formLayout  Pack a section's shown rows to the top and size it.
-%   [S, H] = formLayout(S) gives the section's shown rows (S.Shown) the
-%   first rows of its body and the hidden ones zero-height rows below them,
-%   out of sight, so hidden rows leave no gaps (the body has twice the
-%   form's N rows: hidden row R sits in row N + R, so a row that stays
-%   hidden is not moved again); sets the header's arrow and
-%   title; and returns the section's height H in pixels: 0 when it is hidden
-%   (S.Visible false, or a form with no row shown), the header's alone when
-%   it is collapsed. A section with a key (S.Key, "1" to "9" or "0") names it in
-%   its header: "(Ctrl+1)", "(Cmd+1)" on a Mac.
+%formLayout  Show a section's shown rows, give the others no height, and size it.
+%   [S, H] = formLayout(S) shows the section's rows S.Shown and hides the
+%   others (so Tab skips them); a hidden row and the gap under it get no
+%   height, so it leaves no space. Every row keeps its place in the body
+%   (formRow): what changes is the body's row heights, in one set, and the
+%   Visible of the rows shown or hidden. Moving rows instead (packing the
+%   shown ones to the top with a new Layout.Row each) took the window about
+%   three times as long to paint on a switch of panel type, with more than
+%   twice the position reports from the view. It also sets the header's
+%   arrow and title, and returns the section's height H in pixels: 0 when
+%   it is hidden (S.Visible false, or a form with no row shown), the
+%   header's alone when it is collapsed. A section with a key (S.Key, "1"
+%   to "9" or "0") names it in its header: "(Ctrl+1)", "(Cmd+1)" on a Mac.
 %
 %   The first call finds each row's controls (the body's children in that
 %   row); rows are addressed by that first order from then on.
 %
-%   Only what changed is set: a control's Layout.Row and Visible, the
-%   grids' row heights and spacing and the header's text are compared
-%   first (a set costs as much when the value stays). Setting a control's
-%   Layout.Row to the row it has costs as much as a move (the view takes a
-%   new layout object), and the figure editor has hundreds of controls,
-%   laid out again on every switch of figure, panel or layer.
+%   Only what changed is set: a control's Visible, the grids' row heights
+%   and spacing and the header's text are compared first.
 %
 %   See also formSection, formRow, formShow.
 header = 26 * ~isempty(S.Toggle);
@@ -26,24 +25,22 @@ isForm = ~isempty(S.Heights);
 if isForm
     if all(cellfun(@isempty, S.Items))
         for c = reshape(S.Body.Children, 1, [])
-            r = c.Layout.Row(1);
-            S.Items{r}(end+1) = c;
+            k = (c.Layout.Row(1) + 1) / 2;   % (row K is in grid row 2K - 1: formRow)
+            S.Items{k}(end+1) = c;
         end
     end
     on = S.Shown;
-    N = numel(on);
-    at = N + (1:N);   % a hidden row's place: its own, below every shown one
-    at(on) = 1:nnz(on);
-    for r = 1:N
-        vis = matlab.lang.OnOffSwitchState(on(r));
-        for c = S.Items{r}
-            if ~isequal(c.Layout.Row, at(r)); c.Layout.Row = at(r); end
+    for k = 1:numel(on)
+        vis = matlab.lang.OnOffSwitchState(on(k));
+        for c = S.Items{k}
             if c.Visible ~= vis; c.Visible = vis; end
         end
     end
+    gap = S.Gap * on;
+    gap(find(on, 1, 'last')) = 0;   % none under the last row shown
+    setChanged(S.Body, 'RowHeight', num2cell(reshape([S.Heights .* on; gap], 1, [])));
     n = nnz(on);
-    setChanged(S.Body, 'RowHeight', num2cell([S.Heights(on) zeros(1, 2 * N - n)]));
-    body = sum(S.Heights(on)) + max(0, n - 1) * S.Body.RowSpacing + S.Body.Padding(2) + S.Body.Padding(4);
+    body = sum(S.Heights(on)) + sum(gap) + S.Body.Padding(2) + S.Body.Padding(4);
     visible = S.Visible && n > 0;
 else
     body = S.BodyHeight;

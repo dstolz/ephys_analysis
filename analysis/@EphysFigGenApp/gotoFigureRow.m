@@ -6,6 +6,11 @@ function ok = gotoFigureRow(obj, i, opts)
 %   scrolls to it, its control (a section's header) takes the
 %   keyboard focus and its label (else the control) is highlighted for a
 %   moment; the status bar names it ("Panel > PSTH options > Bin (ms)").
+%   A row under a collapsed sub-heading (formSubheading) opens that group
+%   first, as a collapsed section opens (onFigureSubheadingToggled); a
+%   sub-heading is gone to as it is, folded or not. A sub-heading is hidden
+%   when every row under it is (formRowShown), and the status bar then
+%   gives the reason of the first of them.
 %   A row the figure does not show stays where it is and the status bar
 %   says why (figureRowReason: "Bin (ms) is an option of PSTH, heat map
 %   and unit correlation panels: pick such a panel."), as does a section
@@ -55,14 +60,18 @@ if ~(S.Visible && (isempty(S.Heights) || any(S.Shown)))   % the section is not s
     obj.setStatus(sectionReason(e, S, fig, hasPanel, type));
     return
 end
-if e.Row > 0 && ~S.Shown(e.Row)
+if e.Row > 0 && ~formRowShown(S, e.Row)
     if several; obj.setStatus(severalReason(e.Label, sel)); return; end
-    obj.setStatus(figureRowReason(e.Label, e.Keys(1), type));
+    obj.setStatus(figureRowReason(e.Label, reasonKey(S, e), type));
     return
 end
 u = find([obj.FigureSupers.Name] == S.Super, 1);
 if ~isempty(u) && ~obj.FigureSupers(u).Expanded; obj.onFigureSuperToggled(S.Super); end
 if ~obj.FigureSections(s).Expanded; obj.onFigureSectionToggled(e.Section); end
+if e.Row > 0   % a row under a folded sub-heading: the group opens first
+    owner = formGroup(S, e.Row);
+    if owner > 0 && S.Collapsed(owner); obj.onFigureSubheadingToggled(e.Section, S.SubKey(owner), false); end
+end
 drawnow;   % the layout settles before the scroll
 target = e.Target;
 try
@@ -78,6 +87,19 @@ how = "";
 if isprop(target, 'Enable') && ~strcmp(target.Enable, 'on'); how = " (grayed out: another setting switches it off)"; end
 obj.setStatus(where + how);
 ok = true;
+end
+
+
+function key = reasonKey(S, e)
+%reasonKey  The formRow key figureRowReason explains a hidden row by: the row's first, a sub-heading's the first of the rows under it.
+if S.Sub(e.Row)
+    [~, under] = formGroup(S, e.Row);
+    first = under(find(~cellfun(@isempty, S.Keys(under)), 1));
+    key = "";
+    if ~isempty(first); key = S.Keys{first}(1); end
+else
+    key = e.Keys(1);
+end
 end
 
 

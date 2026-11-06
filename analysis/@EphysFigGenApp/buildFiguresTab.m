@@ -107,7 +107,15 @@ function buildFiguresTab(obj)
 %           counts the tiles on the active dataset; then the picker lists
 %           one entry, the probe, the preview draws every tile, and Per
 %           trial group and Across sessions are off). Each section collapses under its colored
-%           header (onFigureSectionToggled). The sections stand under three
+%           header (onFigureSectionToggled); the color says the scope: Figure
+%           sections are blue, Panel green and Look violet, each section a
+%           shade of its supersection's hue (the scopes table). A long
+%           section is cut into groups by sub-headings (formSubheading): a
+%           bold gray title over the rows under it, hidden when they all are;
+%           a collapsible one ("Response test" in Observations) folds its
+%           rows away under a "▸" button, and stays as left
+%           (onFigureSubheadingToggled; preference FigureSubheadingsCollapsed).
+%           The sections stand under three
 %           supersections, each a dark header that collapses them all
 %           (onFigureSuperToggled): Figure (Observations, Event reference,
 %           Epoch window, Trial selection, First-spike latency, Sessions,
@@ -293,14 +301,25 @@ eg.Scrollable = "on";
 obj.FigureEditorGrid = eg;
 E = struct();
 
-% the sections with a header, in order (built so, so Tab follows it): a header color each (a step along the turbo map)
-% and the keys 1-9, 0
+% the supersections, which section belongs to which, and the header colors: the one table that says it. A header
+% color says the scope (rule R6 of the settings plan): FIGURE blue, PANEL green, LOOK violet, each section a shade of
+% its supersection's hue, lighter along the supersection's section order (formSection pales it further, until black
+% text reads on it). Sections lists a supersection's sections in the order they are built and shown; the supersection
+% headers (U below), each section's Super and the colors all read it, so to move a section to another supersection
+% (or add one) change Sections here and build the section where it belongs in the order. The always-open section
+% (Id, Title, ...) is in none and keeps formSection's default color. Hue is an HSV hue (0 to 1).
+scopes = struct('Name', {"figure" "panel" "look"}, 'Title', {"Figure" "Panel" "Look"}, 'Key', {"1" "2" "3"}, ...
+    'Hue', {0.60, 0.35, 0.75}, ...
+    'Sections', {["observations" "ref" "window" "selection" "latency" "sessions" "probe" "arrangement"], ...
+    ["panel" "palign" "layers" "options" "waveform" "note" "overlays"], ["style" "looks"]});
+tint = @(name) scopeTint(scopes, name);
+% a collapsible sub-heading (formSubheading) calls this with its section's name and its key
+subToggle = @(name, key) obj.onFigureSubheadingToggled(name, key);
+
+% the sections with a header, in order (built so, so Tab follows it), and the keys 1-9, 0
 order = ["observations" "ref" "window" "selection" "sessions" "probe" "arrangement" "panel" "palign" "layers" "options" "note" ...
     "overlays" "style" "looks"];
 keyed = order(~ismember(order, ["sessions" "probe" "overlays" "style" "looks"]));   % Observations Ctrl+1 ... Options Ctrl+9, Text note Ctrl+0
-hue = turbo(256);
-hue = hue(round(linspace(24, 232, numel(order))), :);
-tint = @(name) hue(order == name, :);
 
 % the figure: always open
 S = formSection(eg, 1, "general", "");
@@ -364,6 +383,11 @@ E.obsStarred = uicheckbox(S.Body, "Text", "Starred only", "ValueChangedFcn", cha
     "Export runs then draw just the favorites (observe.starred in the config); across sessions, an observation " + ...
     "starred on any of its sessions.");
 place(E.obsStarred, r, 2);
+[S, r] = formRow(S, "obsChannels", "Channels:");
+E.obsChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "The extract's columns observed, e.g. 1 3 5 (blank = all).");
+place(E.obsChannels, r, 2);
+[S, ~] = formSubheading(S, "unitFilter", "Unit filter");
 [S, r] = formRow(S, "obsClasses", "Unit classes:");
 cg = subgrid(S.Body, r, repmat({'fit'}, 1, 4));
 cg.ColumnSpacing = 12;
@@ -391,6 +415,18 @@ E.obsRespTest = uidropdown(rg, "Items", ["vs baseline" "tuned" "either" "both" "
     "auROC: the auROC calls the unit modulated over the response window.");
 E.obsRespDirection = uidropdown(rg, "Items", ["any" "excited" "suppressed"], "ValueChangedFcn", changed, ...
     "Tooltip", "vs baseline: keep the units whose rate rises (excited), falls (suppressed), or either.");
+[S, r] = formRow(S, "obsMaxUnits", "Max units:");
+E.obsMaxUnits = uieditfield(S.Body, "text", "Value", "Inf", "ValueChangedFcn", changed, ...
+    "Tooltip", "The most units observed (Inf = all), in probe order.");
+place(E.obsMaxUnits, r, 2);
+[S, r] = formRow(S, "obsShanks", "Shanks:");
+E.obsShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed);
+place(E.obsShanks, r, 2);
+[S, r] = formRow(S, "obsUnitChannels", "Channels:");
+E.obsUnitChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "The recording channels whose units are observed, e.g. 1:8.");
+place(E.obsUnitChannels, r, 2);
+[S, ~] = formSubheading(S, "responseTest", "Response test", Collapsible=true, Callback=subToggle);
 [S, r] = formRow(S, ["obsRespBaseFrom" "obsRespBaseTo" "obsRespFrom" "obsRespTo"], "Test windows (s):");
 wg = subgrid(S.Body, r, {'1x', 'fit', '1x', 'fit', '1x', 'fit', '1x'});
 E.obsRespBaseFrom = uieditfield(wg, "numeric", "Value", -0.2, "ValueChangedFcn", changed, "Tooltip", "The test's baseline window start (s from the event).");
@@ -411,21 +447,7 @@ uilabel(og, "Text", "alpha:");
 E.obsRespAlpha = uieditfield(og, "numeric", "Value", 0.05, "Limits", [0 1], "LowerLimitInclusive", "off", ...
     "ValueChangedFcn", changed, "Tooltip", "A unit passes when its adjusted p is at most alpha.");
 [S, E] = aurocRows(S, E, "obsRa", changed);
-[S, r] = formRow(S, "obsMaxUnits", "Max units:");
-E.obsMaxUnits = uieditfield(S.Body, "text", "Value", "Inf", "ValueChangedFcn", changed, ...
-    "Tooltip", "The most units observed (Inf = all), in probe order.");
-place(E.obsMaxUnits, r, 2);
-[S, r] = formRow(S, "obsShanks", "Shanks:");
-E.obsShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed);
-place(E.obsShanks, r, 2);
-[S, r] = formRow(S, "obsUnitChannels", "Channels:");
-E.obsUnitChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
-    "Tooltip", "The recording channels whose units are observed, e.g. 1:8.");
-place(E.obsUnitChannels, r, 2);
-[S, r] = formRow(S, "obsChannels", "Channels:");
-E.obsChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
-    "Tooltip", "The extract's columns observed, e.g. 1 3 5 (blank = all).");
-place(E.obsChannels, r, 2);
+[S, ~] = formSubheading(S, "", "");   % (closes the group: the rows below belong to none)
 [S, r] = formRow(S, "obsPerGroup", "");
 E.obsPerGroup = uicheckbox(S.Body, "Text", "Per trial group (one figure per group)", "ValueChangedFcn", changed, ...
     "Tooltip", "Draw each observation once per trial group of the figure's trial selection (its Group by): the " + ...
@@ -457,7 +479,7 @@ obj.FigureAlignControls = C;
 sec = [sec Sr Sw Ss];
 
 % the figure's first-spike latency and response onset: one block for every panel that reads them (figureLatencies); no key
-S = formSection(eg, 18, "latency", "First-spike latency", Color=(tint("selection") + tint("sessions")) / 2);
+S = formSection(eg, 18, "latency", "First-spike latency", Color=tint("latency"));
 [S, r] = formRow(S, "latNote", "", 44);
 E.latNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
 place(E.latNote, r, [1 2]);
@@ -1589,7 +1611,7 @@ place(E.spShowPhase, r, [1 2]);
 sec(end+1) = S;
 
 % the selected panel's unit waveform: its own section, for every type whose layers may be spikes (waveformSection)
-[S, E] = waveformSection(eg, E, changed, (tint("options") + tint("note")) / 2);   % its hue between its neighbors'
+[S, E] = waveformSection(eg, E, changed, tint("waveform"));
 sec(end+1) = S;
 
 % the selected panel's descriptive text (its note: drawNote)
@@ -1809,10 +1831,8 @@ for i = find(ismember(names, ["note" "overlays" "style" "looks" "sessions" "prob
     sec(i).Expanded = false;   % collapsed until opened (then kept: FigureSectionsCollapsed)
 end
 % the supersections: each collapses its sections under a dark header, which Alt+1 to Alt+3 go to (onKeyPress)
-U = struct('Name', {"figure" "panel" "look"}, 'Title', {"Figure" "Panel" "Look"}, ...
-    'Sections', {["observations" "ref" "window" "selection" "latency" "sessions" "probe" "arrangement"], ...
-    ["panel" "palign" "layers" "options" "waveform" "note" "overlays"], ["style" "looks"]}, ...
-    'Header', {hFigure hPanel hLook}, 'Expanded', true, 'Key', {"1" "2" "3"});
+U = struct('Name', {scopes.Name}, 'Title', {scopes.Title}, 'Sections', {scopes.Sections}, ...
+    'Header', {hFigure hPanel hLook}, 'Expanded', true, 'Key', {scopes.Key});
 [sec.Super] = deal("");
 for u = 1:numel(U)
     name = U(u).Name;
@@ -2324,6 +2344,22 @@ if isPlot
     E.(p + "ModOnly") = uicheckbox(g, "Text", "Modulated units only", "ValueChangedFcn", changed, ...
         "Tooltip", "Draw only the units called modulated in at least one group.");
 end
+end
+
+
+function c = scopeTint(scopes, name)
+%scopeTint  The header color of section NAME: its supersection's hue (scopes, at the top of the editor's builder), lighter the later the section comes in that supersection.
+%   Saturation runs from 1 for the supersection's first section down to 0.5 for its last (HSV, full value);
+%   formSection pales it for black text.
+for u = 1:numel(scopes)
+    k = find(scopes(u).Sections == name, 1);
+    if ~isempty(k)
+        n = numel(scopes(u).Sections);
+        c = hsv2rgb([scopes(u).Hue, 1 - 0.5 * (k - 1) / max(n - 1, 1), 1]);
+        return
+    end
+end
+error("EphysFigGenApp:noSupersection", "Section %s is in no supersection: add it to scopes in buildFiguresTab.", name);
 end
 
 

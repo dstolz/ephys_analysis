@@ -10,7 +10,11 @@ function [S, r] = formRow(S, keys, label, height)
 %   K-th row is in grid row 2K - 1 (formLayout gives a hidden row and its
 %   gap no height instead of moving the rows below it).
 %
-%   See also formSection, formShow, formLayout.
+%   The row is an ordinary one: it also extends the per-row fields that
+%   mark sub-headings (Sub, SubKey, SubTitle, SubCollapsible, Collapsed,
+%   SubButton; formSection) with the values of a row that is not one.
+%
+%   See also formSection, formSubheading, formShow, formLayout.
 arguments
     S (1,1) struct
     keys (1,:) string
@@ -23,6 +27,12 @@ S.Keys{k} = keys;
 S.Heights(k) = height;
 S.Shown(k) = true;
 S.Items{k} = gobjects(1, 0);
+S.Sub(k) = false;   % (an ordinary row; formSubheading sets these for a sub-heading)
+S.SubKey(k) = "";
+S.SubTitle(k) = "";
+S.SubCollapsible(k) = false;
+S.Collapsed(k) = false;
+S.SubButton{k} = [];
 S.Body.RowHeight = num2cell(reshape([S.Heights; repmat(S.Gap, 1, k)], 1, []));
 if label ~= ""
     l = uilabel(S.Body, "Text", label);

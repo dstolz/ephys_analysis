@@ -110,6 +110,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | give one figure its own event or window | in the figure's panel settings, set its own event reference and epoch window; the Alignment tab is only the default |
 | draw a figure across several recordings | tick **Across datasets** in the figure's Sessions section |
 | draw a small figure at every unit's place on the probe | tick **On the probe** in the figure's Probe layout section |
+| keep only the units that respond to the event | in the figure's Observations section, tick **Responsive only**. Its settings (windows, correction, auROC) are in the **Response test** group under it: click **▸ Response test** to open it. The section colors tell the scope: blue sections are about the whole figure, green about the selected panel, violet about the look of every panel. Can't find a setting? Type its name in the search field above the editor |
 | check one unit's figures before a long run | Export tab: **Test report** |
 | choose when the preview redraws after a change | drag the **Auto** slider left of the preview. Left end: never, press **Preview**. Right end: after every change, however slow. In between, the further right, the slower a redraw it starts on its own (the middle: under 2 s; point at the slider to see its limit). A change of colors, fonts or labels only redraws, so it is quick even when computing the figure is slow. **Ctrl+T** turns Auto off and on |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |

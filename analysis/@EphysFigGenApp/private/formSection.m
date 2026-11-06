@@ -16,13 +16,23 @@ function S = formSection(parent, row, name, title, body, opts)
 %   of S.Gap px (4) under each form row is the space between them, so a
 %   hidden row leaves no gap.
 %
+%   Sub-headings: formSubheading adds a row that titles the rows under it
+%   (up to the next sub-heading or the section's end), with a control at
+%   its right and a collapse of those rows if asked. The section keeps them
+%   as per-row vectors beside Keys and Shown: Sub (the row is a
+%   sub-heading), SubKey (its name, for the preference
+%   FigureSubheadingsCollapsed and the editor's search), SubTitle,
+%   SubCollapsible, Collapsed (its rows are folded away) and SubButton (the
+%   button of a collapsible one). S.Shown of a sub-heading stays false:
+%   formLayout shows it when a row under it is shown.
+%
 %   S = formSection(..., Color=RGB) sets the color of the header bar: RGB
 %   desaturated, keeping its hue, and lightened until black text reads on it
 %   (a contrast ratio of 4.5); S.Color is the color used. The title is
 %   black. The default is a pale gray-blue. S.Key, which the caller may set,
 %   is the key that goes to the section; formLayout names it in the header.
 %
-%   See also formRow, formLayout.
+%   See also formRow, formSubheading, formLayout.
 arguments
     parent
     row (1,1) double
@@ -34,7 +44,9 @@ end
 bar = pale(opts.Color);
 S = struct('Name', name, 'Title', title, 'Grid', [], 'HeaderGrid', [], 'Toggle', [], 'Body', [], ...
     'Keys', {{}}, 'Heights', zeros(1, 0), 'Shown', true(1, 0), 'Items', {{}}, 'BodyHeight', 0, ...
-    'Visible', true, 'Expanded', true, 'Color', bar, 'Key', "", 'Gap', 4);
+    'Visible', true, 'Expanded', true, 'Color', bar, 'Key', "", 'Gap', 4, ...
+    'Sub', false(1, 0), 'SubKey', strings(1, 0), 'SubTitle', strings(1, 0), 'SubCollapsible', false(1, 0), ...
+    'Collapsed', false(1, 0), 'SubButton', {{}});
 S.Grid = uigridlayout(parent, [2 1]);
 S.Grid.Layout.Row = row;
 S.Grid.Padding = [0 0 0 0];

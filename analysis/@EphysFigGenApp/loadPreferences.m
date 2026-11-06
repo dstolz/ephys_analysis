@@ -84,6 +84,13 @@ if AppPrefs.ispref(g, 'FigureSectionsCollapsed')
         obj.FigureSections(i).Expanded = ~ismember(obj.FigureSections(i).Name, shut);
     end
 end
+if AppPrefs.ispref(g, 'FigureSubheadingsCollapsed')   % (a name that is no sub-heading now is ignored)
+    shut = string(AppPrefs.getpref(g, 'FigureSubheadingsCollapsed'));
+    for i = 1:numel(obj.FigureSections)
+        S = obj.FigureSections(i);
+        obj.FigureSections(i).Collapsed = S.SubCollapsible & ismember(S.Name + "." + S.SubKey, shut);
+    end
+end
 if AppPrefs.ispref(g, 'FigureSupersectionsCollapsed')
     shut = string(AppPrefs.getpref(g, 'FigureSupersectionsCollapsed'));
     for u = 1:numel(obj.FigureSupers)

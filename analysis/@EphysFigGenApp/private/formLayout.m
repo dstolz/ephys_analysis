@@ -13,6 +13,17 @@ function [S, h] = formLayout(S)
 %   header's alone when it is collapsed. A section with a key (S.Key, "1"
 %   to "9" or "0") names it in its header: "(Ctrl+1)", "(Cmd+1)" on a Mac.
 %
+%   Sub-headings (formSubheading) are rows that follow the rows under
+%   them: a row shows when S.Shown says so and the sub-heading it is under
+%   (the last one before it) is not collapsed (S.Collapsed); a sub-heading
+%   shows when any row under it is shown, collapsed or not, so the way to
+%   open a group stays while the group has something to show, and goes
+%   with it when every row under it is hidden. The text of a collapsible
+%   one gets its arrow ("▸" folded away, "▾" open). An end marker (title "")
+%   never shows, and the rows after it belong to no sub-heading. A section
+%   with no row shown through its sub-headings is hidden: n counts what
+%   shows.
+%
 %   The first call finds each row's controls (the body's children in that
 %   row); rows are addressed by that first order from then on.
 %
@@ -30,6 +41,16 @@ if isForm
         end
     end
     on = S.Shown;
+    sub = find(S.Sub);
+    edges = [sub numel(on) + 1];
+    for j = 1:numel(sub)
+        under = edges(j) + 1:edges(j + 1) - 1;   % the rows this sub-heading titles
+        on(under) = S.Shown(under) & ~S.Collapsed(sub(j));
+        on(sub(j)) = any(S.Shown(under)) && S.SubTitle(sub(j)) ~= "";
+        if S.SubCollapsible(sub(j))
+            setChanged(S.SubButton{sub(j)}, 'Text', subArrow(S.Collapsed(sub(j))) + S.SubTitle(sub(j)));
+        end
+    end
     for k = 1:numel(on)
         vis = matlab.lang.OnOffSwitchState(on(k));
         for c = S.Items{k}
@@ -72,6 +93,16 @@ else
     h = header;
 end
 h = h * visible;
+end
+
+
+function a = subArrow(collapsed)
+%subArrow  A sub-heading's arrow and a space: "▸ " while the rows under it are folded away, "▾ " while they show.
+if collapsed
+    a = "▸ ";
+else
+    a = "▾ ";
+end
 end
 
 

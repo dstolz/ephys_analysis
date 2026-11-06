@@ -1,7 +1,20 @@
-function [fig, changed] = adoptPanelOptions(fig, panelId)
+function [fig, changed] = adoptPanelOptions(fig, panelId, opts)
 %adoptPanelOptions  Copy one panel's options and axis sides to the other panels of its figure.
 %   FIG = EphysAnalysisConfig.adoptPanelOptions(FIG, PANELID), for figure
-%   FIG (a Figures entry):
+%   FIG (a Figures entry), copies everything below. With Fields=NAMES it
+%   copies only those: NAMES is a string array of option names (the panel's
+%   options, shared or its type's own: "bins", "histStyle") and
+%   the pseudo-names "xSide" and "ySide" for the axis sides. Every rule
+%   below still decides where a name goes (a name goes to a panel that
+%   takes it, as it would without Fields), so Fields only narrows what is
+%   copied: Fields=["xSide" "ySide"] copies the sides to every panel and no
+%   option; Fields=["bins" "measure"] copies those two to the panels that
+%   have them and no side. A name the panel has no option of copies nothing.
+%   Fields left out is every option and both sides; Fields=string.empty
+%   copies nothing. A section of the app's Figures tab passes the names of
+%   its rows (Apply to all panels in the Analysis, Display and Axes
+%   sections).
+%   Everything is copied by these rules:
 %   - the panel's values of the options several types share
 %     (sharedFieldsOf: bins, measure, baseline, auroc, maskAfterStop,
 %     the waveform inset, stack, stackSpacing and yLimMode) go to every
@@ -44,7 +57,9 @@ function [fig, changed] = adoptPanelOptions(fig, panelId)
 arguments
     fig (1,1) struct
     panelId (1,1) string
+    opts.Fields (1,:) string = string(missing)   % (missing: every option and both sides)
 end
+everything = isscalar(opts.Fields) && ismissing(opts.Fields);
 
 k = [];
 if ~isempty(fig.panels); k = find([fig.panels.id] == panelId, 1); end
@@ -60,6 +75,7 @@ for j = [1:k-1, k+1:numel(fig.panels)]
     if Q.type == P.type
         take = string(fieldnames(P.options)).';   % the same type: every option
     end
+    if ~everything; take = take(ismember(take, opts.Fields)); end   % (Fields: only those)
     kept = string.empty(1, 0);
     fields = string.empty(1, 0);
     for f = take
@@ -73,7 +89,9 @@ for j = [1:k-1, k+1:numel(fig.panels)]
             fields(end+1) = f; %#ok<AGROW>
         end
     end
-    for f = ["xSide" "ySide"]   % the axis sides, every panel's (a stacked PSTH, a y axis each side, keeps its ySide unused)
+    sides = ["xSide" "ySide"];
+    if ~everything; sides = sides(ismember(sides, opts.Fields)); end
+    for f = sides   % the axis sides, every panel's (a stacked PSTH, a y axis each side, keeps its ySide unused)
         if Q.(f) ~= P.(f)
             Q.(f) = P.(f);
             fields(end+1) = f; %#ok<AGROW>

@@ -1125,6 +1125,10 @@ if S.sec("5d.observe", "Observe: the data types, what the active dataset holds f
         && shown(FE.obsChannels) && ~shown(FE.obsClasses.su) && ~shown(FE.obsIds) && ~shown(FE.obsResponse) && ~shown(FE.obsMaxUnits) ...
         && contains(string(FE.obsCount.Text), "LFP channel"), ...
         'Observe LFP: the channel rows only, and the picker lists the LFP channels (no counts)');
+    sO = secOf("observations");
+    check(~shown(sO.SubButton{find(sO.SubKey == "responseTest", 1)}) && ~shown(sO.Items{find(sO.SubKey == "unitFilter", 1)}(1)) ...
+        && ~shown(FE.obsRespBaseFrom) && ~shown(FE.obsRespParam) && ~shown(FE.obsRaMethod) && shown(FE.obsChannels), ...
+        'Observe a signal: the Unit filter and Response test sub-headings are hidden with all their rows (no stray title)');
     if srcA.hasDetected
         FE.observe.Value = "detected";
         app.onConfigChanged("figure");
@@ -1142,6 +1146,38 @@ if S.sec("5d.observe", "Observe: the data types, what the active dataset holds f
     app.onConfigChanged("figure");
     check(app.Config.Figures(1).observe.data == "units" && height(app.FigureObservations) == height(T) && shown(FE.obsClasses.su), ...
         'back to sorted units: the units again');
+    % sub-headings: Unit filter (plain) and Response test (collapsible, folded away at the start)
+    sO = secOf("observations");
+    kR = find(sO.Sub & sO.SubKey == "responseTest");
+    kU = find(sO.Sub & sO.SubKey == "unitFilter");
+    bR = sO.SubButton{kR};
+    check(isscalar(kR) && isscalar(kU) && sO.SubCollapsible(kR) && ~sO.SubCollapsible(kU) && sO.Collapsed(kR) && ~sO.Collapsed(kU) ...
+        && string(bR.Text) == "▸ Response test" && shown(bR) && shown(sO.Items{kU}(1)) && sO.Shown(kR) == false ...
+        && ~shown(FE.obsRespBaseFrom) && ~shown(FE.obsRespParam) && ~shown(FE.obsRaMethod) && shown(FE.obsResponse) && shown(FE.obsRespTest) ...
+        && shown(FE.obsClasses.su) && shown(FE.obsMaxUnits) && shown(FE.obsPerGroup) && shown(FE.obsCount), ...
+        'sorted units: Unit filter shows; Response test shows folded away ("▸"), its rows hidden, Responsive only (above it) shown');
+    bR.ButtonPushedFcn(bR, []);   % a click on the title
+    sO = secOf("observations");
+    check(~sO.Collapsed(kR) && string(bR.Text) == "▾ Response test" && shown(FE.obsRespBaseFrom) && shown(FE.obsRespParam) ...
+        && ~shown(FE.obsRaMethod) && shown(FE.obsPerGroup), ...
+        'a click on Response test opens it ("▾"): the windows and parameter rows show; the auROC rows wait for the auROC test');
+    FE.obsRespTest.Value = "auroc";
+    app.onConfigChanged("figure");
+    check(shown(FE.obsRaMethod) && shown(FE.obsRaWinMs) && ~shown(FE.obsRaTest), 'the auROC test shows its rows in the open group');
+    FE.obsRespTest.Value = "evoked";
+    app.onConfigChanged("figure");
+    bR.ButtonPushedFcn(bR, []);
+    check(secOf("observations").Collapsed(kR) && string(bR.Text) == "▸ Response test" && ~shown(FE.obsRespBaseFrom) && shown(bR), ...
+        'a second click folds it away again; the title stays');
+    X = app.FigureSearchIndex;
+    iP = find(cellfun(@(c) any(c == "obsRespParam"), {X.Keys}), 1);
+    iSub = find([X.Section] == "observations" & [X.Row] == kR, 1);
+    ok = app.gotoFigureRow(iP);
+    check(ok && ~secOf("observations").Collapsed(kR) && shown(FE.obsRespParam) && ~isempty(iSub) && X(iSub).Label == "Response test" && isempty(X(iSub).Keys), ...
+        'going to a row under the folded Response test (search, Go to setting) opens the group first');
+    bR.ButtonPushedFcn(bR, []);
+    ok = app.gotoFigureRow(iSub);
+    check(ok && secOf("observations").Collapsed(kR) && shown(bR), 'going to the sub-heading itself leaves it folded');
 end
 
 if S.sec("5d.layers", "a continuous panel below (drawn at once); its layers: AUX fixed; an events layer on the raster, as marks and as spans")
@@ -1286,6 +1322,18 @@ if S.sec("5d.search", "the search: by label, listed as Supersection > Section > 
     app.onKeyPress(pressed('return', {}));
     check(app.SelectedPanel == 1 && contains(app.StatusBar.Text, "Bin (ms) is an option of PSTH, heat map and unit correlation panels, not of raster panels") ...
         && app.FigureSearchState == "", 'Enter on a row the raster does not show says why in the status bar, and nothing moves');
+    % sub-headings are listed like section headers, and the path of a row under one names it
+    app.onFigureSearch("response test");
+    check(string(lb.Items{1}) == "Figure > Observations > Response test" && X(lb.ItemsData(1)).Row > 0 && isempty(X(lb.ItemsData(1)).Keys), ...
+        'the search lists the Response test sub-heading like a section header: "Figure > Observations > Response test"');
+    app.onFigureSearch("advanced");
+    check(any(string(lb.Items) == "Figure > Observations > Response test"), 'a collapsible sub-heading also answers to "advanced"');
+    app.onFigureSearch("test windows");
+    check(string(lb.Items{1}) == "Figure > Observations > Response test > Test windows (s)", ...
+        'a row under a sub-heading lists it in its path: "Figure > Observations > Response test > Test windows (s)"');
+    app.onFigureSearch("unit ids");
+    check(any(string(lb.Items) == "Figure > Observations > Unit filter > Unit ids"), 'a row under the plain Unit filter sub-heading too');
+    app.onFigureSearch("");
 end
 
 if S.sec("5d.outline", "the panel keys across the grid and in the panel order; the preview's outline of the selected panel follows them without a redraw, and a resize")
@@ -2852,6 +2900,7 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     savedConfig();
     app.onFigureSectionToggled("options");
     app.onFigureSuperToggled("look");
+    app.onFigureSubheadingToggled("observations", "responseTest", false);   % starts folded away: this one is left open
     app.FigureAutoSlider.Value = 0.35;
     app.onFigureAutoRedrawChanged();
     workersDefault = app.WorkersSpinner.Value;
@@ -2875,11 +2924,21 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
         && contains(string(app2.FigureAutoSlider.Tooltip), "under 1.1 s") && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...
         && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded ...
         && isequal([app2.FigureSupers.Expanded], [true true false]) && ~shown(app2.FigureEditor.fontSize);
+    subOpen = ~app2.FigureSections([app2.FigureSections.Name] == "observations").Collapsed(find(app2.FigureSections([app2.FigureSections.Name] == "observations").SubKey == "responseTest", 1));
     workersKept = app2.WorkersSpinner.Value;
     snapKept = app2.FigureRectUnits == "in" && ~app2.FigureSnap && isequal(app2.FigureSnapStep, struct('value', 0.25, 'units', "in")) ...
         && string(app2.FigureEditor.rectUnits.Value) == "in" && ~app2.FigureEditor.snap.Value && app2.FigureEditor.snapStep.Value == 0.25 ...
         && string(app2.FigureEditor.snapUnits.Text) == "in";
     closeApp(app2);
+    check(subOpen && isempty(string(AppPrefs.getpref(g, 'FigureSubheadingsCollapsed'))), ...
+        'a new app restores the Response test sub-heading left open (FigureSubheadingsCollapsed holds the folded ones: none)');
+    AppPrefs.setpref(g, 'FigureSubheadingsCollapsed', {'observations.responseTest', 'observations.unitFilter', 'gone.old'});   % a plain one and a stale name are ignored
+    app3 = EphysFigGenApp();
+    sO3 = app3.FigureSections([app3.FigureSections.Name] == "observations");
+    check(sO3.Collapsed(sO3.SubKey == "responseTest") && ~any(sO3.Collapsed(sO3.SubKey ~= "responseTest")), ...
+        'the sub-headings'' preference: the folded one is folded, a sub-heading that cannot fold and a name that is none are ignored');
+    closeApp(app3);
+    app.savePreferences();
     check(workersDefault == 4 && workersKept == 2, sprintf(['the Export tab''s Workers: 4 by default, and a new app ' ...
         'restores the number set (%g, then %g)'], workersDefault, workersKept));
     app.WorkersSpinner.Value = workersDefault;
@@ -2896,6 +2955,7 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     app.onFigureAutoRedrawChanged();
     app.onFigureSectionToggled("options");
     app.onFigureSuperToggled("look");
+    app.onFigureSubheadingToggled("observations", "responseTest", true);
     app.onRemoveFigure();
     check(isempty(app.Config.Figures) && isempty(findall(app.FiguresTree, 'Type', 'uitreenode')) && app.FigurePreviewState == "idle" && ~shown(FE.id) ...
         && app.RemoveFigureButton.Enable == "off" && ~any(arrayfun(@(u) shown(u.Header), app.FigureSupers)) ...

@@ -4,7 +4,9 @@ function onFigureSearch(obj, text)
 %   there). TEXT's words, in any order and case, must each be part of a
 %   row's label, its other labels and texts, or its controls' tooltips
 %   (FigureSearchIndex, made from the rows as built: figureSearchIndex);
-%   the supersections and the sections' titles match too. Labels that
+%   the supersections', the sections' and the sub-headings' titles match
+%   too, and a row under a sub-heading is listed as "Figure >
+%   Observations > Response test > Windows (s)" (figureSearchPath). Labels that
 %   start with the text as a word come first ("bin": Bin (ms) before
 %   Binding), then labels that start with it, then labels holding every
 %   word, then the rest; within each, the rows the figure shows before
@@ -75,5 +77,5 @@ function tf = shows(obj, e)
 tf = true;
 if e.Section == ""; return; end
 S = obj.FigureSections([obj.FigureSections.Name] == e.Section);
-tf = S.Visible && (isempty(S.Heights) || any(S.Shown)) && (e.Row <= 0 || S.Shown(e.Row));
+tf = S.Visible && (isempty(S.Heights) || any(S.Shown)) && (e.Row <= 0 || formRowShown(S, e.Row));
 end

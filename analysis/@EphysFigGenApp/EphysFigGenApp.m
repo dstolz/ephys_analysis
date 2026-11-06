@@ -170,9 +170,10 @@ classdef EphysFigGenApp < handle
     %   PreviewMaxMB (signal previews of larger extracts wait for the Preview
     %   button), FigureAutoRedraw (the Figures tab's Auto slider, 0 to 1:
     %   0 off, 1 every edit redraws; AutoRedrawDefault, 0.5 = under 2 s,
-    %   when not set), FigureSectionsCollapsed and
-    %   FigureSupersectionsCollapsed (its editor's collapsed sections and
-    %   supersections), FigureGroupBy and FigureGroupsCollapsed (how
+    %   when not set), FigureSectionsCollapsed,
+    %   FigureSubheadingsCollapsed and
+    %   FigureSupersectionsCollapsed (its editor's collapsed sections,
+    %   sub-headings ("<section>.<key>") and supersections), FigureGroupBy and FigureGroupsCollapsed (how
     %   its figure tree groups, and its collapsed groups), FigureRectUnits,
     %   FigureSnap and FigureSnapStep (the Panels section's units, Snap box
     %   and step), ReportWorkers
@@ -619,6 +620,7 @@ classdef EphysFigGenApp < handle
         syncFigureEditor(obj)
         layoutFigureEditor(obj)
         onFigureSectionToggled(obj, name)
+        onFigureSubheadingToggled(obj, name, key, collapsed)
         gotoFigureSection(obj, name)
         onFigureSuperToggled(obj, name)
         gotoFigureSuper(obj, name)

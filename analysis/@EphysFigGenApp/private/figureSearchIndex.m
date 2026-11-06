@@ -10,6 +10,12 @@ function X = figureSearchIndex(S, U)
 %     a form row (formRow)   Row r: its label (a row without one: the text
 %                            of its first check box or button); rows of
 %                            text only (a summary, a note) are left out
+%     a sub-heading          Row r: its title, listed like a section header
+%     (formSubheading)       ("Response test"; a collapsible one also
+%                            matches "advanced"); no Keys (they belong to
+%                            the rows: a search by key finds the row). The
+%                            rows under it are listed as usual; their path
+%                            (figureSearchPath) names the sub-heading.
 %     a row of a body another builder filled (the event reference, epoch
 %                            window, trial selection and panel alignment
 %                            controls)   Row -1: each label ("Line:")
@@ -41,6 +47,16 @@ for name = ordered(names, U)
     end
     if ~isempty(s.Heights)   % a form: its rows as formRow made them
         for r = 1:numel(s.Heights)
+            if s.Sub(r)   % a sub-heading: its title (an end marker has none)
+                if s.SubTitle(r) ~= ""
+                    more = "";
+                    if s.SubCollapsible(r); more = "advanced"; end
+                    target = s.SubButton{r};
+                    if isempty(target); target = s.Items{r}(1); end   % (a plain title: its label; one with a control: the grid, which scroll reaches)
+                    X(end+1) = entry(s.Name, s.Super, r, s.SubTitle(r), more, target, target, strings(1, 0)); %#ok<AGROW>
+                end
+                continue
+            end
             [label, lab, ctl, more] = rowParts(s.Items{r});
             if isempty(ctl) || label == ""; continue; end
             flash = ctl;

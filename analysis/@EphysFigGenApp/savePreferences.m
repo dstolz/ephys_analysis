@@ -20,6 +20,11 @@ AppPrefs.setpref(g, 'FigureSnap', logical(obj.FigureSnap));
 AppPrefs.setpref(g, 'FigureSnapStep', struct('value', double(obj.FigureSnapStep.value), 'units', char(obj.FigureSnapStep.units)));
 S = obj.FigureSections;
 AppPrefs.setpref(g, 'FigureSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
+shut = strings(1, 0);   % the folded sub-headings, "<section name>.<key>" (onFigureSubheadingToggled)
+for i = 1:numel(S)
+    shut = [shut S(i).Name + "." + S(i).SubKey(S(i).Sub & S(i).SubCollapsible & S(i).Collapsed)]; %#ok<AGROW>
+end
+AppPrefs.setpref(g, 'FigureSubheadingsCollapsed', cellstr(shut));
 AppPrefs.setpref(g, 'ApplyTicked', cellstr(obj.ApplyTicked));
 AppPrefs.setpref(g, 'ApplySeen', cellstr(obj.ApplySeen));
 AppPrefs.setpref(g, 'ApplyReplot', obj.ApplyReplot);

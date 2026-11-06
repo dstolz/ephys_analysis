@@ -10,6 +10,17 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis app, Figures tab: the editor's sections can be cut into groups by **sub-headings** (`formSubheading`): a bold
+  gray title over the rows under it, with a control slot at its right and, for an *Advanced* group, a "▸" / "▾" button
+  that folds the rows away (hidden, so Tab skips them). A sub-heading is hidden while every row under it is. Observations
+  has two: **Unit filter** and a folded-away **Response test** (the test's windows, parameter and auROC rows;
+  **Responsive only** stays above it). The search lists a sub-heading like a section header (a folded one also answers to
+  "advanced") and a row's path names it (*Figure > Observations > Response test > Test windows (s)*); going to a row
+  under a folded one opens it first. Folded groups are remembered (preference `FigureSubheadingsCollapsed`). Section
+  header colors say the scope, blue FIGURE, green PANEL, violet LOOK, a shade per section, from one table at the top of
+  `buildFiguresTab`, instead of 17 hues.
+- `EphysAnalysisConfig.adoptPanelOptions(fig, id, Fields=names)` copies only the named options (and `"xSide"` /
+  `"ySide"`); left out it copies as before.
 - Analysis app, Figures tab: Arrange places panels without drawing the preview again. A release, an arrow nudge or
   **Set corners** lays out only the panels that moved (a flush neighbor keeps its place unless the edge they share
   moved) and never redraws while Arrange is on. When a move changes which panels touch, or which is top-left, the

@@ -464,7 +464,7 @@ classdef EphysAnalysisConfig
         rect = freeRect(fig, opts)
         pairs = rectOverlaps(fig)
         order = panelOrder(fig)
-        [fig, changed] = adoptPanelOptions(fig, panelId)
+        [fig, changed] = adoptPanelOptions(fig, panelId, opts)
         [tf, kept] = panelTakes(P, Q, path, opts)
         changes = figureEditChanges(before, after, panel, opts)
         T = changeTargets(F, D, k, j, changes, opts)

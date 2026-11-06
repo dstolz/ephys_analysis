@@ -164,7 +164,13 @@ function buildFiguresTab(obj)
 %           Import..., Export... and Report issue, onFigureTemplate) and,
 %           at its right, Arrange (a state button: the panels moved and
 %           resized over the preview, onArrangeToggled; its boxes:
-%           syncArrangeOverlay). Under it the preview
+%           syncArrangeOverlay). While Arrange is on, its align bar
+%           takes the templates' place (buildAlignBar, syncAlignBar):
+%           Align (panel boxes, axes, or axes and labels) to (the
+%           selection, the first selected, the page), six buttons lining
+%           the selected panels' edges or centers up, Space evenly across
+%           and up, and its Gap (blank: even; onArrangeAlign,
+%           figureAlign). Under it the preview
 %           (refreshFigurePreview: computeFigure and renderFigure for that
 %           one observation; the selected panel outlined there,
 %           markFigurePanel): a container per figure (FigurePreviewHost,
@@ -1922,10 +1928,14 @@ obj.SaveDesignButton = uibutton(pg, "Text", "Save look as design...", "ButtonPus
     "preview is out of date.");
 obj.SaveDesignButton.Layout.Row = 2; obj.SaveDesignButton.Layout.Column = [4 5];
 % the figure templates of yours (FigureTemplate: a figure's settings, copied into figures when applied), and Apply
-% (Apply last change is at the top of the settings column), in the row above the preview; Arrange at its right
-tg = uigridlayout(pg, [1 10], "ColumnWidth", {'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'}, ...
-    "ColumnSpacing", 4, "Padding", [0 2 0 2]);
-tg.Layout.Row = 4; tg.Layout.Column = [1 5];
+% (Apply last change is at the top of the settings column), in the row above the preview; Arrange at its right. While
+% Arrange is on, its align bar takes the templates' place (syncAlignBar)
+ab = uigridlayout(pg, [1 2], "ColumnWidth", {'1x', 'fit'}, "ColumnSpacing", 4, "Padding", [0 2 0 2]);
+ab.Layout.Row = 4; ab.Layout.Column = [1 5];
+tg = uigridlayout(ab, [1 9], "ColumnWidth", {'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit'}, ...
+    "ColumnSpacing", 4, "Padding", [0 0 0 0]);
+tg.Layout.Row = 1; tg.Layout.Column = 1;
+obj.FigureTemplateBar = tg;
 uilabel(tg, "Text", "Template:", "FontWeight", "bold", ...
     "Tooltip", "Figure templates: a figure's settings kept under a name, to copy into other figures. Applying copies once: " + ...
     "a template changed later reaches a figure only when it is applied again.");
@@ -1959,11 +1969,14 @@ obj.FigureTemplateIssueLink = uihyperlink(tg, "Text", "Report issue", ...
     "HyperlinkClickedFcn", @(~, ~) obj.onFigureTemplate("issue"), ...
     "Tooltip", "Report a problem with figure templates: an issue on GitHub, opened prefilled with the template picked. " + ...
     "To ask for something they do not do: Help > Request a figure template feature..., or right-click the list.");
-obj.FigureArrangeButton = uibutton(tg, "state", "Text", "Arrange", "Value", false, ...
+obj.FigureArrangeButton = uibutton(ab, "state", "Text", "Arrange", "Value", false, ...
     "ValueChangedFcn", @(~, ~) obj.onArrangeToggled(), ...
     "Tooltip", "Arrange the panels over the preview: drag a panel to move it, a handle to resize it; it snaps to the " + ...
     "other panels, the page and the snap step (Alt: no snapping), and the arrow keys nudge the selected panel. " + ...
+    "The bar beside it lines the selected panels up and spaces them evenly. " + ...
     "Off: the preview as usual (data tips, right-click editors).");
+obj.FigureArrangeButton.Layout.Row = 1; obj.FigureArrangeButton.Layout.Column = 2;
+obj.FigureAlignBar = buildAlignBar(obj, ab);
 obj.refreshTemplates();
 % the previews: a container per figure, all in this one cell, the selected figure's shown (syncFigureView); the
 % first, "", is shown while no figure is selected
@@ -2054,6 +2067,88 @@ function onGroupByChanged(obj)
 %onGroupByChanged  The figure tree's Group by: regroup it (the selected figure stays); Up and Down follow its new group.
 obj.refreshFigureList();
 obj.syncFigureEditor();
+end
+
+
+function B = buildAlignBar(obj, parent)
+%buildAlignBar  Arrange's align bar, in the templates' cell of PARENT (hidden until Arrange is on: syncAlignBar).
+%   Align [panel boxes | axes | axes and labels] to [the selection | the
+%   first selected | the page], six buttons (left edges, centers, right
+%   edges; top edges, middles, bottom edges), Space evenly (across, up)
+%   and its Gap (blank: even gaps; in the Panels section's units). The
+%   buttons call onArrangeAlign; the choices are preferences
+%   (FigureAlignBy, FigureAlignTo, FigureAlignGap: onAlignOptions).
+%   B: grid, by, to, buttons (a struct of the eight, by onArrangeAlign's
+%   names), gap, gapUnits.
+iconDir = fullfile(fileparts(fileparts(mfilename("fullpath"))), "icons", "arrange");
+w = 30;   % an icon button
+g = uigridlayout(parent, [1 18], "ColumnWidth", {'fit', 112, 'fit', 104, w, w, w, w, w, w, 2, 'fit', w, w, 'fit', 50, 'fit', '1x'}, ...
+    "ColumnSpacing", 3, "Padding", [0 0 0 0], "Visible", "off", "Tag", "arrangeAlignBar");
+g.Layout.Row = 1; g.Layout.Column = 1;
+B.grid = g;
+uilabel(g, "Text", "Align", "FontWeight", "bold", ...
+    "Tooltip", "Line the selected panels up, or space them evenly (Shift+click their boxes to select several). One step of Undo each.");
+B.by = uidropdown(g, "Items", ["boxes" "axes" "axes + labels"], "ItemsData", ["box" "axes" "labels"], ...
+    "Value", obj.FigureAlignBy, "ValueChangedFcn", @(~, ~) onAlignOptions(obj), ...
+    "Tooltip", "What is lined up or spaced. Panel boxes: the boxes Arrange shows (the panels' places). Axes: the plot " + ...
+    "areas as drawn, which a panel's labels may move in from its box. Axes and labels: the axes with their tick " + ...
+    "labels, axis labels, title and note, as drawn: equal white space between them. A preference.");
+uilabel(g, "Text", "to");
+B.to = uidropdown(g, "Items", ["selection" "first selected" "page"], "ItemsData", ["selection" "first" "page"], ...
+    "Value", obj.FigureAlignTo, "ValueChangedFcn", @(~, ~) onAlignOptions(obj), ...
+    "Tooltip", "What they are lined up with. The selection: all of them (Left: the leftmost edge; Center: the middle " + ...
+    "of all of them). The first selected: the panel selected first (the one the editor shows), which stays put. The " + ...
+    "page: its edges or its middle. One panel selected: always the page. Space evenly: the selection keeps the " + ...
+    "outermost panels where they are; the page spreads them from edge to edge (with a Gap: centers them on it).");
+tips = struct( ...
+    'left',   "Line up their left edges.", ...
+    'center', "Line up their centers, across: one above the other.", ...
+    'right',  "Line up their right edges.", ...
+    'top',    "Line up their top edges.", ...
+    'middle', "Line up their middles, up the page: side by side.", ...
+    'bottom', "Line up their bottom edges.", ...
+    'spaceX', "Space them evenly across the page: the same gap between each and the next. A column of panels " + ...
+              "(panels one above another) moves as one, so a grid keeps its columns.", ...
+    'spaceY', "Space them evenly up the page: the same gap between each and the next. A row of panels moves as " + ...
+              "one, so a grid keeps its rows.");
+names = string(fieldnames(tips)).';
+for i = 1:numel(names)
+    nm = names(i);
+    if nm == "spaceX"
+        uilabel(g, "Text", "");   % (a little room before Space)
+        uilabel(g, "Text", "Space", "FontWeight", "bold", ...
+            "Tooltip", "Space evenly: equal gaps between the selected panels. Gap blank: even gaps between the outermost; a Gap: that gap.");
+    end
+    B.buttons.(nm) = uibutton(g, "Text", "", "Icon", fullfile(iconDir, "align" + upper(extractBefore(nm, 2)) + extractAfter(nm, 1) + ".svg"), ...
+        "Tooltip", tips.(nm), "Tag", "arrangeAlign:" + nm, "Enable", "off", "ButtonPushedFcn", @(~, ~) obj.onArrangeAlign(nm));
+end
+uilabel(g, "Text", "Gap", "HorizontalAlignment", "right");
+B.gap = uieditfield(g, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "even", "Limits", [0 Inf], ...
+    "ValueDisplayFormat", "%.10g", "ValueChangedFcn", @(~, ~) onAlignOptions(obj), ...
+    "Tooltip", "The gap Space evenly leaves between the panels, in the Panels section's units. Blank: even gaps, the " + ...
+    "outermost panels staying put (or at the page's edges, to the page). A preference.");
+B.gapUnits = uilabel(g, "Text", "cm", "FontColor", [0.4 0.4 0.4]);
+end
+
+
+function onAlignOptions(obj)
+%onAlignOptions  The align bar's Align, to or Gap changed: kept as preferences (FigureAlignBy, FigureAlignTo, FigureAlignGap); nothing moves.
+B = obj.FigureAlignBar;
+obj.FigureAlignBy = string(B.by.Value);
+obj.FigureAlignTo = string(B.to.Value);
+v = B.gap.Value;
+if isempty(v)
+    obj.FigureAlignGap = [];
+    gapText = "even gaps";
+else
+    obj.FigureAlignGap = struct('value', double(v), 'units', obj.FigureRectUnits);
+    gapText = sprintf("a gap of %g %s", v, B.gapUnits.Text);
+end
+obj.savePreferences();
+words = struct('box', "the panel boxes", 'axes', "the axes", 'labels', "the axes with their labels");
+to = struct('selection', "the selection", 'first', "the first selected", 'page', "the page");
+obj.setStatus("Arrange's bar lines up " + words.(obj.FigureAlignBy) + " to " + to.(obj.FigureAlignTo) + ...
+    "; Space evenly leaves " + gapText + ".");
 end
 
 

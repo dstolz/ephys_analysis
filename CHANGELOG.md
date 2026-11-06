@@ -459,6 +459,14 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app, Figures tab: Arrange's align bar. While Arrange is on, a bar in the template controls' place above
+  the preview lines the selected panels up (left edges, centers, right edges, tops, middles, bottoms) or spaces them
+  evenly across or up the page (a column or row of a grid moves as one), each one step of Undo. **Align** picks what
+  lines up: the panels' boxes, their axes as laid out, or their axes with their labels (equal white space); **to**
+  the selection, the first selected panel or the page; **Gap** an even gap (blank) or a set one, in the Panels
+  section's units. The choices are preferences. See
+  [Lining panels up](documentation/EphysFigGenApp.md#lining-panels-up-and-spacing-them-evenly). The arithmetic is
+  the new public `figureAlign`, which works through the layout's own rules (`figurePlace`) for the axes and labels.
 - Tools: `tools/benchFigGenUI.m`, run by `tools/Bench-FigGen.ps1` on a hidden desktop, times the Figures tab's
   selects, Arrange drags, releases and edits for developers.
 - Figures: trial-measure panels, one number per trial. A trials layer's measure (a delay between two events, an

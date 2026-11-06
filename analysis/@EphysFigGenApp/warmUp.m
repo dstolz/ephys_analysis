@@ -1,7 +1,8 @@
 function warmUp(obj)
 %warmUp  Load and compile what Arrange's first use would, so the first Arrange on and the first drag of a session cost no more than the next.
 %   warmUp(OBJ) runs the drag's pure functions once on made-up rects
-%   (snapRect, arrangeGroup, unitsShown: MATLAB compiles a function when
+%   (snapRect, arrangeGroup, unitsShown, and the align bar's figureAlign
+%   with a made-up layout: MATLAB compiles a function when
 %   it is first called, and a session's first drag step paid about a
 %   second for that where the next steps take 10 ms), then makes one
 %   images.roi.Rectangle in an axes of a hidden figure and deletes both
@@ -18,6 +19,10 @@ try   % the drag's arithmetic
     snapRect([0.1 0.1 0.42 0.4], [0.1 0.1 0.4 0.4], others, [0 0], [0 0], Names=["a" "b"]);
     arrangeGroup([0.1 0.1 0.4 0.4], [0.12 0.1 0.4 0.4], others);
     unitsShown([0.1 0.1 0.4 0.4], "normalized", obj.FigureRectUnits, [20 15], 150, "rect");
+    cell1 = struct('rect', [0.1 0.1 0.4 0.4], 'inset', [30 20 0 0], 'band', "", 'need', 0, 'shares', 1, 'fixed', false, 'layout', []);
+    lay = struct('size', [400 300], 'top', 0, 'margin', 6, 'scale', 1, 'how', {{'Mode', "plot", 'Padding', 6}}, 'cells', [cell1 cell1 cell1]);
+    figureAlign([0.1 0.1 0.4 0.4; others], 1:3, "left", Feature="axes", Layout=lay);   % the align bar's (onArrangeAlign)
+    figureAlign([0.1 0.1 0.4 0.4; others], 1:3, "spaceX", Feature="labels", Layout=lay);
 catch
 end
 if isstruct(obj.FigureArrangeOverlay) || ~isempty(obj.FigureArrangeKept); return; end   % (Arrange on already loaded the boxes' classes)

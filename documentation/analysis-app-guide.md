@@ -86,6 +86,14 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
      a neighbor, the time labels and ticks catch up when you switch Arrange
      off, and the badge says **Out of date** until then. If it still says
      that, press **Preview** (Ctrl+P).
+   - To line panels up, or space them evenly, use the bar that appears above
+     the preview while **Arrange** is on. Click one box, **Shift**+click the
+     others, then press a button: left edges, centers, right edges, tops,
+     middles or bottoms; **Space** across or up for equal gaps. **Align**
+     picks what lines up: the *boxes*, the *axes*, or the *axes + labels*
+     (equal white space). **to** picks the *selection*, the *first selected*
+     panel or the *page*. Leave **Gap** blank for even gaps, or type one.
+     Each press is one step of Undo.
    - To remove a panel, select it and press **Remove panel**. It leaves the
      preview at once and the other panels stay where they are.
    - To place a panel exactly, type its **Position** and **Size** in the
@@ -115,6 +123,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
 | move or resize a panel | press **Arrange** above the preview and drag the panel's box (a corner or an edge resizes it); after a click on the preview the arrow keys nudge it. Or pick it (Ctrl+Click it in the preview) and type its **Position** and **Size** in the Panels section; **Units** picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [Arranging panels on the preview](EphysFigGenApp.md#arranging-panels-on-the-preview)) |
 | change a setting on several panels at once | **Shift+Click** the panels in the preview: each is outlined, and the Panel header turns blue and names them. The editor shows only the settings they all have; what you change goes to all of them (one Undo takes it back). **Esc** goes back to one panel (see [Several panels at once](EphysFigGenApp.md#several-panels-at-once)) |
+| line panels up, or space them evenly | press **Arrange**, click one panel's box and **Shift**+click the others, then use the bar above the preview: the six align buttons, or **Space** across or up. Pick *axes* in **Align** to line up the plots themselves, *axes + labels* for equal white space; type a **Gap** for a set space between them (see [Lining panels up](EphysFigGenApp.md#lining-panels-up-and-spacing-them-evenly)) |
 | move or resize several panels together | **Shift+Click** them, then press **Arrange** (or press Arrange and **Shift**+click their boxes), then drag one of them: all move by the same amount (resizing one resizes each by the same amount); the arrow keys nudge them all |
 | put the legend where you want it | with **Arrange** on, drag the legend's dashed box where you want it: it becomes a legend panel there. Or **New panel...** → *Legend*: a panel of its own that holds the figure's legend; place and size it as any panel. Appearance → **Legend** picks *Auto*, *Inside* or *None*; the legend never makes a plot smaller |
 | keep labels from running into the next panel, or make a rect mean the whole panel with its labels | in the **Panels** section, **Padding** is the clear space kept around labels, and **Boxes mean** says whether a rect is the plot area (labels kept clear) or the outer box (labels inside it) |

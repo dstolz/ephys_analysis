@@ -165,6 +165,11 @@ function test_EphysFigGenApp(opts)
 %   a click off the page; the floating legend made a legend panel; out of
 %   date, another figure, a probe figure; off again with Ctrl+Click, the
 %   overlay hidden and shown again with the same boxes);
+%   Arrange's align bar (5h.align: in the templates' place, the preview
+%   the same size; left edges by the boxes, the axes and the labels; one
+%   panel to the page; Space evenly with even gaps and a Gap; one undo
+%   step each, laid out in place; its choices as preferences, the Gap in
+%   the units picked);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -793,7 +798,7 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FiguresDatasetNote.Parent == dsg && app.FigureObservationNote.Parent == osg && app.AlignDatasetNote.Parent == app.AlignDatasetStar.Parent ...
         && app.FigureFavorites.Grid.Parent == pgrid && app.FigureFavorites.Grid.Layout.Row == osg.Layout.Row + 1 ...
         && app.FigurePreviewHost.Parent == pgrid && app.FigurePreviewPanel.Parent == app.FigurePreviewHost ...
-        && app.FigureTemplateDropDown.Parent.Parent == pgrid && app.FigureTemplateDropDown.Parent.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1 ...
+        && app.FigureTemplateDropDown.Parent.Parent.Parent == pgrid && app.FigureTemplateDropDown.Parent.Parent.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1 ...
         && app.FigurePreviewHost.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 2, ...
         'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the template row under that, the preview (the figures'' containers) under it');
     % the buttons in a column of their own left of those rows: Preview, Redraw All, Export preview, Auto (its label and slider), < > (a row each)
@@ -2198,7 +2203,7 @@ if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where
     escaped = app.FigureArrangeMode == "" && isempty(app.FigureCorners) && contains(app.StatusBar.Text, "canceled");
     app.FigureArrangeButton.Value = false;
     app.FigureArrangeButton.ValueChangedFcn(app.FigureArrangeButton, []);
-    check(arrOn && escaped && ~app.FigureArrange && app.FigureArrangeButton.Parent == app.FigureTemplateDropDown.Parent, ...
+    check(arrOn && escaped && ~app.FigureArrange && app.FigureArrangeButton.Parent == app.FigureTemplateDropDown.Parent.Parent, ...
         'Arrange, on the template row, is noted on and off (no preview drawn: the status bar says to preview first); Escape ends Set corners (cancelArrange)');
     app.onPanelSelected(find(ids2() == "raster_1"));
     FE.addSource.Value = "events";
@@ -4216,6 +4221,161 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     clear restore5ha
 end
 
+if S.sec("5h.align", "Arrange's align bar: in the templates' place while Arrange is on; left edges by the boxes, the axes and the labels; to the page; Space evenly with even gaps and with a Gap; one undo step each, laid out in place; its choices remembered and its Gap in the units picked")
+    noFigures();
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % (no Ctrl held from an earlier section)
+    app.selectTab(app.TabFigures);
+    app.FigureAutoSlider.Value = 1;
+    autoAlways(app);
+    restore5hb = onCleanup(@() resetAutoLimit(app));
+    units5hb = app.FigureRectUnits;
+    align5hb = {app.FigureAlignBy, app.FigureAlignTo, app.FigureAlignGap};
+    app.FigureHistory = FigureEditHistory();
+    unitsTo("cm");
+    app.onAddFigure("rasterPsth");
+    k5 = app.SelectedFigure;
+    cfgB = app.gatherConfig();
+    pB = cfgB.Figures(k5).panels;
+    pB(1).rect = [0.1 0.55 0.4 0.4];   % raster_1 and psth_1 apart (no time stack), their left edges apart
+    pB(2).rect = [0.25 0.05 0.3 0.4];
+    cfgB.Figures(k5).panels = pB;
+    app.applyConfig(cfgB);
+    app.onPanelSelected(1);
+    app.refreshFigurePreview(Force=true);
+    P = app.FigurePreviewPanel;
+    rectOf = @(id) app.Config.Figures(k5).panels([app.Config.Figures(k5).panels.id] == id).rect;
+    pageCmB = figureExportSize(app.Config.Export, [], app.Config.Figures(k5));
+    B = app.FigureAlignBar;
+    T = app.FigureTemplateBar;
+    host0 = app.FigurePreviewHost.Position;
+    off0 = ~B.grid.Visible && logical(T.Visible) && logical(app.FigureArrangeButton.Visible);
+    arrangeToggle(app, true);
+    check(off0 && logical(B.grid.Visible) && ~T.Visible && logical(app.FigureArrangeButton.Visible) ...
+        && isequal(app.FigurePreviewHost.Position, host0) && B.grid.Parent == T.Parent && isequal(B.grid.Layout, T.Layout) ...
+        && B.buttons.left.Enable == "on" && B.buttons.spaceX.Enable == "off" && B.buttons.spaceY.Enable == "off" ...
+        && contains(app.FigurePreviewHint.Text, "the bar above"), ...
+        ['Arrange on: the align bar in the templates'' place (the same cell; the preview keeps its size), Arrange still ' ...
+        'there; one panel selected: the align buttons on, Space evenly''s off']);
+
+    % raster_1 and psth_1 selected; left edges by the boxes, to the selection: one undo step, laid out in place
+    app.onArrangeClicked("psth_1", struct('SelectionType', "extend"));
+    pushB = @(nm) B.buttons.(nm).ButtonPushedFcn(B.buttons.(nm), []);
+    pickValue(B.by, "box");
+    pickValue(B.to, "selection");
+    nUndo = numel(app.FigureHistory.Undo);
+    lines0 = findall(figAxes(), 'Type', 'line');
+    busy0 = app.FigurePreviewBusyCount;
+    t0 = tic;
+    pushB("left");
+    tLeft = toc(t0);
+    lines1 = findall(figAxes(), 'Type', 'line');
+    selIds = sort([app.Config.Figures(k5).panels(app.SelectedPanel).id, app.FigurePanelExtra]);
+    check(isequal(selIds, ["psth_1" "raster_1"]) && B.buttons.spaceX.Enable == "on" ...
+        && rectIs(rectOf("psth_1"), [0.1 0.05 0.3 0.4]) && rectIs(rectOf("raster_1"), [0.1 0.55 0.4 0.4]) ...
+        && numel(app.FigureHistory.Undo) == nUndo + 1 && app.FigureHistory.undoLabel() == "Align panels" ...
+        && rectIs(arrangeBox(app, "psth_1").Position, [0.1 0.05 0.3 0.4]) && app.FigurePreviewBusyCount == busy0 ...
+        && all(ismember(lines1, lines0)) && numel(lines1) == numel(lines0) && contains(app.StatusBar.Text, "Left edges lined up") ...
+        && contains(app.StatusBar.Text, "raster_1, psth_1") ...
+        && tLeft < 2, ...
+        sprintf(['Shift+click psth_1: Space evenly on; Left by the panel boxes: psth_1''s rect and box at raster_1''s left ' ...
+        'edge, one undo step "Align panels", laid out in place (nothing drawn) in %.2f s ("%s")'], tLeft, app.StatusBar.Text));
+    app.onUndoRedo("undo");
+    check(rectIs(rectOf("psth_1"), [0.25 0.05 0.3 0.4]), 'Undo: psth_1 back');
+
+    % by the axes: the plot areas' left edges meet, whatever the labels' widths; by the labels: the labels' left edges
+    pickValue(B.by, "axes");
+    pushB("left");
+    axR = findPanelAxes(P, "raster_1");
+    axP = findPanelAxes(P, "psth_1");
+    dAxes = abs(axR.Position(1) - axP.Position(1));
+    msgAxes = app.StatusBar.Text;
+    app.onUndoRedo("undo");
+    pickValue(B.by, "labels");
+    pushB("left");
+    L = getappdata(P, 'FigureLayoutResult');
+    labLeft = @(id) L.panels(L.ids == id).box(1) - L.cells(L.ids == id).inset(1);
+    dLab = abs(labLeft("raster_1") - labLeft("psth_1"));
+    axR = findPanelAxes(P, "raster_1");
+    axP = findPanelAxes(P, "psth_1");
+    dInk = abs((axR.Position(1) - axR.TightInset(1)) - (axP.Position(1) - axP.TightInset(1)));
+    check(dAxes < 1 && contains(msgAxes, "axes") && dLab < 1 && dInk < 2 && contains(app.StatusBar.Text, "axes and labels"), ...
+        sprintf(['Left by the axes: the two plot areas'' left edges %.2f px apart; by the axes and labels: the labels'' ' ...
+        'left edges %.2f px apart as laid out (%.2f px by the axes'' TightInset)'], dAxes, dLab, dInk));
+    app.onUndoRedo("undo");
+
+    % one panel selected: to the page (said so); its labels at the page's edge, the padding from it
+    app.onArrangeClicked("", struct('SelectionType', "normal"));   % the page: the primary alone
+    app.onPanelSelected(1);   % raster_1
+    pickValue(B.to, "first");
+    pushB("left");
+    L = getappdata(P, 'FigureLayoutResult');
+    pad = app.Config.Figures(k5).layout.padding * 96 / 2.54 * L.scale;
+    gapEdge = L.panels(L.ids == "raster_1").box(1) - L.cells(L.ids == "raster_1").inset(1) - L.area(1);
+    check(isempty(app.FigurePanelExtra) && contains(app.StatusBar.Text, "one panel: to the page") && abs(gapEdge - pad) < 1, ...
+        sprintf('one panel: lined up with the page: raster_1''s labels %.1f px from its edge (the padding, %.1f px; "%s")', ...
+        gapEdge, pad, app.StatusBar.Text));
+    app.onUndoRedo("undo");
+
+    % Space evenly: three panels in a row (psth_2 added), even gaps by the labels; a Gap of 0.5 cm by the boxes
+    app.onNewPanel(Type="psth", Where="rect", Rect=[0.62 0.55 0.33 0.4]);   % psth_2
+    cfgS = app.gatherConfig();
+    pS = cfgS.Figures(k5).panels;
+    pS(1).rect = [0 0.55 0.25 0.4]; pS(2).rect = [0.3 0.55 0.2 0.4]; pS(3).rect = [0.7 0.55 0.28 0.4];
+    cfgS.Figures(k5).panels = pS;
+    app.applyConfig(cfgS);
+    if app.FigurePreviewState ~= "drawn"; app.refreshFigurePreview(Force=true); end
+    app.onPanelSelected(1);
+    app.onArrangeClicked("psth_1", struct('SelectionType', "extend"));
+    app.onArrangeClicked("psth_2", struct('SelectionType', "extend"));
+    pickValue(B.to, "selection");
+    nUndo = numel(app.FigureHistory.Undo);
+    pushB("spaceX");
+    L = getappdata(P, 'FigureLayoutResult');
+    ext = @(id) [L.panels(L.ids == id).box(1) - L.cells(L.ids == id).inset(1), sum(L.panels(L.ids == id).box([1 3])) + L.cells(L.ids == id).inset(3)];
+    e1 = ext("raster_1"); e2 = ext("psth_1"); e3 = ext("psth_2");
+    gaps = [e2(1) - e1(2), e3(1) - e2(2)];
+    evenOk = abs(diff(gaps)) < 1 && rectIs(rectOf("raster_1"), [0 0.55 0.25 0.4]) && ~rectIs(rectOf("psth_1"), [0.3 0.55 0.2 0.4]) ...
+        && numel(app.FigureHistory.Undo) == nUndo + 1 && app.FigureHistory.undoLabel() == "Space panels" && contains(app.StatusBar.Text, "apart");
+    msgEven = app.StatusBar.Text;
+    app.onUndoRedo("undo");
+    pickValue(B.by, "box");
+    B.gap.Value = 0.5;
+    B.gap.ValueChangedFcn(B.gap, []);
+    pushB("spaceX");
+    g5 = 0.5 / pageCmB(1);
+    gapOk = rectIs(rectOf("raster_1"), [0 0.55 0.25 0.4]) && rectIs(rectOf("psth_1"), [0.25 + g5, 0.55, 0.2, 0.4]) ...
+        && rectIs(rectOf("psth_2"), [0.45 + 2 * g5, 0.55, 0.28, 0.4]) && contains(app.StatusBar.Text, "0.5 cm apart");
+    check(evenOk && gapOk, sprintf(['Space evenly across by the labels: the outermost stay, the two gaps between the ' ...
+        'labels %.1f and %.1f px, psth_1 moved ("%s"); with a Gap of 0.5 cm by the boxes: from raster_1, 0.5 cm between the boxes ("%s")'], ...
+        gaps(1), gaps(2), msgEven, app.StatusBar.Text));
+
+    % the choices are preferences; the Gap follows the units picked; Arrange off brings the templates back
+    savedBy = string(AppPrefs.getpref(g, 'FigureAlignBy'));
+    savedGap = AppPrefs.getpref(g, 'FigureAlignGap');
+    unitsTo("in");
+    inGap = B.gap.Value;
+    inUnits = string(B.gapUnits.Text);
+    unitsTo("cm");
+    B.gap.Value = [];
+    B.gap.ValueChangedFcn(B.gap, []);
+    arrangeToggle(app, false);
+    check(savedBy == "box" && isstruct(savedGap) && savedGap.value == 0.5 && string(savedGap.units) == "cm" ...
+        && abs(inGap - 0.197) < 1e-9 && inUnits == "in" && isempty(app.FigureAlignGap) ...
+        && isempty(AppPrefs.getpref(g, 'FigureAlignGap')) && ~B.grid.Visible && logical(T.Visible) ...
+        && isequal(app.FigurePreviewHost.Position, host0), ...
+        sprintf(['the bar''s choices saved as preferences (FigureAlignBy, FigureAlignGap 0.5 cm); in inches the Gap reads ' ...
+        '%g %s; blank: even gaps again; Arrange off: the templates back, the preview the same size'], inGap, inUnits));
+
+    noFigures();
+    app.FigureAlignBy = align5hb{1};
+    app.FigureAlignTo = align5hb{2};
+    app.FigureAlignGap = align5hb{3};
+    app.savePreferences();
+    unitsTo(units5hb);
+    app.Tabs.SelectedTab = app.TabData;
+    clear restore5hb
+end
+
 if S.sec("5i", "favorites: stars on datasets, units and channels; the Favorites lists")
     savedConfig();
     noFigures();
@@ -5305,7 +5465,7 @@ if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into
     restoreTpl5q = onCleanup(@() removeTemplates(tplFolder5q));
     app.refreshTemplates();
     drawnow;
-    row5q = app.FigureTemplateDropDown.Parent;
+    row5q = app.FigureTemplateDropDown.Parent;   % (the template controls; the row is its parent, Arrange beside them)
     tplButtons5q = [app.FigureTemplateApplyButton app.FigureTemplateSaveButton app.FigureTemplateUpdateButton ...
         app.FigureTemplateRemoveButton app.FigureTemplateImportButton app.FigureTemplateExportButton];
     check(app.FigureApplyLastButton.Parent == app.FigureSearchField.Parent.Parent && app.FigureApplyLastButton.Layout.Row == 1 ...
@@ -5314,7 +5474,7 @@ if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into
     check(all(arrayfun(@(h) h.Parent == row5q, tplButtons5q)) && app.FigureTemplateIssueLink.Parent == row5q ...
         && isequal(string(app.FigureTemplateDropDown.Items), "(no templates)") && app.FigureTemplateSaveButton.Enable == "on" ...
         && all([app.FigureTemplateApplyButton.Enable app.FigureTemplateUpdateButton.Enable app.FigureTemplateRemoveButton.Enable ...
-        app.FigureTemplateExportButton.Enable] == "off") && row5q.Parent.RowHeight{row5q.Layout.Row} - sum(row5q.Padding([2 4])) >= 30 ...
+        app.FigureTemplateExportButton.Enable] == "off") && row5q.Parent.Parent.RowHeight{row5q.Parent.Layout.Row} - sum(row5q.Parent.Padding([2 4])) >= 30 ...
         && isequal(app.FigureTemplateApplyButton.BackgroundColor, [0.16 0.52 0.28]) && isequal(app.FigureTemplateRemoveButton.BackgroundColor, [0.80 0.25 0.20]), ...
         'the template row above the preview: the list, Apply... (green), Save as..., Update, Remove (red), Import..., Export..., and Report issue; with no template Apply, Update, Remove and Export are off; buttons at least 30 px');
     app.onAddFigure("rasterPsth");
@@ -6227,6 +6387,13 @@ function arrangeToggle(app, tf)
 %arrangeToggle  The preview's Arrange button pressed on (TF true) or off, as a click does.
 app.FigureArrangeButton.Value = tf;
 app.FigureArrangeButton.ValueChangedFcn(app.FigureArrangeButton, []);
+end
+
+
+function pickValue(dd, v)
+%pickValue  A drop-down set to V as a pick in it does: its ValueChangedFcn called.
+dd.Value = v;
+dd.ValueChangedFcn(dd, []);
 end
 
 

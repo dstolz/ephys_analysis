@@ -53,7 +53,9 @@ classdef EphysFigGenApp < handle
     %                and resized with snapping and smart guides,
     %                onArrangeMoving / onArrangeMoved, nudged by the arrow
     %                keys, nudgePanel, or placed by two corner clicks,
-    %                onSetCorners / startCornerMode), the selected panel (type, title,
+    %                onSetCorners / startCornerMode; its align bar lines the
+    %                selected panels' boxes, axes or labels up and spaces
+    %                them evenly, onArrangeAlign), the selected panel (type, title,
     %                box, group shown; Shift+click more panels in the
     %                preview, or their boxes in Arrange, to select several:
     %                togglePanelSelection, the editor then shows the
@@ -175,7 +177,8 @@ classdef EphysFigGenApp < handle
     %   supersections), FigureGroupBy and FigureGroupsCollapsed (how
     %   its figure tree groups, and its collapsed groups), FigureRectUnits,
     %   FigureSnap and FigureSnapStep (the Panels section's units, Snap box
-    %   and step), ReportWorkers
+    %   and step), FigureAlignBy, FigureAlignTo and FigureAlignGap (Arrange's
+    %   align bar: what it lines up, to what, Space evenly's gap), ReportWorkers
     %   (the Export tab's Workers: the process workers a run draws and
     %   writes its pages on, 4 by default; 0 = in this MATLAB).
     %
@@ -426,6 +429,11 @@ classdef EphysFigGenApp < handle
         FigureRectUnits (1,1) string = "cm"  % the Panels section's units for a rect, padding and snap step (EphysAnalysisConfig.RectUnits; pref FigureRectUnits)
         FigureSnap (1,1) logical = true     % Arrange snaps the panels to edges, centers and the step (pref FigureSnap)
         FigureSnapStep = struct('value', 0.5, 'units', "cm")   % the snap step and the arrow keys' nudge: a value in its units (pref FigureSnapStep)
+        FigureTemplateBar = []              % the template controls above the preview (Template:, Apply..., ...), hidden while Arrange is on (syncAlignBar)
+        FigureAlignBar = []                 % Arrange's align bar in their place: struct grid, by, to, buttons (onArrangeAlign's eight, by name), gap, gapUnits (buildFiguresTab's buildAlignBar; syncAlignBar)
+        FigureAlignBy (1,1) string = "box"  % what the align bar lines up: "box" (the panels' boxes) | "axes" | "labels" (axes and labels as drawn): figureAlign's Feature (pref FigureAlignBy)
+        FigureAlignTo (1,1) string = "selection"   % what with: "selection" | "first" (the first selected) | "page": figureAlign's To (pref FigureAlignTo)
+        FigureAlignGap = []                 % Space evenly's gap: [] (even gaps) or struct value, units (shown in the Panels section's units; pref FigureAlignGap)
         FigureSearchIndex struct = struct([])   % the editor's searchable rows, as built (figureSearchIndex)
         FigureSearchState (1,1) string = ""     % "typing" (the search field), "list" (its matches), "" (Enter, arrows and Escape are left alone)
         FigureFlash = []                    % the row gotoFigureRow highlights: struct(handles, saved, timer), else []
@@ -653,6 +661,7 @@ classdef EphysFigGenApp < handle
         onSetCorners(obj)
         ok = startCornerMode(obj, what, payload)
         nudgePanel(obj, dx, dy, how)
+        onArrangeAlign(obj, how)
         onPanelTypeChanged(obj)
         onResetPanelOptions(obj)
         onForgetPanelOptions(obj)

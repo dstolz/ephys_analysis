@@ -8,7 +8,9 @@ function loadPreferences(obj, openLast)
 %   FigureGroupBy and FigureGroupsCollapsed (the figure tree's
 %   grouping and collapsed groups), FigureRectUnits, FigureSnap and
 %   FigureSnapStep (the Layout section's units, Snap box and step:
-%   onRectUnitsChanged, onSnapChanged), ApplyTicked, ApplySeen and ApplyReplot
+%   onRectUnitsChanged, onSnapChanged), FigureAlignBy, FigureAlignTo and
+%   FigureAlignGap (Arrange's align bar: syncAlignBar shows them),
+%   ApplyTicked, ApplySeen and ApplyReplot
 %   (Apply to figures' ticks and its Replot box: onApplyToFigures),
 %   PanelOptions (the options last set on a panel of each type, which a
 %   new panel starts from: rememberPanelOptions, onNewPanel), ReportWorkers
@@ -62,6 +64,23 @@ if AppPrefs.ispref(g, 'FigureSnapStep')
     if isstruct(v) && isscalar(v) && isfield(v, 'value') && isfield(v, 'units') && isnumeric(v.value) && isscalar(v.value) ...
             && isfinite(v.value) && v.value > 0 && isscalar(string(v.units)) && ismember(string(v.units), EphysAnalysisConfig.RectUnits)
         obj.FigureSnapStep = struct('value', double(v.value), 'units', string(v.units));   % shown in the units picked (showPanelPlace)
+    end
+end
+if AppPrefs.ispref(g, 'FigureAlignBy')
+    v = string(AppPrefs.getpref(g, 'FigureAlignBy'));
+    if isscalar(v) && ismember(v, ["box" "axes" "labels"]); obj.FigureAlignBy = v; end
+end
+if AppPrefs.ispref(g, 'FigureAlignTo')
+    v = string(AppPrefs.getpref(g, 'FigureAlignTo'));
+    if isscalar(v) && ismember(v, ["selection" "first" "page"]); obj.FigureAlignTo = v; end
+end
+if AppPrefs.ispref(g, 'FigureAlignGap')
+    v = AppPrefs.getpref(g, 'FigureAlignGap');
+    if isstruct(v) && isscalar(v) && isfield(v, 'value') && isfield(v, 'units') && isnumeric(v.value) && isscalar(v.value) ...
+            && isfinite(v.value) && v.value >= 0 && isscalar(string(v.units)) && ismember(string(v.units), EphysAnalysisConfig.RectUnits)
+        obj.FigureAlignGap = struct('value', double(v.value), 'units', string(v.units));   % (shown by syncAlignBar)
+    else
+        obj.FigureAlignGap = [];
     end
 end
 if AppPrefs.ispref(g, 'ApplyTicked'); obj.ApplyTicked = reshape(string(AppPrefs.getpref(g, 'ApplyTicked')), 1, []); end

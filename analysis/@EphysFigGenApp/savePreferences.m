@@ -18,6 +18,11 @@ AppPrefs.setpref(g, 'FigureGroupsCollapsed', cellstr(obj.FigureGroupsCollapsed))
 AppPrefs.setpref(g, 'FigureRectUnits', char(obj.FigureRectUnits));
 AppPrefs.setpref(g, 'FigureSnap', logical(obj.FigureSnap));
 AppPrefs.setpref(g, 'FigureSnapStep', struct('value', double(obj.FigureSnapStep.value), 'units', char(obj.FigureSnapStep.units)));
+AppPrefs.setpref(g, 'FigureAlignBy', char(obj.FigureAlignBy));
+AppPrefs.setpref(g, 'FigureAlignTo', char(obj.FigureAlignTo));
+G = obj.FigureAlignGap;
+if isstruct(G); G = struct('value', double(G.value), 'units', char(G.units)); end
+AppPrefs.setpref(g, 'FigureAlignGap', G);   % ([]: even gaps)
 S = obj.FigureSections;
 AppPrefs.setpref(g, 'FigureSectionsCollapsed', cellstr([string.empty(1, 0) S(~[S.Expanded]).Name]));
 shut = strings(1, 0);   % the folded sub-headings, "<section name>.<key>" (onFigureSubheadingToggled)

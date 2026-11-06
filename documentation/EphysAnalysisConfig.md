@@ -2304,7 +2304,7 @@ rect until it is placed again.
 | `pairs = EphysAnalysisConfig.rectOverlaps(fig)` | the panels whose rects overlap by more than `RectTol` (0.005 of the page) both across and up, as `[j k]` index pairs (`j < k`; `zeros(0, 2)` for none). Panels put flush do not overlap |
 | `order = EphysAnalysisConfig.panelOrder(fig)` | the panels in reading order: the top edge highest first, then left to right (`sortrows(round([-(y+h) x], 3))`); `order(1)` is the top-left panel |
 
-Two helpers outside the class read the rects:
+Three helpers outside the class read or move the rects:
 
 - `figureRectConvert(v, from, to, pageCm, dpi, axis)` converts places on the
   page between `RectUnits`: `"normalized"` (0-1), `"%"`, and `"cm"`, `"in"`
@@ -2320,6 +2320,20 @@ Two helpers outside the class read the rects:
   j), `above`, `left`, `right` likewise, `inColumn` (`xShare` >= 0.5),
   `flushV` / `flushH` (stacked or side by side within `tol`, sharing more
   than `tol` the other way).
+- `[rects, info] = figureAlign(rects, which, how, Feature=, To=, Gap=, Layout=)`
+  lines up the panels `which` (rows of `rects`, the first the one others can
+  be lined up with) or spaces them evenly, as the app's Arrange bar does:
+  `how` `"left"`, `"center"`, `"right"`, `"top"`, `"middle"`, `"bottom"`,
+  `"spaceX"` or `"spaceY"`. They only move, along one axis, and stay on the
+  page. `Feature` `"box"` (the rects, the default), `"axes"` or `"labels"`
+  (the plot areas, or the axes with their labels, as laid out: give `Layout`,
+  the drawing's `getappdata(canvas, 'FigureLayoutResult')` with its panels
+  in the order of `rects`). `To` `"selection"` (default), `"first"` or
+  `"page"`. `Gap` `[]` (even gaps; the outermost stay) or the gap, 0-1 of the
+  page along that axis (`figureRectConvert` turns a length into it). For
+  spacing, panels overlapping across move as one column (rows for
+  `"spaceY"`). `info`: `moved` and `held` (a rect that could not get where it
+  should) per panel, `groups`, `room` and the `gap` left.
 
 ```matlab
 f = cfg.Figures(1);                                                   % raster_1 over psth_1
@@ -2480,7 +2494,8 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
 
 - **Layout.** renderFigure lays its panels out itself (not with MATLAB's tiled
   layout): `target`, emptied (a grid layout gets a borderless panel; `h.layout`),
-  holds one axes per panel, and once everything
+  holds one axes per panel (no panel shows MATLAB's axes toolbar, the icons
+  that appear over a plot on hover; a probe figure's tiles neither), and once everything
   is drawn and dressed (its looks final) `figureLayout` measures the room each
   panel's labels take (its axes' `TightInset`, on the sides where tick labels,
   an axis label, a title or a color bar outside sit: a tick label that only
@@ -3725,7 +3740,7 @@ and `relinkPanels` (their results and `NoPanel`); `placePanel` (the first panel,
 beside an anchor in four directions, at a rect, the errors), `removePanel`; `placeBlock` (the
 block mapped into the free space, beside an anchor and at a rect, ids made free, `Alignment`, a
 figure without panels, `NoPanel`, `NoRoom`); `freeRect`, `rectOverlaps`, `panelOrder`, `orderPanel`,
-`figureNeighbors` and `figureRectConvert`; `DuplicateFigureId` and
+`figureNeighbors`, `figureRectConvert` and `figureAlign` (by the boxes, the axes and the labels through a layout, to the selection, the first and the page, held panels, Space with even gaps, a Gap, columns of a grid); `DuplicateFigureId` and
 `DuplicatePanelId`; every validate rule of figures (only the known layer sources and
 panel types; a PSTH's baseline
 mode (no `ratio`), `auroc` windows, its `stack` and a positive `stackSpacing`; a raster's `firstSpike` and a PSTH's

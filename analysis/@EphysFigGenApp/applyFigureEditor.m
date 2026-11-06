@@ -271,6 +271,7 @@ if isfield(op, 'maskAfterStop'); E.maskAfterStop.Value = op.maskAfterStop; end
 if isfield(op, 'smoothLine')
     E.smoothLine.Value = op.smoothLine.enabled;
     E.smoothLineMs.Value = max(0, 1000 * op.smoothLine.smoothSec);
+    E.smoothLineLegend.Value = ~isfield(op.smoothLine, 'legend') || logical(op.smoothLine.legend);
 end
 if isfield(op, 'histStyle')
     offerItems(E.histStyle, ["bar" "line"], op.histStyle);

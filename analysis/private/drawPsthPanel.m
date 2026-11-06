@@ -102,7 +102,7 @@ function hk = drawPsthPanel(ax, P, look)
 %   group's color (figLayerLook, the item's line style), a darker shade of
 %   it over its own fill, 1.5 x the design's line width, on top of every
 %   trace; role "smoothLine" (the trace's aesthetics group), a legend entry
-%   "Smoothed (SD 25 ms)". A result without R.rateUnsmoothed draws none
+%   "Smoothed (SD 25 ms)" unless smoothLine.legend is false. A result without R.rateUnsmoothed draws none
 %   and says so in its notes. Not for a merged result's member sessions.
 %   The events layers drawn as marks become latency lines and a rug
 %   (figEventMarks, roles "eventLine" / "eventRug"), and with
@@ -150,8 +150,9 @@ if auroc; norm = "none"; end   % an auROC is on its own 0-1 scale
 ref = 0;
 if auroc; ref = 0.5; end       % bars from chance
 yName = "";
-sl = struct('enabled', false, 'smoothSec', 0);   % options.smoothLine: a smoothed line over each trace
+sl = struct('enabled', false, 'smoothSec', 0, 'legend', true);   % options.smoothLine: a smoothed line over each trace
 if isfield(o, 'smoothLine') && isstruct(o.smoothLine); sl = o.smoothLine; end
+if ~isfield(sl, 'legend'); sl.legend = true; end   % the line's legend entry
 wantLine = sl.enabled && o.display ~= "heatmap";
 D = struct('R', {}, 'm', {}, 'lo', {}, 'hi', {}, 'peak', {}, 'name', {}, 'colors', {}, 'u', {}, 'members', {}, 'units', {}, ...
     'line', {});
@@ -321,7 +322,7 @@ if nI > 1 && ~heat   % the items, by line style (in the group's color when there
         hk.legendGroup(end+1) = false;
     end
 end
-if ~isempty(hLine)   % what the line is: its own entry (the line's color with one trace, else gray)
+if ~isempty(hLine) && sl.legend   % what the line is: its own entry (unless smoothLine.legend is false; the line's color with one trace, else gray)
     c = [0.25 0.25 0.25];
     if isscalar(hLine); c = hLine.Color; end
     hk.legendHandles(end+1) = tagPart(line(ax, NaN, NaN, 'Color', c, 'LineWidth', hLine(1).LineWidth), "smoothLine");

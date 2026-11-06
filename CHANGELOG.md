@@ -507,6 +507,8 @@ says how to cut a release.
 
 ### Added
 
+- PSTH smoothed line: `options.smoothLine.legend` (true by default) shows or hides the line's legend entry,
+  *Smoothed (SD 25 ms)*; the Figures editor's **Smoothed line** row has a **Legend** box for it.
 - Analysis app, Figures tab: Arrange's align bar. While Arrange is on, a bar in the template controls' place above
   the preview lines the selected panels up (left edges, centers, right edges, tops, middles, bottoms) or spaces them
   evenly across or up the page (a column or row of a grid moves as one), each one step of Undo. **Align** picks what

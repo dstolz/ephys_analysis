@@ -749,6 +749,7 @@ the line, and neither changes the other:
 | --- | --- | --- |
 | `enabled` | `false` | draw the line |
 | `smoothSec` | 0.025 | the line's Gaussian SD, s, over the PSTH's bins (0: the unsmoothed PSTH as a line); 0 or more |
+| `legend` | `true` | give the line a legend entry, *Smoothed (SD 25 ms)*; `false` leaves it out |
 
 The line starts from the rates without the histogram's smoothing (`spikePSTH`'s
 `R.rateUnsmoothed`: each group's mean over its unsmoothed epochs, after the baseline),
@@ -761,7 +762,7 @@ changing it redraws the preview without computing the figure again.
 It is drawn on top of every trace, in the trial group's color (a darker shade over the
 group's own fill, so it shows), the item's line style, 1.5 times the design's line
 width; stacked (`stack "groups"`), in each row on the row's scale, and the rows make
-room for it. The legend gets an entry *Smoothed (SD 25 ms)*. Role `smoothLine` (group:
+room for it. The legend gets an entry *Smoothed (SD 25 ms)*, unless `legend` is `false`. Role `smoothLine` (group:
 the trace's), which the aesthetics editor can restyle or hide; the right-click menu
 goes to **Smoothed line** in the PSTH's options. Not drawn with `display "heatmap"`,
 nor for the member sessions of a [session figure](#session-figures). A result computed
@@ -2097,7 +2098,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `histStyle` | `"bar"` | `"bar"` or `"line"` |
 | `psth` | `fill` | `true` | fill the bars, or the area under the line |
 | `psth` | `fillAlpha` | `NaN` | fill opacity 0-1; `NaN` = 0.5 where groups overlay, else 1 |
-| `psth` | `smoothLine` | `enabled false`, `smoothSec` 0.025 | a line over each trace, the PSTH smoothed on its own by a Gaussian of SD `smoothSec` (s), independent of `bins.SmoothSec` ([Smoothed line](#smoothed-line)). Not with `display "heatmap"` |
+| `psth` | `smoothLine` | `enabled false`, `smoothSec` 0.025, `legend true` | a line over each trace, the PSTH smoothed on its own by a Gaussian of SD `smoothSec` (s), independent of `bins.SmoothSec` ([Smoothed line](#smoothed-line)). Not with `display "heatmap"` |
 | `psth` | `normalize` | `"none"` | `"none"`, `"unitPeak"`, `"groupPeak"` or `"allPeak"` |
 | `psth` | `stack` | `"off"` | `"groups"`: one row per trial group, stacked downwards (the first group on top, as a raster lists them), instead of overlaid; a single group is drawn overlaid ([Stacks](#stacks)) |
 | `psth` | `stackSpacing` | 1.1 | `stack`: the step between rows, times the row height (below 1 the rows overlap); positive |
@@ -2701,7 +2702,7 @@ defaults. A file written by hand may leave out any field that keeps its default.
         "layers": [ { "name": "", "enabled": true, "source": "units", "binding": "observation", "aggregate": "each", "...": "..." } ],
         "options": { "bins": { "BinSec": 0.01, "SmoothSec": 0.01 }, "measure": "rate",
                      "baseline": { "Mode": "none", "Window": [-0.2, 0] }, "histStyle": "bar", "fill": true,
-                     "fillAlpha": "NaN", "smoothLine": { "enabled": false, "smoothSec": 0.025 },
+                     "fillAlpha": "NaN", "smoothLine": { "enabled": false, "smoothSec": 0.025, "legend": true },
                      "normalize": "none", "maskAfterStop": false, "yLim": [],
                      "latencyBox": { "enabled": false, "color": "groups", "...": "..." }, "onsetLine": "off", "trialCount": "off",
                      "waveform": { "mode": "off", "...": "..." } } },

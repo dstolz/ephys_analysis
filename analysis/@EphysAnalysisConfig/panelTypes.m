@@ -89,7 +89,8 @@ function T = panelTypes()
 %   the unsmoothed bins (spikePSTH's R.rateUnsmoothed), so bins.SmoothSec
 %   smooths the histogram alone and neither changes the other (smoothSec 0:
 %   the unsmoothed PSTH as a line). It is the drawing's: changing it
-%   computes nothing again. Not drawn as a heat map.
+%   computes nothing again. Not drawn as a heat map. smoothLine.legend
+%   (true) gives the line its legend entry, "Smoothed (SD 25 ms)".
 %   A PSTH's display "heatmap"
 %   draws its first item (unit or mean) as an image instead: a row per
 %   trial group, the first on top, colored on that item's own range
@@ -215,7 +216,7 @@ if ~isempty(cached)
     return
 end
 bins = struct('BinSec', 0.01, 'SmoothSec', 0.01);              % SmoothSec: Gaussian SD (0 = none)
-smoothLine = struct('enabled', false, 'smoothSec', 0.025);     % psth: a smoothed line over the histogram, its own Gaussian SD (s)
+smoothLine = struct('enabled', false, 'smoothSec', 0.025, 'legend', true);     % psth: a smoothed line over the histogram, its own Gaussian SD (s); legend: its legend entry
 baseline = struct('Mode', "none", 'Window', [-0.2 0]);
 waveform = EphysAnalysisConfig.defaults("Waveform");           % raster / psth / rate / tuning: the unit's waveform inset ("off" = none)
 waveformsOwn = waveform;

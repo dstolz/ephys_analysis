@@ -1950,10 +1950,11 @@ if S.sec("6", "config: validate")
     bSm = bR; bSm.Figures(1).panels(kP).options.smoothLine = struct('enabled', true, 'smoothSec', 0);
     bSn = bR; bSn.Figures(1).panels(kP).options.smoothLine.smoothSec = -0.01;
     bSi = bR; bSi.Figures(1).panels(kP).options.smoothLine.smoothSec = Inf;
+    bSg = bR; bSg.Figures(1).panels(kP).options.smoothLine.legend = false;
     sl0 = bR.Figures(1).panels(kP).options.smoothLine;
-    check(~sl0.enabled && sl0.smoothSec == 0.025 && isempty(figIssues(bSm)) ...
+    check(~sl0.enabled && sl0.smoothSec == 0.025 && sl0.legend && isempty(figIssues(bSm)) && isempty(figIssues(bSg)) ...
         && has(bSn, "figure_1.psth_1.options.smoothLine.smoothSec", "error") && has(bSi, "figure_1.psth_1.options.smoothLine.smoothSec", "error"), ...
-        'a PSTH''s smoothLine: off by default, 25 ms; its smoothSec 0 or more (0: the unsmoothed PSTH), finite');
+        'a PSTH''s smoothLine: off by default, 25 ms, in the legend (legend false: clean); its smoothSec 0 or more (0: the unsmoothed PSTH), finite');
     I9 = figIssues(b4);
     I9 = I9(I9.Field == n0 + "x", :);
     b10 = b2; b10.Figures(1).panels(2).type = "bogus";
@@ -4385,6 +4386,12 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     lgS = findall(fig, 'Type', 'legend');
     lgS = string(lgS(1).String);
     okL = any(lgS == "Smoothed (SD 30 ms)");
+    sSq = sSl;
+    sSq.panels(2).options.smoothLine.legend = false;   % the lines drawn, their legend entry left out
+    hSq = renderFigure(Ffs, sSq, fig);
+    lgQ = findall(fig, 'Type', 'legend');
+    lgQ = string(lgQ(1).String);
+    okL = okL && ~any(startsWith(lgQ, "Smoothed")) && numel(finiteLines(findall(hSq.panels(2).axes, 'Tag', 'smoothLine'))) == numel(lnS);
     okSl = okN && okU && okD && okV && okO && okL;
     sSn = sSl;
     sSn.panels(2).options.normalize = "unitPeak";

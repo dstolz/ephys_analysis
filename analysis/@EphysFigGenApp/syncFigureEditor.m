@@ -464,7 +464,7 @@ if hasPanel
     lineStack = stackNow ~= "off" && ismember(t, ["psth" "continuous" "spectrum" "coherence" "tuning"]) && ~overTime;
     en(E.panelYSide, ~lineStack);   % a stacked line panel has a y axis on each side
     en(E.fillAlpha, E.fill.Value);
-    en(E.smoothLineMs, E.smoothLine.Value);
+    en([E.smoothLineMs E.smoothLineLegend], E.smoothLine.Value);
     sortOn = ~(t == "eventTrace" && string(E.etTrials.Value) ~= "rows");   % an event trace sorts its sub-rows only
     en([E.rasterSort E.rasterSortOrder E.rasterByGroup], sortOn);
     en([E.sortLine E.sortEdge E.sortSeqText E.sortSeqEdit], sortOn && strtrim(string(E.rasterSort.Value)) == "event");

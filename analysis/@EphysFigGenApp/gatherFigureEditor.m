@@ -299,6 +299,7 @@ if own('maskAfterStop'); op.maskAfterStop = logical(E.maskAfterStop.Value); end
 if isfield(op, 'smoothLine')
     op.smoothLine.enabled = logical(E.smoothLine.Value);
     op.smoothLine.smoothSec = E.smoothLineMs.Value / 1000;
+    op.smoothLine.legend = logical(E.smoothLineLegend.Value);
 end
 if isfield(op, 'histStyle')
     op.histStyle = string(E.histStyle.Value);

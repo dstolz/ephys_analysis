@@ -5131,6 +5131,17 @@ if S.sec("5l", "a raster's First-spike marks... and a PSTH's Latency box plot...
         && string(app.UndoMenu.Text) == "Undo Smoothed line" && app.FigurePreviewState == "drawn" ...
         && numel(slP) == height(app.FigurePreviewResult.groups), ...
         sprintf('Smoothed line: Draw and SD (ms) give the PSTH a line per group (%d), "Undo Smoothed line"', numel(slP)));
+    lgS = "";   % every legend's entries
+    for hL = findall(app.FigurePreviewPanel, 'Type', 'legend')'; lgS = [lgS string(hL.String)]; end %#ok<AGROW>
+    inLg = any(startsWith(lgS, "Smoothed"));
+    FE.smoothLineLegend.Value = false;
+    app.onConfigChanged("figure", FE.smoothLineLegend);
+    app.refreshFigurePreview(Force=true);
+    lgS = "";
+    for hL = findall(app.FigurePreviewPanel, 'Type', 'legend')'; lgS = [lgS string(hL.String)]; end %#ok<AGROW>
+    check(shownSl && inLg && ~app.Config.Figures(1).panels(2).options.smoothLine.legend && ~any(startsWith(lgS, "Smoothed")) ...
+        && string(FE.smoothLineLegend.Enable) == "on", ...
+        'Smoothed line: Legend (on by default) shows its entry; cleared, the line has none');
     app.onPanelSelected(1);   % the raster
     offered = any(string(FE.rasterSort.Items) == "latency");
     FE.rasterSort.Value = "latency";

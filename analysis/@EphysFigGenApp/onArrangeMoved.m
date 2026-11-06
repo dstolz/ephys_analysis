@@ -24,8 +24,8 @@ function onArrangeMoved(obj, id, evt)
 %   on the dragged one's snapped rect), in the same undo step, "Move
 %   panels" or "Resize panels".
 %   A press that selected the box (selectLightly: FigureSelectPending)
-%   has the editor's rows filled now, however the drag ends
-%   (finishPendingSelect; a move's commitFigureEdit fills them itself).
+%   has the editor's rows filled a moment after the release, however the
+%   drag ends (fillSelectLater), so the release paints first.
 %   The panels' rects are set on the figures once (cfg.Figures = F), as
 %   each assignment of Figures normalizes the figure it changes.
 %   ID ":legend", the floating legend's box (dragged or resized, or its
@@ -52,7 +52,7 @@ if isstruct(D) && isfield(D, 'group'); G = D.group; end
 arrangeCues(obj, [], []);
 C = arrangeContext(obj, id);
 if isempty(C) || isempty(C.w) || ~isvalid(C.w)
-    finishPendingSelect(obj);
+    fillSelectLater(obj);
     return
 end
 if mode == "canceled"
@@ -73,7 +73,7 @@ else
     raw = double(reshape(evt.CurrentPosition, 1, 4));
     if mode ~= "drag" && all(abs(raw - C.rect0) < 1e-12)   % a click that moved nothing: no snap to the grid either
         arrangeWidgetSet(C.w, C.rect0);
-        finishPendingSelect(obj);   % (a press that selected the box: the editor's rows now)
+        fillSelectLater(obj);   % (a press that selected the box: the editor's rows in a moment)
         return
     end
 end
@@ -99,9 +99,9 @@ if all(abs(rect - C.rect0) < 1e-12)
         arrangeWidgetSet(G(i).w, G(i).rect0);
         if ~isempty(G(i).parts); arrangePartsAt(G(i).parts, G(i).parts.box0); end
     end
-    finishPendingSelect(obj, "");   % (a press that selected the box: the editor's rows now)
     showPanelPlace(obj);
     obj.setStatus(id + " is where it was.");
+    fillSelectLater(obj, "");   % (a press that selected the box: the editor's rows in a moment; last, so no paint above runs it)
     return
 end
 resize = any(abs(rect(3:4) - C.rect0(3:4)) > 1e-9);
@@ -126,4 +126,5 @@ else
     msg = verb + strjoin([id G.id], ", ") + " (" + (numel(G) + 1) + " panels); " + id + ": " + rectText(rect, u, C.pageCm, C.dpi) + ".";
 end
 commitFigureEdit(obj, cfg, msg, Action=action, Arrange=true);
+fillSelectLater(obj, "");   % (a press that selected the box: the editor's rows in a moment)
 end

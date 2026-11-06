@@ -25,9 +25,11 @@ function commitFigureEdit(obj, cfg, msg, opts)
 %   (arrangedPreview) in place of autoFigurePreview. When only rects
 %   changed (onlyRects), the editor's rows show none of them but the
 %   Panels section's place rows: those are shown (showPanelPlace) and the
-%   boxes and outline follow (markFigurePanel), nothing else is refilled
-%   -- the panel's rows too when a press selected the panel lightly
-%   (FigureSelectPending: applyFigureEditor Scope "panel") -- and the
+%   boxes and outline follow once the preview is laid out (arrangedPreview:
+%   markFigurePanel), nothing else is refilled
+%   -- the panel's rows, when a press selected the panel lightly
+%   (FigureSelectPending), are filled a moment after the caller is done
+%   (onArrangeMoved's fillSelectLater) -- and the
 %   figure list (no rect in it; its marks follow in arrangedPreview), the
 %   observation picker and the epoch diagram are left as they are. A
 %   figure whose automatic id follows the move (its panels' reading
@@ -81,12 +83,7 @@ if ~opts.Arrange
     end
 end
 if rects
-    if obj.FigureSelectPending
-        obj.applyFigureEditor(Scope="panel");   % (a press selected the panel: its rows now)
-    else
-        showPanelPlace(obj);
-        obj.markFigurePanel();   % the boxes at the new rects
-    end
+    showPanelPlace(obj);   % (the boxes at the new rects: arrangedPreview marks the panel once laid out; the rows of a panel a press selected: the caller's fillSelectLater, at its end)
 else
     obj.refreshFigureList();
     obj.applyFigureEditor();

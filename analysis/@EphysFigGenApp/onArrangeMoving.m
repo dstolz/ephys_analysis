@@ -65,6 +65,7 @@ if first
     obj.FigureArrangeMode = "drag";
     obj.FigureArrangeFocus = true;
     arrangeClickDone(obj);   % a drag: a click on one of several selected boxes keeps them all
+    stopSelectTimer(obj);   % (an earlier release's refill waits for this drag's: fillSelectLater)
     if C.j > 0 && C.j ~= obj.SelectedPanel   % (no click came first: the box dragged is the primary now)
         sel = selectedPanelIds(obj);
         if any(sel == id)
@@ -72,7 +73,7 @@ if first
         else
             obj.FigurePanelExtra = strings(1, 0);
         end
-        selectLightly(obj, C.j);   % its box and fields now; the editor's rows at the release (finishPendingSelect)
+        selectLightly(obj, C.j);   % its box and fields now; the editor's rows after the release (fillSelectLater)
     end
     G = dragGroup(obj, id);
     if ~isempty(G)   % the others selected move along: no snapping to them

@@ -3714,11 +3714,21 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         && FE.rectW.Value == round(rR(3) * pageCm5(1), 2) && arrangeBox(app, "raster_1").LineWidth == 2 ...
         && isequal(arrangeBox(app, "raster_1").Color, [0.05 0.45 0.95]) && arrangeBox(app, "psth_1").LineWidth == 1;
     app.onArrangeMoved("raster_1", roiMove(rR, rR));   % let go, no drag
-    check(onPress && ~app.FigureSelectPending && string(FE.panelType.Value) == "raster" && contains(app.StatusBar.Text, "Selected raster_1"), ...
+    onRelease = app.FigureSelectPending && string(FE.panelType.Value) == "psth" && isa(app.FigureSelectTimer, 'timer') ...
+        && isvalid(app.FigureSelectTimer) && app.FigureSelectTimer.StartDelay < 1;
+    fired = fireTimer(app.FigureSelectTimer);   % (as it fires a moment after the release)
+    check(onPress && onRelease && fired && ~app.FigureSelectPending && isempty(app.FigureSelectTimer) ...
+        && string(FE.panelType.Value) == "raster" && contains(app.StatusBar.Text, "Selected raster_1"), ...
         ['a press on raster_1''s box selects it at once (its box blue, its Position and Size fields) while the editor''s other ' ...
-        'rows still show psth_1 (its type); the release fills them']);
+        'rows still show psth_1 (its type); the release leaves them to a timer a moment later, which fills them']);
     app.onArrangeClicked("psth_1", struct('SelectionType', "left"));
     app.onArrangeMoved("psth_1", roiMove(rectOf5("psth_1"), rectOf5("psth_1")));
+    t5 = tic;   % the timer itself, as the window runs it (a loaded machine runs it late: waited for, up to 6 s)
+    while app.FigureSelectPending && toc(t5) < 6
+        pause(0.1);
+    end
+    check(~app.FigureSelectPending && string(FE.panelType.Value) == "psth" && isempty(app.FigureSelectTimer), ...
+        sprintf('the timer fills the rows by itself %.1f s after the release (psth_1 selected again)', toc(t5)));
     app.onNewPanel(Type="psth", Where="rect", Rect=[0.55 0 0.45 0.5]);   % psth_2, beside psth_1 under the raster
     O = app.FigureArrangeOverlay;
     check(app.FigurePreviewState == "drawn" && O.widgets.Count == 3 && rectIs(arrangeBox(app, "psth_2").Position, [0.55 0 0.45 0.5]), ...
@@ -6172,6 +6182,16 @@ function arrangeToggle(app, tf)
 %arrangeToggle  The preview's Arrange button pressed on (TF true) or off, as a click does.
 app.FigureArrangeButton.Value = tf;
 app.FigureArrangeButton.ValueChangedFcn(app.FigureArrangeButton, []);
+end
+
+
+function fired = fireTimer(t)
+%fireTimer  Run a one-shot timer's callback now, as when it fires (the app's FigureSelectTimer, FigureSettleTimer); false when there is none.
+fired = ~isempty(t) && isa(t, 'timer') && isvalid(t);
+if ~fired; return; end
+f = t.TimerFcn;
+stop(t);
+f(t, []);
 end
 
 

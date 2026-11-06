@@ -10,9 +10,10 @@ function onArrangeClicked(obj, id, evt)
 %                   in two steps so that a drag can start at once: on the
 %                   press its box turns blue and the Position and Size
 %                   fields show it (selectLightly); the rest of the
-%                   editor shows it once the press ends (the release, or
-%                   Escape: finishPendingSelect, as onPanelSelected
-%                   fills it). On a box that is one of several selected, the
+%                   editor shows it once the press ends (a moment after
+%                   the release: fillSelectLater; at once on Escape or
+%                   the next press: finishPendingSelect, as
+%                   onPanelSelected fills it). On a box that is one of several selected, the
 %                   selection stays while the mouse button is down (a drag
 %                   moves them all); let go without a drag and that panel
 %                   alone is selected (the window's WindowButtonUpFcn, for
@@ -86,7 +87,7 @@ else
     if j ~= obj.SelectedPanel && right
         obj.onPanelSelected(j);   % (no drag follows a right-click: its menu opens)
     elseif j ~= obj.SelectedPanel
-        selectLightly(obj, j);   % its box and fields now; the editor's rows when the press ends (finishPendingSelect)
+        selectLightly(obj, j);   % its box and fields now; the editor's rows after the press ends (fillSelectLater)
         obj.FigureArrangeClick = struct('id', id, 'oldUp', {obj.Fig.WindowButtonUpFcn}, 'alone', false);
         obj.Fig.WindowButtonUpFcn = @(~, ~) released(obj);   % (a click with no drag: the release ends it here or in onArrangeMoved)
     elseif many
@@ -122,7 +123,7 @@ C = obj.FigureArrangeClick;
 arrangeClickDone(obj);
 if ~isstruct(C) || obj.FigureArrangeMode == "drag"; return; end
 if ~C.alone
-    finishPendingSelect(obj);   % (the editor's rows are this panel's)
+    fillSelectLater(obj);   % (the editor's rows are this panel's, in a moment)
     return
 end
 obj.FigurePanelExtra = strings(1, 0);

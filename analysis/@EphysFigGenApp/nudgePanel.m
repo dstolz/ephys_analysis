@@ -82,7 +82,10 @@ if ~isempty(qs)
     action = action + "s";
     msg = verb + strjoin(sel, ", ") + " (" + numel(sel) + " panels); " + id + ": " + rectText(r, obj.FigureRectUnits, C.pageCm, C.dpi) + ".";
 end
+wait = ~isempty(obj.FigureSelectTimer);   % a release's refill waits for this press (fillSelectLater)
+if wait; stopSelectTimer(obj); end
 commitFigureEdit(obj, cfg, msg, Action=action, Key="arrangeKeys:" + ternary(resize, "resize", "move"), Arrange=true);
+if wait; fillSelectLater(obj, ""); end
 % the smart guides at the nudged place, gone a second after the last press
 [~, g] = snapRect(r, C.rect0, C.others, [0 0], [0 0], Names=C.names);
 arrangeCues(obj, r, g);

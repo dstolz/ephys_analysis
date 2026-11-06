@@ -600,7 +600,9 @@ plot areas share the edge and the raster's time labels are dropped. Pick a
 panel with **Ctrl+Click** on it in the preview, **Ctrl+]** and **Ctrl+[**, or
 **Ctrl+Alt+arrows** (the panel above, below, left or right, by the rects); the
 sections from Selected panel to Options then show it, and the preview outlines
-it. **Shift+Click** more panels to select several and edit them together
+it. A select fills only that panel's rows of the editor (the figure's own rows stay, and every row keeps its place: a
+select changes the rows' heights, not the rows) and never draws the preview again, so it shows in a fraction of a
+second. **Shift+Click** more panels to select several and edit them together
 ([Several panels at once](#several-panels-at-once)). The preview's **Arrange** button (on the template row) moves and resizes
 the panels over the preview with the mouse, snapping them to one another
 ([Arranging panels on the preview](#arranging-panels-on-the-preview)).
@@ -639,9 +641,9 @@ drawn in every tile), there are no boxes and the status bar says why
 
 | Do | Effect |
 | --- | --- |
-| click a box | selects its panel alone: the editor shows it, and its width and height show under the box (*9.00 x 6.00 cm*, in the Panels section's **Units**) for as long as it is selected; above the box when it sits on the page's bottom edge. During a drag the readout by the corner shows them instead |
+| click a box | selects its panel alone: its box and its Position and Size fields change at once, and the rest of the editor shows the panel about 0.4 s after the release (at once when you press another box, press Escape, switch Arrange off or read the editor); its width and height show under the box (*9.00 x 6.00 cm*, in the Panels section's **Units**) for as long as it is selected; above the box when it sits on the page's bottom edge. During a drag the readout by the corner shows them instead |
 | **Shift**+click a box | adds its panel to the selection (it becomes the one the editor shows), or takes a selected one out, as **Shift+Click** on the preview does ([Several panels at once](#several-panels-at-once): the editor then shows the settings they share). Every selected box is blue, the editor's panel's line thicker, each with its size under it; the selection stays when Arrange goes off. A drag of any selected box moves them all by the same amount (the group stays on the page); a resize changes every one's width or height by the same amount about the same edge (dragging the right edge widens each; a corner changes both); the arrow keys nudge them all; one undo step, *Move panels* or *Resize panels*. A plain click on one of them (without dragging) selects it alone; a click on the page between the boxes leaves the editor's panel alone. Esc, a Ctrl+Click on one panel, another figure, or a panel added or removed ends the selection (Arrange off keeps it) |
-| drag a box | moves the panel: its plots go with the box, and the Position fields follow, as you drag; the figure takes the place when you let go, one undo step, *Move panel* (*"Moved psth_1: 9.0 x 6.0 cm at 0, 6."*) |
+| drag a box | moves the panel: its plots go with the box; the readout by the corner is live, and the Position and Size fields follow on the first step and then about four times a second, exact when you let go; the figure takes the place when you let go, one undo step, *Move panel* (*"Moved psth_1: 9.0 x 6.0 cm at 0, 6."*) |
 | drag a handle (a corner or an edge of the box) | resizes the panel: *Resize panel* |
 | hold **Alt** while dragging | no snapping: the box goes exactly where the pointer puts it |
 | **Escape** while dragging | the box and the plots go back (every selected one); letting go then changes nothing |
@@ -668,17 +670,21 @@ is outlined and the readout says *= raster_1*; and, by the corner you drag,
 where the panel is: *x 2.00, y 4.50 · 9.00 x 6.00 cm* (moving), *9.00 x 6.00
 cm* (resizing). Nothing is drawn while you drag: the panel's axes, note band,
 color bars (and the legend, in a legend panel) are only shifted or scaled
-with the box. When you let go the preview is laid out at the new rects, at
-once, whatever **Auto** says, and also when it is
-out of date (it stays so): no panel is drawn again. When the move changes
-which panels touch which (a raster parted from its PSTH gets its time labels
-back) or which one is top-left, a whole drawing is due: with **Auto** on and
-the drawing quicker than its limit the panels are drawn again; otherwise the preview
-is marked out of date and the status bar says *"Laid out; press Preview (or
-switch Arrange off) to redraw the labels."* Switching **Arrange** off with
-**Auto** on draws the preview again, whatever its limit, so the labels,
-the time stacks and the ticks catch up; with Auto off it stays as laid
-out. A panel moved keeps the tick marks it had until it is drawn again.
+with the box. When you let go the preview is laid out at the new rects at
+once, whatever **Auto** says, and also when it is out of date (it stays so). Only the panels that moved are laid out:
+a flush neighbor keeps its place unless the edge they share moved. A release, an arrow nudge or **Set corners** never
+draws the preview again while Arrange is on, so it takes a fraction of a second and shows no busy card. When the move
+changes which panels touch which (a raster parted from its PSTH would get its time labels back) or which one is
+top-left, the panels move all the same, but the time-stack labels and the ticks stay as drawn: the badge says **Out
+of date** and the status bar *"... Laid out; the labels follow when Arrange is off."* Switching **Arrange** off draws
+the preview again a moment after the toggle (so the toggle itself paints at once), but only when **Auto**'s slider
+and limit allow it, as after any edit; the status bar says *"Arrange off: the preview is drawn again at the panels'
+places when Auto allows it, the labels with it."* Else it stays out of date, and the status bar says *"... (Auto is
+off); press Preview (Ctrl+P) to draw the labels again."* or *"... (over Auto's limit); press Preview (Ctrl+P) ..."*.
+Arrange on again before that redraw leaves it due at the next Arrange off. A panel moved keeps the tick marks it had
+until it is drawn again. The cannot-draw signs' hover tips are hidden while Arrange is on and come back when it is
+off. The boxes are kept, hidden, while Arrange is off, so switching it on again is quick; the first Arrange on of a
+session still takes a second or two on a big figure.
 
 **The arrow keys** nudge the selected panel once you have clicked the
 preview's page or a box; an edit in the editor, the search, F6 or another tab
@@ -691,7 +697,8 @@ gives the arrows back to the controls.
 | **Ctrl+Arrows** | one pixel of the preview: the finest move the screen shows |
 | **Alt+Arrows** | resize: its right edge (left and right arrows) or its top edge (up and down) by one step; **Alt+Shift** ten |
 
-The panel stays on the page. A burst of presses, each under a second after
+The panel stays on the page, and each press is laid out in place as a release is (the preview is not drawn again).
+A burst of presses, each under a second after
 the last, is one undo step (*Move panel* or *Resize panel*); the guides show
 the nudged place and go a second after the last press. **Ctrl+Alt+arrows**
 still select the panel above, below, left or right.
@@ -2884,12 +2891,13 @@ alignment line and the readout in cm, the config unchanged; Escape puts the box
 and the axes back until the release, which changes nothing; Alt moves it
 freely; a step of a drag is timed (median of 20, drawn; under 100 ms); three panels in a row snap to an equal
 spacing (two *= ... cm* readouts) and to an equal width (*= raster_1*, the
-outline); a resize that parts the PSTH from the raster draws the preview
-again. With the Auto slider just above 0 (no redraw fits) that resize is laid
-out (the layout's box at the new height, the same lines) and leaves the
-preview out of date (*Laid out ...*), and a move over the out-of-date preview
-is laid out too; Arrange off with Auto off leaves it so, with Auto on draws it
-again. `EphysFigGenApp.snapRectFor` (the private `snapRect`) is checked on
+outline); a resize that parts the PSTH from the raster is laid out in
+place (the layout's box at the new height, the same lines, the raster where it was) and leaves the preview out of date
+(*Laid out ...*), as does a move that snaps a panel flush against another, and a move over the out-of-date preview is
+laid out too. Arrange off with Auto off leaves it so; with Auto on over its limit the settle timer leaves it so; with
+Auto on and the drawing quick enough the timer draws it again (the panels moved drawn anew); Arrange on again shows the
+same boxes, none made. A press on a box that was not selected changes its box and fields at once and fills the
+editor's rows from a timer after the release. `EphysFigGenApp.snapRectFor` (the private `snapRect`) is checked on
 unit cases: the same edge, abutting, a center, the page's edge, equal
 spacing beyond a neighbor and between two, an equal size, only the dragged
 edge, the grid, no reach (Alt), a corner. After a click on the page, three

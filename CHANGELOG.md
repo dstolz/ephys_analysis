@@ -10,6 +10,26 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis app, Figures tab: Arrange places panels without drawing the preview again. A release, an arrow nudge or
+  **Set corners** lays out only the panels that moved (a flush neighbor keeps its place unless the edge they share
+  moved) and never redraws while Arrange is on. When a move changes which panels touch, or which is top-left, the
+  panels move but the time-stack labels and ticks stay as drawn: the badge says **Out of date** and the status bar
+  "... Laid out; the labels follow when Arrange is off." Arrange off no longer always redraws with Auto on: a
+  preview Arrange left out of date is drawn again a moment after the toggle, as after any edit, only when Auto's
+  slider and limit allow it (else it stays out of date, the status bar saying why; Preview, Ctrl+P, draws it).
+  `renderFigure` gains `PlaceMoved` and `RectsOnly`, and the private `figureLayout` `Moved=` and `Reset=`.
+- Analysis app, Figures tab: after a press on a box that was not selected, the box and its Position and Size fields
+  change at once and the rest of the editor shows the panel about 0.4 s after the release (at once when the editor
+  is read or the next press comes). During a drag the Position and Size fields update on the first step and then
+  about four times a second; the readout by the box is live and the fields are exact at release. Switching Arrange
+  on again is quick, since its boxes are kept, hidden, while it is off. The cannot-draw signs' hover tips are hidden
+  while Arrange is on and return when it is off.
+- Analysis app, Figures tab: selecting a panel (Ctrl+click or Shift+click in the preview, Ctrl+] and Ctrl+[) fills
+  only that panel's rows of the editor, and the editor's rows keep their places (a select changes row heights, not
+  rows); a select never redraws the preview. `panelTypes` and `defaults` are built once, and `normalizeFigures`
+  reuses the figures that did not change. On a 12-panel figure a panel select went from 1.7-3.5 s to under 0.5 s,
+  an Arrange press from 2.5 s to 0.1 s, a release from 6.5-16.7 s to 0.5-0.8 s with no busy card, an arrow nudge
+  from 6.3 s to 0.4 s, and Arrange on or off from 3-5 s to 0.2-0.4 s.
 - Analysis app: the Figures tab's **Auto** box is a slider, 0 (off) to 1 (every edit redraws, however slow), from
   which an edit redraws the preview while that is predicted to take under 2 s x T / (1 - T) (the default 0.5: 2 s,
   the old limit; the tooltip and the status bar say the limit). The prediction comes from the figure's last preview,
@@ -437,6 +457,8 @@ says how to cut a release.
 
 ### Added
 
+- Tools: `tools/benchFigGenUI.m`, run by `tools/Bench-FigGen.ps1` on a hidden desktop, times the Figures tab's
+  selects, Arrange drags, releases and edits for developers.
 - Figures: trial-measure panels, one number per trial. A trials layer's measure (a delay between two events, an
   interval's duration, a count of events or a trial parameter) is grouped by trial group, parameter, session or layer,
   summarized, tested and drawn as a distribution, a histogram or a scatter, and its values go to a spreadsheet or a

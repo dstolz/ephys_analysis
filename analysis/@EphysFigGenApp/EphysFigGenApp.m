@@ -644,6 +644,7 @@ classdef EphysFigGenApp < handle
         onRectUnitsChanged(obj)
         onSnapChanged(obj)
         onArrangeToggled(obj)
+        warmUp(obj)
         cancelArrange(obj, msg)
         [shown, why] = syncArrangeOverlay(obj, opts)
         onArrangeMoving(obj, id, evt, alt)

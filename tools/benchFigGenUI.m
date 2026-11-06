@@ -99,6 +99,7 @@ try
     end
     app.FigureAutoSlider.Value = auto;
     app.onFigureAutoRedrawChanged();
+    t = tic; app.warmUp(); emit('warmUp (what the app does from a timer after startup; nothing under -batch) %.2f s\n', toc(t));
     app.selectTab(app.TabFigures);
     if fixture
         app.onAddFigure("rasterPsth");
@@ -234,6 +235,8 @@ try
         n = 0;
         stepFcn = @() stepMove();
         measure('Arrange drag step (no profiler)', stepFcn, struct('Reps', 20, 'Profile', false, 'Rows', 'summary', 'Settle', false));
+        emit(['  (the first step here follows a profiled action: MATLAB compiles the drag path again after profile off, about 1 s;\n' ...
+            '   a session''s real first step, with no profiler anywhere, measured 0.17 s call / 0.23 s to paint on the fixture, 2026-11-05)\n']);
         n = 0;
         measure('Arrange drag step (profiled)', stepFcn, struct('Reps', 20, 'Rows', 'summary', 'Settle', false));
         % release 1: a small shift that keeps the neighbors

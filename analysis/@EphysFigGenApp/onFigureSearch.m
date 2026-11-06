@@ -7,11 +7,11 @@ function onFigureSearch(obj, text)
 %   the supersections', the sections' and the sub-headings' titles match
 %   too, and a row under a sub-heading is listed as "Figure >
 %   Observations > Response test > Windows (s)" (figureSearchPath). Labels that
-%   start with the text as a word come first ("bin": Bin (ms) before
+%   start with the text as a word come first ("bin": Bin width (ms) before
 %   Binding), then labels that start with it, then labels holding every
 %   word, then the rest; within each, the rows the figure shows before
 %   those it hides, then the editor's order; at most 40 are listed. A section
-%   is named by its title as it reads now ("PSTH options"), and a row the
+%   is named by its title as it reads now ("Analysis — PSTH"), and a row the
 %   figure does not show is listed too (going there says why). Blank TEXT
 %   hides the list. While the list shows, Enter goes to the match picked
 %   (else the first) and Down / Up pick another (onKeyPress); a click goes
@@ -35,7 +35,7 @@ score = zeros(1, numel(X));
 for i = 1:numel(X)
     if ~all(arrayfun(@(w) contains(X(i).Words, w), words)); continue; end
     if ~isempty(regexp(X(i).LabelWords, "^" + regexptranslate('escape', q) + "(\W|$)", 'once'))
-        score(i) = 4;   % the label starts with the text as a whole word: "bin" finds Bin (ms) before Binding
+        score(i) = 4;   % the label starts with the text as a whole word: "bin" finds Bin width (ms) before Binding
     elseif startsWith(X(i).LabelWords, q)
         score(i) = 3;
     elseif all(arrayfun(@(w) contains(X(i).LabelWords, w), words))

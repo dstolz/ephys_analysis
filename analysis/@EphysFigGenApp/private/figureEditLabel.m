@@ -1,5 +1,5 @@
 function label = figureEditLabel(obj, src)
-%figureEditLabel  The name of an edit made with the figure editor's control SRC, for the Edit menu: its row's label ("Bin (ms)").
+%figureEditLabel  The name of an edit made with the figure editor's control SRC, for the Edit menu: its row's label ("Bin width (ms)").
 %   Read from the editor as built (FigureSearchIndex, as the search reads
 %   it): the entry whose control SRC is, else the form row holding SRC
 %   (an edit field of a From / To pair), else SRC's own text (a check

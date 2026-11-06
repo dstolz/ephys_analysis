@@ -6,9 +6,9 @@ function d = trialMeasureDialog(obj, which)
 %   SelectedLayer: a trials layer of a trial distribution, histogram or
 %   scatter panel) and returns it:
 %     WHICH "measure"   the layer's measure (Layer.measure; a scatter's y):
-%                       the Layers section's Measure row, Edit...
-%     WHICH "xMeasure"  a trial scatter's x (Layer.xMeasure): the X measure
-%                       row, Edit...
+%                       the Layers section's Trial measure row, Edit...
+%     WHICH "xMeasure"  a trial scatter's x (Layer.xMeasure): the Trial measure
+%                       (x) row, Edit...
 %   Its rows edit a TrialMeasure (EphysAnalysisConfig.defaults
 %   ("TrialMeasure"); trialMeasure computes it):
 %     Kind         Delay from an event to another, Duration of an
@@ -58,7 +58,7 @@ end
 closeTrialMeasureDialog(obj, true);
 d = [];
 name = "Trial measure";
-if which == "xMeasure"; name = "Trial x measure"; end
+if which == "xMeasure"; name = "Trial measure (x)"; end
 k = obj.SelectedFigure;
 j = obj.SelectedPanel;
 i = obj.SelectedLayer;
@@ -261,8 +261,8 @@ sync();
             return
         end
         cfg.Figures(q).panels(kp).layers(i).(which) = N;
-        whose = "measure";
-        if which == "xMeasure"; whose = "x measure"; end
+        whose = "trial measure";
+        if which == "xMeasure"; whose = "trial measure (x)"; end
         commitFigureEdit(obj, cfg, pid + ", layer " + i + ": its " + whose + " is " + trialMeasureLabel(N) + ".", Action=name);
         if isvalid(d); delete(d); end
     end

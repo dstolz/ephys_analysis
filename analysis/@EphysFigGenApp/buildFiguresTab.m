@@ -37,8 +37,8 @@ function buildFiguresTab(obj)
 %           always open; then Observations (the data the figure is drawn
 %           for; Pages: one page per observation, across datasets or on the
 %           probe, the last two showing the Sessions or Probe layout
-%           section; Starred only, the signal channels, the unit filter,
-%           the response test (folded), Per trial group: one
+%           section; Starred only, the Signal channels, the unit filter
+%           (with On channels), the response test (folded: Windows, Parameter, Correction and alpha), Per trial group: one
 %           figure per observation and group), Alignment (the figure's
 %           Event reference, Epoch window and Trial selection, each under a
 %           sub-heading with its "Use default" box: the Alignment tab's
@@ -75,7 +75,7 @@ function buildFiguresTab(obj)
 %           onPanelSelectionToggled; Apply to all panels, Re-link all
 %           panels), Layers (the panel's layers, Add a source the type
 %           draws, Remove, Up, Down, and the rows of the layer picked; a
-%           trials layer's Measure, and a trial scatter's X measure, named
+%           trials layer's Trial measure, and a trial scatter's Trial measure (x), named
 %           beside an Edit... button that opens the Trial measure window:
 %           trialMeasureDialog), the panel type's settings (all of the
 %           panel's own), in three sections by what an edit costs: Analysis
@@ -273,7 +273,7 @@ obj.DownFigureButton = uibutton(lg, "Text", "Down", "ButtonPushedFcn", @(~,~) ob
 place(obj.DownFigureButton, 7, 2);
 obj.CopyFigureButton = uibutton(lg, "Text", "Copy settings...", "ButtonPushedFcn", @(~,~) obj.onCopyFigureSettings(), ...
     "Tooltip", "Copy a figure's settings onto other figures (one or many) or into a design: tick the settings one by one " + ...
-    "(observations, alignment, panels, each panel's options, appearance, looks, across sessions, on the probe). Each figure keeps its " + ...
+    "(observations, alignment, panels, each panel's options, style, looks, across sessions, on the probe). Each figure keeps its " + ...
     "id, title and enabled; one step of Undo; the other figures' previews are marked out of date, not drawn again.");
 place(obj.CopyFigureButton, 8, [1 2]);
 obj.SavePanelTypeButton = uibutton(lg, "Text", "Save as panel type...", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("panel"), ...
@@ -393,7 +393,7 @@ E.obsStarred = uicheckbox(S.Body, "Text", "Starred only", "ValueChangedFcn", cha
     "Export runs then draw just the favorites (observe.starred in the config); across sessions, an observation " + ...
     "starred on any of its sessions.");
 place(E.obsStarred, r, 2);
-[S, r] = formRow(S, "obsChannels", "Channels:");
+[S, r] = formRow(S, "obsChannels", "Signal channels:");
 E.obsChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "The extract's columns observed, e.g. 1 3 5 (blank = all).");
 place(E.obsChannels, r, 2);
@@ -432,12 +432,12 @@ place(E.obsMaxUnits, r, 2);
 [S, r] = formRow(S, "obsShanks", "Shanks:");
 E.obsShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed);
 place(E.obsShanks, r, 2);
-[S, r] = formRow(S, "obsUnitChannels", "Channels:");
+[S, r] = formRow(S, "obsUnitChannels", "On channels:");
 E.obsUnitChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "The recording channels whose units are observed, e.g. 1:8.");
 place(E.obsUnitChannels, r, 2);
 [S, ~] = formSubheading(S, "responseTest", "Response test", Collapsible=true, Callback=subToggle);
-[S, r] = formRow(S, ["obsRespBaseFrom" "obsRespBaseTo" "obsRespFrom" "obsRespTo"], "Test windows (s):");
+[S, r] = formRow(S, ["obsRespBaseFrom" "obsRespBaseTo" "obsRespFrom" "obsRespTo"], "Windows (s):");
 wg = subgrid(S.Body, r, {'1x', 'fit', '1x', 'fit', '1x', 'fit', '1x'});
 E.obsRespBaseFrom = uieditfield(wg, "numeric", "Value", -0.2, "ValueChangedFcn", changed, "Tooltip", "The test's baseline window start (s from the event).");
 uilabel(wg, "Text", "to");
@@ -446,16 +446,16 @@ uilabel(wg, "Text", "response");
 E.obsRespFrom = uieditfield(wg, "numeric", "Value", 0, "ValueChangedFcn", changed, "Tooltip", "The response window start (s from the event).");
 uilabel(wg, "Text", "to");
 E.obsRespTo = uieditfield(wg, "numeric", "Value", 0.2, "ValueChangedFcn", changed, "Tooltip", "The response window end (s).");
-[S, r] = formRow(S, ["obsRespParam" "obsRespCorrection" "obsRespAlpha"], "Test options:");
-og = subgrid(S.Body, r, {'1x', 'fit', '1x', 'fit', '1x'});
-E.obsRespParam = uidropdown(og, "Editable", "on", "Items", "", "ValueChangedFcn", changed, ...
+[S, r] = formRow(S, "obsRespParam", "Parameter:");
+E.obsRespParam = uidropdown(S.Body, "Editable", "on", "Items", "", "ValueChangedFcn", changed, ...
     "Tooltip", "The trial parameter of the tuning test.");
-uilabel(og, "Text", "correction:");
+place(E.obsRespParam, r, 2);
+[S, r] = formRow(S, ["obsRespCorrection" "obsRespAlpha"], "Correction, alpha:");
+og = subgrid(S.Body, r, {'1x', '1x'});
 E.obsRespCorrection = uidropdown(og, "Items", ["BH (FDR)" "Holm" "Bonferroni" "none"], "ItemsData", ["bh" "holm" "bonferroni" "none"], ...
     "ValueChangedFcn", changed, "Tooltip", "How the p values are adjusted for the number of units tested (pAdjust).");
-uilabel(og, "Text", "alpha:");
 E.obsRespAlpha = uieditfield(og, "numeric", "Value", 0.05, "Limits", [0 1], "LowerLimitInclusive", "off", ...
-    "ValueChangedFcn", changed, "Tooltip", "A unit passes when its adjusted p is at most alpha.");
+    "ValueChangedFcn", changed, "Tooltip", "Alpha: a unit passes when its adjusted p is at most this.");
 [S, E] = aurocRows(S, E, "obsRa", changed);
 [S, ~] = formSubheading(S, "", "");   % (closes the group: the rows below belong to none)
 [S, r] = formRow(S, "obsPerGroup", "");
@@ -585,7 +585,7 @@ E.sesKeys = uieditfield(dg, "text", "Editable", "off", "Placeholder", "none pick
 E.sesPick = uibutton(dg, "Text", "Pick...", "ButtonPushedFcn", @(~,~) obj.onPickFigureDatasets(), ...
     "Tooltip", "Tick the datasets to draw, from the scanned ones, with their subject and date.");
 [S, ~] = formSubheading(S, "drawing", "Drawing");
-[S, r] = formRow(S, "sesFacet", "Figures:");
+[S, r] = formRow(S, "sesFacet", "One page per:");
 E.sesFacet = uidropdown(S.Body, "Items", ["One for all the sessions" "One per subject"], ...
     "ItemsData", EphysAnalysisConfig.SessionFacets, "ValueChangedFcn", changed, ...
     "Tooltip", "One figure over every session, or one per subject with that subject's sessions.");
@@ -972,11 +972,11 @@ place(E.layerMaxUnits, r, 2);
 [S, r] = formRow(S, "layerShanks", "Shanks:");
 E.layerShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed);
 place(E.layerShanks, r, 2);
-[S, r] = formRow(S, "layerUnitChannels", "Channels:");
+[S, r] = formRow(S, "layerUnitChannels", "On channels:");
 E.layerUnitChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "The recording channels whose units the layer keeps.");
 place(E.layerUnitChannels, r, 2);
-[S, r] = formRow(S, "layerChannels", "Channels:");
+[S, r] = formRow(S, "layerChannels", "Signal channels:");
 E.layerChannels = uieditfield(S.Body, "text", "Placeholder", "all, e.g. 3 5 8", "ValueChangedFcn", changed, ...
     "Tooltip", "The extract's columns the layer draws (blank = all).");
 place(E.layerChannels, r, 2);
@@ -1031,17 +1031,17 @@ uilabel(spg, "Text", "opacity");
 E.evSpanAlpha = uieditfield(spg, "numeric", "Limits", [0 1], "Value", 1, "ValueChangedFcn", changed, ...
     "Tooltip", "0 (invisible) to 1 (solid).");
 % a trials layer's measures (the trial panels): their names, and Edit... opens the Trial measure window (trialMeasureDialog)
-[S, r] = formRow(S, ["trMeasure" "trMeasureEdit"], "Measure:", 30);
+[S, r] = formRow(S, ["trMeasure" "trMeasureEdit"], "Trial measure:", 30);
 tmg = subgrid(S.Body, r, {'1x', 70});
 E.trMeasure = uilabel(tmg, "Text", "", "WordWrap", "on");
 E.trMeasureEdit = uibutton(tmg, "Text", "Edit...", "ButtonPushedFcn", @(~,~) trialMeasureDialog(obj, "measure"), ...
     "Tooltip", "The number each trial gives (a scatter's y): the delay from an event to another, an interval's " + ...
     "duration, a count of events, or a trial parameter. Edit... opens the Trial measure window.");
-[S, r] = formRow(S, ["trXMeasure" "trXMeasureEdit"], "X measure:", 30);
+[S, r] = formRow(S, ["trXMeasure" "trXMeasureEdit"], "Trial measure (x):", 30);
 txg = subgrid(S.Body, r, {'1x', 70});
 E.trXMeasure = uilabel(txg, "Text", "", "WordWrap", "on");
 E.trXMeasureEdit = uibutton(txg, "Text", "Edit...", "ButtonPushedFcn", @(~,~) trialMeasureDialog(obj, "xMeasure"), ...
-    "Tooltip", "A trial scatter's x: the number each trial gives on the x axis, paired with the Measure (y) by trial. " + ...
+    "Tooltip", "A trial scatter's x: the number each trial gives on the x axis, paired with the Trial measure by trial. " + ...
     "Edit... opens the Trial measure window.");
 [S, r] = formRow(S, "layerColor", "Color:");
 E.layerColor = uidropdown(S.Body, "Editable", "on", "Items", ["auto" "black" "gray" "red" "blue" "#1f77b4" "#d62728"], ...
@@ -1151,7 +1151,7 @@ E.group = uispinner(Sa.Body, "Limits", [1 100], "Step", 1, "Value", 1, "RoundFra
 place(E.group, r, 2);
 [Sa, r] = formRow(Sa, "value", "Color by:");
 E.value = uidropdown(Sa.Body, "Items", ["rate" "nSpikes" "nUnits"], "ValueChangedFcn", changed, "Tooltip", ...
-    "What colors each unit (rate, nSpikes) or each site (nUnits). Units drawn as waveforms (Waveform: Show) are " + ...
+    "What colors each unit (rate, nSpikes) or each site (nUnits). Units drawn as waveforms (Waveform: Waveform) are " + ...
     "colored only with Color waveforms by value.");
 place(E.value, r, 2);
 % the spectral panels (spectrum, spectrogram, coherence): the Chronux tab's rows
@@ -1288,7 +1288,7 @@ E.errResamples = uispinner(erg, "Limits", [1 1e6], "Step", 500, "Value", 1000, "
 [Sa, r] = formRow(Sa, ["spErr" "spErrP"], "Error:");
 er = subgrid(Sa.Body, r, {'1x', 'fit', 60});
 E.spErr = uidropdown(er, "Items", ["Off" "theoretical" "jackknife"], "ItemsData", ["none" "theoretical" "jackknife"], "ValueChangedFcn", changed, ...
-    "Tooltip", "The error bars: none; theoretical; jackknife (over the trials). A coherence's confidence level " + ...
+    "Tooltip", "The error bars: Off; theoretical; jackknife (over the trials). A coherence's confidence level " + ...
     "needs either; its band, jackknife.");
 uilabel(er, "Text", "p-value:");
 E.spErrP = uieditfield(er, "numeric", "Value", 0.05, "Limits", [0 1], "LowerLimitInclusive", "off", "UpperLimitInclusive", "off", ...
@@ -1404,7 +1404,7 @@ E.errEdgeWidth = uispinner(beg, "Limits", [0.1 6], "Step", 0.25, "Value", 0.5, "
 rsg = subgrid(Sd.Body, r, {'1x', 110});
 E.rasterSort = uidropdown(rsg, "Editable", "on", "Items", ["" "stop" "event" "latency"], "Value", "", "ValueChangedFcn", changed, ...
     "Tooltip", "The order of the raster's epochs: blank = trial (time) order; stop = the stop event's latency; " + ...
-    "event = the latency of the sort event below; latency = the first spike's latency (a raster: in the First spike " + ...
+    "event = the latency of the sort event below; latency = the first spike's latency (a raster: in the first-spike latency " + ...
     "window, else from the event to the window's end; none in the window = last); or a trial parameter. Missing values go last.");
 E.rasterSortOrder = uidropdown(rsg, "Items", ["ascending" "descending"], "ValueChangedFcn", changed, ...
     "Tooltip", "The sort's direction. Missing values stay last.");
@@ -1605,7 +1605,7 @@ E.unitLabels = uicheckbox(Sd.Body, "Text", "Unit labels, with arrows", "ValueCha
 place(E.unitLabels, r, [1 2]);
 [Sd, r] = formRow(Sd, "waveColor", "");
 E.waveColor = uicheckbox(Sd.Body, "Text", "Color waveforms by value", "ValueChangedFcn", changed, "Tooltip", ...
-    "Units drawn as waveforms (Waveform: Show) take the color of their value (firing rate or spike count) in the " + ...
+    "Units drawn as waveforms (Waveform: Waveform) take the color of their value (firing rate or spike count) in the " + ...
     "color scale, with a color bar. Not with Color by: nUnits.");
 place(E.waveColor, r, [1 2]);
 sec(end+1) = Sd;
@@ -2057,7 +2057,7 @@ obj.FigureTemplateApplyButton = uibutton(tg, "Text", "Apply...", "ButtonPushedFc
     "The copy is made once: there is no link, so apply it again to give figures a template's later changes.");
 obj.FigureTemplateSaveButton = uibutton(tg, "Text", "Save as...", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("save"), ...
     "Tooltip", "Save the figure shown as a new template: every setting (observations, alignment, page size, panels with their " + ...
-    "options, layers, notes and overlays, their places and padding, appearance, remembered looks, sessions, probe layout) but its id, title and enabled.");
+    "options, layers, notes and overlays, their places and padding, style, remembered looks, sessions, probe layout) but its id, title and enabled.");
 obj.FigureTemplateUpdateButton = uibutton(tg, "Text", "Update", "ButtonPushedFcn", @(~,~) obj.onFigureTemplate("update"), ...
     "Tooltip", "Replace the template picked with the settings of the figure shown (asks first). The figures it was applied " + ...
     "to keep their settings until it is applied to them again.");
@@ -2099,7 +2099,7 @@ obj.FigurePreviewBadge = B;
 obj.FigurePreviewLabel = uilabel(sg, "Text", "Add a figure, scan and pick a dataset to preview.", "FontColor", gray);
 obj.FigureSessionDropDown = uidropdown(sg, "Items", "(all)", "ItemsData", 1, "Visible", "off", ...
     "ValueChangedFcn", @(~,~) obj.onFigureSessionPicked(), ...
-    "Tooltip", "A figure across sessions makes one figure per subject (Figures: one per subject) or per trial group " + ...
+    "Tooltip", "A figure across sessions makes one figure per subject (One page per: one per subject) or per trial group " + ...
     "(Trial groups: a figure per group): the one the preview shows.");   % its column opens when there are several
 obj.FigureExportPreviewButton = uibutton(sg, "Text", "Export preview", "Enable", "off", ...
     "Tooltip", "Spot-check the Export tab's settings: this figure for the observation picked, drawn and written as a " + ...
@@ -2521,14 +2521,14 @@ function [S, E] = waveformSection(eg, E, changed, color)
 %   the x scale (the time span,
 %   ms from the spike) and the y scale (each unit's range, one for the
 %   units drawn, or a fixed range); the size of an inset or of a probe
-%   layout's glyphs; an inset's place and box; the label; a probe layout's
+%   layout's glyphs (Inset size or Glyph size, by role); an inset's place and box; the labels; a probe layout's
 %   sites and names. It has no key (the search finds its rows).
 gray = [0.35 0.35 0.35];
 S = formSection(eg, 17, "waveform", "Waveform", Color=color);
 [S, r] = formRow(S, "waveNote", "", 46);
 E.waveNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
 place(E.waveNote, r, [1 2]);
-[S, r] = formRow(S, ["waveMode" "waveBand"], "Show:");
+[S, r] = formRow(S, ["waveMode" "waveBand"], "Waveform:");
 mg = subgrid(S.Body, r, {'1x', 'fit'});
 E.waveMode = uidropdown(mg, "Items", ["Off" "Mean" "Individual spikes" "Mean + individual spikes" "Template"], ...
     "ItemsData", EphysAnalysisConfig.WaveformModes, "Value", "off", "ValueChangedFcn", changed, ...
@@ -2543,7 +2543,7 @@ E.waveSpikes = uispinner(S.Body, "Limits", [1 2000], "Step", 50, "Value", 100, "
     "ValueChangedFcn", changed, "Tooltip", "How many of the unit's spikes are drawn one by one, picked at random " + ...
     "(the same ones each time); a sorted unit's mean is over them.");
 place(E.waveSpikes, r, 2);
-[S, r] = formRow(S, ["waveFrom" "waveTo"], "Time (x, ms):");
+[S, r] = formRow(S, ["waveFrom" "waveTo"], "Time span (ms):");
 tg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
 E.waveFrom = uieditfield(tg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "start", ...
     "ValueChangedFcn", changed, "Tooltip", "The x scale: where the waveform drawn starts, ms from the spike " + ...
@@ -2552,7 +2552,7 @@ uilabel(tg, "Text", "to");
 E.waveTo = uieditfield(tg, "numeric", "AllowEmpty", "on", "Value", [], "Placeholder", "end", ...
     "ValueChangedFcn", changed, "Tooltip", "Where the waveform drawn ends, ms from the spike. Blank: the end of " + ...
     "the cut. A span that misses the waveform draws all of it.");
-[S, r] = formRow(S, ["waveAmp" "waveAmpLo" "waveAmpHi"], "Amplitude (y):");
+[S, r] = formRow(S, ["waveAmp" "waveAmpLo" "waveAmpHi"], "Amplitude range:");
 ag = subgrid(S.Body, r, {'1x', 56, 'fit', 56});
 E.waveAmp = uidropdown(ag, "Items", ["Each unit's own range" "Fixed range"], "ItemsData", ["unit" "fixed"], ...
     "Value", "unit", "ValueChangedFcn", changed, "Tooltip", "The y scale. Each unit's own: its waveform fills " + ...
@@ -2564,7 +2564,8 @@ E.waveAmpLo = uieditfield(ag, "numeric", "Value", -100, "ValueChangedFcn", chang
 uilabel(ag, "Text", "to");
 E.waveAmpHi = uieditfield(ag, "numeric", "Value", 100, "ValueChangedFcn", changed, ...
     "Tooltip", "The fixed range's top, in the waveform's units (µV).");
-[S, r] = formRow(S, ["waveWidth" "waveHeight"], "Size:");
+[S, r] = formRow(S, ["waveWidth" "waveHeight"], "Inset size:");   % (syncFigureEditor says "Glyph size:" where the glyphs are sized)
+E.waveSizeLabel = S.Body.Children(arrayfun(@(c) isa(c, 'matlab.ui.control.Label') && c.Layout.Row == r && c.Layout.Column == 1, S.Body.Children));
 zg = subgrid(S.Body, r, {'fit', '1x', 'fit', '1x'});
 uilabel(zg, "Text", "width");
 E.waveWidth = uispinner(zg, "Limits", [0.25 3], "Step", 0.25, "Value", 1, "ValueDisplayFormat", "%.2gx", ...
@@ -2581,7 +2582,7 @@ E.waveLocation = uidropdown(wl, "Items", ["North-east" "North" "North-west" "Wes
     "Tooltip", "Where in the panel the inset sits.");
 E.waveBox = uicheckbox(wl, "Text", "Axis box", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "The inset's outline and pale ground.");
-[S, r] = formRow(S, ["wavePP" "waveCount"], "Label:");
+[S, r] = formRow(S, ["wavePP" "waveCount"], "Labels:");
 wt = subgrid(S.Body, r, {'fit', 'fit', '1x'});
 wt.ColumnSpacing = 12;
 E.wavePP = uicheckbox(wt, "Text", "Peak-to-peak", "Value", true, "ValueChangedFcn", changed, ...

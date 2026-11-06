@@ -24,27 +24,27 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0, 
 %                     panel, which reads its lines
 %     raster          Sort rows by (trial order, the stop event, the
 %                     first-spike latency, or one of PARAMS)
-%     psth            Bin and Smooth (ms), Measure, Display (a trace or a
-%                     heat map)
+%     psth            Bin width and Smoothing SD (ms), Measure, Draw as (a
+%                     trace or a heat map)
 %     continuous      Stack (off, a row per group or per channel), Error
 %                     band
 %     heatmap         Rows (the layer's units or channels, or one unit's
-%                     epochs), Bin (ms)
+%                     epochs), Bin width (ms)
 %     waveforms       Layout (grid or probe)
-%     probemap        Value
+%     probemap        Color by
 %     corrmap         Epoch rate, Correlation
-%     rate            Measure, Display
+%     rate            Measure, Draw as
 %     tuning          Parameter and Series (PARAMS)
-%     spectrum        Frequency range (Hz), Scale
-%     spectrogram     Frequency range (Hz), Moving window (s)
-%     coherence       Frequency range (Hz)
-%     eventTrace      Lines (LINES: one events layer each), Display
+%     spectrum        Frequency (Hz), Power scale
+%     spectrogram     Frequency (Hz), Moving window (s)
+%     coherence       Frequency (Hz)
+%     eventTrace      Lines (LINES: one events layer each), Draw as
 %     trialDist, trialHist, trialScatter   no Reads or Binding (a trials
-%                     layer, always fixed): the measure's Kind, From (A's
+%                     layer, always fixed): the Trial measure's Kind, From (A's
 %                     line and edge; grayed out for a parameter), To (B's;
 %                     grayed out for a duration or a parameter), Parameter
-%                     (PARAMS; a parameter's only), and a distribution's
-%                     Display, a histogram's Draw as, a scatter's Fit
+%                     (PARAMS; a parameter's only), and a distribution's,
+%                     a histogram's Draw as, a scatter's Fit
 %     legend          Orientation (auto, vertical, horizontal) and
 %                     Columns (0 = automatic); no source: a legend panel
 %                     shows the figure's legend entries
@@ -438,7 +438,7 @@ switch t
             "Tooltip", "The rows' order within each trial group.")};
     case "psth"
         specs = [specs; binRows(def); measureRow(def)];
-        specs(end+1, :) = {"Display", "Display:", @(gr) uidropdown(gr, "Items", ["trace (bars or a line per group)" ...
+        specs(end+1, :) = {"Display", "Draw as:", @(gr) uidropdown(gr, "Items", ["trace (bars or a line per group)" ...
             "heat map (a row per group)"], "ItemsData", ["trace" "heatmap"], "Value", def.display, ...
             "Tooltip", "Each trial group's PSTH as bars or a line, or the unit's PSTH as an image with a row per group.")};
     case "continuous"
@@ -457,7 +457,7 @@ switch t
         specs(end+1, :) = {"Layout", "Layout:", @(gr) uidropdown(gr, "Items", ["grid: the unit" "probe: every unit at its site"], ...
             "ItemsData", ["grid" "probe"], "Value", def.layout, "Tooltip", "The unit's waveform, or every unit of the layer on the probe.")};
     case "probemap"
-        specs(end+1, :) = {"Value", "Value:", @(gr) uidropdown(gr, "Items", ["rate (spikes/s)" "spike count" "units per site"], ...
+        specs(end+1, :) = {"Value", "Color by:", @(gr) uidropdown(gr, "Items", ["rate (spikes/s)" "spike count" "units per site"], ...
             "ItemsData", ["rate" "nSpikes" "nUnits"], "Value", among(def.value, ["rate" "nSpikes" "nUnits"]), ...
             "Tooltip", "Each unit's rate or spike count, drawn on the unit; or the units per site, drawn on the site.")};
     case "corrmap"
@@ -467,7 +467,7 @@ switch t
             "Value", def.correlation, "Tooltip", "The correlation between two units' per-epoch rates.")};
     case "rate"
         specs = [specs; measureRow(def)];
-        specs(end+1, :) = {"Display", "Display:", @(gr) uidropdown(gr, "Items", ["bars (mean, error bar)" "boxes" "points (each epoch)"], ...
+        specs(end+1, :) = {"Display", "Draw as:", @(gr) uidropdown(gr, "Items", ["bars (mean, error bar)" "boxes" "points (each epoch)"], ...
             "ItemsData", ["bar" "box" "points"], "Value", def.display, "Tooltip", "How each trial group's rates are drawn.")};
     case "tuning"
         specs(end+1, :) = {"Param", "Parameter:", @(gr) uidropdown(gr, "Editable", "on", "Items", ["" params], ...
@@ -478,7 +478,7 @@ switch t
             "Tooltip", "One curve per value of this trial parameter (blank: one curve).")};
     case "spectrum"
         specs = [specs; freqRow(def)];
-        specs(end+1, :) = {"Scale", "Scale:", @(gr) uidropdown(gr, "Items", ["dB" "log axis" "linear"], ...
+        specs(end+1, :) = {"Scale", "Power scale:", @(gr) uidropdown(gr, "Items", ["dB" "log axis" "linear"], ...
             "ItemsData", ["db" "log" "linear"], "Value", def.scale, "Tooltip", "How the power is shown.")};
     case "spectrogram"
         specs = [specs; freqRow(def)];
@@ -501,7 +501,7 @@ switch t
             "ItemsData", ["bars" "line"], "Value", def.display, "Tooltip", "How each interval of a line is drawn.")};
     case {"trialDist" "trialHist" "trialScatter"}   % the first layer's measure (the editor's Trial measure window has every row)
         tm = EphysAnalysisConfig.defaults("TrialMeasure");
-        specs(end+1, :) = {"Kind", "Measure:", @(gr) uidropdown(gr, "Items", ["Delay from an event to another" ...
+        specs(end+1, :) = {"Kind", "Trial measure:", @(gr) uidropdown(gr, "Items", ["Delay from an event to another" ...
             "Duration of an interval" "Count of events after an event" "A trial parameter"], ...
             "ItemsData", EphysAnalysisConfig.TrialMeasureKinds, "Value", tm.kind, ...
             "Tooltip", "The number each trial gives: the time from A to B, the length of A's interval, how many B " + ...
@@ -515,7 +515,7 @@ switch t
             "Tooltip", "A trial parameter: the trial column each trial's value is.")};
         switch t
             case "trialDist"
-                specs(end+1, :) = {"Display", "Display:", @(gr) uidropdown(gr, "Items", ["swarm" "box" "violin" ...
+                specs(end+1, :) = {"Display", "Draw as:", @(gr) uidropdown(gr, "Items", ["swarm" "box" "violin" ...
                     "points (jittered)" "line (the summary per category)"], "ItemsData", ["swarm" "box" "violin" "points" "line"], ...
                     "Value", among(def.display, ["swarm" "box" "violin" "points" "line"]), ...
                     "Tooltip", "How each category's values are drawn.")};
@@ -527,7 +527,7 @@ switch t
                 specs(end+1, :) = {"Fit", "Fit:", @(gr) uidropdown(gr, "Items", ["none" "a line" "a quadratic" "a cubic" ...
                     "a moving mean" "a moving median"], "ItemsData", EphysAnalysisConfig.TrialFits, ...
                     "Value", among(def.fit, EphysAnalysisConfig.TrialFits), "Tooltip", "A fit per series (its x: the " + ...
-                    "trial onset to A's line by default; the editor's X measure).")};
+                    "trial onset to A's line by default; the editor's Trial measure (x)).")};
         end
     case "legend"
         specs(end+1, :) = {"Orientation", "Orientation:", @(gr) uidropdown(gr, "Items", ["auto (by the panel's shape)" ...
@@ -604,12 +604,12 @@ end
 
 
 function rows = binRows(def, smooth)
-%binRows  Bin (ms) and, unless SMOOTH is false, Smooth (ms): the type's bins.
+%binRows  Bin width (ms) and, unless SMOOTH is false, Smoothing SD (ms): the type's bins.
 if nargin < 2; smooth = true; end
-rows = {"BinMs", "Bin (ms):", @(gr) uieditfield(gr, "numeric", "Value", 1000 * def.bins.BinSec, "Limits", [0 Inf], ...
+rows = {"BinMs", "Bin width (ms):", @(gr) uieditfield(gr, "numeric", "Value", 1000 * def.bins.BinSec, "Limits", [0 Inf], ...
     "LowerLimitInclusive", "off", "Tooltip", "The histogram's bin width, ms.")};
 if smooth
-    rows(end+1, :) = {"SmoothMs", "Smooth (ms):", @(gr) uieditfield(gr, "numeric", "Value", 1000 * def.bins.SmoothSec, ...
+    rows(end+1, :) = {"SmoothMs", "Smoothing SD (ms):", @(gr) uieditfield(gr, "numeric", "Value", 1000 * def.bins.SmoothSec, ...
         "Limits", [0 Inf], "Tooltip", "The Gaussian smoothing's SD, ms (0 = none).")};
 end
 end
@@ -631,7 +631,7 @@ end
 
 
 function row = freqRow(def)
-%freqRow  Frequency range (Hz): fpass.
+%freqRow  Frequency (Hz): fpass.
 row = {"FreqFrom", "Frequency (Hz):", @(gr) pair(gr, def.fpass, "to", "The frequencies shown, Hz (Inf = Nyquist).")};
 end
 

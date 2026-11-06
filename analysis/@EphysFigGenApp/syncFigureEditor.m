@@ -57,8 +57,8 @@ function syncFigureEditor(obj)
 %                    drawn (a mark's look for marks, the color and span
 %                    line for a span; Draw as grayed out on an event-trace
 %                    panel, which offers a train only on a raster, PSTH or
-%                    heat map); a trials layer's Measure (and a trial
-%                    scatter's X measure), each with Edit... (the Trial
+%                    heat map); a trials layer's Trial measure (and a trial
+%                    scatter's Trial measure (x)), each with Edit... (the Trial
 %                    measure window); the color and line style but for marks
 %                    and spans
 %     Analysis, Display, Axes   the panel type's own rows (titled "Analysis
@@ -120,11 +120,13 @@ function syncFigureEditor(obj)
 %                    hold units or detected: figureEditorChoices), titled
 %                    with the panel's id: a note (waveformNote: what it
 %                    sets, or why the type draws no waveform), then, where
-%                    the type draws one, Show (and its band), Spikes drawn,
-%                    Time (x), Amplitude (y) and Label; Size and Inset
-%                    location on a raster, PSTH, rate or tuning panel (an
-%                    inset), Size and On the probe on a waveforms panel in
-%                    the probe layout, Size on a probe map (no Label: its
+%                    the type draws one, Waveform (the mode, and its band), Spikes
+%                    drawn, Time span (ms), Amplitude range and Labels; Inset
+%                    size and Inset location on a raster, PSTH, rate or
+%                    tuning panel (an inset), Glyph size and On the probe on
+%                    a waveforms panel in the probe layout, Glyph size on a
+%                    probe map (the Size row is labeled by the role: "Inset
+%                    size:" or "Glyph size:", sizeLabelFor; no Labels: its
 %                    Unit labels row, in Display, names the units). The
 %                    title says the role: "Waveform inset on psth_1" (a
 %                    raster, PSTH, rate or tuning panel), "Waveforms on
@@ -254,7 +256,7 @@ unit = kind == "unit";
 sorted = fig.observe.data == "units";
 respAuroc = unit && string(E.obsRespTest.Value) == "auroc";
 v.obsClasses = sorted; v.obsQuality = sorted;
-v.obsResponse = unit; v.obsRespBaseFrom = unit; v.obsRespParam = unit;
+v.obsResponse = unit; v.obsRespBaseFrom = unit; v.obsRespParam = unit; v.obsRespCorrection = unit;
 v.obsRaMethod = respAuroc; v.obsRaWinMs = respAuroc; v.obsRaCutoff = respAuroc;
 v.obsRaTest = respAuroc && ismember(string(E.obsRaCutoff.Value), ["test" "shuffle"]);   % shuffle: its n
 v.obsIds = unit; v.obsMaxUnits = unit; v.obsShanks = unit; v.obsUnitChannels = unit;
@@ -417,8 +419,10 @@ if hasPanel
     % selected, only the rows every one of them shows (each by its own values)
     [pv, d] = panelRowsShown(p, editorValues(E), [optionKeys waveKeys]);
     own = pv;   % the shown panel's own: what its rows' enabling reads
+    glyphs = d.waveGlyphs;   % the Size row is the glyphs' while every panel selected draws the waveforms on a probe
     for q = others
-        qv = panelRowsShown(fig.panels(q), storedValues(fig.panels(q)), [optionKeys waveKeys]);
+        [qv, qd] = panelRowsShown(fig.panels(q), storedValues(fig.panels(q)), [optionKeys waveKeys]);
+        glyphs = glyphs && qd.waveGlyphs;
         for f = string(fieldnames(pv)).'
             pv.(f) = pv.(f) && qv.(f);
         end
@@ -430,6 +434,7 @@ if hasPanel
     end
     stackNow = d.stack;
     overTime = d.overTime;
+    sizeLabelFor(obj, E, ternary(glyphs, "Glyph size", "Inset size"));
     en(E.maxTrials, string(E.contTrials.Value) ~= "off");
     if own.errorType; errorTypeItems(E.errorType, t); end
     errOn = t ~= "rate" || string(E.rateDisplay.Value) == "bar";   % a rate panel draws its error bars on bars
@@ -640,6 +645,21 @@ obj.markFigurePanel();   % the preview outlines the selected panel
 end
 
 
+function sizeLabelFor(obj, E, txt)
+%sizeLabelFor  The Waveform section's size row says what it sizes: "Inset size:" (an inset) or "Glyph size:" (a probe layout's or a probe map's glyphs).
+%   The search lists the row under the label it shows (FigureSearchIndex is read as built, so its entry is kept equal).
+if string(E.waveSizeLabel.Text) == txt + ":"; return; end
+E.waveSizeLabel.Text = txt + ":";
+X = obj.FigureSearchIndex;
+for k = find(arrayfun(@(e) any(e.Keys == "waveWidth"), X))
+    X(k).Words = strrep(X(k).Words, lower(X(k).Label), lower(txt));
+    X(k).Label = txt;
+    X(k).LabelWords = lower(txt);
+end
+obj.FigureSearchIndex = X;
+end
+
+
 function t = waveformTitle(p)
 %waveformTitle  The Waveform section's title for panel P, by the role of its waveform: an inset, the panel itself, or a probe map's glyphs.
 t = waveformRole(p) + " on " + p.id;
@@ -767,7 +787,7 @@ v.waveNote = v.waveSection;
 v.waveMode = draws; v.waveSpikes = draws; v.waveFrom = draws; v.waveAmp = draws; v.wavePP = draws && t ~= "probemap";
 v.waveWidth = inset || glyphs; v.waveLocation = inset; v.waveSites = probe;
 d = struct('pointHeat', pointHeat, 'trialHeat', trialHeat, 'psthHeat', psthHeat, 'stack', stackNow, 'overTime', overTime, ...
-    'waveText', waveText);
+    'waveText', waveText, 'waveGlyphs', glyphs);
 end
 
 
@@ -898,7 +918,7 @@ for q = 1:numel(fig.panels)
 end
 s = "One block for the whole figure, found once per unit and alignment: ";
 if isempty(parts)
-    s = s + "no panel reads it yet (a raster's First spike marks or Sort rows by latency, a PSTH's Latency box, a " + ...
+    s = s + "no panel reads it yet (a raster's First-spike marks or Sort rows by latency, a PSTH's Latency box plot, a " + ...
         "heat map of trials sorted by latency, an Onset line).";
 else
     s = s + "read by " + strjoin(parts, ", ") + ".";
@@ -925,16 +945,14 @@ end
 
 function latencyGoto(obj, id)
 %latencyGoto  A link under the First-spike latency note was clicked: select panel ID and go to the section that draws its latency.
-%   That section is Display where the editor has one, else Options.
+%   That section is Display.
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end
 ids = [obj.Config.Figures(k).panels.id];
 j = find(ids == id, 1);
 if isempty(j); return; end
 obj.onPanelSelected(j);
-name = "options";
-if any([obj.FigureSections.Name] == "display"); name = "display"; end
-obj.gotoFigureSection(name);
+obj.gotoFigureSection("display");
 end
 
 

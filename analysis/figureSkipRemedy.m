@@ -48,9 +48,9 @@ elseif ~isempty(tok('^no trial parameter (.+)$'))
     t = tok('^no trial parameter (.+)$');
     text = "No trial parameter " + t{1} + ": pick a parameter the trials have, or check the behavior file on the pipeline's Trials tab.";
 elseif reason == "no numeric trial parameter to tune over"
-    text = "No numeric trial parameter to tune over: pick one in the panel's Options (Parameter), or pair the behavior trials first.";
+    text = "No numeric trial parameter to tune over: pick one in the panel's Analysis (Parameter), or pair the behavior trials first.";
 elseif startsWith(reason, "no sort event")
-    text = "No event to sort the rows by: pick one in the panel's Options (Sort rows by: event), or sort by something else.";
+    text = "No event to sort the rows by: pick one in the panel's Display (Sort rows by: event), or sort by something else.";
 elseif reason == "Chronux is not on the path"
     text = "Chronux is not on the MATLAB path: add the repository's toolboxes\chronux folder to the path, then try again.";
 elseif ~isempty(tok('^unknown panel type (.+)$'))

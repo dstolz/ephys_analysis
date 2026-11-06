@@ -1,5 +1,5 @@
 function p = figureSearchPath(obj, e)
-%figureSearchPath  Where a search entry (figureSearchIndex) sits, as listed: "Panel > PSTH options > Bin (ms)".
+%figureSearchPath  Where a search entry (figureSearchIndex) sits, as listed: "Panel > Analysis > Bin width (ms)".
 %   The supersection's title, the section's title as it reads now, the
 %   title of the sub-heading the row is under (formSubheading), the row's
 %   label ("Figure > Observations > Response test > Windows (s)"); a

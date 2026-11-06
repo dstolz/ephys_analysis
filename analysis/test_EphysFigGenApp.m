@@ -1391,8 +1391,8 @@ if S.sec("5d.search", "the search: by label, listed as Supersection > Section > 
     app.onFigureSearch("save look");
     check(any(string(lb.Items) == "Look > Design and looks > Save look as design..."), 'Save look as design... is found in "Look > Design and looks"');
     app.onFigureSearch("test windows");
-    check(string(lb.Items{1}) == "Figure > Observations > Response test > Test windows (s)", ...
-        'a row under a sub-heading lists it in its path: "Figure > Observations > Response test > Test windows (s)"');
+    check(string(lb.Items{1}) == "Figure > Observations > Response test > Windows (s)", ...
+        'a row under a sub-heading lists it in its path: "Figure > Observations > Response test > Windows (s)"');
     app.onFigureSearch("unit ids");
     check(any(string(lb.Items) == "Figure > Observations > Unit filter > Unit ids"), 'a row under the plain Unit filter sub-heading too');
     app.onFigureSearch("use default");
@@ -2716,9 +2716,9 @@ if S.sec("5d.trialmeasure", "trial panels: a trial distribution's rows and Panel
     DX.Param.Value = 'Depth';
     DX.Ok.ButtonPushedFcn(DX.Ok, []);
     xm = app.Config.Figures(kT).panels(1).layers(1).xMeasure;
-    check(paramRows && ~isvalid(dX) && xm.kind == "param" && xm.param == "Depth" && app.FigureHistory.undoLabel() == "Trial x measure" ...
+    check(paramRows && ~isvalid(dX) && xm.kind == "param" && xm.param == "Depth" && app.FigureHistory.undoLabel() == "Trial measure (x)" ...
         && string(FE.trXMeasure.Text) == "Depth" && isequaln(app.Config.Figures(kT).panels(1).layers(1).measure, mNow), ...
-        'X measure: the window on the scatter''s x, a trial parameter (A and B hidden): Depth, one step "Trial x measure"');
+        'X measure: the window on the scatter''s x, a trial parameter (A and B hidden): Depth, one step "Trial measure (x)"');
     FE.trFit.Value = "movmean";
     FE.trFitWindow.Value = 5;
     FE.trCorr.Value = "spearman";

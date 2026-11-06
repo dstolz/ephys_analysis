@@ -1,5 +1,5 @@
 function why = figureRowReason(label, key, type)
-%figureRowReason  Why the figure editor hides a row, in a sentence for the status bar: "Bin (ms) is an option of PSTH, heat map and unit correlation panels: pick such a panel."
+%figureRowReason  Why the figure editor hides a row, in a sentence for the status bar: "Bin width (ms) is an option of PSTH, heat map and unit correlation panels: pick such a panel."
 %   WHY = figureRowReason(LABEL, KEY, TYPE): LABEL is the row's label as
 %   listed, KEY its first formRow key (syncFigureEditor's names), TYPE the
 %   selected panel's type ("" = none). The reasons follow what
@@ -46,7 +46,7 @@ end
 switch key
     case {"obsClasses" "obsQuality"}
         tail = "is for sorted units: pick Sorted units in Observe.";
-    case {"obsResponse" "obsRespBaseFrom" "obsRespParam" "obsIds" "obsMaxUnits" "obsShanks" "obsUnitChannels"}
+    case {"obsResponse" "obsRespBaseFrom" "obsRespParam" "obsRespCorrection" "obsIds" "obsMaxUnits" "obsShanks" "obsUnitChannels"}
         tail = "is for sorted units and detected spikes: pick one of them in Observe.";
     case {"obsRaMethod" "obsRaWinMs" "obsRaCutoff"}
         tail = "is a setting of the auROC response test: pick auROC as the Response test.";
@@ -193,7 +193,7 @@ T.value = o("probemap", "");
 T.legOrient = o("legend", "");
 T.legAlign = T.legOrient;
 T.unitLabels = o("probemap", "");
-T.waveColor = o("probemap", "with Waveform: Show, and Color by: rate or nSpikes");
+T.waveColor = o("probemap", "with Waveform: a mode other than Off, and Color by: rate or nSpikes");
 for f = ["metric" "correlation" "fisherZ" "detrend"]; T.(f) = o("corrmap", ""); end
 T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence" "trialDist" "trialScatter"], ...
     "on a PSTH with Draw as: trace, on a coherence panel unless drawn over time (an image's scale is its Color limits)");

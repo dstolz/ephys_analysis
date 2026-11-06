@@ -5,14 +5,14 @@ function ok = gotoFigureRow(obj, i, opts)
 %   row. Its supersection and section open if collapsed, the editor
 %   scrolls to it, its control (a section's header) takes the
 %   keyboard focus and its label (else the control) is highlighted for a
-%   moment; the status bar names it ("Panel > PSTH options > Bin (ms)").
+%   moment; the status bar names it ("Panel > Analysis > Bin width (ms)").
 %   A row under a collapsed sub-heading (formSubheading) opens that group
 %   first, as a collapsed section opens (onFigureSubheadingToggled); a
 %   sub-heading is gone to as it is, folded or not. A sub-heading is hidden
 %   when every row under it is (formRowShown), and the status bar then
 %   gives the reason of the first of them.
 %   A row the figure does not show stays where it is and the status bar
-%   says why (figureRowReason: "Bin (ms) is an option of PSTH, heat map
+%   says why (figureRowReason: "Bin width (ms) is an option of PSTH, heat map
 %   and unit correlation panels: pick such a panel."), as does a section
 %   the figure does not show (no panel picked; no panel aligned to
 %   events; the Waveform section on a panel whose data cannot be spikes:

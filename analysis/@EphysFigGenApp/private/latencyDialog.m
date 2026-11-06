@@ -4,11 +4,11 @@ function d = latencyDialog(obj, kind)
 %   "modal", Tag latencyDialog; one at a time) on the panel selected in
 %   the Figures tab (OBJ.SelectedFigure, OBJ.SelectedPanel) and returns it:
 %     KIND "firstSpike"  "First-spike marks" (a raster panel's
-%                        options.firstSpike, the First spike row's
-%                        First-spike marks... button)
+%                        options.firstSpike, the First-spike marks
+%                        row's First-spike marks... button)
 %     KIND "latencyBox"  "Latency box plot" (a PSTH panel's
-%                        options.latencyBox, the Latency box row's Latency
-%                        box plot... button)
+%                        options.latencyBox, the Latency box plot row's
+%                        Latency box plot... button)
 %   Its rows: the on box (Enabled), then the look; how the latencies are
 %   found (the method, its window and baseline) is the figure's, one
 %   block for all its panels (the First-spike latency section:

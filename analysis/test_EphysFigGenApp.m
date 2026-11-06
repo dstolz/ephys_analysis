@@ -3012,6 +3012,10 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     FE.snap.Value = false;
     FE.snapStep.Value = 0.25;
     FE.snapStep.ValueChangedFcn(FE.snapStep, []);
+    foldedNow = strings(1, 0);   % the collapsible sub-headings still folded (the earlier sections may have opened the auROC or Tapers group)
+    for sf = app.FigureSections
+        foldedNow = [foldedNow sf.Name + "." + sf.SubKey(sf.Sub & sf.SubCollapsible & sf.Collapsed)]; %#ok<AGROW>
+    end
     app.onSaveConfig();
     app2 = EphysFigGenApp(Splash=true);
     H2 = app2.Splash.History;
@@ -3030,8 +3034,8 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
         && string(app2.FigureEditor.rectUnits.Value) == "in" && ~app2.FigureEditor.snap.Value && app2.FigureEditor.snapStep.Value == 0.25 ...
         && string(app2.FigureEditor.snapUnits.Text) == "in";
     closeApp(app2);
-    check(subOpen && isequal(sort(string(AppPrefs.getpref(g, 'FigureSubheadingsCollapsed'))), ["analysis.auroc" "analysis.tapers"]), ...
-        'a new app restores the Response test sub-heading left open (FigureSubheadingsCollapsed holds the folded ones: the auROC and Tapers groups of Analysis)');
+    check(subOpen && isequal(sort(string(AppPrefs.getpref(g, 'FigureSubheadingsCollapsed'))), sort(foldedNow)) && ~ismember("observations.responseTest", foldedNow), ...
+        'a new app restores the Response test sub-heading left open (FigureSubheadingsCollapsed holds the folded ones: the auROC and Tapers groups of Analysis that were not opened)');
     AppPrefs.setpref(g, 'FigureSubheadingsCollapsed', {'observations.responseTest', 'observations.unitFilter', 'gone.old'});   % a plain one and a stale name are ignored
     app3 = EphysFigGenApp();
     sO3 = app3.FigureSections([app3.FigureSections.Name] == "observations");

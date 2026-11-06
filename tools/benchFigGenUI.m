@@ -2,9 +2,12 @@ function T = benchFigGenUI(opts)
 %benchFigGenUI  Time the Figures tab's selecting, figure switching, Arrange drags and edits, each under the profiler.
 %   T = benchFigGenUI(Name=Value) opens the synthetic fixture (Project="") or
 %   a real project and its config, then times: Ctrl+click and Shift+click on
-%   panels, a switch between two figures, Arrange (on, press, 20 drag steps,
-%   a release that keeps the neighbors, a release that changes them, an arrow
-%   nudge, off) and a title edit. Each action prints its seconds (the call
+%   panels, a switch between two figures (and, unprofiled, to a third one
+%   not drawn yet), Arrange (on, press, 20 drag steps, a release that keeps
+%   the neighbors, a release that changes them, an arrow nudge, off) and a
+%   title edit (to "bench x", then, unprofiled, again and with a word added
+%   to the title, which keeps the label variables it names: set in place).
+%   Each action prints its seconds (the call
 %   alone, then to the paint after a drawnow; with the profiler on, so
 %   inflated) and the top functions by self and total time. T has one row
 %   per action. Nothing is saved; run it under Bench-FigGen.ps1 (hidden
@@ -168,6 +171,10 @@ try
     measure('Shift+click panel 2 (adds it)', @() app.onFigurePanelClicked(fid1, id2, false, false, true), struct());
     measure('Escape (the shown panel alone)', @() app.onKeyPress(pressed('escape')), struct());
     app.onPanelSelected(p1);
+    drawnow;
+    measure('Shift+click panel 2 (no profiler)', @() app.onFigurePanelClicked(fid1, id2, false, false, true), struct('Profile', false));
+    measure('Escape (no profiler)', @() app.onKeyPress(pressed('escape')), struct('Profile', false));
+    app.onPanelSelected(p1);
 
     % ---- c. figure switch ----
     emit('\n=== figure switch ===\n');
@@ -179,6 +186,11 @@ try
         emit('switching between figure %d (%s) and %d (%s)\n', k1, figs(k1).id, k2, figs(k2).id);
         measure(sprintf('switch to figure %d', k2), @() app.onFigureSelected(k2), struct('Wait', true));
         measure(sprintf('switch back to figure %d', k1), @() app.onFigureSelected(k1), struct('Wait', true));
+        k3 = find(~ismember(1:numel(figs), [k1 k2]) & arrayfun(@(f) ~f.sessions.enabled && ~f.probe.enabled && numel(f.panels) >= 2, figs), 1);
+        if ~isempty(k3)   % a figure not drawn yet: the whole draw, true times
+            measure(sprintf('switch to figure %d, not drawn yet (no profiler)', k3), @() app.onFigureSelected(k3), struct('Wait', true, 'Profile', false));
+            measure(sprintf('switch back to figure %d (no profiler)', k1), @() app.onFigureSelected(k1), struct('Wait', true, 'Profile', false));
+        end
         if app.FigurePreviewState ~= "drawn"
             app.refreshFigurePreview(Force=true);
             drawnow;
@@ -279,6 +291,15 @@ try
     emit('\n=== title edit ===\n');
     title0 = app.FigureEditor.title.Value;
     measure('title edit via onConfigChanged', @() editTitle('bench x'), struct('Wait', true));
+    editTitle(title0);
+    drawnow;
+    waitPreview(app, 120);
+    measure('title edit (no profiler)', @() editTitle('bench x'), struct('Wait', true, 'Profile', false));
+    editTitle(title0);
+    drawnow;
+    waitPreview(app, 120);
+    % the same title with a word added: the label variables it names are the same, so it is set in place
+    measure('title edit, its variables kept (no profiler)', @() editTitle([char(title0) ' x']), struct('Wait', true, 'Profile', false));
     editTitle(title0);
     drawnow;
     waitPreview(app, 120);

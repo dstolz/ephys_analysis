@@ -1087,7 +1087,11 @@ order, which is drawn as above.
 says `"inplace"`, `"kept"`, `"drawn"` or `""`), so the app can
 skip its compute and busy card for it. `LayoutOnly=true` only lays what is
 drawn out at the spec's rects, whatever else changed (`how` `"layout"`): the
-app's Arrange does so after a drag on a preview it will not draw again yet. The
+app's Arrange does so after a drag on a preview it will not draw again yet.
+`PlaceMoved=true` (with `InPlaceOnly` or `LayoutOnly`) lays out only the panels whose rects changed since the last
+layout; a neighbor flush with one keeps its place unless the edge they share moved, so a release on a figure of many
+panels takes a fraction of a second. `RectsOnly=true` (with `InPlaceOnly`; `PlaceMoved` is implied) is for a caller
+that knows only rects differ, as Arrange does: nothing else is compared. The
 spec may leave panels of the drawing out, or give them in another order: the
 panels left out are deleted at once (with the legend, when its legend panel
 goes), the rest stacked and laid out in the new order, and the next drawing with

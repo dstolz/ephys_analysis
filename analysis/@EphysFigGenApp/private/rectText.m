@@ -1,5 +1,5 @@
 function s = rectText(rect, units, pageCm, dpi)
-%rectText  A panel's rect in words, in the Panels section's units: "10.2 x 6.0 cm at 0, 0".
+%rectText  A panel's rect in words, in the Layout section's units: "10.2 x 6.0 cm at 0, 0".
 %   S = rectText(RECT, UNITS, PAGECM, DPI): RECT is [x y width height],
 %   0-1 of the page (a panel's rect), shown in UNITS
 %   (EphysAnalysisConfig.RectUnits) on the page PAGECM ([width height] cm)

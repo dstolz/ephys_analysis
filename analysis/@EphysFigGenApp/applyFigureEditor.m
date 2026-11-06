@@ -1,7 +1,7 @@
 function applyFigureEditor(obj, opts)
 %applyFigureEditor  Show the selected figure, its selected panel and that panel's selected layer in the editor.
-%   The figure's own rows (id, title, observations, across sessions, on
-%   the probe, alignment, first-spike latency, appearance, looks), then
+%   The figure's own rows (id, title, observations and their Pages -- one
+%   per observation, across datasets, on the probe -- alignment, first-spike latency, appearance, looks), then
 %   the panel's (SelectedPanel: type, title, its own event and window or
 %   the figure's, its type's options, its unit waveform, its layers) and the layer's
 %   (SelectedLayer), and the panel's text note and overlays (the first
@@ -12,7 +12,7 @@ function applyFigureEditor(obj, opts)
 %   dataset, and so does the Observe list's order: what the dataset
 %   holds first, a type it lacks after the dataset, marked "(not in
 %   <dataset>)". syncFigureEditor then shows the rows they use, and the
-%   Panels section's place rows in the units picked (showPanelPlace: the
+%   Layout section's place rows in the units picked (showPanelPlace: the
 %   panel's rect, Boxes mean, Padding, Snap).
 %
 %   applyFigureEditor(OBJ, Scope="panel") leaves the figure's own rows as
@@ -108,10 +108,10 @@ E.obsUnitChannels.Value = listText(u.channels);
 E.obsChannels.Value = listText(o.channels);
 E.obsStarred.Value = logical(o.starred);
 E.obsPerGroup.Value = logical(o.perGroup);
+E.pages.Value = char(pagesOf(fig));   % (Pages: across datasets or on the probe, else one per observation)
 
 % across sessions (the Sessions section)
 ss = fig.sessions;
-E.sesEnabled.Value = logical(ss.enabled);
 E.sesDatasets.Value = char(pickFrom(ss.datasets, ["ticked" "list"], "ticked"));
 E.sesKeys.Value = char(strjoin(ss.datasetKeys, ", "));
 E.sesFacet.Value = char(pickFrom(ss.facet, EphysAnalysisConfig.SessionFacets, "none"));
@@ -126,7 +126,6 @@ E.sesTrialGroups.Value = char(pickFrom(ss.trialGroups, EphysAnalysisConfig.Sessi
 
 % on the probe (the Probe layout section)
 pr = fig.probe;
-E.prbEnabled.Value = logical(pr.enabled);
 E.prbLayout.Value = char(pickFrom(pr.layout, string(E.prbLayout.ItemsData), "schematic"));
 E.prbOverlap.Value = char(pickFrom(pr.overlap, string(E.prbOverlap.ItemsData), "nudge"));
 E.prbLanes.Value = max(1, round(pr.lanes));
@@ -163,7 +162,7 @@ E.latCusumSustain.Value = max(0, 1000 * L.cusumSustainSec);
 E.latCusumSD.Value = max(eps, L.cusumThreshold);
 E.latCusumDrift.Value = max(0, L.cusumDrift);
 
-% appearance, looks (the Panels section's place rows: showPanelPlace, from syncFigureEditor)
+% appearance, looks (the Layout section's place rows: showPanelPlace, from syncFigureEditor)
 s = fig.style;
 E.fontSize.Value = min(E.fontSize.Limits(2), max(E.fontSize.Limits(1), s.FontSize));
 E.lineWidth.Value = min(E.lineWidth.Limits(2), max(E.lineWidth.Limits(1), s.LineWidth));
@@ -691,6 +690,18 @@ end
 
 function v = pick(v, default)
 if v == ""; v = default; end
+end
+
+
+function p = pagesOf(fig)
+%pagesOf  The Pages choice a figure shows: "sessions" (across datasets) or "probe" (on the probe) when its block is on, else "each".
+%   A config with both blocks on (a file written by hand) shows across datasets; gathering then turns the probe off.
+p = "each";
+if fig.sessions.enabled
+    p = "sessions";
+elseif fig.probe.enabled
+    p = "probe";
+end
 end
 
 

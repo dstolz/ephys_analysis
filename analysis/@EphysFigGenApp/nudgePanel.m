@@ -2,7 +2,7 @@ function nudgePanel(obj, dx, dy, how)
 %nudgePanel  Move or resize the selected panel by a step, ten steps or a pixel: Arrange's arrow keys.
 %   nudgePanel(OBJ, DX, DY, HOW): DX and DY (-1, 0 or 1) say the direction
 %   (right and up positive); HOW how far:
-%     "step"       the snap step (the Panels section's Snap step, in its
+%     "step"       the snap step (the Layout section's Snap step, in its
 %                  units on the figure's export page): Arrows
 %     "ten"        ten steps: Shift+Arrows
 %     "pixel"      one pixel of the preview, the finest move the screen

@@ -3,7 +3,7 @@ function onRemovePanel(obj)
 %   The space a panel held is left free (New panel's Largest empty space
 %   finds it). The panel drawn after the shown one is selected, else the
 %   one before, alone. One undo step, "Remove panel", or "Remove panels"
-%   with several selected (selectedPanelIds: the Panels section's button
+%   with several selected (selectedPanelIds: the Layout section's button
 %   then reads "Remove 3 panels"; Arrange's box menu removes them too).
 %   The panels go from the preview at once (paintEditFirst), before the
 %   editor is read back; commitFigureEdit then settles the preview.

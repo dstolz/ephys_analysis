@@ -1,6 +1,6 @@
 function onNewPanel(obj, opts)
 %onNewPanel  Add a panel to the selected figure: the one the New panel window describes, or the one OPTS do.
-%   The Panels section's New panel... button (and Add, after it makes a
+%   The Layout section's New panel... button (and Add, after it makes a
 %   blank figure) calls it with no options: the New panel window
 %   (private/newPanelDialog) offers every panel type with a small
 %   representative plot (a legend panel too: where the figure's legend
@@ -55,7 +55,7 @@ function onNewPanel(obj, opts)
 %   seed, the observed unit, and its partner, that unit's channel's LFP; a
 %   legend panel none). A second legend panel is refused: "The figure
 %   already has a legend panel (legend_1)." The status bar says where it
-%   went, in the Panels section's units: "Added psth_1 (PSTH) in the free
+%   went, in the Layout section's units: "Added psth_1 (PSTH) in the free
 %   space, 9.0 x 6.0 cm at 0, 0." The edit ends as every structural one
 %   does (commitFigureEdit, "Add panel"): a figure that observed the
 %   dataset observes what a following layer reads, and an automatic

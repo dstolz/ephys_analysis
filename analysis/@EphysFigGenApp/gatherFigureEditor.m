@@ -12,7 +12,7 @@ function fig = gatherFigureEditor(obj)
 %   unticked (the selection rows of the Panel alignment section), else
 %   "default"; a trial panel's ref and window are always "default" (it has
 %   none: its selection alone). The
-%   panel's rect (the Panels section's Position and Size, in the units
+%   panel's rect (the Layout section's Position and Size, in the units
 %   picked) and the figure's padding are written only where a field no
 %   longer shows what showPanelPlace showed (on the page, dpi and units
 %   it showed them on), so a value the fields round is kept as stored: a
@@ -35,7 +35,9 @@ function fig = gatherFigureEditor(obj)
 %   values ("lo hi"; anything else, blank, is [] = all), the tile's width
 %   and height only when their spinners differ from what
 %   applyFigureEditor showed.
-%   The figure's size is the Size rows': "Export tab size" in the drop-down
+%   The figure's Pages row (Observations) sets sessions.enabled (across
+%   datasets) and probe.enabled (on the probe): one of the two at most.
+%   The figure's size is the Page size rows' (Layout): "Export tab size" in the drop-down
 %   is size.source "export" (the own width and height kept as stored),
 %   anything else an own size of the Width and Height fields (the drop-down
 %   and the fields agree: onFigureSizeEdited keeps them so).
@@ -87,7 +89,7 @@ fig.observe = o;
 
 % across sessions (datasetKeys has no control of its own: Pick... sets it, onPickFigureDatasets)
 ss = fig.sessions;
-ss.enabled = logical(E.sesEnabled.Value);
+ss.enabled = string(E.pages.Value) == "sessions";   % (Pages)
 ss.datasets = string(E.sesDatasets.Value);
 ss.facet = string(E.sesFacet.Value);
 ss.series = string(E.sesSeries.Value);
@@ -102,7 +104,7 @@ fig.sessions = ss;
 
 % on the probe (the Probe layout section): a tile's width and height only when edited (the spinners start at 0.1)
 pr = fig.probe;
-pr.enabled = logical(E.prbEnabled.Value);
+pr.enabled = string(E.pages.Value) == "probe";
 pr.layout = string(E.prbLayout.Value);
 pr.overlap = string(E.prbOverlap.Value);
 pr.lanes = max(1, round(E.prbLanes.Value));
@@ -551,7 +553,7 @@ end
 
 
 function [page, dpi, units, panel] = shownOn(obj, E)
-%shownOn  The page ([w h] cm), dpi and units the Panels section's fields were shown on, and the panel whose rect they show (showPanelPlace).
+%shownOn  The page ([w h] cm), dpi and units the Layout section's fields were shown on, and the panel whose rect they show (showPanelPlace).
 S = E.rectUnits.UserData;
 if isstruct(S) && isscalar(S) && all(isfield(S, {'page', 'dpi', 'units', 'panel'}))
     page = S.page;

@@ -1,6 +1,6 @@
 function onPanelOrder(obj, step)
 %onPanelOrder  Bring the selected panel forward or send it back: its place in the figure's drawing order.
-%   onPanelOrder(OBJ, STEP): STEP +1 (the Panels section's Bring forward)
+%   onPanelOrder(OBJ, STEP): STEP +1 (the Layout section's Bring forward)
 %   draws the selected panel after the next one, over it where the two
 %   overlap; -1 (Send back) before the one drawn before it; Inf and -Inf
 %   to the front and the back (EphysAnalysisConfig.orderPanel). The panel

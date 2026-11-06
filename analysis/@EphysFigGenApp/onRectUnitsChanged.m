@@ -1,5 +1,5 @@
 function onRectUnitsChanged(obj)
-%onRectUnitsChanged  The Panels section's Units picked: the rect, padding and snap step shown and typed in them.
+%onRectUnitsChanged  The Layout section's Units picked: the rect, padding and snap step shown and typed in them.
 %   The Units drop-down (normalized, %, cm, in or px; px at the Export
 %   tab's dpi) is a preference (FigureRectUnits, saved at once: savePreferences), for
 %   every figure, not part of the config: nothing is edited and no undo

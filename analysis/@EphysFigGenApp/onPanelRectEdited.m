@@ -1,5 +1,5 @@
 function onPanelRectEdited(obj, part)
-%onPanelRectEdited  A field of the selected panel's rect typed: its x, y, width or height, in the Panels section's units.
+%onPanelRectEdited  A field of the selected panel's rect typed: its x, y, width or height, in the Layout section's units.
 %   onPanelRectEdited(OBJ, PART), PART "x", "y", "w" or "h" (the Position
 %   and Size fields). A number that is not finite, or a width or height
 %   not above 0, is refused: the status bar says so and the fields show

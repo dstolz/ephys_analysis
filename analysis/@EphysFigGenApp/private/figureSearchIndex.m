@@ -16,11 +16,20 @@ function X = figureSearchIndex(S, U)
 %                            the rows: a search by key finds the row). The
 %                            rows under it are listed as usual; their path
 %                            (figureSearchPath) names the sub-heading.
-%     a row of a body another builder filled (the event reference, epoch
-%                            window, trial selection and panel alignment
-%                            controls)   Row -1: each label ("Line:")
-%                            with the control right of it, each check box
-%                            and button with a text
+%     a control in a sub-heading's slot (formSubheading Control=true: the
+%                            alignment's "Use default" boxes)   Row r of the
+%                            sub-heading: its text, the path naming the
+%                            sub-heading
+%     a body another builder filled (the panel alignment controls, in a
+%                            section of its own)   Row -1: each label
+%                            ("Line:") with the control right of it, each
+%                            check box and button with a text
+%     a form row that holds such a body (the Alignment section's event
+%                            reference, epoch window and trial selection
+%                            controls, each in a row spanning the section)
+%                            the same entries, with Row r and the row's
+%                            Keys, so a body hidden for the figure is gone
+%                            to as a hidden row is (figureRowReason)
 %   Fields: Section, Super, Row, Label (as shown, without its colon), Words
 %   (lower case: the label, the row's other labels and texts, then its
 %   controls' tooltips, for the match), LabelWords (lower case: the
@@ -54,7 +63,17 @@ for name = ordered(names, U)
                     target = s.SubButton{r};
                     if isempty(target); target = s.Items{r}(1); end   % (a plain title: its label; one with a control: the grid, which scroll reaches)
                     X(end+1) = entry(s.Name, s.Super, r, s.SubTitle(r), more, target, target, strings(1, 0)); %#ok<AGROW>
+                    for c = interactive(allIn(s.Items{r}))   % a control in its slot (a Use default box)
+                        if ~isequal(c, s.SubButton{r}) && isprop(c, 'Text')
+                            X(end+1) = entry(s.Name, s.Super, r, string(c.Text), tipOf(c), c, c, strings(1, 0)); %#ok<AGROW>
+                        end
+                    end
                 end
+                continue
+            end
+            panels = s.Items{r}(arrayfun(@(c) isa(c, 'matlab.ui.container.Panel'), s.Items{r}));
+            if ~isempty(panels)   % a body another builder filled
+                X = [X bodyEntries(s, panels(1), r, s.Keys{r})]; %#ok<AGROW>
                 continue
             end
             [label, lab, ctl, more] = rowParts(s.Items{r});
@@ -64,19 +83,28 @@ for name = ordered(names, U)
             X(end+1) = entry(s.Name, s.Super, r, label, more, ctl, flash, s.Keys{r}); %#ok<AGROW>
         end
     else   % a body another builder filled: its labels, check boxes and buttons
-        for c = allIn(s.Body)
-            if ~strcmp(c.Visible, 'on'); continue; end   % (the panel alignment's own Epoch Diagram button is never shown)
-            if isa(c, 'matlab.ui.control.Label')
-                label = clean(c.Text);
-                if ~endsWith(strtrim(strjoin(string(c.Text), " ")), ":") || strlength(label) < 3; continue; end   % a label, not a value shown ("none")
-                ctl = rightOf(c);
-                if isempty(ctl); continue; end
-                X(end+1) = entry(s.Name, s.Super, -1, label, tipOf(ctl), ctl, c, strings(1, 0)); %#ok<AGROW>
-            elseif (isa(c, 'matlab.ui.control.CheckBox') || isa(c, 'matlab.ui.control.Button')) && strlength(clean(c.Text)) >= 3 ...
-                    && ~startsWith(string(c.Text), "Edit")
-                X(end+1) = entry(s.Name, s.Super, -1, clean(c.Text), tipOf(c), c, c, strings(1, 0)); %#ok<AGROW>
-            end
-        end
+        X = [X bodyEntries(s, s.Body, -1, strings(1, 0))]; %#ok<AGROW>
+    end
+end
+end
+
+
+function X = bodyEntries(s, body, row, keys)
+%bodyEntries  The entries of a body another builder filled (AlignControls): each label with its control, each check box and button with a text.
+%   BODY is the section's body or the panel in a form row; ROW and KEYS are those of its entries.
+X = struct('Section', {}, 'Super', {}, 'Row', {}, 'Label', {}, 'Words', {}, 'LabelWords', {}, 'Target', {}, ...
+    'Flash', {}, 'Keys', {});
+for c = allIn(body)
+    if ~strcmp(c.Visible, 'on'); continue; end   % (the panel alignment's own Epoch Diagram button is never shown)
+    if isa(c, 'matlab.ui.control.Label')
+        label = clean(c.Text);
+        if ~endsWith(strtrim(strjoin(string(c.Text), " ")), ":") || strlength(label) < 3; continue; end   % a label, not a value shown ("none")
+        ctl = rightOf(c);
+        if isempty(ctl); continue; end
+        X(end+1) = entry(s.Name, s.Super, row, label, tipOf(ctl), ctl, c, keys); %#ok<AGROW>
+    elseif (isa(c, 'matlab.ui.control.CheckBox') || isa(c, 'matlab.ui.control.Button')) && strlength(clean(c.Text)) >= 3 ...
+            && ~startsWith(string(c.Text), "Edit")
+        X(end+1) = entry(s.Name, s.Super, row, clean(c.Text), tipOf(c), c, c, keys); %#ok<AGROW>
     end
 end
 end

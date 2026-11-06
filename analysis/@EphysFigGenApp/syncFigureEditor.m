@@ -2,12 +2,13 @@ function syncFigureEditor(obj)
 %syncFigureEditor  Show, enable and list the figure editor's rows for the selected figure, panel and layer.
 %   What shows (rows a section does not use are hidden, and so is a
 %   section left with none: layoutFigureEditor):
-%     Observations   under Observe, Starred only (always), the unit filter for sorted units or
+%     Observations   under Observe, Pages and Starred only (always), the channels for a
+%                    signal, the unit filter for sorted units or
 %                    detected spikes (classes and quality for sorted units;
 %                    the response test's rows, its auROC rows with the
-%                    auROC test), the channels for a signal, nothing more
-%                    for the dataset
-%     Panels         New panel..., Units, Boxes mean, Padding, Snap and the
+%                    auROC test), nothing more for the dataset
+%     Layout         New panel..., the Page (size, Boxes mean, Padding), the
+%                    app preferences (Units, Snap) and the
 %                    Arrange hint always; the selected panel's line, its
 %                    Position and Size and its buttons (Bring forward
 %                    while a panel is drawn after it, Send back while one
@@ -31,12 +32,15 @@ function syncFigureEditor(obj)
 %                    event, window or selection; Options' Apply to all
 %                    panels while the figure has another panel (every
 %                    one takes the axis sides)
-%     Event reference, Epoch window, Trial selection   unless every panel
-%                    of the figure is one not aligned to events (Trial
-%                    selection also with a trial panel, which takes it)
+%     Alignment      the event reference's and the epoch window's bodies
+%                    unless every panel of the figure is one not aligned to
+%                    events; the trial selection's also with a trial panel,
+%                    which takes it (a sub-heading goes with its body, the
+%                    section with all three)
 %     First-spike latency   while the figure has a raster, PSTH or heat
-%                    map panel: a note naming the panels that read it,
-%                    Method, Detect, Baseline (its window's fields enabled
+%                    map panel: a note naming the panels that read it, a
+%                    link to each (select it, go to the section that
+%                    draws its latency: latencyLinks), Method, Detect, Baseline (its window's fields enabled
 %                    with "Window"), the onset's rows; Baseline rate with a
 %                    Poisson method, Burst with "surprise", Alpha with
 %                    "poisson"
@@ -125,20 +129,19 @@ function syncFigureEditor(obj)
 %     Design and     all rows (the design list, Save look as design...,
 %     looks          Edit aesthetics..., the remembered-looks line with
 %                    Forget enabled while there are any, the order note)
-%     Sessions       Across sessions; with it ticked every row (the keys
+%     Sessions       only with Pages: Across datasets (E.pages); then every row (the keys
 %                    with "These datasets", Units matched by for a unit
 %                    observation and the mapping file with "mapping", the
 %                    error band and faint sessions enabled unless a color
 %                    per session) and a note on what it draws; Per trial
 %                    group is hidden then and the preview's Dataset
 %                    drop-down is off
-%     Probe layout   On the probe; with it ticked every row (Overlap, Tile
+%     Probe layout   only with Pages: On the probe; then every row (Overlap, Tile
 %                    scale and Leaders enabled with Physical, Lanes with
 %                    Lanes beside the shank) and a note counting the
 %                    tiles on the active dataset (probeNote); Per trial
-%                    group is hidden then. On the probe and Across
-%                    sessions exclude each other: one ticked grays the
-%                    other out
+%                    group is hidden then. Pages is one choice, so the
+%                    two exclude each other
 %   Several panels selected (Shift+click: selectedPanelIds; the shown one
 %   is the first, its values in the rows): a banner over the Panel
 %   section's rows names them, and only the rows each of them shows by
@@ -164,7 +167,7 @@ function syncFigureEditor(obj)
 %   spacing when stacked, the legend rows with their box, and
 %   the list buttons (Add layer off on a legend panel, which has no
 %   layers: the Layers note says so); Up and Down when the figure has a
-%   neighbor that way in its group of the tree. The Panels section's
+%   neighbor that way in its group of the tree. The Layout section's
 %   values are shown again in the units picked (showPanelPlace: an edit
 %   kept on the page, a page resized), and the preview outlines the
 %   selected panel (markFigurePanel).
@@ -225,7 +228,7 @@ for q = 1:np
 end
 
 v = struct();
-for f = ["id" "title" "size" "sizeWidth" "enabled" "summary" "observe" "obsStarred" "sesEnabled" "prbEnabled" "obsPerGroup" "obsCount" "newPanel" "rectUnits" "boxesMean" "padding" "snap" "arrangeHint" ...
+for f = ["id" "title" "size" "sizeWidth" "enabled" "summary" "observe" "obsStarred" "pages" "obsPerGroup" "obsCount" "newPanel" "rectUnits" "boxesMean" "padding" "snap" "arrangeHint" ...
         "fontSize" "lineWidth" "colormap" "sortDepth" "labelDepth" "showStop" "grid" "legendLoc" "design" "editAesthetics" "looksText" "looksOrder"]
     v.(f) = true;   % the rows every figure shows
 end
@@ -239,9 +242,10 @@ v.obsRaMethod = respAuroc; v.obsRaWinMs = respAuroc; v.obsRaCutoff = respAuroc;
 v.obsRaTest = respAuroc && ismember(string(E.obsRaCutoff.Value), ["test" "shuffle"]);   % shuffle: its n
 v.obsIds = unit; v.obsMaxUnits = unit; v.obsShanks = unit; v.obsUnitChannels = unit;
 v.obsChannels = kind == "channel";
-% across sessions: every row once Across sessions is ticked; the keys with "These datasets", the mapping file with
-% match "mapping", the band and the faint sessions when the sessions are averaged (a color per subject, or none)
-ses = logical(E.sesEnabled.Value);
+% across datasets (Pages): the Sessions section shows, with every row; the keys with "These datasets", the mapping file
+% with match "mapping", the band and the faint sessions when the sessions are averaged (a color per subject, or none)
+pages = string(E.pages.Value);
+ses = pages == "sessions";
 v.sesDatasets = ses; v.sesKeys = ses && string(E.sesDatasets.Value) == "list";
 v.sesFacet = ses; v.sesSeries = ses; v.sesColorOrder = ses; v.sesTrialGroups = ses; v.sesMinSessions = ses;
 v.sesShowMembers = ses; v.sesError = ses;
@@ -250,10 +254,9 @@ v.sesMappingFile = ses && kind == "unit" && string(E.sesMatch.Value) == "mapping
 v.sesNote = ses;
 en([E.sesShowMembers E.sesError], string(E.sesSeries.Value) ~= "session");
 E.sesNote.Text = sessionNote(fig, kind);
-% on the probe: every row once On the probe is ticked; Overlap, Lanes, Tile scale and Leaders enabled with Physical,
-% Lanes with Lanes beside the shank; On the probe and Across sessions exclude each other (both ticked: both enabled,
-% to untick one)
-prb = logical(E.prbEnabled.Value);
+% on the probe (Pages): the Probe layout section shows, with every row; Overlap, Lanes, Tile scale and Leaders enabled
+% with Physical, Lanes with Lanes beside the shank. Pages is one choice, so the two modes exclude each other
+prb = pages == "probe";
 for f = ["prbLayout" "prbOverlap" "prbLanes" "prbShanks" "prbChannels" "prbDepth" "prbMaxTiles" "prbPerSite" ...
         "prbTileWidth" "prbTileHeight" "prbScale" "prbLabels" "prbSharedY" "prbScaleTile" "prbShowSites" "prbLeaders" "prbNote"]
     v.(f) = prb;
@@ -261,8 +264,6 @@ end
 physical = string(E.prbLayout.Value) == "physical";
 en([E.prbOverlap E.prbScale E.prbLeaders], physical);
 en(E.prbLanes, physical && string(E.prbOverlap.Value) == "lanes");
-en(E.sesEnabled, ~prb || ses);
-en(E.prbEnabled, ~ses || prb);
 if prb; E.prbNote.Text = probeNote(obj, k); end
 v.obsPerGroup = ~ses && ~prb;   % a session figure's trial groups follow its Trial groups; a probe figure has none
 % the first-spike latency: the figure's block, while it has a panel that can read it (a raster, PSTH or heat map); the
@@ -278,7 +279,13 @@ v.latSurprise = latOn && method == "surprise";
 v.latAlpha = latOn && method == "poisson";
 v.latCusum = latOn; v.latCusumSD = latOn;
 en([E.latBaseFrom E.latBaseTo], string(E.latBaseline.Value) == "window");
-E.latNote.Text = latencyNote(fig);
+[E.latNote.Text, readers] = latencyNote(fig);
+v.latLinks = latOn && ~isempty(readers);
+latencyLinks(obj, E.latLinks, readers);
+% the alignment's bodies: the event reference and the epoch window unless every panel of the figure is one not aligned to
+% events; the trial selection also with a trial panel, which takes it (the section hides with all three)
+v.refBody = np == 0 || any(aligned); v.windowBody = v.refBody;
+v.selectionBody = np == 0 || any(aligned) || any(ismember(types0, EphysAnalysisConfig.TrialPanelTypes));
 % arrangement and panel
 v.selPanel = hasPanel; v.noPanel = ~hasPanel;
 v.rectXY = hasPanel && ~several; v.rectWH = v.rectXY; v.panelButtons = hasPanel;   % (several: each keeps its place)
@@ -551,12 +558,12 @@ for i = 1:numel(S)
             S(i).Visible = hasPanel && ~several;   % each panel's own
         case "waveform"
             S(i).Visible = hasPanel && waveSpiky;
-        case {"ref" "window"}
-            S(i).Visible = np == 0 || any(aligned);
-        case "selection"   % the trial panels take the figure's trial selection too
-            S(i).Visible = np == 0 || any(aligned) || any(ismember(types0, EphysAnalysisConfig.TrialPanelTypes));
         case "latency"
             S(i).Visible = latOn;
+        case "sessions"
+            S(i).Visible = ses;   % Pages: across datasets
+        case "probe"
+            S(i).Visible = prb;   % Pages: on the probe
         otherwise
             S(i).Visible = true;
     end
@@ -814,9 +821,12 @@ t = sprintf("%d panels selected: %s. Only the settings they all have are shown, 
 end
 
 
-function s = latencyNote(fig)
+function [s, ids] = latencyNote(fig)
 %latencyNote  The First-spike latency section's note: one block for the figure, and the panels that read it (and what for).
+%   [S, IDS] = latencyNote(FIG): the note S and the ids of the panels that read the block, in panel order (the links
+%   under the note: latencyLinks).
 parts = strings(1, 0);
+ids = strings(1, 0);
 for q = 1:numel(fig.panels)
     p = fig.panels(q);
     o = p.options;
@@ -832,7 +842,10 @@ for q = 1:numel(fig.panels)
             if o.rows == "trials" && sortLat; what(end+1) = "sort"; end %#ok<AGROW>
     end
     if isfield(o, 'onsetLine') && o.onsetLine ~= "off"; what(end+1) = "onset line"; end %#ok<AGROW>
-    if ~isempty(what); parts(end+1) = p.id + " (" + strjoin(what, ", ") + ")"; end %#ok<AGROW>
+    if ~isempty(what)
+        parts(end+1) = p.id + " (" + strjoin(what, ", ") + ")"; %#ok<AGROW>
+        ids(end+1) = p.id; %#ok<AGROW>
+    end
 end
 s = "One block for the whole figure, found once per unit and alignment: ";
 if isempty(parts)
@@ -841,6 +854,38 @@ if isempty(parts)
 else
     s = s + "read by " + strjoin(parts, ", ") + ".";
 end
+end
+
+
+function latencyLinks(obj, g, ids)
+%latencyLinks  The row of links under the First-spike latency note: a link to each panel IDS that reads the block.
+%   A link selects the panel and goes to the section that holds its latency marks, box plot and onset line (latencyGoto).
+%   G is the row's grid (E.latLinks); the links are made again only when the panels that read the block change.
+if isequal(g.UserData, ids); return; end
+g.UserData = ids;
+delete(g.Children);
+if isempty(ids); return; end
+g.ColumnWidth = repmat({'fit'}, 1, numel(ids) + 1);
+uilabel(g, "Text", "Go to the panel:", "FontColor", [0.4 0.4 0.4]);
+for id = ids
+    uihyperlink(g, "Text", id, "HyperlinkClickedFcn", @(~, ~) latencyGoto(obj, id), ...
+        "Tooltip", "Select " + id + " and go to the section where its latency marks, box plot or onset line are set.");
+end
+end
+
+
+function latencyGoto(obj, id)
+%latencyGoto  A link under the First-spike latency note was clicked: select panel ID and go to the section that draws its latency.
+%   That section is Display where the editor has one, else Options.
+k = obj.SelectedFigure;
+if k < 1 || k > numel(obj.Config.Figures); return; end
+ids = [obj.Config.Figures(k).panels.id];
+j = find(ids == id, 1);
+if isempty(j); return; end
+obj.onPanelSelected(j);
+name = "options";
+if any([obj.FigureSections.Name] == "display"); name = "display"; end
+obj.gotoFigureSection(name);
 end
 
 

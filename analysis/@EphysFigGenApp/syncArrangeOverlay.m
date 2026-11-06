@@ -45,8 +45,10 @@ function [shown, why] = syncArrangeOverlay(obj, opts)
 %   signs, each sign placed anew. While a
 %   preview computes or draws nothing changes: the drawing calls this
 %   again when done. SHOWN: the overlay shows now.
-%   The Layout section's Set corners is on while the preview shows the
-%   selected figure and one panel is selected.
+%   The Panels section's Set corners is on while the preview shows the
+%   selected figure and one panel is selected. The align bar shows with
+%   Arrange, in the templates' place, its buttons on while the overlay
+%   shows and the selection allows (syncAlignBar).
 %   Called by markFigurePanel (after a preview is drawn, laid out again in
 %   place or drawn again; the selection, an edit: syncFigureEditor;
 %   another figure's container: syncFigureView) and setFigurePreviewState
@@ -92,6 +94,7 @@ if ~obj.FigureArrange || ~ok
     end
     if ~obj.FigureArrange; why = ""; end
     keepOnTop(obj);   % (a drawing made since put its axes over the hidden overlay)
+    syncAlignBar(obj, false);   % (the bar with Arrange, its buttons off without the overlay)
     return
 end
 P = obj.FigurePreviewPanel;
@@ -166,6 +169,7 @@ O.widgets = W;
 obj.FigureArrangeOverlay = O;
 arrangeSizeLabels(obj);   % the selected panels' sizes by their boxes
 shown = true;
+syncAlignBar(obj, true);   % its buttons as the selection allows
 end
 
 

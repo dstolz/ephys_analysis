@@ -71,6 +71,9 @@ if ~isempty(opts.List)
 end
 setappdata(b, 'LabelVariableMenu', cm);
 xy = menuPoint(fig, b);
+% the new menu reaches the window first: R2025a's open, called in the turn that made the menu, shows nothing and
+% raises no error (open's own "drawnow nocallbacks" is not enough; measured 2026-11-05)
+drawnow;
 try
     open(cm, xy(1), xy(2));
 catch   % (no screen: the menu is built, a test picks from it)

@@ -135,6 +135,7 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            The trial panels' right-click menus also get "Copy data table"
 %            and "Export data (CSV)..." (TrialDataExport.attach: their
 %            per-trial values).
+%            No panel shows the axes toolbar (hideAxesToolbars).
 %   Probe figures  F of kind "probeFigure" (figureProbeCompute's PF: the
 %            figure computed for every unit or channel at its site on the
 %            probe) is drawn by renderProbeFigure with the same options,
@@ -727,6 +728,7 @@ if isempty(canvas)   % one axes: its note goes where it belongs once its looks a
 else   % the layout, once everything is drawn and dressed: every axes, band, the legend and the title, then the notes
     figureLayout(canvas, layoutOf(spec, panels, axs, extra, hks, notes, bands, th, G2, isLeg, opts.Scale));
 end
+hideAxesToolbars(root);   % no panel shows the axes toolbar
 if figureEditable(opts.Editable, target)
     PlotAesthetics.enableEditing(target, figureEditContext(F, raw, target, opts, root, design, follows, txt));
 end

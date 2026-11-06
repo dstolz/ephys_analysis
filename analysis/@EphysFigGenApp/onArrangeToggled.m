@@ -8,6 +8,9 @@ function onArrangeToggled(obj)
 %   guides (onArrangeMoving, onArrangeMoved); a click on the page gives
 %   the arrow keys to the overlay (nudgePanel); a box's right-click menu
 %   has Set corners, Bring forward, Send back and Remove panel. The
+%   template controls above the preview give way to the align bar
+%   (syncAlignBar: the selected panels' boxes, axes or labels lined up or
+%   spaced evenly, onArrangeAlign), back when Arrange is off. The
 %   selected panel's outline (markFigurePanel) gives way to its blue box,
 %   and data tips and the right-click editors of the plot wait. The line
 %   under the preview says how. When the preview does not show the
@@ -54,12 +57,14 @@ if ~on
     obj.FigureArrangeDirty = false;
 end
 [shown, why] = obj.syncArrangeOverlay();
+syncAlignBar(obj, shown);   % the align bar in the templates' place while on (also while a preview still draws)
 obj.markFigurePanel();   % its outline waits while Arrange is on
 H = obj.FigurePreviewHint;
 if ~isempty(H) && isvalid(H)
     if on
         H.Text = "Arrange: drag a box to move its panel, a handle to resize it (Alt: no snapping); click the page, " + ...
-            "then the arrows nudge the selected panel (Shift x10, Ctrl a pixel, Alt resizes); right-click a box for more.";
+            "then the arrows nudge the selected panel (Shift x10, Ctrl a pixel, Alt resizes); the bar above lines " + ...
+            "panels up and spaces them; right-click a box for more.";
     else
         H.Text = "Right-click the plot to change colors, fonts and labels.";
     end

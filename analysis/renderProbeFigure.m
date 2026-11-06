@@ -423,6 +423,7 @@ D.scale = opts.Scale;
 setappdata(canvas, 'ProbeFigureLayout', D);
 figureLayout(canvas, struct('layoutFcn', @placeProbe));
 D = getappdata(canvas, 'ProbeFigureLayout');
+hideAxesToolbars(canvas);   % no tile or probe axes shows the axes toolbar
 brokenGraphicTips(canvas);   % in an app's panel: each "cannot draw" sign tells why on hover
 
 if figureEditable(opts.Editable, target)

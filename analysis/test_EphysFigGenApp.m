@@ -53,7 +53,7 @@ function test_EphysFigGenApp(opts)
 %   sticks, auto goes back; references follow an automatic rename), layer and
 %   figure Up / Down, no Behavior type or trials source offered, linked
 %   panels' locked alignment, a panel's own options (Apply to all
-%   panels, Re-link all panels, Ctrl+7 / Ctrl+9), a scan listing the
+%   panels in the Analysis, Display and Axes headers, Re-link all panels, Ctrl+5 / Ctrl+7), a scan listing the
 %   observations again, save and reopen, its preferences restored by a new app,
 %   Remove); Copy settings... between figures and into a design; File > Generate selected figure (a figure's files per observation on the ticked
 %   datasets, its rows in the results table, the status bar's counts,
@@ -243,6 +243,12 @@ timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a 
     function savedConfig()
         %savedConfig  The config saved to cfgFile once (section 4's Save As): onSaveConfig then saves there instead of opening uiputfile.
         if all(app.Config.File == ""); app.onSaveConfigAs(string(cfgFile)); end
+    end
+
+    function t = overlaysHeading(sec)
+        %overlaysHeading  The text of the Overlays sub-heading of the Annotations section SEC (it counts the overlays: "Overlays (2)").
+        k = find(sec.Sub & sec.SubKey == "overlays", 1);
+        t = string(sec.Items{k}(1).Text);
     end
 
     function groupedBy(by)
@@ -1075,8 +1081,8 @@ if S.sec("5d.add", "the Figures tab: a figure from the rasterPsth template, the 
         && app.FigurePreviewState == "idle" && endsWith(app.helpURL("tab"), "#figures-tab") && app.RemoveFigureButton.Enable == "off" ...
         && string(app.AddFigureButton.Text) == "Add" ...
         && app.FigureSections([app.FigureSections.Name] == "arrangement").Title == "Panels" ...
-        && app.FigureSections([app.FigureSections.Name] == "panel").Title == "Selected panel", ...
-        'the Figures tab: no figure yet, only a hint in the editor, no preview, an Add button; the Panels and Selected panel sections; Help goes to its section');
+        && app.FigureSections([app.FigureSections.Name] == "panel").Title == "Panel", ...
+        'the Figures tab: no figure yet, only a hint in the editor, no preview, an Add button; the Panels and Panel sections; Help goes to its section');
     app.onAddFigure("rasterPsth");
     fg = app.Config.Figures;
     check(isscalar(fg) && fg.id == "Raster+PSTH units" && numel(fg.panels) == 2 && app.SelectedFigure == 1 && app.SelectedPanel == 1 ...
@@ -1203,8 +1209,9 @@ if S.sec("5d.layers", "a continuous panel below (drawn at once); its layers: AUX
         && isequal(string(FE.stack.ItemsData), ["off" "groups" "items"]) ...
         && ~shown(FE.binMs) && ~shown(FE.histStyle) && ~shown(FE.rasterSort) && ~shown(FE.evLine) && ~shown(FE.group) ...
         && FE.layerBinding.Enable == "on" && contains(string(FE.layerFollows.Text), "own LFP channel") ...
-        && app.FigureSections([app.FigureSections.Name] == "options").Title == "Continuous signal options", ...
-        'the editor shows the continuous panel''s rows only: its options, its layer following the unit');
+        && secOf("analysis").Title == "Analysis — Continuous signal" && secOf("display").Title == "Display — Continuous signal" ...
+        && secOf("axes").Title == "Axes", ...
+        'the editor shows the continuous panel''s rows only: its Analysis, Display and Axes (the type named but in Axes), its layer following the unit');
     FE.addSource.Value = "AUX";
     FE.addSource.ValueChangedFcn(FE.addSource, []);
     app.onAddLayer();
@@ -1266,40 +1273,46 @@ if S.sec("5d.layers", "a continuous panel below (drawn at once); its layers: AUX
     clear restoreAutoLimit
 end
 
-if S.sec("5d.keys", "the section keys (Ctrl+digit); the supersections: their order, collapsing, Ctrl+8 and Alt+2")
+if S.sec("5d.keys", "the section keys (Ctrl+digit, Ctrl+7 to Ctrl+0 for Analysis to Annotations); the supersections: their order, collapsing, Ctrl+6 and Alt+2")
     app.onFigureSectionToggled("observations");
     collapsed = ~app.FigureSections([app.FigureSections.Name] == "observations").Expanded;
     app.onKeyPress(pressed('1', {'control'}));
     check(collapsed && app.FigureSections([app.FigureSections.Name] == "observations").Expanded ...
         && app.FigureSections([app.FigureSections.Name] == "observations").Key == "1" ...
-        && app.FigureSections([app.FigureSections.Name] == "palign").Key == "7" ...
-        && app.FigureSections([app.FigureSections.Name] == "options").Key == "9" ...
-        && app.FigureSections([app.FigureSections.Name] == "ref").Key == "2" ...
-        && app.FigureSections([app.FigureSections.Name] == "arrangement").Key == "5" ...
-        && app.FigureSections([app.FigureSections.Name] == "note").Key == "0" ...
+        && secOf("ref").Key == "2" && secOf("arrangement").Key == "3" && secOf("panel").Key == "4" && secOf("palign").Key == "5" ...
+        && secOf("layers").Key == "6" && secOf("analysis").Key == "7" && secOf("display").Key == "8" && secOf("axes").Key == "9" ...
+        && secOf("annotations").Key == "0" && secOf("waveform").Key == "" ...
         && app.FigureSections([app.FigureSections.Name] == "style").Key == "" ...
         && app.FigureSections([app.FigureSections.Name] == "sessions").Key == "" ...
-        && ~any([app.FigureSections.Name] == "common"), ...
-        'Ctrl+1 opens the collapsed Observations section; Event reference is Ctrl+2, Arrangement Ctrl+5, Panel alignment Ctrl+7, Options Ctrl+9, Text note Ctrl+0; Appearance and Sessions have no key');
+        && ~any([app.FigureSections.Name] == "common") && ~any(ismember([app.FigureSections.Name], ["options" "note" "overlays"])), ...
+        'Ctrl+1 opens the collapsed Observations section; Event reference is Ctrl+2, Panels 3, Panel 4, Panel alignment 5, Layers 6, Analysis 7, Display 8, Axes 9, Annotations 0; Waveform, Appearance and Sessions have no key');
+    for kk = ["7" "8" "9" "0"]   % the keys of the settings sections go to them, opening them if collapsed
+        sn = ["7" "analysis"; "8" "display"; "9" "axes"; "0" "annotations"];
+        sn = sn(sn(:, 1) == kk, 2);
+        if secOf(sn).Expanded; app.onFigureSectionToggled(sn); end
+        app.onKeyPress(pressed(char(kk), {'control'}));
+        check(secOf(sn).Expanded, "Ctrl+" + kk + " goes to " + sn + ", opening it");
+    end
     % the supersections
     U = app.FigureSupers;
     rowOf = @(h) h.Layout.Row;
     check(isequal([U.Name], ["figure" "panel" "look"]) && all(arrayfun(@(u) shown(u.Header), U)) ...
         && secOf("observations").Super == "figure" && secOf("ref").Super == "figure" && secOf("sessions").Super == "figure" ...
-        && secOf("arrangement").Super == "figure" && secOf("panel").Super == "panel" && secOf("options").Super == "panel" ...
-        && secOf("overlays").Super == "panel" && secOf("style").Super == "look" && secOf("looks").Super == "look" ...
+        && secOf("arrangement").Super == "figure" && secOf("panel").Super == "panel" && secOf("analysis").Super == "panel" ...
+        && secOf("display").Super == "panel" && secOf("axes").Super == "panel" && secOf("annotations").Super == "panel" ...
+        && secOf("style").Super == "look" && secOf("looks").Super == "look" ...
         && rowOf(U(1).Header) < rowOf(secOf("observations").Grid) && rowOf(secOf("observations").Grid) < rowOf(secOf("ref").Grid) ...
         && rowOf(secOf("arrangement").Grid) < rowOf(U(2).Header) && rowOf(U(2).Header) < rowOf(secOf("panel").Grid) ...
-        && rowOf(secOf("overlays").Grid) < rowOf(U(3).Header) && rowOf(U(3).Header) < rowOf(secOf("style").Grid) ...
+        && rowOf(secOf("annotations").Grid) < rowOf(U(3).Header) && rowOf(U(3).Header) < rowOf(secOf("style").Grid) ...
         && contains(U(1).Header.Text, "FIGURE") && contains(U(1).Header.Text, "Alt+1") && contains(U(2).Header.Text, "raster_1 (Raster)") ...
         && contains(U(3).Header.Text, "Alt+3"), ...
         'three supersections head the editor''s sections in order: Figure, Panel (naming the selected panel) and Look, each with its Alt key');
     app.onFigureSuperToggled("panel");
     shut = ~app.FigureSupers(2).Expanded && ~shown(FE.panelType) && ~shown(FE.layerList) && startsWith(strtrim(app.FigureSupers(2).Header.Text), "►") ...
         && shown(app.FigureSupers(2).Header) && shown(FE.observe) && secOf("layers").Expanded;
-    app.onKeyPress(pressed('8', {'control'}));
+    app.onKeyPress(pressed('6', {'control'}));
     check(shut && app.FigureSupers(2).Expanded && secOf("layers").Expanded && shown(FE.layerList), ...
-        'collapsing the Panel supersection hides its sections (each keeps its own state); Ctrl+8 opens it again with Layers');
+        'collapsing the Panel supersection hides its sections (each keeps its own state); Ctrl+6 opens it again with Layers');
     app.onFigureSuperToggled("panel");
     app.onKeyPress(pressed('2', {'alt'}));
     viaAlt = app.FigureSupers(2).Expanded && shown(FE.panelType);
@@ -1314,14 +1327,26 @@ if S.sec("5d.search", "the search: by label, listed as Supersection > Section > 
     app.onKeyPress(pressed('f', {'control'}));
     app.FigureSearchField.Value = 'bin';
     app.onFigureSearch("bin");
-    check(app.FigureSearchState == "typing" && shown(lb) && X(lb.ItemsData(1)).Label == "Bin (ms)" ...
-        && string(lb.Items{1}) == "Panel > Raster options > Bin (ms)" && numel(X) > 150 ...
+    check(app.FigureSearchState == "typing" && shown(lb) && X(lb.ItemsData(1)).Label == "Bin width (ms)" ...
+        && string(lb.Items{1}) == "Panel > Analysis — Raster > Bin width (ms)" && numel(X) > 150 ...
         && any(arrayfun(@(e) e.Label == "Line" && e.Section == "ref", X)) && any(arrayfun(@(e) e.Label == "Use default" && e.Section == "window", X)), ...
-        sprintf('Ctrl+F, "bin": "Panel > Raster options > Bin (ms)" first of %d, though a raster hides it; the alignment rows are found too (%d rows indexed)', ...
+        sprintf('Ctrl+F, "bin": "Panel > Analysis — Raster > Bin width (ms)" first of %d, though a raster hides it; the alignment rows are found too (%d rows indexed)', ...
         numel(lb.Items), numel(X)));
     app.onKeyPress(pressed('return', {}));
-    check(app.SelectedPanel == 1 && contains(app.StatusBar.Text, "Bin (ms) is an option of PSTH, heat map and unit correlation panels, not of raster panels") ...
+    check(app.SelectedPanel == 1 && contains(app.StatusBar.Text, "Bin width (ms) is an option of PSTH, heat map and unit correlation panels, not of raster panels") ...
         && app.FigureSearchState == "", 'Enter on a row the raster does not show says why in the status bar, and nothing moves');
+    % one row of each of Analysis, Display and Axes: its path names its section (the type, but in Axes)
+    app.onFigureSearch("tick width");
+    p1 = string(lb.Items{1});
+    app.onFigureSearch("axes box");
+    p2 = string(lb.Items{1});
+    app.onFigureSearch("mask after");
+    p3 = string(lb.Items{1});
+    app.onFigureSearch("apply to all");
+    p4 = string(lb.Items);
+    check(p1 == "Panel > Display — Raster > Tick width" && p2 == "Panel > Axes > Axes box" && p3 == "Panel > Analysis — Raster > Mask after the stop event" ...
+        && sum(startsWith(p4, "Panel > Analysis") + startsWith(p4, "Panel > Display") + startsWith(p4, "Panel > Axes")) == 3, ...
+        sprintf('the search lists a raster''s Tick width under Display, Axes box under Axes, Mask after the stop event under Analysis, and the three Apply to all panels buttons by their sections ("%s", "%s", "%s")', p1, p2, p3));
     % sub-headings are listed like section headers, and the path of a row under one names it
     app.onFigureSearch("response test");
     check(string(lb.Items{1}) == "Figure > Observations > Response test" && X(lb.ItemsData(1)).Row > 0 && isempty(X(lb.ItemsData(1)).Keys), ...
@@ -1414,30 +1439,30 @@ end
 if S.sec("5d.goto", "right-click Go to setting: the part's setting, in the panel the part is in")
     fid = app.Config.Figures(app.SelectedFigure).id;
     panel0 = app.SelectedPanel;
-    optOpen = secOf("options").Expanded;
-    if optOpen; app.onFigureSectionToggled("options"); end
+    optOpen = secOf("analysis").Expanded;
+    if optOpen; app.onFigureSectionToggled("analysis"); end
     okSem = app.gotoFigureSetting(fid, "sem", "psth_1");
-    check(okSem && app.SelectedPanel == 2 && secOf("options").Expanded && shown(FE.errorType) && shown(FE.errFace), ...
-        'Go to setting on a PSTH''s error band: psth_1 is picked and the Error row of its PSTH options is open, with the band''s look');
+    check(okSem && app.SelectedPanel == 2 && secOf("analysis").Expanded && shown(FE.errorType) && shown(FE.errFace), ...
+        'Go to setting on a PSTH''s error band: psth_1 is picked and the Error row of its Analysis section is open, with the band''s look');
     okTitle = app.gotoFigureSetting(fid, "tileTitle", "raster_1");
     okFig = app.gotoFigureSetting(fid, "zeroLine", "");
     check(okTitle && app.SelectedPanel == 1 && okFig, ...
         'a tile title goes to its panel''s Title row; the event line (t = 0) to the Event reference section');
     app.onPanelSelected(panel0);
-    if secOf("options").Expanded ~= optOpen; app.onFigureSectionToggled("options"); end
+    if secOf("analysis").Expanded ~= optOpen; app.onFigureSectionToggled("analysis"); end
 end
 
 if S.wants("5d.search")   % the search, continued: a shown row gone to (its supersection and section open, its label highlighted), Down and Escape, a section by its title, the keys window
     app.onPanelSelected(2);   % the PSTH, as 5d.outline leaves it
-    optionsOpen = secOf("options").Expanded;
-    if optionsOpen; app.onFigureSectionToggled("options"); end
+    optionsOpen = secOf("analysis").Expanded;
+    if optionsOpen; app.onFigureSectionToggled("analysis"); end
     app.onFigureSuperToggled("panel");
     app.onFigureSearch("bin");
     iBin = lb.ItemsData(1);
     app.onKeyPress(pressed('return', {}));
-    check(app.FigureSupers(2).Expanded && secOf("options").Expanded && shown(FE.binMs) ...
-        && string(app.StatusBar.Text) == "Panel > PSTH options > Bin (ms)" && isequal(X(iBin).Flash.BackgroundColor, [1.00 0.90 0.35]), ...
-        'Enter on Bin (ms) with the PSTH selected opens the Panel supersection and the options, scrolls there and highlights the row');
+    check(app.FigureSupers(2).Expanded && secOf("analysis").Expanded && shown(FE.binMs) ...
+        && string(app.StatusBar.Text) == "Panel > Analysis — PSTH > Bin width (ms)" && isequal(X(iBin).Flash.BackgroundColor, [1.00 0.90 0.35]), ...
+        'Enter on Bin width (ms) with the PSTH selected opens the Panel supersection and Analysis, scrolls there and highlights the row');
     app.onFigureSearch("line");
     v1 = lb.Value;
     app.onKeyPress(pressed('downarrow', {}));
@@ -1455,7 +1480,7 @@ if S.wants("5d.search")   % the search, continued: a shown row gone to (its supe
     check(isequal(w, w2) && any(startsWith(keysT.Key, "Alt+1")) && any(keysT.Key == "Ctrl+F") && any(contains(keysT.Key, "Ctrl+Alt+arrows")) ...
         && any(contains(keysT.Key, "F6")), 'the "?" button lists the tab''s keys in one window (a second press brings it back)');
     delete(w);
-    if ~optionsOpen; app.onFigureSectionToggled("options"); end
+    if ~optionsOpen; app.onFigureSectionToggled("analysis"); end
     app.onPanelSelected(1);
 end
 
@@ -1782,36 +1807,71 @@ if S.sec("5d.type", "a type change: the PSTH's bins, a heat map and its rows, ba
     app.onConfigChanged("figure");
 end
 
-if S.sec("5d.applyall", "Apply to all panels (Options), Re-link all panels (Panel alignment)")
+if S.sec("5d.applyall", "Apply to all panels in the Analysis, Display and Axes headers (each copies only its own rows), Re-link all panels (Panel alignment)")
     app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
+    cfgAll = app.gatherConfig();
+    app.onNewPanel(Type="heatmap", Where="right");   % a heat map beside the raster, PSTH and continuous panels
     app.onPanelSelected(2);   % the PSTH
-    FE.binMs.Value = 10;
+    FE.binMs.Value = 20;
     FE.waveMode.Value = "mean";
     FE.baselineMode.Value = "zscore";
+    FE.stack.Value = "groups";
+    FE.panelXSide.Value = "top";
+    FE.panelYSide.Value = "right";
     app.onConfigChanged("figure");
     fg0 = app.Config.Figures(1);
     ids = [fg0.panels.id];
-    appliable = FE.optApplyAll.Enable == "on" && FE.alignRelinkAll.Enable == "off";   % own options are no alignment to re-link
+    iR = find([fg0.panels.type] == "raster");
+    iC = find([fg0.panels.type] == "continuous");
+    iH = find([fg0.panels.type] == "heatmap");
+    sides = @(fg) [string({fg.panels.xSide}); string({fg.panels.ySide})];
+    sides0 = sides(fg0);
+    appliable = all([FE.optApplyAll.Enable FE.dispApplyAll.Enable FE.axesApplyAll.Enable] == "on") && FE.alignRelinkAll.Enable == "off" ...
+        && FE.optApplyAll.Parent == secOf("analysis").HeaderGrid ...
+        && FE.dispApplyAll.Parent == secOf("display").HeaderGrid && FE.axesApplyAll.Parent == secOf("axes").HeaderGrid ...
+        && ~any(arrayfun(@(e) any(e.Keys == "optApplyAll"), app.FigureSearchIndex));   % own options are no alignment to re-link; no row of its own now
+    % Analysis: the bins and the baseline go to the heat map, which takes both; the continuous panel keeps its baseline; no stack, no inset, no side
     FE.optApplyAll.ButtonPushedFcn(FE.optApplyAll, []);
-    fg = app.Config.Figures(1);
-    st = string(app.StatusBar.Text);
-    check(appliable && fg.panels(1).options.waveform.mode == "mean" && fg.panels(3).options.baseline.Mode == "none" ...
-        && isequaln(fg.panels(3).options, fg0.panels(3).options) && contains(st, ids(1) + " (waveform)") ...
-        && contains(st, ids(3) + " kept their own baseline") && contains(st, """zscore""") && FE.alignRelinkAll.Enable == "off", ...
-        'Apply to all panels: the PSTH''s waveform inset goes to the raster; the continuous panel keeps its baseline (no zscore there); the status bar says so');
-    FE.waveMode.Value = "off";
-    FE.baselineMode.Value = "none";
-    app.onConfigChanged("figure");
-    FE.optApplyAll.ButtonPushedFcn(FE.optApplyAll, []);
-    FE.optApplyAll.ButtonPushedFcn(FE.optApplyAll, []);   % again: nothing left to copy
-    check(app.Config.Figures(1).panels(1).options.waveform.mode == "off" && contains(string(app.StatusBar.Text), "already"), ...
-        'applied back, then once more: the other panels have the PSTH''s options already');
+    fgA = app.Config.Figures(1);
+    stA = string(app.StatusBar.Text);
+    undoA = string(app.UndoMenu.Text);
+    check(appliable && fgA.panels(iH).options.bins.BinSec == 0.02 && fgA.panels(iH).options.baseline.Mode == "zscore" ...
+        && fgA.panels(iC).options.baseline.Mode == "none" && fgA.panels(iH).options.stack == fg0.panels(iH).options.stack ...
+        && isequaln(fgA.panels(iR).options, fg0.panels(iR).options) && isequal(sides(fgA), sides0) ...
+        && contains(stA, ids(iC) + " kept their own baseline") && contains(stA, """zscore""") && undoA == "Undo Apply Analysis to all panels" ...
+        && FE.alignRelinkAll.Enable == "off", ...
+        sprintf('Analysis > Apply to all panels: the PSTH''s bins and baseline go to the heat map; the continuous panel keeps its baseline (no zscore there); no stack, inset or axis side moves; one undo step "%s" (%s)', undoA, stA));
+    app.onUndoRedo("undo");
+    % Display: the stack and the inset; no bins, no baseline, no side
+    FE.dispApplyAll.ButtonPushedFcn(FE.dispApplyAll, []);
+    fgD = app.Config.Figures(1);
+    stD = string(app.StatusBar.Text);
+    undoD = string(app.UndoMenu.Text);
+    check(fgD.panels(iH).options.stack == "groups" && fgD.panels(iR).options.waveform.mode == "mean" ...
+        && fgD.panels(iH).options.bins.BinSec == fg0.panels(iH).options.bins.BinSec && fgD.panels(iH).options.baseline.Mode == "none" ...
+        && fgD.panels(iC).options.baseline.Mode == "none" && isequal(sides(fgD), sides0) && undoD == "Undo Apply Display to all panels", ...
+        sprintf('Display > Apply to all panels: the PSTH''s stack goes to the heat map and its waveform inset to the raster; no bins, baseline or axis side moves (%s)', stD));
+    FE.dispApplyAll.ButtonPushedFcn(FE.dispApplyAll, []);   % again: nothing left to copy
+    check(contains(string(app.StatusBar.Text), "already") && string(app.UndoMenu.Text) == undoD, ...
+        'Display applied once more: the other panels have the PSTH''s Display settings already, no new undo step');
+    app.onUndoRedo("undo");
+    % Axes: the sides to every panel; no option
+    FE.axesApplyAll.ButtonPushedFcn(FE.axesApplyAll, []);
+    fgX = app.Config.Figures(1);
+    undoX = string(app.UndoMenu.Text);
+    sX = sides(fgX);
+    check(all(sX(1, :) == "top") && all(sX(2, :) == "right") && isequaln(fgX.panels(iH).options, fg0.panels(iH).options) ...
+        && isequaln(fgX.panels(iR).options, fg0.panels(iR).options) && undoX == "Undo Apply Axes to all panels", ...
+        'Axes > Apply to all panels: the PSTH''s X axis and Y axis sides go to every panel; no option moves');
+    app.applyConfig(cfgAll);
+    app.onPanelSelected(2);
+    check(numel(app.Config.Figures(1).panels) == 3 && FE.optApplyAll.Enable == "on", 'the figure as the section found it');
     app.onFigureSectionToggled("palign");
-    app.onFigureSectionToggled("options");
-    app.onKeyPress(pressed('7', {'control'}));
+    app.onFigureSectionToggled("analysis");
+    app.onKeyPress(pressed('5', {'control'}));
     toPalign = app.FigureSections([app.FigureSections.Name] == "palign").Expanded;
-    app.onKeyPress(pressed('9', {'control'}));
-    check(toPalign && app.FigureSections([app.FigureSections.Name] == "options").Expanded, 'Ctrl+7 goes to Panel alignment, Ctrl+9 to Options');
+    app.onKeyPress(pressed('7', {'control'}));
+    check(toPalign && app.FigureSections([app.FigureSections.Name] == "analysis").Expanded, 'Ctrl+5 goes to Panel alignment, Ctrl+7 to Analysis');
 end
 
 if S.sec("5d.multi", "several panels selected with Shift+click: each outlined, the Panel header and a banner say so, the editor shows the rows they share, an edit goes to each one that takes it (one undo step), Remove panels; Escape, Ctrl+Click, a step, Arrange and the search")
@@ -1838,10 +1898,14 @@ if S.sec("5d.multi", "several panels selected with Shift+click: each outlined, t
         && app.FigureSections([app.FigureSections.Name] == "panel").Title == "2 selected panels", ...
         sprintf('Shift+Click on raster_1 with psth_1 selected: both selected (raster_1 shown), both outlined (%d strips), the Panel header blue and naming them, the banner, the section title and the status bar say so', nm));
     check(rowShown("panelTitle") && rowShown("panelYLabel") && rowShown("onsetLine") && rowShown("maskAfterStop") ...
-        && ~rowShown("panelType") && ~rowShown("binMs") && ~rowShown("yTicks") && ~rowShown("rectXY") && ~rowShown("optApplyAll") ...
-        && ~secShown("layers") && ~secShown("note") && ~secShown("overlays") && secShown("palign") ...
+        && ~rowShown("panelType") && ~rowShown("binMs") && ~rowShown("yTicks") && ~rowShown("rectXY") ...
+        && ~secShown("layers") && ~secShown("annotations") && secShown("palign") ...
+        && all([FE.optApplyAll.Enable FE.dispApplyAll.Enable FE.axesApplyAll.Enable] == "off") ...
         && FE.removePanel.Text == "Remove 2 panels" && FE.sendBack.Enable == "off" && FE.bringForward.Enable == "off", ...
-        'the editor shows the rows a raster and a PSTH share (title, axis labels, onset line, mask after the stop), not one''s own (type, bins, y ticks, place, layers, note, overlays)');
+        'the editor shows the rows a raster and a PSTH share (title, axis labels, onset line, mask after the stop), not one''s own (type, bins, y ticks, place, layers, annotations), and the Apply to all panels buttons off');
+    check(secOf("analysis").Title == "Analysis the 2 panels share" && secOf("display").Title == "Display the 2 panels share" ...
+        && secOf("axes").Title == "Axes" && secOf("waveform").Title == "Waveform inset on 2 panels", ...
+        'with a raster and a PSTH selected the Analysis and Display titles say they hold what the 2 panels share, Axes does not name a type, the Waveform section counts the panels (a mixed pair)');
     % an edit goes to both, one undo step each
     p0 = app.Config.Figures(1).panels;
     nUndo = numel(app.FigureHistory.Undo);
@@ -2716,7 +2780,11 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
         sprintf('the Stack row and its spacing reach the PSTH''s options; the preview stacks its groups (%d rows)', nRows));
     FE.baselineMode.Value = "auroc";
     app.onConfigChanged("figure");
-    auShown = shown(FE.auMethod) && shown(FE.auCutoff) && shown(FE.auMarks) && FE.auMethod.Enable == "on" ...
+    sAn = secOf("analysis");
+    kAu = find(sAn.Sub & sAn.SubKey == "auroc", 1);
+    auFolded = sAn.Collapsed(kAu) && ~shown(FE.auMethod) && shown(sAn.SubButton{kAu}) && contains(string(sAn.SubButton{kAu}.Text), "auROC");   % the group starts folded away, its title shown with the auroc baseline
+    app.onFigureSubheadingToggled("analysis", "auroc", false);
+    auShown = auFolded && shown(FE.auMethod) && shown(FE.auCutoff) && shown(FE.auMarks) && FE.auMethod.Enable == "on" ...
         && any(string(FE.baselineMode.Items) == "auroc");
     FE.auWinMs.Value = 20;
     FE.auCutoff.Value = "fixed";
@@ -2753,7 +2821,7 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
     imH = findall(app.FigurePreviewPanel, 'Type', 'image');
     check(heatShown && oH.display == "heatmap" && oH.colormap == "hot" && isequal(oH.cLim, [0 30]) && app.FigurePreviewState == "drawn" ...
         && isscalar(imH) && isequal(clim(ancestor(imH, 'axes')), [0 30]), ...
-        'a PSTH''s Display "heat map": Colormap and Color limits shown (PSTH as, Fill, Stack, Y limits hidden), reaching the options and the preview''s image');
+        'a PSTH''s Draw as "heat map": Colormap and Color limits shown (Trace, Fill, Stack, Y limits hidden), reaching the options and the preview''s image');
     FE.psthDisplay.Value = "trace";
     FE.panelColormap.Value = "auto";
     FE.cLim.Value = '';
@@ -2795,7 +2863,7 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
         && app.FigurePreviewState == "drawn" && numel(figAxes()) == nAx + 1 && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'bar')) ...
         && shown(FE.rateDisplay) && shown(FE.measure) && shown(FE.baselineMode) && ~shown(FE.binMs) && ~shown(FE.stack) ...
         && isequal(string(FE.baselineMode.Items), ["none" "subtract" "ratio" "zscore"]) ...
-        && app.FigureSections([app.FigureSections.Name] == "options").Title == "Firing rate options", ...
+        && secOf("analysis").Title == "Analysis — Firing rate" && secOf("display").Title == "Display — Firing rate" && secOf("axes").Title == "Axes", ...
         'Firing rate, Below: its units layer follows the unit and a bar per trial group is drawn at once; its own rows shown');
     FE.rateDisplay.Value = "points";
     app.onConfigChanged("figure");
@@ -2803,7 +2871,7 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
         && app.FigurePreviewState == "drawn", 'its Display reaches the options and the drawing (points)');
     % the Waveform section: its own, under Panel, for every panel type of spikes; the rate panel's inset from its rows
     secW = app.FigureSections([app.FigureSections.Name] == "waveform");
-    check(secW.Visible && secW.Super == "panel" && secW.Key == "" && startsWith(secW.Title, "Waveform on ") && shown(FE.waveNote) ...
+    check(secW.Visible && secW.Super == "panel" && secW.Key == "" && secW.Title == "Waveform inset on " + app.Config.Figures(1).panels(end).id && shown(FE.waveNote) ...
         && shown(FE.waveMode) && shown(FE.waveFrom) && shown(FE.waveAmp) && shown(FE.waveWidth) && shown(FE.waveLocation) ...
         && ~shown(FE.waveSites) && FE.waveFrom.Enable == "off" && isequal(string(FE.waveAmp.ItemsData), ["unit" "fixed"]), ...
         'a rate panel''s Waveform section (in Panel, no key): its note, Show, Time, Amplitude, Size and place rows, grayed while Off');
@@ -2827,7 +2895,7 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
     check(pt.type == "tuning" && pt.layers.binding == "observation" && app.FigurePreviewState == "drawn" && numel(figAxes()) == nAx + 2 ...
         && Lt.skip == "" && Lt.R.param == "Depth" && ~isempty(findall(app.FigurePreviewPanel, 'Tag', 'curve')) ...
         && shown(FE.param) && shown(FE.waveMode) && ~shown(FE.rateDisplay) ...
-        && app.FigureSections([app.FigureSections.Name] == "options").Title == "Tuning curve options", ...
+        && secOf("analysis").Title == "Analysis — Tuning curve" && secOf("display").Title == "Display — Tuning curve", ...
         'Tuning curve, Below: drawn at once over the figure''s group-by parameter (Depth), its Parameter rows shown');
     app.FigureAutoSlider.Value = 0;   % Auto off again: no redraw per edit
     FE.param.Value = 'Depth';
@@ -2898,7 +2966,7 @@ end
 
 if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; Remove")
     savedConfig();
-    app.onFigureSectionToggled("options");
+    app.onFigureSectionToggled("analysis");
     app.onFigureSuperToggled("look");
     app.onFigureSubheadingToggled("observations", "responseTest", false);   % starts folded away: this one is left open
     app.FigureAutoSlider.Value = 0.35;
@@ -2921,7 +2989,7 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     kept = isscalar(app2.Config.Figures) && isequaln(app2.Config.Figures, app.Config.Figures) && app2.SelectedFigure == 1 ...
         && string(figureNode(app2.FiguresTree, 1).Text) == app.Config.Figures(1).id + "  (2 panels)";
     restored = abs(app2.FigureAutoSlider.Value - 0.35) < 1e-9 && app2.FigureAutoLast == app2.FigureAutoSlider.Value ...
-        && contains(string(app2.FigureAutoSlider.Tooltip), "under 1.1 s") && ~app2.FigureSections([app2.FigureSections.Name] == "options").Expanded ...
+        && contains(string(app2.FigureAutoSlider.Tooltip), "under 1.1 s") && ~app2.FigureSections([app2.FigureSections.Name] == "analysis").Expanded ...
         && app2.FigureSections([app2.FigureSections.Name] == "layers").Expanded ...
         && isequal([app2.FigureSupers.Expanded], [true true false]) && ~shown(app2.FigureEditor.fontSize);
     subOpen = ~app2.FigureSections([app2.FigureSections.Name] == "observations").Collapsed(find(app2.FigureSections([app2.FigureSections.Name] == "observations").SubKey == "responseTest", 1));
@@ -2930,13 +2998,14 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
         && string(app2.FigureEditor.rectUnits.Value) == "in" && ~app2.FigureEditor.snap.Value && app2.FigureEditor.snapStep.Value == 0.25 ...
         && string(app2.FigureEditor.snapUnits.Text) == "in";
     closeApp(app2);
-    check(subOpen && isempty(string(AppPrefs.getpref(g, 'FigureSubheadingsCollapsed'))), ...
-        'a new app restores the Response test sub-heading left open (FigureSubheadingsCollapsed holds the folded ones: none)');
+    check(subOpen && isequal(sort(string(AppPrefs.getpref(g, 'FigureSubheadingsCollapsed'))), ["analysis.auroc" "analysis.tapers"]), ...
+        'a new app restores the Response test sub-heading left open (FigureSubheadingsCollapsed holds the folded ones: the auROC and Tapers groups of Analysis)');
     AppPrefs.setpref(g, 'FigureSubheadingsCollapsed', {'observations.responseTest', 'observations.unitFilter', 'gone.old'});   % a plain one and a stale name are ignored
     app3 = EphysFigGenApp();
     sO3 = app3.FigureSections([app3.FigureSections.Name] == "observations");
-    check(sO3.Collapsed(sO3.SubKey == "responseTest") && ~any(sO3.Collapsed(sO3.SubKey ~= "responseTest")), ...
-        'the sub-headings'' preference: the folded one is folded, a sub-heading that cannot fold and a name that is none are ignored');
+    sA3 = app3.FigureSections([app3.FigureSections.Name] == "analysis");
+    check(sO3.Collapsed(sO3.SubKey == "responseTest") && ~any(sO3.Collapsed(sO3.SubKey ~= "responseTest")) && ~any(sA3.Collapsed), ...
+        'the sub-headings'' preference: the folded one is folded, a sub-heading that cannot fold and a name that is none are ignored, the auROC and Tapers groups left out are open');
     closeApp(app3);
     app.savePreferences();
     check(workersDefault == 4 && workersKept == 2, sprintf(['the Export tab''s Workers: 4 by default, and a new app ' ...
@@ -2953,7 +3022,7 @@ if S.sec("5d.saveprefs", "save, reopen; the preferences restored by a new app; R
     FE.snapStep.ValueChangedFcn(FE.snapStep, []);
     app.FigureAutoSlider.Value = 1;
     app.onFigureAutoRedrawChanged();
-    app.onFigureSectionToggled("options");
+    app.onFigureSectionToggled("analysis");
     app.onFigureSuperToggled("look");
     app.onFigureSubheadingToggled("observations", "responseTest", true);
     app.onRemoveFigure();
@@ -2997,10 +3066,14 @@ if S.sec("5d.spectrum", "a spectrum panel and a spectrogram panel (Chronux: the 
             && spX == "Frequency (Hz)" && spKind == "chronuxSpikeSpectrum", ...
             sprintf('a Power spectrum panel added from the drop-down: the observed unit''s spike spectrum, previewed (%s, %d axes, %d traces, x "%s", %s)', ...
             app.FigurePreviewState, numel(spAx), numel(spTr), spX, spKind));
-        check(shown(FE.spTaperMode) && shown(FE.spTW) && shown(FE.spErr) && shown(FE.spScale) && shown(FE.spTimeBase) && shown(FE.spSpikeFs) ...
+        sAn = secOf("analysis");
+        kTp = find(sAn.Sub & sAn.SubKey == "tapers", 1);
+        tapFolded = sAn.Collapsed(kTp) && ~shown(FE.spTaperMode) && shown(sAn.SubButton{kTp});   % the Tapers group starts folded away
+        app.onFigureSubheadingToggled("analysis", "tapers", false);
+        check(tapFolded && shown(FE.spTaperMode) && shown(FE.spTW) && shown(FE.spErr) && shown(FE.spScale) && shown(FE.spTimeBase) && shown(FE.spSpikeFs) ...
             && ~shown(FE.spRangeFrom) && ~shown(FE.spWin) && ~shown(FE.spShowPhase) && ~shown(FE.binMs) && ~shown(FE.baselineMode) ...
             && shown(FE.yLim) && FE.spTW.Enable == "on" && FE.spW.Enable == "off" ...
-            && app.FigureSections([app.FigureSections.Name] == "options").Title == "Power spectrum options", ...
+            && secOf("analysis").Title == "Analysis — Power spectrum" && secOf("display").Title == "Display — Power spectrum", ...
             'its options show the Chronux rows: tapers, error, scale, time base, spike rate (no range on epochs, no moving window)');
         FE.spTW.Value = 2;
         FE.spK.Value = 3;
@@ -3552,13 +3625,13 @@ if S.sec("5h", "the figure tree, a panel's note and overlays")
     % a panel's text note and overlays: the rows apply to the panel picked
     app.onFigureSelected(1);
     app.onPanelSelected(2);   % the PSTH
-    for sname = ["note" "overlays"]
-        if ~app.FigureSections([app.FigureSections.Name] == sname).Expanded; app.onFigureSectionToggled(sname); end
-    end
-    Sn = app.FigureSections([app.FigureSections.Name] == "note");
-    check(shown(FE.annText) && shown(FE.ovList) && ~shown(FE.ovName) && Sn.Title == "Text note on psth_1" && Sn.Key == "0" ...
-        && app.FigureSections([app.FigureSections.Name] == "overlays").Key == "" && FE.annPlace.Enable == "off", ...
-        'the Text note and Overlays sections show for the panel picked (Text note on Ctrl+0, Overlays no key), the note''s look off without text');
+    if ~secOf("annotations").Expanded; app.onFigureSectionToggled("annotations"); end
+    Sn = secOf("annotations");
+    subTitles = Sn.SubTitle(Sn.Sub);
+    check(shown(FE.annText) && shown(FE.ovList) && ~shown(FE.ovName) && Sn.Title == "Annotations on psth_1" && Sn.Key == "0" ...
+        && isequal(subTitles, ["Text note" "Overlays"]) && all(~Sn.SubCollapsible(Sn.Sub)) && ~any([app.FigureSections.Name] == "overlays") ...
+        && FE.annPlace.Enable == "off", ...
+        'the Annotations section shows for the panel picked (Annotations on psth_1, Ctrl+0): the Text note and Overlays sub-headings, the note''s look off without text');
     FE.annText.Value = {'n = 12'};
     FE.annPlace.Value = "northeast";
     FE.annColor.Value = "#ff0000";
@@ -3576,8 +3649,8 @@ if S.sec("5h", "the figure tree, a panel's note and overlays")
     regs = findall(app.FigurePreviewPanel, 'Tag', 'overlayRegion');
     check(isscalar(ov1) && ov1.shape == "region" && ov1.name == "Patch 1" && ov1.to == 0.05 && ov1.panel == "all" ...
         && shown(FE.ovFill) && ~shown(FE.ovValue) && isscalar(regs) && app.FigurePreviewState == "drawn" ...
-        && contains(app.FigureSections([app.FigureSections.Name] == "overlays").Title, "Overlays (1) on psth_1"), ...
-        'Add patch: an overlay of the panel, its rows edit it, the preview draws it on the PSTH');
+        && overlaysHeading(secOf("annotations")) == "Overlays (1)", ...
+        'Add patch: an overlay of the panel (counted in the Overlays sub-heading), its rows edit it, the preview draws it on the PSTH');
     app.onAddFigureOverlay("line");
     app.onDuplicateFigureOverlay();
     three = numel(app.Config.Figures(1).panels(2).overlays) == 3 && app.Config.Figures(1).panels(2).overlays(3).name == "Line 1 copy";
@@ -4887,21 +4960,21 @@ if S.sec("5m", "each figure's own preview container: kept drawings, the tree's m
     app.refreshFigurePreview(Force=true);
 
     % the editor as each figure left it
-    opt = @() app.FigureSections([app.FigureSections.Name] == "options").Expanded;
-    if ~opt(); app.onFigureSectionToggled("options"); end
+    opt = @() app.FigureSections([app.FigureSections.Name] == "analysis").Expanded;
+    if ~opt(); app.onFigureSectionToggled("analysis"); end
     app.onPanelSelected(2);
-    app.onFigureSectionToggled("options");   % figure 1: Options collapsed, panel 2
+    app.onFigureSectionToggled("analysis");   % figure 1: Analysis collapsed, panel 2
     app.onFigureSelected(2);
     check(app.SelectedPanel == 1, 'the second figure: its own panel (its first), not the first figure''s panel 2');
-    if ~opt(); app.onFigureSectionToggled("options"); end   % figure 2: Options open
+    if ~opt(); app.onFigureSectionToggled("analysis"); end   % figure 2: Analysis open
     app.onFigureSelected(1);
     check(app.SelectedPanel == 2 && ~opt() && isKey(app.FigureEditorStates, char(app.Config.Figures(2).id)), ...
-        'back to the first: its panel 2 and its Options collapsed, as it left them');
+        'back to the first: its panel 2 and its Analysis collapsed, as it left them');
     ax1 = figAxes();
     s1 = app.FigureEditorStates(char(app.Config.Figures(2).id));
     app.onFigureSelected(2);
     check(app.SelectedPanel == 1 && opt() && isfield(s1, 'Scroll') && (isempty(s1.Scroll) || numel(s1.Scroll) == 2), ...
-        'and the second: its Options open again (its scroll kept too)');
+        'and the second: its Analysis open again (its scroll kept too)');
 
     % the observation picker as each figure left it (keepFigurePicker): a switch back lists nothing again
     dd = app.FigureObservationDropDown;
@@ -5220,7 +5293,7 @@ if S.sec("5o", "Size: the page a figure is exported on, the preview shaped like 
     app.onKeyPress(pressed('control', {'control'}));
     app.onFigurePanelClicked(ids(1), "psth_1", true, false);
     check(app.SelectedPanel == 2 && secOf("panel").Expanded && app.FigureHistory.undoLabel() == label0, ...
-        'Ctrl+Click on psth_1 selects it and opens the Selected panel section; no undo step, and no Apply to figures although Ctrl is held');
+        'Ctrl+Click on psth_1 selects it and opens the Panel section; no undo step, and no Apply to figures although Ctrl is held');
     app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));
     app.onPanelSelected(1);
     h = app.onOpenFigureWindow();
@@ -5312,7 +5385,7 @@ if S.sec("5p", "remembered panel options: a new panel starts from the last set, 
     check(numel(names5p) >= 14 && all(wrapped) && ~any(toSwatch) && all(ismember(["tickColor" "layerColor" "ovColor" "errFace"], names5p)), ...
         sprintf('every color field of the editor (%d) has a swatch beside it; the search goes to the field, not the swatch', numel(names5p)));
     app.onPanelSelected(1);   % the raster
-    app.gotoFigureSection("options");   % open, whatever the sections before left collapsed
+    app.gotoFigureSection("display");   % open, whatever the sections before left collapsed
     b5p = FE.swatch.tickColor;
     plain = string(b5p.Text) == "..." && b5p.Enable == "on" && shown(FE.tickColor);
     app.ColorPicker = @(c, t) [1 0 0];

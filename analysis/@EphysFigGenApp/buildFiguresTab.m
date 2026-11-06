@@ -469,8 +469,8 @@ titles = ["Event reference" "Epoch window" "Trial selection"];
 boxes = ["defaultRef" "defaultWindow" "defaultSelection"];
 whats = ["event reference" "epoch window" "trial selection"];
 for q = 1:3
-    [S, ~, g] = formSubheading(S, parts(q), titles(q), Control=true);
-    E.(boxes(q)) = defaultBox(obj, g, whats(q));
+    [S, ~, hg] = formSubheading(S, parts(q), titles(q), Control=true);
+    E.(boxes(q)) = defaultBox(obj, hg, whats(q));
     [S, r] = formRow(S, parts(q) + "Body", "", 100);
     bodies(q) = uipanel(S.Body, "BorderType", "none");
     bodies(q).Layout.Row = r;

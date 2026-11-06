@@ -221,9 +221,9 @@ try
         if r2(1) + r2(3) + 0.05 > 1; dxs = -dxs; end
         n = 0;
         stepFcn = @() stepMove();
-        measure('Arrange drag step (no profiler)', stepFcn, struct('Reps', 20, 'Profile', false, 'Rows', 'summary'));
+        measure('Arrange drag step (no profiler)', stepFcn, struct('Reps', 20, 'Profile', false, 'Rows', 'summary', 'Settle', false));
         n = 0;
-        measure('Arrange drag step (profiled)', stepFcn, struct('Reps', 20, 'Rows', 'summary'));
+        measure('Arrange drag step (profiled)', stepFcn, struct('Reps', 20, 'Rows', 'summary', 'Settle', false));
         % release 1: a small shift that keeps the neighbors
         [target1, why1] = neighborKeeping(ids, id2);
         emit('release 1 target %s (%s)\n', mat2str(target1, 4), why1);
@@ -244,6 +244,36 @@ try
         measure('Arrange right-arrow nudge', @() app.onKeyPress(pressed('rightarrow')), struct('Wait', true));
     end
     measure('Arrange off', @() arrangeOn(false), struct('Wait', true));
+    settleWait();
+    % ---- d2. Arrange again, no profiler (the overlay kept; true times) ----
+    for pass = 1:2
+        tag = sprintf(' (no profiler, pass %d)', pass);
+        np0 = struct('Wait', true, 'Profile', false);
+        if app.FigurePreviewState ~= "drawn"; app.refreshFigurePreview(Force=true); drawnow; waitPreview(app, 120); end
+        app.onPanelSelected(p1);
+        drawnow;
+        measure(['Arrange on' tag], @() arrangeOn(true), np0);
+        if ~isstruct(app.FigureArrangeOverlay) || ~isKey(app.FigureArrangeOverlay.widgets, char(id2)); break; end
+        measure(['Arrange press on unselected box' tag], @() app.onArrangeClicked(id2, struct('SelectionType', 'normal')), struct('Profile', false));
+        r2 = rectOf(id2);
+        n = 0;
+        dxs = 0.01 * mod(1:20, 5);
+        if r2(1) + r2(3) + 0.05 > 1; dxs = -dxs; end
+        app.onArrangeMoving(id2, images.roi.ROIMovingEventData(r2, r2 + [dxs(1) 0 0 0]));
+        [t1, ~] = neighborKeeping(ids, id2);
+        measure(['Arrange release, neighbors kept' tag], @() release(t1), np0);
+        measure(['Arrange editor fill (timer)' tag], @() fireSelectTimer(), struct('Profile', false, 'Settle', false));
+        app.onArrangeClicked(id2, struct('SelectionType', 'normal'));
+        r2 = rectOf(id2);
+        app.onArrangeMoving(id2, images.roi.ROIMovingEventData(r2, r2 + [dxs(1) 0 0 0]));
+        [t2, why2b] = flushTarget(ids, id2);
+        emit('pass %d flush target %s (%s)\n', pass, mat2str(t2, 4), why2b);
+        measure(['Arrange release, neighbors changed' tag], @() release(t2), np0);
+        app.onArrangeClicked(id2, struct('SelectionType', 'normal'));
+        measure(['Arrange right-arrow nudge' tag], @() app.onKeyPress(pressed('rightarrow')), np0);
+        measure(['Arrange off' tag], @() arrangeOn(false), np0);
+        measure(['Arrange off: the redraw that follows' tag], @() settleWait(), struct('Profile', false, 'Settle', false));
+    end
 
     % ---- e. a title edit ----
     emit('\n=== title edit ===\n');
@@ -289,7 +319,7 @@ end
 
     function measure(name, fcn, o)
         % MEASURE  Time FCN Reps times (call alone, then to the paint after a drawnow), under the profiler.
-        d = struct('Reps', 1, 'Setup', [], 'Wait', false, 'Profile', true, 'Rows', 'all');
+        d = struct('Reps', 1, 'Setup', [], 'Wait', false, 'Profile', true, 'Rows', 'all', 'Settle', true);
         for f = fieldnames(o)'; d.(f{1}) = o.(f{1}); end
         o = d;
         call = nan(1, o.Reps);
@@ -302,6 +332,9 @@ end
             try
                 if ~isempty(o.Setup); o.Setup(); end
                 drawnow;
+                if o.Settle   % the browser's answers to the last action (a position event per control laid out) come in first, as between a person's clicks
+                    for q = 1:2; pause(0.4); drawnow; end
+                end
                 b0 = app.FigurePreviewBusyCount;
                 if o.Profile && i == 1; profile on; elseif o.Profile; profile resume; end
                 t0 = tic;
@@ -375,6 +408,31 @@ end
         wgt = app.FigureArrangeOverlay.widgets(char(id2));
         wgt.Position = target;
         app.onArrangeMoved(id2, []);
+    end
+
+    function settleWait()
+        % the redraw onArrangeToggled leaves to a timer, run now (and the preview waited for)
+        t = [];
+        try t = app.FigureSettleTimer; catch; end
+        if ~isempty(t) && isvalid(t)
+            f = t.TimerFcn;
+            stop(t);
+            f(t, []);
+        end
+        drawnow;
+        waitPreview(app, 120);
+        pause(0.5);   % (the browser's paint of a redraw ends before the next action is timed)
+        drawnow;
+    end
+
+    function fireSelectTimer()
+        t = [];
+        try t = app.FigureSelectTimer; catch; end
+        if ~isempty(t) && isvalid(t)
+            f = t.TimerFcn;
+            stop(t);
+            f(t, []);
+        end
     end
 
     function editTitle(v)

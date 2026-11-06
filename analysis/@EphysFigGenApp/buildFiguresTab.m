@@ -1913,8 +1913,8 @@ obj.SaveDesignButton = uibutton(bg, "Text", "Save look as design...", "ButtonPus
     "preview is out of date.");
 % the aesthetics editor on the preview without a right-click (the app's EditAestheticsButton is this button)
 E.editAesthetics = uibutton(bg, "Text", "Edit aesthetics...", "ButtonPushedFcn", @(~,~) obj.onEditAesthetics(), ...
-    "Tooltip", "Change the colors, lines, markers, fonts and labels of the preview: the editor a right-click on a part " + ...
-    "of the plot opens, here on the selected panel's axes. Every part of the figure is in its list.");
+    "Tooltip", "Change the colors, lines, markers, fonts and labels of the preview: the aesthetics editor a right-click " + ...
+    "on a part of the plot opens, here on the selected panel's axes. Every part of the figure is in its list.");
 obj.EditAestheticsButton = E.editAesthetics;
 [S, r] = formRow(S, ["looksText" "looksForget"], "", 30);
 kg = subgrid(S.Body, r, {'1x', 'fit'});

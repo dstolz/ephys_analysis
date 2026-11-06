@@ -2290,7 +2290,7 @@ A panel shares the figure's time axis when its type does (`SharesTime`) and its
 
 Each panel's place is its `rect`, `[x y width height]` in 0-1 of the page
 from its bottom-left corner. Static functions edit a figure entry (`fig =
-cfg.Figures(k)`) as a value, with no graphics; the app's Panels section calls
+cfg.Figures(k)`) as a value, with no graphics; the app's Panel and Layout sections call
 the same ones. None of them moves a panel it does not name: a panel keeps its
 rect until it is placed again.
 
@@ -3256,7 +3256,7 @@ them, and `figureSessionSpec` applies it to the compute and the render alike:
 
 The standalone script carries the same calls
 ([Generated scripts](EphysAnalysis.md#session-figures-in-a-standalone-script)),
-and the app edits the block in the Figures tab's Sessions section
+and the app edits the block in the Figures tab's Sessions section (shown with Pages set to Across datasets)
 ([Figures tab](EphysFigGenApp.md#figures-tab)).
 
 #### Validating session figures

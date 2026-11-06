@@ -17,7 +17,7 @@ a = "Alt";
 if ismac; c = "Cmd"; a = "Option"; end
 K = [ ...
     a + "+1, " + a + "+2, " + a + "+3",  "Go to a supersection of the editor: Figure, Panel, Look (it opens if collapsed; Tab then moves into it)"
-    c + "+1 ... " + c + "+9, " + c + "+0", "Go to a section: Observations 1, Alignment 2, Layout 3, Panel 4, Panel alignment 5, Layers 6, Analysis 7, Display 8, Axes 9, Annotations 0 (each header names its key)"
+    c + "+1 ... " + c + "+9, " + c + "+0", "Go to a section: Observations 1, Alignment 2, Layout 3, Panel 4, Panel alignment 5, Layers 6, Analysis 7, Display 8, Axes 9, Annotations 0 (each header names its key; First-spike latency, Sessions, Probe layout, Waveform, Style and Design and looks have none: the search finds them)"
     c + "+F",                          "Go to the search field: type part of a setting's name"
     "Enter (searching)",                 "Go to the match picked, else the first: its supersection and section open, the editor scrolls to it, its control takes the focus"
     "Down, Up (searching)",              "Pick another match (the editor shows it); Tab also moves into the list of matches"
@@ -43,6 +43,7 @@ K = [ ...
     a + " held while dragging (Arrange)", "No snapping: the box goes exactly where the pointer puts it"
     "Shift+click a box (Arrange)",       "Add the panel to the selection, or take it out, as Shift+Click on the preview does: a drag, a resize and the arrows then act on every panel selected, a box's Remove panel removes them all; a plain click selects one alone"
     "Right-click a box (Arrange)",        "Set corners, Bring forward, Send back, Remove panel; on the floating legend's dashed box: Make it a legend panel here"
+    "Align bar (Arrange)",               "In the template controls' place above the preview while Arrange is on: with panels selected, line them up (left, center, right, top, middle or bottom edges) or space them evenly across or up the page, by their boxes, their axes or their axes with labels"
     "Escape (Arrange: a drag or Set corners)", "Cancel the drag, or Set corners' clicks: the figure is unchanged"
     c + "+Z",                          "Undo the last edit of the figures: the layout, a panel, a layer, an option, the figure list (the Edit menu names it)"
     c + "+Y, " + c + "+Shift+Z",       "Redo the last edit undone"

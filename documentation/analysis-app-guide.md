@@ -97,12 +97,21 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
    - To remove a panel, select it and press **Remove panel**. It leaves the
      preview at once and the other panels stay where they are.
    - To place a panel exactly, type its **Position** and **Size** in the
-     **Layout** section, in the **Units** you pick (cm, inches, pixels, %).
-     Or press **Set corners** and click two opposite corners on the preview.
+     **Panel** section, in the **Units** you pick in **Layout** (cm, inches,
+     pixels, %). Or press **Set corners** and click two opposite corners on
+     the preview.
+   - The settings column, between the figure list and the preview, has three
+     parts, each a color. **FIGURE** (blue) is about the whole figure: what it
+     is drawn for, its alignment, its page. **PANEL** (green) is about the
+     selected panel: its layers, then **Analysis** (what is computed: a change
+     computes the figure again), **Display** and **Axes** (how it is drawn: a
+     change only redraws it) and **Annotations**. **LOOK** (violet) is about
+     every panel's style and design. To find a setting, type its name in the
+     search field above the column (**Ctrl+F**).
    - The preview on the right draws the figure for the unit picked above it.
      Step through the units to look at them one by one. Right-click the plot
-     to change colors, fonts and labels, or press **Edit aesthetics...**
-     right of **Favorites**. After a change it draws again on
+     to change colors, fonts and labels, or press **Edit aesthetics...** in
+     **Design and looks** (LOOK, in the settings column). After a change it draws again on
      its own when that is quick enough for the **Auto** slider left of it.
 4. **Export.** Tick the formats (png, svg, pdf), press **Run**, then **Open
    report**.
@@ -114,16 +123,16 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | ...do this | Do this |
 | --- | --- |
 | change how a figure looks (colors, line widths, fonts, axis labels) | right-click a part of the preview and edit it there, or open **Design and looks** under LOOK in the settings column: pick a ready-made look in **Design** (journal, talk, ...; the **Design** menu and the list beside **Dataset** are the same choice), press **Edit aesthetics...** to edit the selected panel's colors, lines and fonts (or right-click the preview), and **Save look as design...** to keep the preview's look as a design of your own. Fonts, line widths, colors and the legend are under **Style** |
-| draw a smooth line over a PSTH's bars | select the PSTH and, in its options, tick **Smoothed line: Draw**. **SD (ms)** sets how smooth the line is; **Smoothing SD (ms)** still sets the bars' own smoothing, apart from the line's |
+| draw a smooth line over a PSTH's bars | select the PSTH and, in its **Display** section, tick **Smoothed line: Draw**. **SD (ms)** sets how smooth the line is; **Smooth SD (ms)** in **Analysis** still sets the bars' own smoothing, apart from the line's |
 | write a label that follows the data, such as *Time (s) re Stim onset* or *Hit trials* | type a variable in braces in a title, an axis label, a layer's name or a note: **Time (s) re {Line} {Edge}**, **{Response} trials**. Each figure fills it in. The **{x}** button beside the field lists them, with what each means (see [Labels that follow the data](#labels-that-follow-the-data)) |
-| give one figure its own event or window | in the figure's panel settings, set its own event reference and epoch window; the Alignment tab is only the default |
+| give one figure its own event or window | for the whole figure, untick **Use default** under the event reference or epoch window in its **Alignment** section; for one panel, untick **Same as the figure** in its **Panel alignment** section. The Alignment tab is only the default |
 | draw a figure across several recordings | in the figure's Observations section, set **Pages** to *Across datasets*; its settings are in the Sessions section that appears |
 | draw a small figure at every unit's place on the probe | in the figure's Observations section, set **Pages** to *On the probe*; its settings are in the Probe layout section that appears |
 | keep only the units that respond to the event | in the figure's Observations section, tick **Responsive only**. Its settings (windows, correction, auROC) are in the **Response test** group under it: click **▸ Response test** to open it. The section colors tell the scope: blue sections are about the whole figure, green about the selected panel, violet about the look of every panel. Can't find a setting? Type its name in the search field above the editor |
 | check one unit's figures before a long run | Export tab: **Test report** |
 | choose when the preview redraws after a change | drag the **Auto** slider left of the preview. Left end: never, press **Preview**. Right end: after every change, however slow. In between, the further right, the slower a redraw it starts on its own (the middle: under 2 s; point at the slider to see its limit). A change of colors, fonts or labels only redraws, so it is quick even when computing the figure is slow. **Ctrl+T** turns Auto off and on |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
-| move or resize a panel | press **Arrange** above the preview and drag the panel's box (a corner or an edge resizes it); after a click on the preview the arrow keys nudge it. Or pick it (Ctrl+Click it in the preview) and type its **Position** and **Size** in the Layout section; **Units** picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [Arranging panels on the preview](EphysFigGenApp.md#arranging-panels-on-the-preview)) |
+| move or resize a panel | press **Arrange** above the preview and drag the panel's box (a corner or an edge resizes it); after a click on the preview the arrow keys nudge it. Or pick it (Ctrl+Click it in the preview) and type its **Position** and **Size** in the Panel section; **Units** (in Layout) picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [Arranging panels on the preview](EphysFigGenApp.md#arranging-panels-on-the-preview)) |
 | change a setting on several panels at once | **Shift+Click** the panels in the preview: each is outlined, and the Panel header turns blue and names them. The editor shows only the settings they all have; what you change goes to all of them (one Undo takes it back). **Esc** goes back to one panel (see [Several panels at once](EphysFigGenApp.md#several-panels-at-once)) |
 | line panels up, or space them evenly | press **Arrange**, click one panel's box and **Shift**+click the others, then use the bar above the preview: the six align buttons, or **Space** across or up. Pick *axes* in **Align** to line up the plots themselves, *axes + labels* for equal white space; type a **Gap** for a set space between them (see [Lining panels up](EphysFigGenApp.md#lining-panels-up-and-spacing-them-evenly)) |
 | move or resize several panels together | **Shift+Click** them, then press **Arrange** (or press Arrange and **Shift**+click their boxes), then drag one of them: all move by the same amount (resizing one resizes each by the same amount); the arrow keys nudge them all |
@@ -166,8 +175,8 @@ animal leaving the platform, and whether that differs between trial groups:
    per-trial numbers into a spreadsheet, or **Export data (CSV)...** to save
    them.
 
-For one measure against another, pick **Trial scatter** instead (its **X
-measure** is the x axis); for the shape of one measure, **Trial histogram**.
+For one measure against another, pick **Trial scatter** instead (its **Trial
+measure (x)** is the x axis); for the shape of one measure, **Trial histogram**.
 Every option is in [Trial measures](EphysAnalysisConfig.md#trial-measures) and
 the [Trial measure window](EphysFigGenApp.md#the-trial-measure-window).
 
@@ -211,6 +220,8 @@ the quickest way to draw the same figures for one group of recordings.
 | epoch | the stretch of time around one event that a figure uses |
 | group | the trials that share a value of the **Group by** parameter; each group gets its own color |
 | panel | one plot of a figure (a raster, a PSTH, a probe map, ...), placed on the page by its own rectangle |
+| FIGURE, PANEL, LOOK | the three parts of the settings column: the whole figure, the selected panel, and the style every panel shares |
+| pages | how a figure is paged (**Pages**, in Observations): one per observation, across datasets, or on the probe |
 | config | everything you set in the app, saved as a `.json` file |
 
 ## When something goes wrong

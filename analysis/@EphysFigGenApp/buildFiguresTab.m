@@ -1081,7 +1081,7 @@ E.optApplyAll = applyAllButton(obj, Sa, "analysis", "Copy this panel's Analysis 
 [Sa, r] = formRow(Sa, "binMs", "Bin width (ms):");
 E.binMs = uieditfield(Sa.Body, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", changed);
 place(E.binMs, r, 2);
-[Sa, r] = formRow(Sa, "smoothMs", "Smoothing SD (ms):");
+[Sa, r] = formRow(Sa, "smoothMs", "Smooth SD (ms):");
 E.smoothMs = uieditfield(Sa.Body, "numeric", "Value", 10, "Limits", [0 Inf], "ValueChangedFcn", changed, "Tooltip", "Gaussian SD; 0 = none.");
 place(E.smoothMs, r, 2);
 [Sa, r] = formRow(Sa, "measure", "Measure:");
@@ -1094,7 +1094,7 @@ E.baselineMode = uidropdown(Sa.Body, "Items", "none", "ValueChangedFcn", changed
     "heat map of spikes): each window's auROC against the baseline, 0.5 = no change, above = more firing (Cohen et " + ...
     "al. 2012; Macedo-Lima et al. 2024); its settings below.");
 place(E.baselineMode, r, 2);
-[Sa, r] = formRow(Sa, ["baseFrom" "baseTo"], "Baseline window (s):");
+[Sa, r] = formRow(Sa, ["baseFrom" "baseTo"], "Baseline span (s):");
 bg = subgrid(Sa.Body, r, {'1x', 'fit', '1x'});
 E.baseFrom = uieditfield(bg, "numeric", "Value", -0.2, "ValueChangedFcn", changed, "Tooltip", "Baseline window start (s from the event).");
 uilabel(bg, "Text", "to");
@@ -1213,7 +1213,7 @@ E.spFmax = uieditfield(fr, "numeric", "Value", 100, "Limits", [0 Inf], "LowerLim
 E.spDetrend = uidropdown(Sa.Body, "Items", ["none" "constant (the mean)" "linear"], "ItemsData", ["none" "constant" "linear"], ...
     "ValueChangedFcn", changed, "Tooltip", "Removed from each trial before the spectra.");
 place(E.spDetrend, r, 2);
-[Sa, r] = formRow(Sa, "spSpikeFs", "Spike sampling (Hz):");
+[Sa, r] = formRow(Sa, "spSpikeFs", "Sampling (Hz):");
 E.spSpikeFs = uieditfield(Sa.Body, "numeric", "Value", 1000, "Limits", [0 Inf], "LowerLimitInclusive", "off", ...
     "ValueChangedFcn", changed, "Tooltip", "Spike trains: the rate of the time grid their spectra are computed on.");
 place(E.spSpikeFs, r, 2);
@@ -1345,7 +1345,7 @@ E.fillAlpha = uieditfield(fg, "numeric", "AllowEmpty", "on", "Value", [], "Place
 sg = subgrid(Sd.Body, r, {'fit', 'fit', '1x'});
 E.smoothLine = uicheckbox(sg, "Text", "Draw", "Value", false, "ValueChangedFcn", changed, "Tooltip", ...
     "A line over each group's PSTH: the PSTH smoothed on its own, by a Gaussian of the SD at the right over the " + ...
-    "unsmoothed bins. Smoothing SD (ms) smooths the histogram only, so neither changes the other.");
+    "unsmoothed bins. Smooth SD (ms) smooths the histogram only, so neither changes the other.");
 uilabel(sg, "Text", "SD (ms):");
 E.smoothLineMs = uieditfield(sg, "numeric", "Value", 25, "Limits", [0 Inf], "ValueChangedFcn", changed, "Tooltip", ...
     "The smoothed line's Gaussian SD, ms (0: the unsmoothed PSTH as a line). A change redraws the plot without " + ...

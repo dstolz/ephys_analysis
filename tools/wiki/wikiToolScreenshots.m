@@ -149,7 +149,7 @@ if any(ismember(analysisShots, opts.Shots))
     a.onFigureSelected(1);
     a.refreshFigureObservations();
     a.refreshFigurePreview(Force=true);
-    a.gotoFigureSection("arrangement");   % the Panels section: Position, Size, Boxes mean, Padding
+    a.gotoFigureSection("arrangement");   % the Layout section: New panel..., the Page (size, Boxes mean, Padding), the app preferences
     if license('test', 'Image_Toolbox')   % Arrange needs it
         a.FigureArrangeButton.Value = true;
         a.onArrangeToggled();             % a box over each panel

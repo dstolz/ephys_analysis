@@ -3,7 +3,7 @@ function cm = arrangeMenu(obj, id)
 %   CM = arrangeMenu(OBJ, ID) is a context menu (in the app's window) for
 %   the panel ID's widget (arrangeWidget, which deletes it with itself).
 %   Each item selects the panel first (onPanelSelected), then does what
-%   the Panels section's button of that name does: onSetCorners,
+%   the Layout section's button of that name does: onSetCorners,
 %   onPanelOrder(1), onPanelOrder(-1), onRemovePanel; with several panels
 %   selected (Shift+click, selectedPanelIds) and ID one of them, Remove
 %   panel removes them all (one undo step, "Remove panels"), the others

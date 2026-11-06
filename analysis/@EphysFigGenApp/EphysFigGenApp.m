@@ -146,7 +146,8 @@ classdef EphysFigGenApp < handle
     %   Keys (onKeyPress), on the Figures tab: Alt+1, Alt+2 and Alt+3 go to
     %   the figure editor's supersections, Figure, Panel and Look
     %   (gotoFigureSuper); Ctrl+1 to Ctrl+9 and Ctrl+0 (Cmd on a Mac) to its
-    %   sections (gotoFigureSection); each header names its key. Ctrl+F
+    %   sections (gotoFigureSection): Observations, Alignment and Layout, then
+    %   the Panel supersection's; each header names its key. Ctrl+F
     %   goes to the search field (onFigureSearch, gotoFigureRow), F6 and
     %   Shift+F6 to the next and previous column (focusFigurePane), Ctrl+]
     %   and Ctrl+[ to the next and previous panel, Ctrl+Alt+arrows to the
@@ -175,7 +176,7 @@ classdef EphysFigGenApp < handle
     %   FigureSupersectionsCollapsed (its editor's collapsed sections,
     %   sub-headings ("<section>.<key>") and supersections), FigureGroupBy and FigureGroupsCollapsed (how
     %   its figure tree groups, and its collapsed groups), FigureRectUnits,
-    %   FigureSnap and FigureSnapStep (the Panels section's units, Snap box
+    %   FigureSnap and FigureSnapStep (the Layout section's units, Snap box
     %   and step), ReportWorkers
     %   (the Export tab's Workers: the process workers a run draws and
     %   writes its pages on, 4 by default; 0 = in this MATLAB).
@@ -424,7 +425,7 @@ classdef EphysFigGenApp < handle
         FigurePanelExtra (1,:) string = strings(1, 0)   % the panels selected with Shift+click (on the preview, or Arrange's boxes) besides SelectedPanel (the primary): the editor shows the rows they share, an edit goes to them all (spreadPanelEdit), Arrange moves, resizes, nudges and removes them with it (selectedPanelIds); cleared by a click selecting one panel, Escape, another figure, a panel added, removed or renamed
         FigurePanelIds (1,:) string = strings(1, 0)     % the selected figure's panel ids when the editor last showed them (syncFigureEditor): a change lets FigurePanelExtra go
         FigureArrangeClick = []             % Arrange: a click on one of several selected boxes waiting for its release (id, the window's oldUp): no drag, and that one alone is selected (onArrangeClicked)
-        FigureRectUnits (1,1) string = "cm"  % the Panels section's units for a rect, padding and snap step (EphysAnalysisConfig.RectUnits; pref FigureRectUnits)
+        FigureRectUnits (1,1) string = "cm"  % the Layout section's units for a rect, padding and snap step (EphysAnalysisConfig.RectUnits; pref FigureRectUnits)
         FigureSnap (1,1) logical = true     % Arrange snaps the panels to edges, centers and the step (pref FigureSnap)
         FigureSnapStep = struct('value', 0.5, 'units', "cm")   % the snap step and the arrow keys' nudge: a value in its units (pref FigureSnapStep)
         FigureSearchIndex struct = struct([])   % the editor's searchable rows, as built (figureSearchIndex)

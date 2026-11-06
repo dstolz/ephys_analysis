@@ -4,13 +4,13 @@ function onConfigChanged(obj, what, src)
 %   (the Data tab's filter: Source.Filter, its table already filtered), "defaults"
 %   (the Alignment tab), "figure" (the Figures tab's editor), "figuresize"
 %   (its Size rows: a "figure" edit that changes how the figure is drawn,
-%   not what it is computed from) or "export" (the Panels section's
+%   not what it is computed from) or "export" (the Layout section's
 %   lengths shown again on the new page: showPanelPlace).
 %   The runner gets the new config. "defaults": the Alignment count, the
 %   figure editor's rows that show the defaults (applyFigureEditorDefaults),
 %   the observation picker, the epoch diagram (when open) and the figure
 %   preview (autoFigurePreview) follow. "figure": its list and editor
-%   (the Panels section's values kept on the page: showPanelPlace), the
+%   (the Layout section's values kept on the page: showPanelPlace), the
 %   observation picker (made again when the observe block,
 %   the figure's alignment or its sorting changed), the epoch diagram and
 %   the figure preview follow, and the Id row shows the figure's id (an

@@ -7,7 +7,7 @@ function loadPreferences(obj, openLast)
 %   AutoRedrawDefault when not set, and its editor's collapsed sections and supersections),
 %   FigureGroupBy and FigureGroupsCollapsed (the figure tree's
 %   grouping and collapsed groups), FigureRectUnits, FigureSnap and
-%   FigureSnapStep (the Panels section's units, Snap box and step:
+%   FigureSnapStep (the Layout section's units, Snap box and step:
 %   onRectUnitsChanged, onSnapChanged), ApplyTicked, ApplySeen and ApplyReplot
 %   (Apply to figures' ticks and its Replot box: onApplyToFigures),
 %   PanelOptions (the options last set on a panel of each type, which a

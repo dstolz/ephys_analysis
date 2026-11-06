@@ -25,6 +25,7 @@ if e.Row ~= -2
             S = obj.FigureSections([obj.FigureSections.Name] == e.Section);
             owner = formGroup(S, e.Row);
             if owner > 0; parts(end+1) = S.SubTitle(owner); end
+            if S.Sub(e.Row) && S.SubTitle(e.Row) ~= e.Label; parts(end+1) = S.SubTitle(e.Row); end   % a control in a sub-heading's slot
         end
         parts(end+1) = e.Label;
     end

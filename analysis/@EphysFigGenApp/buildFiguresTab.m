@@ -33,36 +33,41 @@ function buildFiguresTab(obj)
 %           draw it) gray.
 %   Middle  the editor, a column of sections (formSection): Id (with
 %           auto: the id follows the panels and data until one is typed:
-%           onIdEdited, onIdAutoToggled), Title, Size (the page it is
-%           exported on: a drop-down of suggestions you can type in, the
-%           width and height in px, in or cm with a lock for the aspect
-%           ratio: onFigureSizeEdited; the preview is shaped like it),
-%           Enabled and a summary, always open; then Observations (the data
-%           the figure is drawn for, Starred only, the unit filter or the
-%           channels, Per trial group: one
-%           figure per observation and group), Panels (New panel... (the
+%           onIdEdited, onIdAutoToggled), Title, Enabled and a summary,
+%           always open; then Observations (the data the figure is drawn
+%           for; Pages: one page per observation, across datasets or on the
+%           probe, the last two showing the Sessions or Probe layout
+%           section; Starred only, the signal channels, the unit filter,
+%           the response test (folded), Per trial group: one
+%           figure per observation and group), Alignment (the figure's
+%           Event reference, Epoch window and Trial selection, each under a
+%           sub-heading with its "Use default" box: the Alignment tab's
+%           while it is ticked; Epoch Diagram), Layout (New panel... (the
 %           New panel window: its type, name, place and key parameters,
 %           onNewPanel); the selected panel, "psth_1 (PSTH): 10.2 x 6.0 cm
-%           at 0, 0"; Units (normalized, %, cm, in or px: how the rect,
-%           the padding and the snap step are shown and typed, a
-%           preference: onRectUnitsChanged); Position (x, y) and Size (w,
-%           h) of the selected panel's rect, from the page's bottom-left
-%           corner (onPanelRectEdited: one undo step per field); Boxes
-%           mean (the plot area, its labels kept clear, or the outer box,
-%           labels inside); Padding (the clear space round a panel's
-%           labels); Snap and its step (Arrange's snapping and the arrow
-%           keys' nudge, preferences: onSnapChanged); Set corners (two
-%           clicks on the preview: onSetCorners), Remove panel, Bring forward and Send back (the
-%           drawing order where panels overlap: onPanelOrder); a hint on
-%           Arrange), Selected panel (its type, title, box,
-%           group shown), the
-%           figure's Event reference, Epoch window and Trial selection (the
-%           Alignment tab's while "Use default" is ticked; Epoch Diagram),
+%           at 0, 0"; Position (x, y) and Size (w, h) of the selected
+%           panel's rect, from the page's bottom-left corner
+%           (onPanelRectEdited: one undo step per field); Set corners (two
+%           clicks on the preview: onSetCorners), Remove panel, Bring
+%           forward and Send back (the drawing order where panels overlap:
+%           onPanelOrder); under the sub-heading Page, the Page size (the
+%           page it is exported on: a drop-down of suggestions you can type
+%           in, the width and height in px, in or cm with a lock for the
+%           aspect ratio: onFigureSizeEdited; the preview is shaped like
+%           it), Boxes mean (the plot area, its labels kept clear, or the
+%           outer box, labels inside) and Padding (the clear space round a
+%           panel's labels); under App preferences (not saved in the
+%           config), Units (normalized, %, cm, in or px: how the rect, the
+%           padding and the snap step are shown and typed: onRectUnitsChanged)
+%           and Snap and its step (Arrange's snapping and the arrow keys'
+%           nudge: onSnapChanged); a hint on Arrange), Selected panel
+%           (its type, title, box, group shown),
 %           First-spike latency (the figure's latency block, one for
 %           every panel that reads it: the method, the window, the
 %           baseline and its rate, the burst's surprise or the count's
 %           alpha, the onset's CUSUM bins, duration, threshold and
-%           allowance; a note names the panels that read it; no key),
+%           allowance, folded under Response onset; a note names the
+%           panels that read it, each with a link to its section; no key),
 %           Panel alignment
 %           (the panel's own event and window, locked to the figure's while
 %           "Same as the figure" is ticked; its own trial selection, locked
@@ -91,14 +96,14 @@ function buildFiguresTab(obj)
 %           waveformSection, waveformNote),
 %           the panel's Text note and Overlays (for the selected panel:
 %           onAddFigureOverlay, onFigureOverlayPicked),
-%           Appearance, Looks and Sessions (Across sessions: the figure
+%           Appearance, Looks and Sessions (Pages: Across datasets: the figure
 %           drawn once over the ticked or picked datasets, its facet, colors,
 %           error band, unit matching with the mapping file's Browse... and
 %           Edit..., minimum sessions and trial groups; then the picker
 %           lists the matched observations and the preview draws them
 %           across the sessions, with a "Figure:" drop-down under it for
 %           one figure per subject or trial group, and the Dataset
-%           drop-down is off) and Probe layout (On the probe: the figure
+%           drop-down is off) and Probe layout (Pages: On the probe: the figure
 %           drawn once per dataset, each unit or channel a tile of its
 %           panels at its site; the layout, the overlap strategy and its
 %           lanes, the shanks, channels and depth range laid out, the most
@@ -106,7 +111,7 @@ function buildFiguresTab(obj)
 %           shared y, the scale tile, the sites and the leaders; a note
 %           counts the tiles on the active dataset; then the picker lists
 %           one entry, the probe, the preview draws every tile, and Per
-%           trial group and Across sessions are off). Each section collapses under its colored
+%           trial group are off). Each section collapses under its colored
 %           header (onFigureSectionToggled); the color says the scope: Figure
 %           sections are blue, Panel green and Look violet, each section a
 %           shade of its supersection's hue (the scopes table). A long
@@ -117,15 +122,16 @@ function buildFiguresTab(obj)
 %           (onFigureSubheadingToggled; preference FigureSubheadingsCollapsed).
 %           The sections stand under three
 %           supersections, each a dark header that collapses them all
-%           (onFigureSuperToggled): Figure (Observations, Event reference,
-%           Epoch window, Trial selection, First-spike latency, Sessions,
-%           Probe layout, Panels), Panel
+%           (onFigureSuperToggled): Figure (Observations, Alignment, Layout,
+%           First-spike latency, Sessions, Probe layout), Panel
 %           (Selected panel, Panel alignment, Layers, Options, Waveform, Text note, Overlays;
 %           its header names the selected panel) and Look (Appearance,
-%           Looks), built in that order so Tab follows it. Alt+1 to Alt+3
-%           go to a supersection (gotoFigureSuper), Ctrl+1 to Ctrl+9 and
-%           Ctrl+0 to the first ten sections, Observations to Text note
-%           (gotoFigureSection; onKeyPress); First-spike latency, Sessions,
+%           Looks), built in that order so Tab follows it (but for
+%           First-spike latency, Sessions and Probe layout, built before
+%           Layout, which comes before them on the screen). Alt+1 to Alt+3
+%           go to a supersection (gotoFigureSuper), Ctrl+1 to Ctrl+8 to
+%           the keyed sections, Observations, Alignment and Layout,
+%           then the Panel supersection's (gotoFigureSection; onKeyPress); First-spike latency, Sessions,
 %           Probe layout, Waveform, Overlays,
 %           Appearance and Looks have no key. Over the editor, a search field
 %           (Ctrl+F; onFigureSearch) lists the rows whose label (or
@@ -310,16 +316,16 @@ E = struct();
 % (Id, Title, ...) is in none and keeps formSection's default color. Hue is an HSV hue (0 to 1).
 scopes = struct('Name', {"figure" "panel" "look"}, 'Title', {"Figure" "Panel" "Look"}, 'Key', {"1" "2" "3"}, ...
     'Hue', {0.60, 0.35, 0.75}, ...
-    'Sections', {["observations" "ref" "window" "selection" "latency" "sessions" "probe" "arrangement"], ...
+    'Sections', {["observations" "align" "arrangement" "latency" "sessions" "probe"], ...
     ["panel" "palign" "layers" "options" "waveform" "note" "overlays"], ["style" "looks"]});
 tint = @(name) scopeTint(scopes, name);
 % a collapsible sub-heading (formSubheading) calls this with its section's name and its key
 subToggle = @(name, key) obj.onFigureSubheadingToggled(name, key);
 
-% the sections with a header, in order (built so, so Tab follows it), and the keys 1-9, 0
-order = ["observations" "ref" "window" "selection" "sessions" "probe" "arrangement" "panel" "palign" "layers" "options" "note" ...
+% the sections with a header and a key or not, in order (built so, so Tab follows it), and the keys 1-8
+order = ["observations" "align" "arrangement" "sessions" "probe" "panel" "palign" "layers" "options" "note" ...
     "overlays" "style" "looks"];
-keyed = order(~ismember(order, ["sessions" "probe" "overlays" "style" "looks"]));   % Observations Ctrl+1 ... Options Ctrl+9, Text note Ctrl+0
+keyed = order(~ismember(order, ["sessions" "probe" "overlays" "style" "looks"]));   % Observations Ctrl+1, Alignment Ctrl+2, Layout Ctrl+3, then the Panel supersection's in turn
 
 % the figure: always open
 S = formSection(eg, 1, "general", "");
@@ -338,26 +344,6 @@ E.title = uieditfield(S.Body, "text", "Placeholder", "automatic", "ValueChangedF
     "observation, so the top-left panel names it (unless the title has {Unit} or {Observation}). Variables in braces, " + ...
     "such as {Unit} or {Event}, are filled in for each figure: the {x} button lists them.");
 place(E.title, r, 2);
-[S, r] = formRow(S, "size", "Size:");
-E.sizePreset = uidropdown(S.Body, "Editable", "on", "Items", cellstr(figureSizePresets().Label), "Value", "Export tab size", ...
-    "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("preset"), ...
-    "Tooltip", "The page the figure is exported on, and the shape of the preview. Pick a suggestion or type " + ...
-    """6 x 4 in"", ""1200 x 800 px"" (pixels of the PNG, at the Export dpi) or ""15 x 10 cm"". Export tab size: " + ...
-    "the Export tab's Width and Height, taller when the rows need it. Fit preview: the preview area's shape and size now.");
-place(E.sizePreset, r, 2);
-[S, r] = formRow(S, ["sizeWidth" "sizeHeight" "sizeUnits" "sizeLock"], "Width x height:");
-zg = subgrid(S.Body, r, {'1x', 'fit', '1x', 56, 'fit'});
-E.sizeWidth = uieditfield(zg, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueDisplayFormat", "%.5g", "Value", 18, ...
-    "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("width"), ...
-    "Tooltip", "The page's width, in the units at the right. Editing it gives the figure a size of its own (""Export tab size"" is left).");
-uilabel(zg, "Text", "x");
-E.sizeHeight = uieditfield(zg, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueDisplayFormat", "%.5g", "Value", 12, ...
-    "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("height"), ...
-    "Tooltip", "The page's height, in the units at the right.");
-E.sizeUnits = uidropdown(zg, "Items", ["px" "in" "cm"], "Value", "cm", "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("units"), ...
-    "Tooltip", "px: pixels of the exported PNG, so inches at the Export tab's dpi. Changing the units keeps the page the same size.");
-E.sizeLock = uicheckbox(zg, "Text", "Lock ratio", "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("lock"), ...
-    "Tooltip", "Keep the aspect ratio: editing the width changes the height with it, and the other way round.");
 [S, r] = formRow(S, "enabled", "");
 E.enabled = uicheckbox(S.Body, "Text", "Enabled", "Value", true, "ValueChangedFcn", changed, ...
     "Tooltip", "Unticked, the figure stays in the config but Run (Export tab) skips it. Generate selected figure and the preview still draw it; Redraw All leaves it out.");
@@ -376,6 +362,18 @@ E.observe = uidropdown(S.Body, "Items", "Sorted units", "ItemsData", "units", "V
     "unit, each channel's detected spikes, each channel of a signal, or the dataset once. What the active " + ...
     "dataset holds comes first; a type it lacks says so and can still be picked.");   % applyFigureEditor lists them (observeItems)
 place(E.observe, r, 2);
+[S, r] = formRow(S, "pages", "Pages:");
+E.pages = uidropdown(S.Body, "Items", ["One per observation" "Across datasets (one per matched observation)" ...
+    "On the probe (one per dataset, a tile per observation)"], "ItemsData", ["each" "sessions" "probe"], ...
+    "ValueChangedFcn", changed, "Tooltip", "How the figure is paged. One per observation: a page for each unit, channel " + ...
+    "or dataset observed, on the active dataset. Across datasets: draw the figure once across the datasets instead of " + ...
+    "once per dataset: each observation (a site, a cell of the mapping, a channel or the dataset) is computed on every " + ...
+    "session and each panel's layers are merged, a color per session (or subject); Generate selected figure and Run " + ...
+    "then write it to the sessions folder. On the probe: draw the figure once per dataset, every observation (each " + ...
+    "unit, or each channel) a small tile of all its panels at its site on the probe, instead of a page per " + ...
+    "observation; Generate selected figure and Run then write one page per dataset. The Sessions and Probe layout " + ...
+    "sections hold the settings of the last two, and show only for them.");
+place(E.pages, r, 2);
 [S, r] = formRow(S, "obsStarred", "Favorites:");
 E.obsStarred = uicheckbox(S.Body, "Text", "Starred only", "ValueChangedFcn", changed, ...
     "Tooltip", "Observe only what is starred (★): the starred units of the sort in use, the starred channels (a " + ...
@@ -459,30 +457,46 @@ E.obsCount = uilabel(S.Body, "Text", "", "FontColor", gray);
 place(E.obsCount, r, [1 2]);
 sec(end+1) = S;
 
-% the figure's event reference, window and selection: the Alignment tab's controls
-Sr = formSection(eg, 5, "ref", "Event reference", "panel", Color=tint("ref"));
-Sw = formSection(eg, 6, "window", "Epoch window", "panel", Color=tint("window"));
-Ss = formSection(eg, 7, "selection", "Trial selection", "panel", Color=tint("selection"));
-E.defaultRef = defaultBox(obj, Sr, "event reference");
-E.defaultWindow = defaultBox(obj, Sw, "epoch window");
-E.defaultSelection = defaultBox(obj, Ss, "trial selection");
-C = obj.buildAlignControls([Sr.Body Sw.Body Ss.Body], @(part) obj.onFigureAlignEdited(part));
+% the figure's event reference, epoch window and trial selection: the Alignment tab's controls, in one section of three
+% sub-headings, each with its Use default box at the right. A body is one row spanning both columns that holds a
+% borderless panel for AlignControls to fill (buildAlignControls); its height is the controls' (gridHeight), set once
+% they are built. The rows show by their keys refBody, windowBody and selectionBody (syncFigureEditor).
+S = formSection(eg, 5, "align", "Alignment", Color=tint("align"));
+bodies = gobjects(1, 3);
+rows = zeros(1, 3);
+parts = ["ref" "window" "selection"];   % (AlignControls' parts)
+titles = ["Event reference" "Epoch window" "Trial selection"];
+boxes = ["defaultRef" "defaultWindow" "defaultSelection"];
+whats = ["event reference" "epoch window" "trial selection"];
+for q = 1:3
+    [S, ~, g] = formSubheading(S, parts(q), titles(q), Control=true);
+    E.(boxes(q)) = defaultBox(obj, g, whats(q));
+    [S, r] = formRow(S, parts(q) + "Body", "", 100);
+    bodies(q) = uipanel(S.Body, "BorderType", "none");
+    bodies(q).Layout.Row = r;
+    bodies(q).Layout.Column = [1 2];
+    rows(q) = numel(S.Heights);
+end
+C = obj.buildAlignControls(bodies, @(part) obj.onFigureAlignEdited(part));
 E.epochs = C.Diagram;
 E.epochs.ButtonPushedFcn = @(~,~) obj.onShowEpochs();
 E.epochs.Tooltip = "A window, kept above the app, that draws how this figure's event reference, epoch window and " + ...
     "trial selection cut the active dataset into epochs. It follows every edit.";
 set([C.RefGrid C.WindowGrid C.SelectionGrid], 'Padding', [4 2 4 2]);
-Sr.BodyHeight = gridHeight(C.RefGrid);
-Sw.BodyHeight = gridHeight(C.WindowGrid);
-Ss.BodyHeight = gridHeight(C.SelectionGrid);
+S.Heights(rows) = [gridHeight(C.RefGrid) gridHeight(C.WindowGrid) gridHeight(C.SelectionGrid)];
+S.Body.RowHeight = num2cell(reshape([S.Heights; repmat(S.Gap, 1, numel(S.Heights))], 1, []));
 obj.FigureAlignControls = C;
-sec = [sec Sr Sw Ss];
+sec = [sec S];
 
 % the figure's first-spike latency and response onset: one block for every panel that reads them (figureLatencies); no key
 S = formSection(eg, 18, "latency", "First-spike latency", Color=tint("latency"));
 [S, r] = formRow(S, "latNote", "", 44);
 E.latNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
 place(E.latNote, r, [1 2]);
+[S, r] = formRow(S, "latLinks", "");   % a link to each panel that reads the block (syncFigureEditor makes them: latencyLinks)
+E.latLinks = uigridlayout(S.Body, [1 1], "ColumnWidth", {'fit'}, "Padding", [0 0 0 0], "ColumnSpacing", 6, ...
+    "BackgroundColor", S.Body.BackgroundColor);
+place(E.latLinks, r, [1 2]);
 [S, r] = formRow(S, "latMethod", "Method:");
 E.latMethod = uidropdown(S.Body, "Items", ["First spike in the window" "Poisson surprise (Legendy & Salcman 1985)" ...
     "Baseline Poisson count (Chase & Young 2007)"], "ItemsData", EphysAnalysisConfig.LatencyMethods, "ValueChangedFcn", changed, ...
@@ -527,6 +541,7 @@ E.latAlpha = uieditfield(S.Body, "numeric", "Value", 0.01, "Limits", [0 1], "Low
     "UpperLimitInclusive", "off", "ValueChangedFcn", changed, "Tooltip", "The first spike whose count since the " + ...
     "window's start has P(N >= k) below this at the baseline rate is the latency.");
 place(E.latAlpha, r, 2);
+[S, ~] = formSubheading(S, "onset", "Response onset", Collapsible=true, Callback=subToggle);
 [S, r] = formRow(S, ["latCusum" "latCusumSustain"], "Onset bins (ms):");
 lcg = subgrid(S.Body, r, {'1x', 'fit', '1x'});
 E.latCusum = uieditfield(lcg, "numeric", "Value", 2, "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueChangedFcn", changed, ...
@@ -545,13 +560,7 @@ sec(end+1) = S;
 
 % across sessions: the figure drawn once over several datasets, each layer merged (figureSessionCompute); no key
 S = formSection(eg, 14, "sessions", "Sessions", Color=tint("sessions"));
-[S, r] = formRow(S, "sesEnabled", "");
-E.sesEnabled = uicheckbox(S.Body, "Text", "Across datasets (one figure over several recordings)", "ValueChangedFcn", changed, ...
-    "Tooltip", "Draw this figure once across the datasets instead of once per dataset: each observation (a site, " + ...
-    "a cell of the mapping, a channel or the dataset) is computed on every session and each panel's layers are " + ...
-    "merged, a color per session (or subject). Generate selected figure and Run then write it to the sessions folder. " + ...
-    "Not with On the probe (Probe layout).");
-place(E.sesEnabled, r, [1 2]);
+[S, ~] = formSubheading(S, "datasets", "Datasets");
 [S, r] = formRow(S, "sesDatasets", "Datasets:");
 E.sesDatasets = uidropdown(S.Body, "Items", ["The ticked datasets" "These datasets"], "ItemsData", ["ticked" "list"], ...
     "ValueChangedFcn", changed, "Tooltip", "The ticked datasets: those ticked to run on the Data tab. These " + ...
@@ -563,6 +572,7 @@ E.sesKeys = uieditfield(dg, "text", "Editable", "off", "Placeholder", "none pick
     "Tooltip", "The keys of the datasets this figure is drawn across (the Data tab's Key column).");
 E.sesPick = uibutton(dg, "Text", "Pick...", "ButtonPushedFcn", @(~,~) obj.onPickFigureDatasets(), ...
     "Tooltip", "Tick the datasets to draw, from the scanned ones, with their subject and date.");
+[S, ~] = formSubheading(S, "drawing", "Drawing");
 [S, r] = formRow(S, "sesFacet", "Figures:");
 E.sesFacet = uidropdown(S.Body, "Items", ["One for all the sessions" "One per subject"], ...
     "ItemsData", EphysAnalysisConfig.SessionFacets, "ValueChangedFcn", changed, ...
@@ -588,6 +598,7 @@ E.sesError = uidropdown(S.Body, "Items", ["mean ± SEM" "mean ± SD" "95% CI" "N
     "Tooltip", "With a color per subject or one mean: the band across the sessions averaged (the 95% CI uses " + ...
     "Student's t, Statistics and Machine Learning Toolbox; 1.96 SEM without it).");
 place(E.sesError, r, 2);
+[S, ~] = formSubheading(S, "matching", "Matching");
 [S, r] = formRow(S, "sesMatch", "Units matched by:");
 E.sesMatch = uidropdown(S.Body, "Items", ["Site: the unit's recording channel" "Mapping: a table names each cell's units"], ...
     "ItemsData", EphysAnalysisConfig.FigureSessionMatches, "ValueChangedFcn", changed, ...
@@ -612,6 +623,7 @@ E.sesTrialGroups = uidropdown(S.Body, "Items", ["Pool them (a color per session)
     "Tooltip", "The figure's trial groups (its Group by). Pool: every epoch of a session together. A figure per " + ...
     "group: each group merged across sessions on its own figure. Combine: a color per session, a line style per group.");
 place(E.sesTrialGroups, r, 2);
+[S, ~] = formSubheading(S, "", "");   % (closes the group: the note belongs to none)
 [S, r] = formRow(S, "sesNote", "", 44);
 E.sesNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
 place(E.sesNote, r, [1 2]);
@@ -620,12 +632,6 @@ sec(end+1) = S;
 % on the probe: the figure drawn once per dataset, a tile of its panels per unit or channel at its site
 % (figureProbeTiles, computeProbeFigure); no key
 S = formSection(eg, 19, "probe", "Probe layout", Color=tint("probe"));
-[S, r] = formRow(S, "prbEnabled", "");
-E.prbEnabled = uicheckbox(S.Body, "Text", "On the probe (every unit or channel at its site, one page per dataset)", ...
-    "ValueChangedFcn", changed, "Tooltip", "Draw this figure once per dataset, every observation (each unit, or " + ...
-    "each channel) a small tile of all its panels at its site on the probe, instead of a page per observation. " + ...
-    "Generate selected figure and Run then write one page per dataset. Not with Across datasets (Sessions).");
-place(E.prbEnabled, r, [1 2]);
 [S, r] = formRow(S, "prbLayout", "Layout:");
 E.prbLayout = uidropdown(S.Body, "Items", ["Schematic (rows of sites)" "Physical (µm)"], "ItemsData", ["schematic" "physical"], ...
     "ValueChangedFcn", changed, "Tooltip", "Schematic: each shank a column, its sites in rows equally spaced (the " + ...
@@ -643,6 +649,7 @@ place(E.prbOverlap, r, 2);
 E.prbLanes = uispinner(S.Body, "Limits", [1 Inf], "Step", 1, "Value", 2, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
     "Tooltip", "Overlap: Lanes beside the shank: how many lanes each shank's tiles alternate across.");
 place(E.prbLanes, r, 2);
+[S, ~] = formSubheading(S, "sites", "Sites laid out");
 [S, r] = formRow(S, "prbShanks", "Shanks:");
 E.prbShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "The probe shanks (kcoords) whose sites are laid out, e.g. 1 2 (blank = all).");
@@ -655,6 +662,7 @@ place(E.prbChannels, r, 2);
 E.prbDepth = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
     "Tooltip", "The probe y kept, ""lo hi"" in µm, e.g. 0 400 (blank = all; lo below hi).");
 place(E.prbDepth, r, 2);
+[S, ~] = formSubheading(S, "tiles", "Tiles");
 [S, r] = formRow(S, "prbMaxTiles", "Max tiles:");
 E.prbMaxTiles = uispinner(S.Body, "Limits", [1 Inf], "Step", 1, "Value", 64, "RoundFractionalValues", "on", "ValueChangedFcn", changed, ...
     "Tooltip", "The most tiles on the page: more observations than that keep every k-th in probe order, and the page " + ...
@@ -701,14 +709,16 @@ place(E.prbShowSites, r, [1 2]);
 E.prbLeaders = uicheckbox(S.Body, "Text", "Leaders (a line from a moved tile to its site)", "ValueChangedFcn", changed, ...
     "Tooltip", "Physical: a thin line from each tile the overlap strategy moved to the site it stands for.");
 place(E.prbLeaders, r, [1 2]);
+[S, ~] = formSubheading(S, "", "");   % (closes the group: the note belongs to none)
 [S, r] = formRow(S, "prbNote", "", 44);
 E.prbNote = uilabel(S.Body, "Text", "", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
 place(E.prbNote, r, [1 2]);
 sec(end+1) = S;
 
-% the panels: adding them (New panel...), the selected one's place on the page, what a box means, the padding, snapping
-% and the order they are drawn in (the section's key stays "arrangement")
-S = formSection(eg, 3, "arrangement", "Panels", Color=tint("arrangement"));
+% the figure's page and its panels: adding them (New panel...), the selected panel's place (until the Panel section takes
+% it over), the Page (its size, what a box means, the padding), the app preferences (the units everything is shown in,
+% snapping) and the Arrange hint. The section's name stays "arrangement"; its key is Ctrl+3.
+S = formSection(eg, 3, "arrangement", "Layout", Color=tint("arrangement"));
 [S, r] = formRow(S, "newPanel", "", 30);
 E.newPanel = uibutton(S.Body, "Text", "New panel...", "ButtonPushedFcn", @(~,~) obj.onNewPanel(), ...
     "Tooltip", "Add a panel: pick its type (each shown as a small plot), its name, where it goes (the largest " + ...
@@ -719,16 +729,6 @@ place(E.newPanel, r, [1 2]);
 E.selPanel = uilabel(S.Body, "Text", "", "FontWeight", "bold", ...
     "Tooltip", "The selected panel: its id, type, size and place (its bottom-left corner, from the page's), in the Units below.");
 place(E.selPanel, r, 2);
-[S, r] = formRow(S, "noPanel", "");
-E.noPanel = uilabel(S.Body, "Text", "No panel yet: press New panel... to add one.", "FontColor", gray);
-place(E.noPanel, r, [1 2]);
-[S, r] = formRow(S, "rectUnits", "Units:");
-E.rectUnits = uidropdown(S.Body, "Items", ["normalized (0-1 of the page)" "% of the page" "cm" "in" "px (at the Export dpi)"], ...
-    "ItemsData", EphysAnalysisConfig.RectUnits, "Value", "cm", "ValueChangedFcn", @(~,~) obj.onRectUnitsChanged(), ...
-    "Tooltip", "The units the panel's position and size, the padding and the snap step are shown and typed in: " + ...
-    "0-1 or % of the page, or a length on the exported page (px at the Export tab's dpi). The panels are kept as " + ...
-    "0-1 of the page, so they keep their places when the page size changes. A preference, for every figure.");
-place(E.rectUnits, r, 2);
 [S, r] = formRow(S, "rectXY", "Position (x, y):");
 xyg = subgrid(S.Body, r, {'1x', '1x', 44});
 E.rectX = uieditfield(xyg, "numeric", "ValueDisplayFormat", "%.10g", "ValueChangedFcn", @(~,~) obj.onPanelRectEdited("x"), ...
@@ -743,32 +743,6 @@ E.rectW = uieditfield(whg, "numeric", "ValueDisplayFormat", "%.10g", "ValueChang
 E.rectH = uieditfield(whg, "numeric", "ValueDisplayFormat", "%.10g", "ValueChangedFcn", @(~,~) obj.onPanelRectEdited("h"), ...
     "Tooltip", "The selected panel's height. Kept on the page: a panel never reaches past its top edge.");
 E.rectWHUnits = uilabel(whg, "Text", "cm", "FontColor", gray);
-[S, r] = formRow(S, "boxesMean", "Boxes mean:");
-E.boxesMean = uidropdown(S.Body, "Items", ["plot area (labels kept clear)" "outer box (labels inside)"], ...
-    "ItemsData", EphysAnalysisConfig.BoxesMeans, "Value", "plot", "ValueChangedFcn", changed, ...
-    "Tooltip", "What a panel's rect is. Plot area: the axes themselves; their tick labels and labels are kept clear of " + ...
-    "the neighbors and the page edge, so two panels put flush stay flush (a raster over its PSTH). Outer box: the " + ...
-    "rect holds the panel with its labels, as a box on a slide does. For the whole figure.");
-place(E.boxesMean, r, 2);
-[S, r] = formRow(S, "padding", "Padding:");
-pdg = subgrid(S.Body, r, {'1x', 44});
-E.padding = uispinner(pdg, "Limits", [0 Inf], "Step", 0.05, "Value", 0.15, "ValueDisplayFormat", "%.10g", ...
-    "ValueChangedFcn", changed, "Tooltip", "The clear space kept between a panel's labels and its neighbors or the page " + ...
-    "edge (Boxes mean outer box: between the rect's edge and the labels). Two panels put flush stay flush. For the " + ...
-    "whole figure, in the Units above.");
-E.paddingUnits = uilabel(pdg, "Text", "cm", "FontColor", gray);
-[S, r] = formRow(S, "snap", "");
-sng = subgrid(S.Body, r, {'fit', 'fit', 70, '1x'});
-place(sng, r, [1 2]);
-E.snap = uicheckbox(sng, "Text", "Snap", "Value", true, "ValueChangedFcn", @(~,~) obj.onSnapChanged(), ...
-    "Tooltip", "Arrange snaps a panel moved or resized to the other panels' edges and centers, the page's edges and " + ...
-    "center and the step's grid (Alt held: no snapping). A preference, not part of the figure.");
-uilabel(sng, "Text", "every");
-E.snapStep = uieditfield(sng, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "Value", 0.5, ...
-    "ValueDisplayFormat", "%.10g", "ValueChangedFcn", @(~,~) obj.onSnapChanged(), ...
-    "Tooltip", "The snap step: the grid Arrange snaps to, and how far an arrow key nudges the selected panel (Shift: " + ...
-    "ten steps). In the Units above. A preference.");
-E.snapUnits = uilabel(sng, "Text", "cm", "FontColor", gray);
 [S, r] = formRow(S, "panelButtons", "", 30);
 pb = subgrid(S.Body, r, {'1x', '1x', '1x', '1x'});
 place(pb, r, [1 2]);
@@ -781,6 +755,65 @@ E.bringForward = uibutton(pb, "Text", "Bring forward", "ButtonPushedFcn", @(~,~)
     "Tooltip", "Draw the selected panel after the next one: over it where the two overlap.");
 E.sendBack = uibutton(pb, "Text", "Send back", "ButtonPushedFcn", @(~,~) obj.onPanelOrder(-1), ...
     "Tooltip", "Draw the selected panel before the one drawn before it: under it where the two overlap.");
+[S, ~] = formSubheading(S, "page", "Page");
+[S, r] = formRow(S, "size", "Page size:");
+E.sizePreset = uidropdown(S.Body, "Editable", "on", "Items", cellstr(figureSizePresets().Label), "Value", "Export tab size", ...
+    "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("preset"), ...
+    "Tooltip", "The page the figure is exported on, and the shape of the preview. Pick a suggestion or type " + ...
+    """6 x 4 in"", ""1200 x 800 px"" (pixels of the PNG, at the Export dpi) or ""15 x 10 cm"". Export tab size: " + ...
+    "the Export tab's Width and Height, taller when the rows need it. Fit preview: the preview area's shape and size now.");
+place(E.sizePreset, r, 2);
+[S, r] = formRow(S, ["sizeWidth" "sizeHeight" "sizeUnits" "sizeLock"], "Width x height:");
+zg = subgrid(S.Body, r, {'1x', 'fit', '1x', 56, 'fit'});
+E.sizeWidth = uieditfield(zg, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueDisplayFormat", "%.5g", "Value", 18, ...
+    "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("width"), ...
+    "Tooltip", "The page's width, in the units at the right. Editing it gives the figure a size of its own (""Export tab size"" is left).");
+uilabel(zg, "Text", "x");
+E.sizeHeight = uieditfield(zg, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "ValueDisplayFormat", "%.5g", "Value", 12, ...
+    "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("height"), ...
+    "Tooltip", "The page's height, in the units at the right.");
+E.sizeUnits = uidropdown(zg, "Items", ["px" "in" "cm"], "Value", "cm", "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("units"), ...
+    "Tooltip", "px: pixels of the exported PNG, so inches at the Export tab's dpi. Changing the units keeps the page the same size.");
+E.sizeLock = uicheckbox(zg, "Text", "Lock ratio", "ValueChangedFcn", @(~, ~) obj.onFigureSizeEdited("lock"), ...
+    "Tooltip", "Keep the aspect ratio: editing the width changes the height with it, and the other way round.");
+[S, r] = formRow(S, "boxesMean", "Boxes mean:");
+E.boxesMean = uidropdown(S.Body, "Items", ["plot area (labels kept clear)" "outer box (labels inside)"], ...
+    "ItemsData", EphysAnalysisConfig.BoxesMeans, "Value", "plot", "ValueChangedFcn", changed, ...
+    "Tooltip", "What a panel's rect is. Plot area: the axes themselves; their tick labels and labels are kept clear of " + ...
+    "the neighbors and the page edge, so two panels put flush stay flush (a raster over its PSTH). Outer box: the " + ...
+    "rect holds the panel with its labels, as a box on a slide does. For the whole figure.");
+place(E.boxesMean, r, 2);
+[S, r] = formRow(S, "padding", "Padding:");
+pdg = subgrid(S.Body, r, {'1x', 44});
+E.padding = uispinner(pdg, "Limits", [0 Inf], "Step", 0.05, "Value", 0.15, "ValueDisplayFormat", "%.10g", ...
+    "ValueChangedFcn", changed, "Tooltip", "The clear space kept between a panel's labels and its neighbors or the page " + ...
+    "edge (Boxes mean outer box: between the rect's edge and the labels). Two panels put flush stay flush. For the " + ...
+    "whole figure, in the Units below (App preferences).");
+E.paddingUnits = uilabel(pdg, "Text", "cm", "FontColor", gray);
+[S, ~] = formSubheading(S, "prefs", "App preferences (not saved in the config)");
+[S, r] = formRow(S, "rectUnits", "Units:");
+E.rectUnits = uidropdown(S.Body, "Items", ["normalized (0-1 of the page)" "% of the page" "cm" "in" "px (at the Export dpi)"], ...
+    "ItemsData", EphysAnalysisConfig.RectUnits, "Value", "cm", "ValueChangedFcn", @(~,~) obj.onRectUnitsChanged(), ...
+    "Tooltip", "The units the panel's position and size, the padding and the snap step are shown and typed in: " + ...
+    "0-1 or % of the page, or a length on the exported page (px at the Export tab's dpi). The panels are kept as " + ...
+    "0-1 of the page, so they keep their places when the page size changes. A preference, for every figure.");
+place(E.rectUnits, r, 2);
+[S, r] = formRow(S, "snap", "");
+sng = subgrid(S.Body, r, {'fit', 'fit', 70, '1x'});
+place(sng, r, [1 2]);
+E.snap = uicheckbox(sng, "Text", "Snap", "Value", true, "ValueChangedFcn", @(~,~) obj.onSnapChanged(), ...
+    "Tooltip", "Arrange snaps a panel moved or resized to the other panels' edges and centers, the page's edges and " + ...
+    "center and the step's grid (Alt held: no snapping). A preference, not part of the figure.");
+uilabel(sng, "Text", "every");
+E.snapStep = uieditfield(sng, "numeric", "Limits", [0 Inf], "LowerLimitInclusive", "off", "Value", 0.5, ...
+    "ValueDisplayFormat", "%.10g", "ValueChangedFcn", @(~,~) obj.onSnapChanged(), ...
+    "Tooltip", "The snap step: the grid Arrange snaps to, and how far an arrow key nudges the selected panel (Shift: " + ...
+    "ten steps). In the Units above. A preference.");
+E.snapUnits = uilabel(sng, "Text", "cm", "FontColor", gray);
+[S, ~] = formSubheading(S, "", "");   % (closes the group: the line and the hint below belong to none)
+[S, r] = formRow(S, "noPanel", "");
+E.noPanel = uilabel(S.Body, "Text", "No panel yet: press New panel... to add one.", "FontColor", gray);
+place(E.noPanel, r, [1 2]);
 [S, r] = formRow(S, "arrangeHint", "", 34);
 E.arrangeHint = uilabel(S.Body, "Text", "Arrange (over the preview) drags and resizes the panels; arrows nudge the " + ...
     "selected one by the snap step, Shift x10.", "FontColor", gray, "WordWrap", "on", "VerticalAlignment", "top");
@@ -2257,9 +2290,9 @@ end
 end
 
 
-function b = defaultBox(obj, S, what)
-%defaultBox  The "Use default" box in the header of an alignment section.
-b = uicheckbox(S.HeaderGrid, "Text", "Use default", "Value", true, ...
+function b = defaultBox(obj, g, what)
+%defaultBox  The "Use default" box in the right slot of an alignment sub-heading (formSubheading, Control=true: the grid G).
+b = uicheckbox(g, "Text", "Use default", "Value", true, ...
     "ValueChangedFcn", @(~,~) obj.onFigureDefaultToggled(), ...
     "Tooltip", "Ticked: the Alignment tab's " + what + " (the config's Defaults). Editing a value below " + ...
     "gives this figure its own; tick again to go back to the default.");

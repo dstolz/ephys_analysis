@@ -174,9 +174,7 @@ else
         case "id", key = "id";
         case "title", key = "title";
         case "size", key = "sizeWidth";
-        case "ref", section = "ref";
-        case "window", section = "window";
-        case "selection", section = "selection";
+        case {"ref", "window", "selection"}, section = "align";
         case "observe", section = "observations";
         case "grid", section = "arrangement";
         case "sessions", section = "sessions";

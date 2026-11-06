@@ -5785,6 +5785,7 @@ end
 
 if S.sec("6", "close")
     savedConfig();
+    app.onSaveConfig();   % the sections run before this one may have left the config dirty: saved, so Close asks nothing (under -batch it could not)
     app.savePreferences();
     shutNow = [string.empty(1, 0) app.FigureSections(~[app.FigureSections.Expanded]).Name];
     superShut = [string.empty(1, 0) app.FigureSupers(~[app.FigureSupers.Expanded]).Name];

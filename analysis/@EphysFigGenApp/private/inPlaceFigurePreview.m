@@ -1,4 +1,4 @@
-function ok = inPlaceFigurePreview(obj)
+function ok = inPlaceFigurePreview(obj, opts)
 %inPlaceFigurePreview  Set an edit of text alone (a panel's label or title, the figure's title) on the drawn preview: nothing computed or drawn.
 %   OK = inPlaceFigurePreview(OBJ) is autoFigurePreview's first try after
 %   an edit. When the selected figure's preview is drawn (its badge Drawn)
@@ -17,7 +17,15 @@ function ok = inPlaceFigurePreview(obj)
 %   (a session figure, a probe figure, another figure shown, not drawn): the caller
 %   computes and draws as after any edit.
 %
+%   inPlaceFigurePreview(OBJ, PlaceMoved=true) lays out only the panels
+%   whose rects changed (renderFigure's PlaceMoved): Arrange's release
+%   (arrangedPreview).
+%
 %   See also autoFigurePreview, renderFigure, redrawFigurePreview.
+arguments
+    obj (1,1) EphysFigGenApp
+    opts.PlaceMoved (1,1) logical = false
+end
 ok = false;
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures) || obj.Config.Figures(k).sessions.enabled; return; end
@@ -39,7 +47,7 @@ try
         OnGoto=@(role, panel) obj.gotoFigureSetting(id, role, panel), ...
         OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(id, panel, change), ...
         OnSelect=@(panel, ctrl, shift) obj.onFigurePanelClicked(id, panel, ctrl, false, shift), ...
-        InPlaceOnly=true);
+        InPlaceOnly=true, PlaceMoved=opts.PlaceMoved);
 catch ME
     obj.log(id + ": the edit could not be set on the preview, so it is drawn again: " + string(ME.message));
     return

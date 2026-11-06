@@ -114,7 +114,8 @@ function test_EphysAnalysisFigures(opts)
 %   panel title, the figure title -- set on the axes drawn, the drawing
 %   a whole one's, the data tips and editor context following; InPlaceOnly
 %   drawing nothing for a side, a title back to none drawn; new rects, a
-%   new padding or boxesMean laid out in place, the lines kept; a move
+%   new padding or boxesMean laid out in place, the lines kept; PlaceMoved
+%   laying out the panel moved alone, where the whole layout puts it; a move
 %   that breaks a stack drawn; panels kept by id, each against a whole
 %   drawing: the bottom of a stack removed (the panel above tells the
 %   time), the top-left one removed and put back (the observation's title
@@ -4653,6 +4654,22 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         && abs(RG.panels(1).outer(4) / RG.page(4) - 0.6) < 1e-9, ...
         sprintf(['renderFigure Reuse, new rects alone: laid out again on the axes drawn (inPlace: "%s"), the PSTH''s %d parts ' ...
         'kept, the stack flush (a raster %.0f px high over a PSTH of %.0f)'], howG, numel(lnP), rG(4), qG(4)));
+    % PlaceMoved: the panel moved alone laid out (the others' last measures), where the whole layout puts every panel
+    s3m = s3g;
+    s3m.panels(2).rect = [0 0.25 0.8 0.15];   % the PSTH narrower: the stack as it was
+    axAll = @() [DG.parts{:}];
+    [~, howM] = renderFigure(F3, s3m, pA, InPlaceOnly=true, PlaceMoved=true);
+    posM = cell2mat(get(axAll(), 'Position'));
+    RM = getappdata(pA, 'FigureLayoutResult');
+    renderFigure(F3, s3g, pA, InPlaceOnly=true);
+    [~, howW] = renderFigure(F3, s3m, pA, InPlaceOnly=true);   % the whole layout, from where the drawing starts
+    posW = cell2mat(get(axAll(), 'Position'));
+    RW = getappdata(pA, 'FigureLayoutResult');
+    check(howM == "inplace" && howW == "inplace" && max(abs(posM - posW), [], 'all') < 1 ...
+        && isequal(RM.ids, RW.ids) && max(abs(RM.panels(2).box - RW.panels(2).box)) < 1 && isequal(RM.rects, RW.rects), ...
+        sprintf(['renderFigure InPlaceOnly with PlaceMoved: the PSTH narrowed is laid out alone, every axes where the whole ' ...
+        'layout puts it (%.2f px apart at most) and the layout result alike'], max(abs(posM - posW), [], 'all')));
+    renderFigure(F3, s3g, pA, InPlaceOnly=true);
     s3h = s3g;
     s3h.layout.padding = 0.6;
     [~, howH] = renderFigure(F3, s3h, pA, Reuse=true);

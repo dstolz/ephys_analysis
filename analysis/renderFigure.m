@@ -276,6 +276,19 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     Arrange lays its preview out so after a drag
 %                     (arrangedPreview), out of date or not, and a panel
 %                     removed goes from the preview at once
+%     PlaceMoved      false (default) or true: with InPlaceOnly or
+%                     LayoutOnly, an edit of the panels' rects alone (no
+%                     text set, the layout settings as they were) lays
+%                     out only the panels whose rects changed since the
+%                     last layout: their parts alone go back to where a new
+%                     drawing starts, they alone are measured, and the
+%                     others keep their places unless figurePlace moves
+%                     them (a neighbor flush with a moved panel), with
+%                     their last measures (figureLayout's Moved). Anything
+%                     else, or a layout that does not fit the last one, is
+%                     laid out whole as above. The app's Arrange places
+%                     its panels so (arrangedPreview): a release takes a
+%                     fraction of a second on a figure of many panels
 %     Scale           1 (default): the drawing at the sizes it is exported
 %                     at. S: a drawing shown S times as wide as its export
 %                     page at 96 dpi (the app's preview, drawn to fit its
@@ -342,10 +355,11 @@ arguments
     opts.InPlaceOnly (1,1) logical = false
     opts.KeptOnly (1,1) logical = false
     opts.LayoutOnly (1,1) logical = false
+    opts.PlaceMoved (1,1) logical = false
     opts.Scale (1,1) double {mustBePositive, mustBeFinite} = 1
 end
 if opts.LayoutOnly   % the drawing kept, laid out at the new places: nothing drawn
-    [h, how] = layoutOnly(spec, target);
+    [h, how] = layoutOnly(spec, target, opts.PlaceMoved);
     return
 end
 if isfield(F, 'kind') && string(F.kind) == "probeFigure"   % a probe figure (figureProbeCompute): every tile on one page
@@ -354,7 +368,7 @@ if isfield(F, 'kind') && string(F.kind) == "probeFigure"   % a probe figure (fig
         how = "";
         return
     end
-    args = namedargs2cell(rmfield(opts, {'LayoutOnly' 'KeptOnly'}));   % (a probe page has no layout-only path: handled above)
+    args = namedargs2cell(rmfield(opts, {'LayoutOnly' 'KeptOnly' 'PlaceMoved'}));   % (a probe page has no layout-only path: handled above)
     [h, how] = renderProbeFigure(F, spec, target, args{:});
     return
 end
@@ -1019,22 +1033,21 @@ for i = 1:size(sets, 1)
     if sets{i, 3} ~= ""; set(sets{i, 1}, 'Interpreter', sets{i, 3}); end
 end
 if ~isempty(sets) || moved
-    for k = find(drawn)   % where a new drawing starts: the layout makes what a drawing makes
-        A = D.parts{k};
-        for i = 1:numel(A)
-            set(A(i), 'Units', 'pixels', 'Position', D.pos{k}(i, :));
-            cb = A(i).Colorbar;
-            if ~isempty(cb) && isvalid(cb); cb.Location = cb.Location; end   % placed from its axes again, as a new one is
-        end
-    end
     S = [];
     if isappdata(target, 'FigureLayout'); S = getappdata(target, 'FigureLayout'); end
-    if moved && isstruct(S) && isfield(S, 'panels') && numel(S.panels) == np
-        for k = 1:np; S.panels(k).rect = double(P(k).rect); end
+    if moved && isempty(sets) && opts.PlaceMoved && isstruct(S) && isfield(S, 'panels') && numel(S.panels) == np
+        [S, which] = newRects(S, P);
         S.layout = layoutSettings(spec.layout, S.scale);
-        figureLayout(target, S);   % the same axes, bands, legend and title at the new places
+        figureLayout(target, S, Moved=which, Reset=@(w) toStart(D, w & drawn));   % the panels moved alone, where it fits the last layout
     else
-        figureLayout(target);   % as it was laid out (the same axes, bands, legend and title)
+        toStart(D, drawn);   % where a new drawing starts: the layout makes what a drawing makes
+        if moved && isstruct(S) && isfield(S, 'panels') && numel(S.panels) == np
+            for k = 1:np; S.panels(k).rect = double(P(k).rect); end
+            S.layout = layoutSettings(spec.layout, S.scale);
+            figureLayout(target, S);   % the same axes, bands, legend and title at the new places
+        else
+            figureLayout(target);   % as it was laid out (the same axes, bands, legend and title)
+        end
     end
 end
 h = figureHandles(target, spec, D.axes, D.extra, D.notes, D.ovls, D.yExt, txt);
@@ -1063,8 +1076,9 @@ setappdata(target, drawingAppdata(), D);
 end
 
 
-function [h, how] = layoutOnly(spec, target)
+function [h, how] = layoutOnly(spec, target, placeMoved)
 %layoutOnly  renderFigure's LayoutOnly: the drawing TARGET keeps laid out at SPEC's rects and layout, nothing else changed.
+%   PLACEMOVED (renderFigure's PlaceMoved): the panels SPEC moves alone, as figureLayout's Moved, when the panels are the drawing's in its order.
 %   As inPlace lays out new places (its parts back where a new drawing
 %   starts, then figureLayout at the new rects), but whatever else SPEC
 %   changes and with the drawing kept as it is (D: what it shows). SPEC's
@@ -1124,7 +1138,24 @@ if ~isequal(f, 1:numel(was))   % panels left out or in another order: the drawin
     restack(target, D.parts);
     drawn = isgraphics(D.axes);
 end
-for k = find(drawn)   % where a new drawing starts: the layout makes what a drawing makes
+if placeMoved && isequal(f, 1:numel(was))   % the panels moved alone, where it fits the last layout
+    [S, which] = newRects(S, spec.panels);
+    S.layout = layoutSettings(spec.layout, S.scale);
+    figureLayout(target, S, Moved=which, Reset=@(w) toStart(D, w & drawn));
+else
+    toStart(D, drawn);   % where a new drawing starts: the layout makes what a drawing makes
+    for k = 1:np; S.panels(k).rect = double(spec.panels(k).rect); end
+    S.layout = layoutSettings(spec.layout, S.scale);
+    figureLayout(target, S);
+end
+h = figureHandles(target, D.spec, D.axes, D.extra, D.notes, D.ovls, D.yExt, D.txt);
+how = "layout";
+end
+
+
+function toStart(D, which)
+%toStart  The parts of the drawing D's panels WHICH (logical) back where a new drawing starts (D.pos), their color bars placed from them again.
+for k = find(which)
     A = D.parts{k};
     for i = 1:numel(A)
         set(A(i), 'Units', 'pixels', 'Position', D.pos{k}(i, :));
@@ -1132,11 +1163,18 @@ for k = find(drawn)   % where a new drawing starts: the layout makes what a draw
         if ~isempty(cb) && isvalid(cb); cb.Location = cb.Location; end   % placed from its axes again, as a new one is
     end
 end
-for k = 1:np; S.panels(k).rect = double(spec.panels(k).rect); end
-S.layout = layoutSettings(spec.layout, S.scale);
-figureLayout(target, S);
-h = figureHandles(target, D.spec, D.axes, D.extra, D.notes, D.ovls, D.yExt, D.txt);
-how = "layout";
+end
+
+
+function [S, moved] = newRects(S, panels)
+%newRects  figureLayout's S with the rects of PANELS (in S's order), and which of them changed (MOVED, logical).
+n = numel(S.panels);
+moved = false(1, n);
+for k = 1:n
+    r = double(panels(k).rect);
+    moved(k) = ~isequaln(double(S.panels(k).rect), r);
+    S.panels(k).rect = r;
+end
 end
 
 

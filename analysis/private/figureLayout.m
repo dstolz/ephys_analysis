@@ -1,4 +1,4 @@
-function figureLayout(canvas, S)
+function figureLayout(canvas, S, opts)
 %figureLayout  Lay out a figure renderFigure drew on CANVAS: each panel's axes and note band at its rect, the title and the legend; again whenever CANVAS changes size.
 %   figureLayout(CANVAS, S) measures the room each panel's labels take
 %   (its axes' TightInset, on the sides where tick labels, an axis label or
@@ -65,10 +65,36 @@ function figureLayout(canvas, S)
 %   S with a field layoutFcn (renderProbeFigure: its arithmetic layout) is
 %   kept and chained alike, and laid out by calling S.layoutFcn(CANVAS)
 %   in place of all this.
+%   The result kept (FigureLayoutResult) also holds what was measured
+%   (cells, bars, deco: each panel's insets, color bars' room and note
+%   band's labels), the canvas size, the title's room (top), the layout
+%   settings (how), margin, scale and the rects laid out, so a later
+%   layout can place a few panels again without measuring the rest.
+%
+%   figureLayout(CANVAS, S, Moved=M, Reset=FCN) lays out only what the
+%   panels M (logical, one per panel: those whose rect changed since the
+%   last layout) need: when the last result fits S (the same panels, canvas
+%   size, title, layout settings, margin and scale, and the rects of the
+%   others unchanged) FCN(M) first puts the moved panels' parts back where
+%   a new drawing starts (the caller's: renderFigure's in-place and
+%   layout-only paths), they alone are measured, every panel is placed
+%   by figurePlace with the others' last measures, and only the panels
+%   whose place changes are set (the moved ones, and a neighbor flush with
+%   them whose shared edge moved); the moved and resized ones are measured
+%   again as above; the legend is placed again when it floats or its
+%   legend panel moved, the notes of the panels placed, the title left as
+%   it is. Otherwise FCN(true(1, n)) puts every panel's parts back and the
+%   whole figure is laid out as above. Moved = [] (default) is the whole
+%   layout (FCN not called).
 %
 %   See also renderFigure, figurePlace, figureArea, placeNote.
-
-if nargin < 2
+arguments
+    canvas
+    S = []
+    opts.Moved = []
+    opts.Reset = []
+end
+if ~isstruct(S)
     if ~isvalid(canvas) || ~isappdata(canvas, 'FigureLayout'); return; end
     S = getappdata(canvas, 'FigureLayout');
 else
@@ -90,6 +116,25 @@ end
 sz = getpixelposition(canvas);
 sz = sz(3:4);
 if any(sz < 40); return; end
+n = numel(S.panels);
+ids = strings(1, n);
+rects = zeros(n, 4);
+for k = 1:n
+    ids(k) = string(S.panels(k).id);
+    rects(k, :) = double(reshape(S.panels(k).rect, 1, 4));
+end
+how = {'Mode', string(S.layout.boxesMean), 'Padding', S.layout.paddingPx};
+if ~isempty(opts.Moved)
+    R0 = [];
+    if isappdata(canvas, 'FigureLayoutResult'); R0 = getappdata(canvas, 'FigureLayoutResult'); end
+    moved = reshape(logical(opts.Moved), 1, []);
+    if fitsLast(R0, S, sz, ids, rects, how, moved)
+        if ~isempty(opts.Reset); opts.Reset(moved); end
+        placeMoved(canvas, S, R0, moved, rects, how);
+        return
+    end
+    if ~isempty(opts.Reset); opts.Reset(true(1, n)); end
+end
 
 top = 0;
 if ~isempty(S.title) && isgraphics(S.title)
@@ -97,7 +142,6 @@ if ~isempty(S.title) && isgraphics(S.title)
     if written(S.title.Title) || written(S.title.Subtitle); top = t(4) + 2 * S.scale; end   % a text of several lines is a column
 end
 A = figureArea(sz, Top=top, Margin=S.margin, Scale=S.scale);
-how = {'Mode', string(S.layout.boxesMean), 'Padding', S.layout.paddingPx};
 [cells, deco, bars] = measure(S, {});
 L = figurePlace(A, cells, how{:});
 place(S, L);
@@ -108,12 +152,90 @@ if ~isempty(cells2) && max([abs([cells2.inset] - [cells.inset]), abs([cells2.nee
     cells = cells2;
     deco = deco2;
 end
-[lg, mode] = placeFigureLegend(S, L, cells);
+[lg, mode, natural] = placeFigureLegend(S, L, cells, []);
 placeNotes(S, L, deco);
-ids = strings(1, numel(S.panels));
-for k = 1:numel(S.panels); ids(k) = string(S.panels(k).id); end
+keepResult(canvas, A, ids, L, lg, mode, cells, bars, deco, sz, top, how, S, rects, natural);
+end
+
+
+function keepResult(canvas, A, ids, L, lg, mode, cells, bars, deco, sz, top, how, S, rects, natural)
+%keepResult  What was laid out, for an editor's overlay and for the next layout of a few panels (appdata FigureLayoutResult).
 setappdata(canvas, 'FigureLayoutResult', struct('page', A.page, 'area', A.area, 'title', {A.title}, 'ids', ids, ...
-    'panels', {L.panels}, 'neighbors', L.neighbors, 'legend', {lg}, 'legendMode', mode));
+    'panels', {L.panels}, 'neighbors', L.neighbors, 'legend', {lg}, 'legendMode', mode, ...
+    'cells', cells, 'bars', {bars}, 'deco', deco, 'size', sz, 'top', top, 'how', {how}, 'margin', S.margin, ...
+    'scale', S.scale, 'rects', rects, 'legendSize', natural));
+end
+
+
+function tf = fitsLast(R0, S, sz, ids, rects, how, moved)
+%fitsLast  The last layout's result can be reused for all but the panels MOVED: the same panels, canvas, settings and other rects.
+tf = false;
+n = numel(ids);
+if ~isstruct(R0) || ~isfield(R0, 'cells') || numel(moved) ~= n || ~any(moved) || numel(R0.cells) ~= n ...
+        || ~isequal(R0.ids, ids) || ~isequal(R0.size, sz) || ~isequal(R0.how, how) || ~isequal(R0.margin, S.margin) ...
+        || ~isequal(R0.scale, S.scale) || ~isequal(size(R0.rects), size(rects))
+    return
+end
+if any(abs(R0.rects(~moved, :) - rects(~moved, :)) > 1e-12, 'all'); return; end
+for k = find(~moved)
+    if any(~isgraphics(S.panels(k).axes)); return; end
+end
+tf = true;
+end
+
+
+function placeMoved(canvas, S, R0, moved, rects, how)
+%placeMoved  The layout of figureLayout's Moved: the moved panels measured and placed, the others placed only where their place changes.
+A = figureArea(R0.size, Top=R0.top, Margin=S.margin, Scale=S.scale);
+bars = R0.bars;
+[cells, deco] = measure(S, bars, moved, R0.cells, R0.deco);
+L = figurePlace(A, cells, how{:});
+set1 = moved | placeChanged(L.panels, R0.panels, false);
+place(S, L, set1);
+again = moved | placeChanged(L.panels, R0.panels, true);   % a new size can change the tick labels
+[cells2, deco2] = measure(S, bars, again, cells, deco);
+if max([abs([cells2.inset] - [cells.inset]), abs([cells2.need] - [cells.need])]) > 1
+    L = figurePlace(A, cells2, how{:});
+    set2 = moved | placeChanged(L.panels, R0.panels, false);
+    set1 = set1 | set2;
+    place(S, L, set1);   % (a set of an unchanged place is dropped)
+    cells = cells2;
+    deco = deco2;
+end
+P = L.panels;
+P(~set1) = R0.panels(~set1);   % (where they are)
+L.panels = P;
+lg = R0.legend;
+mode = R0.legendMode;
+G = [];
+if isfield(S, 'legend') && isstruct(S.legend) && ~isempty(S.legend); G = S.legend; end
+natural = [];
+if isfield(R0, 'legendSize'); natural = R0.legendSize; end
+if isstruct(G) && (string(G.mode) == "float" || (string(G.mode) == "panel" && set1(G.panel)))
+    [lg, mode, natural] = placeFigureLegend(S, L, cells, natural);   % (a floating legend's size as last read: reading it is slow)
+end
+placeNotes(S, L, deco, set1);
+keepResult(canvas, A, R0.ids, L, lg, mode, cells, bars, deco, R0.size, R0.top, how, S, rects, natural);
+end
+
+
+function tf = placeChanged(P, P0, sized)
+%placeChanged  Per panel, whether its axes or band in P (figurePlace's) differ from P0's by more than half a pixel (SIZED: in size).
+n = numel(P);
+tf = false(1, n);
+for k = 1:n
+    a = P(k).axes;
+    b = P0(k).axes;
+    c = P(k).band;
+    d = P0(k).band;
+    if ~isequal(size(a), size(b)) || ~isequal(size(c), size(d))
+        tf(k) = true;
+    elseif sized
+        tf(k) = any(abs(a(:, 3:4) - b(:, 3:4)) > 0.5, 'all') || (~isempty(c) && any(abs(c(3:4) - d(3:4)) > 0.5));
+    else
+        tf(k) = any(abs(a - b) > 0.5, 'all') || (~isempty(c) && any(abs(c - d) > 0.5));
+    end
+end
 end
 
 
@@ -128,14 +250,19 @@ figureLayout(c);
 end
 
 
-function [cells, deco, bars] = measure(S, bars)
+function [cells, deco, bars] = measure(S, bars, which, cells, deco)
 %measure  Each panel for figurePlace: its rect, its insets (the room its labels take) and its note band's need.
 %   BARS (one per panel, a row per axes) is the room its color bars take
 %   ({} = measure it: reading a color bar is slow, and its room does not
 %   change with the axes' size). A legend panel (fixed) has no insets.
-cells = struct('rect', {}, 'inset', {}, 'band', {}, 'need', {}, 'shares', {}, 'fixed', {}, 'layout', {});
+%   measure(S, BARS, WHICH, CELLS, DECO) measures only the panels WHICH
+%   (logical), the others' entries kept from CELLS and DECO (the last layout's).
 n = numel(S.panels);
-deco = zeros(1, n);   % px the panel's labels take in its band (on the band's side)
+if nargin < 3
+    which = true(1, n);
+    cells = struct('rect', {}, 'inset', {}, 'band', {}, 'need', {}, 'shares', {}, 'fixed', {}, 'layout', {});
+    deco = zeros(1, n);   % px the panel's labels take in its band (on the band's side)
+end
 if isempty(bars)
     bars = cell(1, n);
     for k = 1:n
@@ -144,7 +271,7 @@ if isempty(bars)
         for i = 1:numel(S.panels(k).axes); bars{k}(i, :) = colorbarRoom(S.panels(k).axes(i), S.scale); end
     end
 end
-for k = 1:n
+for k = find(which)
     P = S.panels(k);
     side = "";
     need = 0;
@@ -270,9 +397,11 @@ tf = strjoin(string(t.String), "") ~= "";
 end
 
 
-function place(S, L)
-%place  Every axes, band and the title at its place in L (pixels).
-for k = 1:numel(S.panels)
+function place(S, L, which)
+%place  Every axes, band and the title at its place in L (pixels); WHICH (logical) only those panels' axes and bands, not the title.
+whole = nargin < 3;
+if whole; which = true(1, numel(S.panels)); end
+for k = find(which)
     P = S.panels(k);
     X = L.panels(k).axes;
     for i = 1:numel(P.axes)
@@ -293,10 +422,11 @@ end
 end
 
 
-function [box, mode] = placeFigureLegend(S, L, cells)
+function [box, mode, natural] = placeFigureLegend(S, L, cells, natural)
 %placeFigureLegend  The figure's legend where S.legend says: in its legend panel, floating in free space, or inside its axes.
 %   BOX: its px box ([] when inside a panel or none); MODE "panel",
-%   "float", "inside" or "".
+%   "float", "inside" or "". NATURAL: a floating legend's natural size in
+%   px, [w h] (given: as read before, not read again; [] = read it).
 box = [];
 mode = "";
 if ~isfield(S, 'legend') || ~isstruct(S.legend) || isempty(S.legend); return; end
@@ -309,7 +439,12 @@ switch string(G.mode)
         mode = "panel";
     case "float"
         if ~strcmp(lgd.Units, 'pixels'); lgd.Units = 'pixels'; end
-        p = lgd.Position;   % its natural size (never set to another)
+        if numel(natural) == 2
+            p = [0 0 natural];
+        else
+            p = lgd.Position;   % its natural size (never set to another)
+            natural = p(3:4);
+        end
         pad = max(S.layout.paddingPx, 4 * S.scale);
         a = L.area;
         R = struct('rect', cell(1, numel(L.panels)));
@@ -328,9 +463,9 @@ switch string(G.mode)
             mode = "inside";
         else
             c = a(1:2) + (f(1:2) + f(3:4) / 2) .* a(3:4);
-            lgd.Location = 'none';
-            lgd.Position = [c - p(3:4) / 2, p(3:4)];
-            box = lgd.Position;
+            if ~strcmp(lgd.Location, 'none'); lgd.Location = 'none'; end
+            box = [c - p(3:4) / 2, p(3:4)];
+            lgd.Position = box;
             mode = "float";
         end
     otherwise
@@ -380,9 +515,10 @@ box = lgd.Position;
 end
 
 
-function placeNotes(S, L, deco)
-%placeNotes  The panels' notes: in a band, in the part its labels leave free; over a panel, in its axes (placeNote).
-for k = 1:numel(S.panels)
+function placeNotes(S, L, deco, which)
+%placeNotes  The panels' notes: in a band, in the part its labels leave free; over a panel, in its axes (placeNote); WHICH (logical) only those panels'.
+if nargin < 4; which = true(1, numel(S.panels)); end
+for k = find(which)
     P = S.panels(k);
     if isempty(P.text) || ~isgraphics(P.text); continue; end
     if isempty(P.band) || ~isgraphics(P.band) || isempty(L.panels(k).band)

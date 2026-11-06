@@ -1,4 +1,4 @@
-function ok = layoutPreview(obj, spec)
+function ok = layoutPreview(obj, spec, opts)
 %layoutPreview  The drawing in the preview (drawn or out of date) laid out at a figure's rects, nothing drawn (renderFigure LayoutOnly).
 %   OK = layoutPreview(OBJ) lays it out at the selected figure's rects and
 %   layout as they are now (Config.figureFor, as refreshFigurePreview
@@ -14,17 +14,25 @@ function ok = layoutPreview(obj, spec)
 %   kept (FigurePreviewResult no struct) or renderFigure could not lay it
 %   out (an error is logged).
 %
+%   layoutPreview(..., PlaceMoved=true) lays out only the panels whose
+%   rects changed (renderFigure's PlaceMoved): Arrange's release.
+%
 %   See also arrangedPreview, paintEditFirst, renderFigure.
+arguments
+    obj (1,1) EphysFigGenApp
+    spec = []
+    opts.PlaceMoved (1,1) logical = false
+end
 ok = false;
 F = obj.FigurePreviewResult;
 if ~isstruct(F); return; end
-if nargin < 2
+if ~isstruct(spec)
     spec = obj.Config.figureFor(obj.SelectedFigure);
     spec.enabled = true;   % (as refreshFigurePreview draws it)
 end
 quiet = layingOut(obj);   % the axes' listeners wait: the panels are marked once, below %#ok<NASGU>
 try
-    [~, how] = renderFigure(F, spec, obj.FigurePreviewPanel, LayoutOnly=true);
+    [~, how] = renderFigure(F, spec, obj.FigurePreviewPanel, LayoutOnly=true, PlaceMoved=opts.PlaceMoved);
 catch ME
     clear quiet
     obj.log(spec.id + ": the preview could not be laid out at the new places: " + string(ME.message));

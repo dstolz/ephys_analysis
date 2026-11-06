@@ -438,6 +438,7 @@ classdef EphysFigGenApp < handle
         FigureArrangeDirty (1,1) logical = false   % Arrange laid the preview out at places that change its labels (arrangedPreview): Arrange off draws it again when Auto may (onArrangeToggled)
         FigureSettleTimer = []              % Arrange off: the one-shot timer whose Auto redraw follows the toggle (onArrangeToggled), else []
         FigureArrangeKept = []              % Arrange's overlay hidden while Arrange is off (syncArrangeOverlay), kept to be shown again with its boxes; else []
+        WarmTimer = []                      % the one-shot timer that loads Arrange's box classes after startup (warmArrangeClasses), else []
         FigureFocusPane (1,1) double = 0    % the column F6 last went to: 1 the figure list, 2 the editor, 3 the preview
         FigureHistory FigureEditHistory = FigureEditHistory()   % the figure editor's undo and redo (recordFigureEdit, onUndoRedo); cleared by another config
         CtrlHeld (1,1) logical = false      % Ctrl (Cmd) is down (onKeyPress, onKeyRelease): an editor edit made with it opens Apply to figures (onApplyToFigures)
@@ -500,6 +501,7 @@ classdef EphysFigGenApp < handle
             obj.Fig.Visible = "on";
             drawnow;
             obj.Splash.close();
+            warmArrangeClasses(obj);   % Arrange's box classes loaded in the idle moment after startup, not by the first Arrange on
             if nargout == 0
                 clear obj
             end

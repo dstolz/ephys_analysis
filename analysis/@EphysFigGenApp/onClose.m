@@ -42,7 +42,7 @@ if ~isempty(obj.NoteSearchWindow) && isvalid(obj.NoteSearchWindow)
 end
 O = obj.FigureArrangeOverlay;
 if isstruct(O) && ~isempty(O.timer) && isvalid(O.timer); stop(O.timer); end   % Arrange's cue timer (it deletes itself)
-for t = {obj.FigureSelectTimer, obj.FigureSettleTimer}   % Arrange's refill after a release, its redraw after Arrange off (they delete themselves)
+for t = {obj.FigureSelectTimer, obj.FigureSettleTimer, obj.WarmTimer}   % Arrange's refill after a release, its redraw after Arrange off, the startup warm-up (they delete themselves)
     if ~isempty(t{1}) && isvalid(t{1}); stop(t{1}); end
 end
 delete(obj.Fig);

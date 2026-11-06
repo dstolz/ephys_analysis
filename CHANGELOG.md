@@ -22,8 +22,10 @@ says how to cut a release.
   change at once and the rest of the editor shows the panel about 0.4 s after the release (at once when the editor
   is read or the next press comes). During a drag the Position and Size fields update on the first step and then
   about four times a second; the readout by the box is live and the fields are exact at release. Switching Arrange
-  on again is quick, since its boxes are kept, hidden, while it is off. The cannot-draw signs' hover tips are hidden
-  while Arrange is on and return when it is off.
+  on again is quick, since its boxes are kept, hidden, while it is off; the first Arrange on of a session is quick
+  too (the boxes' classes are loaded in the idle moment after the window shows), and its smart guides are made
+  with the overlay, not by the first drag. The cannot-draw signs' hover tips are hidden while Arrange is on and
+  return when it is off.
 - Analysis app, Figures tab: selecting a panel (Ctrl+click or Shift+click in the preview, Ctrl+] and Ctrl+[) fills
   only that panel's rows of the editor, and the editor's rows keep their places (a select changes row heights, not
   rows); a select never redraws the preview. `panelTypes` and `defaults` are built once, and `normalizeFigures`

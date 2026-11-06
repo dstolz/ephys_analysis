@@ -177,7 +177,7 @@ ax = axes(P, 'Units', 'pixels', 'Position', [1 1 10 10], 'XLim', [0 1], 'YLim', 
 disableDefaultInteractivity(ax);
 ax.Toolbar = [];   % (none: hiding the default one makes it first, a third of a second)
 O = struct('axes', ax, 'panel', P, 'widgets', containers.Map('KeyType', 'char', 'ValueType', 'any'), 'legend', [], ...
-    'legendRect', [], 'guides', [], 'sizes', [], 'band', [], 'timer', [], 'ids', []);
+    'legendRect', [], 'guides', arrangeGuides(ax), 'sizes', [], 'band', [], 'timer', [], 'ids', []);   % the guides with it: a first drag then costs no more than the next
 end
 
 

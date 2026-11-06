@@ -4669,6 +4669,18 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         && isequal(RM.ids, RW.ids) && max(abs(RM.panels(2).box - RW.panels(2).box)) < 1 && isequal(RM.rects, RW.rects), ...
         sprintf(['renderFigure InPlaceOnly with PlaceMoved: the PSTH narrowed is laid out alone, every axes where the whole ' ...
         'layout puts it (%.2f px apart at most) and the layout result alike'], max(abs(posM - posW), [], 'all')));
+    % RectsOnly: the caller's word that only rects changed; the same places, and nothing done when the stack changes
+    renderFigure(F3, s3g, pA, InPlaceOnly=true);
+    [~, howR] = renderFigure(F3, s3m, pA, InPlaceOnly=true, RectsOnly=true);
+    posR = cell2mat(get(axAll(), 'Position'));
+    DR = getappdata(pA, 'FigureDrawing');
+    s3x = s3m;
+    s3x.panels(1).rect = [0 0.45 1 0.55];   % the raster lifted off the PSTH: its time labels would change
+    [hX, howX] = renderFigure(F3, s3x, pA, InPlaceOnly=true, RectsOnly=true);
+    check(howR == "inplace" && max(abs(posR - posW), [], 'all') < 1 && isequal(DR.spec.panels(2).rect, s3m.panels(2).rect) ...
+        && howX == "" && isempty(hX) && isequal(cell2mat(get(axAll(), 'Position')), posR), ...
+        sprintf(['renderFigure RectsOnly: the PSTH narrowed laid out as PlaceMoved lays it out (%.2f px apart), the drawing ' ...
+        'recording its rect; a move that breaks the stack does nothing ("%s")'], max(abs(posR - posW), [], 'all'), howX));
     renderFigure(F3, s3g, pA, InPlaceOnly=true);
     s3h = s3g;
     s3h.layout.padding = 0.6;

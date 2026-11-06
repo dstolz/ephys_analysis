@@ -95,7 +95,7 @@ if msg ~= "" && ~opts.Arrange; obj.setStatus(msg); end   % (Arrange's: arrangedP
 if drew
     markFigureTree(obj);
 elseif opts.Arrange
-    arrangedPreview(obj, msg);
+    arrangedPreview(obj, msg, RectsOnly=rects);
 else
     obj.autoFigurePreview();
 end

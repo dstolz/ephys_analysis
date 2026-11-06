@@ -20,11 +20,17 @@ function ok = inPlaceFigurePreview(obj, opts)
 %   inPlaceFigurePreview(OBJ, PlaceMoved=true) lays out only the panels
 %   whose rects changed (renderFigure's PlaceMoved): Arrange's release
 %   (arrangedPreview).
+%   inPlaceFigurePreview(..., RectsOnly=true): the edit set the panels'
+%   rects alone (commitFigureEdit's onlyRects): the spec is the one drawn
+%   (FigurePreviewResult's) with the figure's rects, not computed again
+%   (Config.figureFor), and renderFigure compares nothing else
+%   (RectsOnly).
 %
 %   See also autoFigurePreview, renderFigure, redrawFigurePreview.
 arguments
     obj (1,1) EphysFigGenApp
     opts.PlaceMoved (1,1) logical = false
+    opts.RectsOnly (1,1) logical = false
 end
 ok = false;
 k = obj.SelectedFigure;
@@ -39,15 +45,20 @@ end
 was = obj.FigurePreviewDrawn;
 now = figureViewKey(obj, k);
 if ~isstruct(was) || ~isstruct(now) || ~isequaln(rmfield(was, 'figure'), rmfield(now, 'figure')); return; end   % other data, observation or scan
-spec = obj.Config.figureFor(k);
-spec.enabled = true;   % (as refreshFigurePreview computes it)
+spec = [];
+if opts.RectsOnly; spec = drawnSpecAt(obj); end   % the spec drawn, at the new rects
+if ~isstruct(spec)
+    opts.RectsOnly = false;
+    spec = obj.Config.figureFor(k);
+    spec.enabled = true;   % (as refreshFigurePreview computes it)
+end
 quiet = layingOut(obj);   % the axes' listeners wait: the panels are marked once, below %#ok<NASGU>
 try
     [~, how] = renderFigure(F, spec, P, Scale=previewScale(obj, spec), OnRemember=@(rules) obj.rememberFigureAesthetics(id, rules), ...
         OnGoto=@(role, panel) obj.gotoFigureSetting(id, role, panel), ...
         OnAxisEdit=@(panel, change) obj.onFigureAxisEdited(id, panel, change), ...
         OnSelect=@(panel, ctrl, shift) obj.onFigurePanelClicked(id, panel, ctrl, false, shift), ...
-        InPlaceOnly=true, PlaceMoved=opts.PlaceMoved);
+        InPlaceOnly=true, PlaceMoved=opts.PlaceMoved || opts.RectsOnly, RectsOnly=opts.RectsOnly);
 catch ME
     obj.log(id + ": the edit could not be set on the preview, so it is drawn again: " + string(ME.message));
     return

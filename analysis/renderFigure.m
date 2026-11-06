@@ -289,6 +289,18 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %                     laid out whole as above. The app's Arrange places
 %                     its panels so (arrangedPreview): a release takes a
 %                     fraction of a second on a figure of many panels
+%     RectsOnly       false (default) or true: with InPlaceOnly (and
+%                     PlaceMoved implied), the caller says SPEC differs
+%                     from the drawing TARGET keeps in its panels' rects
+%                     alone (the app's Arrange, which knows it: only rects
+%                     were set), so nothing else is compared or filled in
+%                     (no label variables, no drawing keys): when which
+%                     panels touch which and the top-left panel are as
+%                     drawn (the arrange key), the panels moved are laid
+%                     out as PlaceMoved lays them out, the drawing kept
+%                     records the new rects and the right-click editor's
+%                     context takes SPEC (HOW "inplace"); else nothing is
+%                     done (HOW "", H []). F is read for that context only
 %     Scale           1 (default): the drawing at the sizes it is exported
 %                     at. S: a drawing shown S times as wide as its export
 %                     page at 96 dpi (the app's preview, drawn to fit its
@@ -356,6 +368,7 @@ arguments
     opts.KeptOnly (1,1) logical = false
     opts.LayoutOnly (1,1) logical = false
     opts.PlaceMoved (1,1) logical = false
+    opts.RectsOnly (1,1) logical = false
     opts.Scale (1,1) double {mustBePositive, mustBeFinite} = 1
 end
 if opts.LayoutOnly   % the drawing kept, laid out at the new places: nothing drawn
@@ -368,8 +381,12 @@ if isfield(F, 'kind') && string(F.kind) == "probeFigure"   % a probe figure (fig
         how = "";
         return
     end
-    args = namedargs2cell(rmfield(opts, {'LayoutOnly' 'KeptOnly' 'PlaceMoved'}));   % (a probe page has no layout-only path: handled above)
+    args = namedargs2cell(rmfield(opts, {'LayoutOnly' 'KeptOnly' 'PlaceMoved' 'RectsOnly'}));   % (a probe page has no layout-only path: handled above)
     [h, how] = renderProbeFigure(F, spec, target, args{:});
+    return
+end
+if opts.InPlaceOnly && opts.RectsOnly   % only rects changed (the caller knows): placed, nothing compared
+    [h, how] = rectsOnly(F, spec, target, opts);
     return
 end
 how = "drawn";
@@ -1153,6 +1170,68 @@ how = "layout";
 end
 
 
+function [h, how] = rectsOnly(F, spec, target, opts)
+%rectsOnly  renderFigure's RectsOnly: the drawing TARGET keeps laid out at SPEC's rects (the panels moved alone), when its arrange key is as drawn.
+%   SPEC differs from the drawing's spec in its panels' rects alone (the
+%   caller's word); the drawing's spec (D.spec, its texts as filled in)
+%   with SPEC's rects gives the arrange key (arrangeKey), compared with the
+%   drawn one. As inPlace's new places: the parts of the panels moved back
+%   where a new drawing starts and figureLayout's Moved; D.spec records
+%   the rects (where the drawings start stays the drawn one); the editor's
+%   context takes SPEC.
+h = [];
+how = "";
+if ~isappdata(target, drawingAppdata()) || ~isappdata(target, 'FigureLayout'); return; end
+D = getappdata(target, drawingAppdata());
+S = getappdata(target, 'FigureLayout');
+if ~isstruct(D) || ~isfield(D, 'spec') || ~isfield(D, 'keys') || ~isfield(D.keys, 'arrange') || ~isstruct(S) ...
+        || ~isfield(S, 'panels') || isfield(S, 'layoutFcn')
+    return
+end
+np = numel(spec.panels);
+ids = strings(1, np);
+for k = 1:np; ids(k) = spec.panels(k).id; end
+if ~isequal(drawnIds(D), ids) || numel(S.panels) ~= np || numel(D.spec.panels) ~= np; return; end
+drawn = isgraphics(D.axes);
+for k = find(drawn)
+    if ~all(isgraphics(D.parts{k})); return; end
+end
+W = D.spec;
+for k = 1:np; W.panels(k).rect = spec.panels(k).rect; end
+if ~isequaln(arrangeKey(W), D.keys.arrange); return; end   % the time stack or the top-left panel changes: drawn
+[S, which] = newRects(S, spec.panels);
+if any(which); figureLayout(target, S, Moved=which, Reset=@(w) toStart(D, w & drawn)); end
+D.spec = W;
+setappdata(target, drawingAppdata(), D);
+if figureEditable(opts.Editable, target) && isappdata(target, PlotAesthetics.ContextKey)
+    [design, follows] = figureDesignFor(opts.Design, opts.UserAesthetics);
+    setappdata(target, PlotAesthetics.ContextKey, figureEditContext(F, spec, target, opts, target, design, follows, D.txt));
+end
+h = figureHandles(target, W, D.axes, D.extra, D.notes, D.ovls, D.yExt, D.txt);
+how = "inplace";
+end
+
+
+function A = arrangeKey(spec)
+%arrangeKey  drawingKeys' arrange key of SPEC: each panel's id, type, sides, time axis and note; which panels touch which; the top-left panel.
+P = spec.panels;
+np = numel(P);
+place = struct('id', {}, 'type', {}, 'xSide', {}, 'ySide', {}, 'sharesTime', {}, 'note', {});
+for k = 1:np
+    place(k) = struct('id', P(k).id, 'type', P(k).type, 'xSide', P(k).xSide, 'ySide', P(k).ySide, ...
+        'sharesTime', P(k).sharesTime, 'note', P(k).note);
+end
+N = figureNeighbors(reshape([zeros(1, 0) P.rect], 4, []).', EphysAnalysisConfig.RectTol);
+rel = struct('below', N.below, 'above', N.above, 'left', N.left, 'right', N.right, 'inColumn', N.inColumn);
+first = "";
+if np > 0
+    k1 = firstPanel(spec, string([P.type]) ~= "legend");
+    if k1 > 0; first = P(k1).id; end
+end
+A = struct('place', place, 'neighbors', rel, 'first', first);
+end
+
+
 function toStart(D, which)
 %toStart  The parts of the drawing D's panels WHICH (logical) back where a new drawing starts (D.pos), their color bars placed from them again.
 for k = find(which)
@@ -1284,18 +1363,6 @@ function K = drawingKeys(F, spec, style, design, opts, colorsOf, isTime, isLeg, 
 %           figure's window (its own window, or one from event to event)
 P = spec.panels;
 np = numel(P);
-place = struct('id', {}, 'type', {}, 'xSide', {}, 'ySide', {}, 'sharesTime', {}, 'note', {});
-for k = 1:np
-    place(k) = struct('id', P(k).id, 'type', P(k).type, 'xSide', P(k).xSide, 'ySide', P(k).ySide, ...
-        'sharesTime', P(k).sharesTime, 'note', P(k).note);
-end
-N = figureNeighbors(reshape([zeros(1, 0) P.rect], 4, []).', EphysAnalysisConfig.RectTol);
-rel = struct('below', N.below, 'above', N.above, 'left', N.left, 'right', N.right, 'inColumn', N.inColumn);
-first = "";
-if np > 0
-    k1 = firstPanel(spec, string([P.type]) ~= "legend");
-    if k1 > 0; first = P(k1).id; end
-end
 Fg = rmfield(F, intersect({'panels' 'id' 'created' 'spec' 'latency'}, fieldnames(F)));   % (the id as SPEC's: a rename alone keeps the panels)
 Sg = rmfield(spec, intersect({'panels' 'id' 'autoId' 'enabled' 'title' 'latency' 'layout'}, fieldnames(spec)));
 Sg.titled = spec.title ~= "";
@@ -1312,7 +1379,7 @@ K = struct();
 K.global = struct('F', Fg, 'spec', Sg, 'style', style, 'design', design, 'rules', rules, 'batch', {opts.BatchYLim}, ...
     'editable', figureEditable(opts.Editable, target), 'tips', figureEditable(opts.DataTips, target), 'size', sz, ...
     'scale', opts.Scale);
-K.arrange = struct('place', place, 'neighbors', rel, 'first', first);
+K.arrange = arrangeKey(spec);
 K.panels = cell(1, np);
 K.start = cell(1, np);
 K.ownTime = false(1, np);

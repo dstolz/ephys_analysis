@@ -8,7 +8,7 @@ function T = figureSettingItems(fig)
 %              "panel.<panel id>.<name>" ("panel.psth_1.options.yLim")
 %     Part     figureSettingParts' Part
 %     Groups   the tree's levels between the part and the setting (a
-%              string row): an Appearance group ("Colors"), or the panel
+%              string row): a Style group ("Colors"), or the panel
 %              ("psth_1  (PSTH)") and its group ("Axes and limits")
 %     Label    name shown in the app
 %     Value    FIG's value, as text
@@ -38,7 +38,7 @@ function T = figureSettingItems(fig)
 %   and analysis (every other option),
 %   Alignment and note (its own event reference / window / selection,
 %   its note's look but not its text; its place goes with the panels).
-%   Appearance: the Style fields a figure draws with, grouped (Lines,
+%   Style: the Style fields a figure draws with, grouped (Lines,
 %   Colors, Text and legend, Marks, Sorting and labels; Other
 %   for a field not named here), not YLim, XLim, CLim, MaxTiles,
 %   TileSpacing and StackSpacing (a figure does not use them). Remembered
@@ -94,7 +94,7 @@ for j = 1:numel(fig.panels)
     nf = setdiff(string(fieldnames(p.note)).', "text", 'stable');
     pa("Alignment and note", "note", "Its note's look (not the text)", "note." + nf, p.note.placement);
 end
-% Appearance
+% Style
 unused = ["YLim" "XLim" "CLim" "MaxTiles" "TileSpacing" "StackSpacing"];   % a figure's limits, tiles and stacks are its panels'
 S = styleGroups();
 for f = setdiff(string(fieldnames(fig.style)).', unused, 'stable')
@@ -251,7 +251,7 @@ L = struct('bins', "Bins", 'measure', "Measure", 'baseline', "Baseline", 'auroc'
     'param', "Parameter", 'seriesParam', "Series parameter", 'timeBase', "Time base", 'range', "Range", ...
     'segmentSec', "Segment (s)", 'taperMode', "Taper mode", 'TW', "Time-bandwidth (TW)", 'K', "Tapers (K)", ...
     'W', "Bandwidth (W)", 'p', "Error p (p)", 'pad', "Padding", 'fpass', "Frequency (Hz)", 'err', "Error bars", ...
-    'errP', "Error p", 'detrend', "Detrend", 'scale', "Power scale", 'spikeFs', "Spike sampling (Hz)", ...
+    'errP', "Error p", 'detrend', "Detrend", 'scale', "Power scale", 'spikeFs', "Sampling (Hz)", ...
     'movingwin', "Moving window", 'overTime', "Over time", 'showPhase', "Phase", 'colorBy', "Color by", ...
     'height', "Height", 'alpha', "Opacity", 'edgeColor', "Edge color", 'edgeWidth', "Edge width", ...
     'minWidth', "Smallest width", 'lineWidth', "Line width", 'lineStyle', "Line style", 'showBaseline', "Row line", ...

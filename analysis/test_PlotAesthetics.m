@@ -312,7 +312,7 @@ check(moved, "every panel type takes its x axis on top, its y axis on the right 
     ifText(~moved, ": " + strjoin(why, "; ")));
 R = PlotAesthetics.roles().Role;
 check(all(arrayfun(@(r) ~isempty(figureRoleSettings(r)), R)) && isequal(figureRoleSettings("nonsense"), "@style"), ...
-    'every role has settings to go to; an unknown one goes to Appearance');
+    'every role has settings to go to; an unknown one goes to Style');
 
 fprintf('\n== 5. the editor: live edits, Apply to, Reset, Cancel ==\n');
 fig2 = figure('Visible', 'off', 'Position', [100 100 700 800]);

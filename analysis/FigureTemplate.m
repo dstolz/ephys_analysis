@@ -4,7 +4,7 @@ classdef FigureTemplate
     %   observes, its event reference, epoch window and trial selection, its
     %   page size, every panel (type, place on the page, options, own
     %   alignment, layers, text note, overlays, waveform), what the
-    %   panels' boxes mean and their padding (layout), the Appearance, the looks remembered from the preview and the Sessions
+    %   panels' boxes mean and their padding (layout), the Style, the looks remembered from the preview and the Sessions
     %   settings -- but what makes a figure that figure: its id (and
     %   whether the id is automatic), its title and whether it is enabled.
     %   An event reference, window or selection the figure takes from the

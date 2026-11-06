@@ -24,7 +24,7 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0, 
 %                     panel, which reads its lines
 %     raster          Sort rows by (trial order, the stop event, the
 %                     first-spike latency, or one of PARAMS)
-%     psth            Bin width and Smoothing SD (ms), Measure, Draw as (a
+%     psth            Bin width and Smooth SD (ms), Measure, Draw as (a
 %                     trace or a heat map)
 %     continuous      Stack (off, a row per group or per channel), Error
 %                     band
@@ -604,12 +604,12 @@ end
 
 
 function rows = binRows(def, smooth)
-%binRows  Bin width (ms) and, unless SMOOTH is false, Smoothing SD (ms): the type's bins.
+%binRows  Bin width (ms) and, unless SMOOTH is false, Smooth SD (ms): the type's bins.
 if nargin < 2; smooth = true; end
 rows = {"BinMs", "Bin width (ms):", @(gr) uieditfield(gr, "numeric", "Value", 1000 * def.bins.BinSec, "Limits", [0 Inf], ...
     "LowerLimitInclusive", "off", "Tooltip", "The histogram's bin width, ms.")};
 if smooth
-    rows(end+1, :) = {"SmoothMs", "Smoothing SD (ms):", @(gr) uieditfield(gr, "numeric", "Value", 1000 * def.bins.SmoothSec, ...
+    rows(end+1, :) = {"SmoothMs", "Smooth SD (ms):", @(gr) uieditfield(gr, "numeric", "Value", 1000 * def.bins.SmoothSec, ...
         "Limits", [0 Inf], "Tooltip", "The Gaussian smoothing's SD, ms (0 = none).")};
 end
 end

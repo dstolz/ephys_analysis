@@ -10,27 +10,52 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis app, Figures tab: the settings editor is regrouped by what each section writes, in sixteen sections under the
+  three supersections (17 before). FIGURE (the whole figure): **Observations**, **Alignment** (the event reference, the
+  epoch window and the trial selection, one section with a sub-heading each and its **Use default** box at the right),
+  **Layout** (**New panel...**, the **Page**, and the **App preferences (not saved in the config)** Units and Snap, which
+  were mixed in with the figure's rows), **First-spike latency**, **Sessions** and **Probe layout**. PANEL (the selected
+  panel or panels): **Panel** (its type, title, and now its Position, Size and the Set corners, Remove panel, Bring
+  forward and Send back buttons, which were in the figure's Panels section), **Panel alignment**, **Layers**,
+  **Analysis**, **Display**, **Axes**, **Waveform** and **Annotations** (the text note and the overlays, one section
+  with two sub-headings). LOOK (every panel's look): **Style** and **Design and looks**. The one long **Options** section
+  is gone: its rows are split by what an edit costs, **Analysis** (an edit computes the figure again), **Display** (it
+  only redraws) and **Axes** (what sets an axis: labels, sides, what shows, box, scales, limits, color scale); Analysis
+  and Display are titled with the panel's type (*Analysis - PSTH*).
+- Analysis app, Figures tab: **Pages** (Observations) is one drop-down, *One per observation*, *Across datasets* or
+  *On the probe*, in place of the two check boxes *Across datasets* (Sessions) and *On the probe* (Probe layout), which
+  excluded each other; the Sessions and Probe layout sections show only for their choice. **Apply to all panels** is
+  three buttons, one in the header of Analysis, Display and Axes (each copies only its own rows, to the panels that
+  have them; Axes copies the axis sides and the limits), in place of the one in Options. The first-spike latency's
+  method is set in one place, the figure's First-spike latency section, which names the panels that read it, each a
+  link to the section that draws its marks, box plot and onset line (the panels' rows say the method is the figure's).
 - Analysis app, Figures tab: the editor's sections can be cut into groups by **sub-headings** (`formSubheading`): a bold
   gray title over the rows under it, with a control slot at its right and, for an *Advanced* group, a "▸" / "▾" button
-  that folds the rows away (hidden, so Tab skips them). A sub-heading is hidden while every row under it is. Observations
-  has two: **Unit filter** and a folded-away **Response test** (the test's windows, parameter and auROC rows;
-  **Responsive only** stays above it). The search lists a sub-heading like a section header (a folded one also answers to
-  "advanced") and a row's path names it (*Figure > Observations > Response test > Test windows (s)*); going to a row
-  under a folded one opens it first. Folded groups are remembered (preference `FigureSubheadingsCollapsed`). Section
-  header colors say the scope, blue FIGURE, green PANEL, violet LOOK, a shade per section, from one table at the top of
-  `buildFiguresTab`, instead of 17 hues.
-- Analysis app, Figures tab: the settings are regrouped by scope (FIGURE: Observations, Alignment, Layout, First-spike
-  latency, Sessions, Probe layout; PANEL: Panel, Panel alignment, Layers, Analysis, Display, Axes, Waveform, Annotations;
-  LOOK: Style, Design and looks) and relabeled so that one concept has one label, the same in the editor, the New panel
+  that folds the rows away (hidden, so Tab skips them). A sub-heading is hidden while every row under it is. The
+  *Advanced* groups, folded at the start, are the response test (Observations), the auROC rows and the Chronux tapers
+  (Analysis) and the response onset (First-spike latency); a search for a row in one opens it. Folded groups are
+  remembered (preference `FigureSubheadingsCollapsed`). The search lists a sub-heading like a section header (a folded
+  one also answers to "advanced") and a row's path names it (*Figure > Observations > Response test > Windows (s)*).
+  Section header colors say the scope, blue FIGURE, green PANEL, violet LOOK, a shade per section, from one table at the
+  top of `buildFiguresTab`, instead of 17 hues. **Design and looks** holds the design list, **Save look as design...**,
+  **Edit aesthetics...**, the remembered looks with **Forget**, and a line saying where a part's look comes from (the
+  panel's own rows, this figure's looks, your looks for the panel type, the design).
+- Analysis app, Figures tab: the section keys follow the new order: **Ctrl+1** Observations, **2** Alignment,
+  **3** Layout, **4** Panel, **5** Panel alignment, **6** Layers, **7** Analysis, **8** Display, **9** Axes and
+  **Ctrl+0** Annotations; First-spike latency, Sessions, Probe layout, Waveform, Style and Design and looks have no key
+  (the search finds them). **Alt+1** to **Alt+3** still open the supersections. The keys window (the **?** button) lists
+  them.
+- Analysis app, Figures tab: rows are relabeled so that one concept has one label, the same in the editor, the New panel
   window, the Trial measure and latency windows, the search, the hidden-row reasons and the Undo names: **Page size**;
   **On channels** (a unit filter's recording channels) and **Signal channels** (an extract's columns); the response
   test's **Windows (s)**, **Parameter** and **Correction, alpha**; **Trial measure** and **Trial measure (x)**; **Bin
-  width (ms)**, **Smoothing SD (ms)**, **Baseline window (s)**, **Trial group drawn**, **Color by** (a probe map's),
-  **Power scale**, **Frequency (Hz)**, **Spike sampling (Hz)**, **Draw as** and **Trace**, **Single trials**,
+  width (ms)**, **Smooth SD (ms)**, **Baseline span (s)**, **Trial group drawn**, **Color by** (a probe map's),
+  **Power scale**, **Frequency (Hz)**, **Sampling (Hz)** (a spike layer's), **Draw as** and **Trace**, **Single trials**,
   **First-spike marks** and **Latency box plot**, **Tick color** and **Row bands**, **Row line** and **Row line
   style**, **Also show**, **Axes box**, **Stacking** and **Shape** (an overlay's), **One page per** (Sessions),
   and the Waveform section's **Waveform**, **Time span (ms)**, **Amplitude range**, **Inset size** or **Glyph size**
-  (by role) and **Labels**. The Copy settings tree names the same settings the same way.
+  (by role) and **Labels**. The Copy settings tree names the same settings the same way, and its part *Appearance* is
+  now *Style*, as the section is.
 - `EphysAnalysisConfig.adoptPanelOptions(fig, id, Fields=names)` copies only the named options (and `"xSide"` /
   `"ySide"`); left out it copies as before.
 - Analysis app, Figures tab: Arrange places panels without drawing the preview again. A release, an arrow nudge or

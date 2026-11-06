@@ -2,7 +2,7 @@ function test_copyFigureSettings()
 %test_copyFigureSettings  Verification suite for copying a figure's settings, one by one, onto other figures or into a design.
 %   1. figureSettingParts: the parts. figureSettingItems: a raster + PSTH
 %      figure's settings, each with its part, groups (a panel's group,
-%      an Appearance group), paths, value, generic key and whether a
+%      a Style group), paths, value, generic key and whether a
 %      design holds it; the Style fields a figure does not use left out.
 %   2. copyFigureSettings: one setting (the rest of its part kept), a
 %      part, a panel's options (to the panel of its type only; another
@@ -67,7 +67,7 @@ check(height(y) == 1 && isequal(y.Groups{1}, ["psth_1  (PSTH)" "Axes and limits"
     'a panel option: under its panel and group, its path from the panel, its generic key by type, its value as text');
 check(height(fs) == 1 && fs.Groups{1} == "Text and legend" && isequal(fs.Paths{1}, "style.FontSize") && fs.Value == "9" ...
     && fs.Label == "Font size" && ~any(startsWith(I.Key, ["style.YLim" "style.MaxTiles" "style.TileSpacing" "style.StackSpacing"])), ...
-    'an Appearance setting in its group; the Style fields a figure does not use are left out');
+    'a Style setting in its group; the Style fields a figure does not use are left out');
 pnl = row("arrangement.panels");
 lay = row("arrangement.layout");
 check(height(pnl) == 1 && isequal(pnl.Paths{1}, "panels") && pnl.Value == "2 panels: raster, psth" && pnl.Label == "Panels (types, places, options, layers)" ...

@@ -5618,7 +5618,7 @@ if S.sec("5q", "figure templates (the row above the preview: Save as, Apply into
         'as a new figure: the whole template, an automatic id, selected');
     app.onApplyTemplate("Card", To=app.Config.Figures(3).id, Parts="style");
     check(app.Config.Figures(3).style.FontSize == 15 && isequal([app.Config.Figures(3).panels.type], "continuous"), ...
-        'one part only (Appearance): the figure keeps its panels');
+        'one part only (Style): the figure keeps its panels');
 
     % Update, Export, Remove, Import
     app.onFigureSelected(1);

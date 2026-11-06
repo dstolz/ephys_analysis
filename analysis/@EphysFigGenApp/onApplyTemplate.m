@@ -5,7 +5,7 @@ function onApplyTemplate(obj, name, opts)
 %   (private/applyTemplateDialog) that lists every figure of the config
 %   with a check box (the figure shown ticked), the parts of a figure's
 %   settings (figureSettingParts: Observations, Alignment, Arrangement and
-%   panels, Panel settings, Appearance, Remembered looks, Across
+%   panels, Panel settings, Style, Remembered looks, Across
 %   sessions; all ticked) and "Also add it as a new figure" (ticked when
 %   the config has no figure).
 %   Into the figures ticked it copies the parts ticked as Copy settings

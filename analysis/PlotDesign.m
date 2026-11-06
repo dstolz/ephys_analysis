@@ -50,7 +50,7 @@ classdef PlotDesign
     %   colormap function or a list of colors, spread evenly from the
     %   lowest value to the highest. A FontName may list fallbacks
     %   ("Palatino Linotype, Georgia"): the first one installed is used. A
-    %   plot's own Appearance settings choose the colors only when its group
+    %   plot's own Style settings choose the colors only when its group
     %   colors are "lines" and its heat colors "auto".
     %
     %   See also PlotAesthetics, renderFigure, PlotAestheticsDialog.

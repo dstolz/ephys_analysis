@@ -8,7 +8,7 @@ function keys = figureRoleSettings(role)
 %   "Go to setting" goes to the first one the figure shows for the panel
 %   (EphysFigGenApp.gotoFigureSetting), the next when a row is hidden
 %   (an option of another panel type). A role with no entry gives "@style"
-%   (the Appearance section).
+%   (the Style section).
 %
 %   See also PlotAesthetics.roles, EphysFigGenApp.gotoFigureSetting.
 role = string(role);

@@ -203,7 +203,7 @@ check(B.id == "other" && B.title == F(2).title && B.enabled == F(2).enabled && i
     'every setting copied onto a figure: it keeps its id, title and enabled; the others are untouched');
 G = copyFigureSettings([F tf], cfg.Defaults, n + 1, 2, "style");
 check(G(2).style.FontSize == 13 && isequal([G(2).panels.type], "psth") && G(2).size.source == F(2).size.source, ...
-    'one part (Appearance): the panels and the page stay');
+    'one part (Style): the panels and the page stay');
 [c2, id] = cfg.addFigure(tf);
 check(numel(c2.Figures) == 3 && c2.Figures(3).autoId && id ~= "" && c2.Figures(3).id == id && same(c2.Figures(3), A), ...
     sprintf('as a new figure: the whole template, an automatic id (%s)', id));

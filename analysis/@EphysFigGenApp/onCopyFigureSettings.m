@@ -4,7 +4,7 @@ function onCopyFigureSettings(obj, opts)
 %   (private/copySettingsDialog) offers From (every figure; the one
 %   selected first), a check box tree of its settings (figureSettingItems:
 %   the parts Observations, Alignment, Arrangement and panels, Panel
-%   settings per panel, Appearance, Remembered looks, Across sessions;
+%   settings per panel, Style, Remembered looks, Across sessions;
 %   their groups; each setting with its value), and Copy to: the figures
 %   ticked in a check box list (one or many), a design of yours or a new
 %   design. The ticks start as left last time (CopyUnticked, CopyTargets).

@@ -16,7 +16,7 @@ rows = {
     "latency",     "First-spike latency",    "How the figure finds each epoch's first-spike latency and each unit's response onset, for every panel that reads them: the method, window, baseline and CUSUM"
     "arrangement", "Arrangement and panels", "Every panel (its type, place on the page, options, alignment and layers; panel ids kept), what the panels' boxes mean and the padding between them"
     "panel",       "Panel settings",         "Each panel's axes and limits, colors and lines, display, marks, analysis, alignment and note: for the panels of the figures copied onto that take them"
-    "style",       "Appearance",             "Line widths, error bands, colors, fonts, legend, marks, sorting and labels"
+    "style",       "Style",                  "Line widths, error bands, colors, fonts, legend, marks, sorting and labels"
     "looks",       "Remembered looks",       "The looks remembered from the preview's right-click editor, one by one (added to the figure's own)"
     "sessions",    "Across sessions",        "Drawn across the datasets: which ones, the figures, colors, error band, matching and trial groups"
     "probe",       "On the probe",           "Laid out on the probe, a tile per unit or channel at its site: the layout, overlaps, which sites, how many tiles and their look"

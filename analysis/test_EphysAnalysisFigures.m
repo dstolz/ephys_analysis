@@ -3060,13 +3060,16 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
                 bad = C.Role == "" | ~ismember(C.Role, roles);
                 if any(bad); msgs = msgs + mode + ": untagged " + strjoin(C.Type(bad) + " " + C.Role(bad), ", ") + "  "; end
                 ok = ok && ~any(bad);
+                tbOn = ~arrayfun(@(a) a.Toolbar.Visible == "off", findall(tg, 'Type', 'axes'));
+                if any(tbOn); msgs = msgs + mode + ": " + nnz(tbOn) + " axes show the axes toolbar  "; end
+                ok = ok && ~any(tbOn);
             catch ME
                 ok = false;
                 msgs = msgs + mode + ": " + ME.message + "  ";
             end
             okAll = okAll && ok;
         end
-        msg = rcases{k, 1} + " draws into an axes, a uiaxes, a figure, a uipanel and a grid layout, every component tagged, the tiles named by panel";
+        msg = rcases{k, 1} + " draws into an axes, a uiaxes, a figure, a uipanel and a grid layout, every component tagged, the tiles named by panel, no axes toolbar";
         if msgs ~= ""; msg = msg + " (" + msgs + ")"; end
         check(okAll, msg);
     end
@@ -6563,6 +6566,8 @@ if S.sec("16", "probe figures: layout and render (probeTileLayout, renderProbeFi
     okPanel = all(arrayfun(@(a) ismember(string(getappdata(a, 'FigurePanel')), [spP.panels.id]) && ismember(string(a.Tag), ["axes" "rasterAxes"]), ta));
     check(numel(ta) == nS * np && okPanel && numel(hP.axes) == nS * np && isequaln(hP.layout, probeTileLayout(PF8, spP.probe)), ...
         sprintf('%d tiles x %d panels: %d axes with appdata ProbeTile and FigurePanel, tagged as panels (%d found)', nS, np, nS * np, numel(ta)));
+    tbOn = ~arrayfun(@(a) a.Toolbar.Visible == "off", findall(fgP, 'Type', 'axes'));
+    check(~any(tbOn), sprintf('no tile''s axes nor the probe axes shows the axes toolbar (%d do)', nnz(tbOn)));
     [okIn, okApart, why] = tilesPlaced(hP, fgP);
     check(okIn && okApart, sprintf('every tile''s axes inside the canvas, no two tiles overlapping (pixels; %s)', why));
     pa = findall(fgP, 'Type', 'axes', 'Tag', 'probeAxes');

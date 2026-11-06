@@ -2494,7 +2494,8 @@ renderers never create figures. `Design` names a [plot design](EphysAnalysis.md#
 
 - **Layout.** renderFigure lays its panels out itself (not with MATLAB's tiled
   layout): `target`, emptied (a grid layout gets a borderless panel; `h.layout`),
-  holds one axes per panel, and once everything
+  holds one axes per panel (no panel shows MATLAB's axes toolbar, the icons
+  that appear over a plot on hover; a probe figure's tiles neither), and once everything
   is drawn and dressed (its looks final) `figureLayout` measures the room each
   panel's labels take (its axes' `TightInset`, on the sides where tick labels,
   an axis label, a title or a color bar outside sit: a tick label that only

@@ -11,8 +11,8 @@ function onSaveDesign(obj, name, description)
 %   Out of date (the drawing is not the figure any more): the status bar
 %   says to preview first. Asks for the NAME and DESCRIPTION unless given
 %   (given: one of yours of that name is replaced). The Save look as
-%   design button beside the Design list on the Figures tab and the Design
-%   menu call it.
+%   design button in the Look section Design and looks (SaveDesignButton)
+%   and the Design menu call it.
 arguments
     obj (1,1) EphysFigGenApp
     name (1,1) string = missing

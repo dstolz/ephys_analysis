@@ -320,7 +320,7 @@ classdef EphysFigGenApp < handle
         FigureAutoSlider       matlab.ui.control.Slider         % Auto: the threshold 0-1 of the edits' redraw (autoRedrawLimit; pref FigureAutoRedraw, AutoRedrawDefault)
         FigureArrangeButton    matlab.ui.control.StateButton    % Arrange, on the template row: panels moved and resized over the preview (onArrangeToggled)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
-        SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
+        SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign); in the Look section Design and looks
         FigureTemplateDropDown matlab.ui.control.DropDown       % your figure templates (FigureTemplate.list; refreshTemplates), above the preview
         FigureTemplateApplyButton  matlab.ui.control.Button     % Apply...: the template into figures picked, or as a new one (onApplyTemplate)
         FigureTemplateSaveButton   matlab.ui.control.Button     % Save as...: the figure shown as a new template (onFigureTemplate "save")

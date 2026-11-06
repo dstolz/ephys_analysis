@@ -1,7 +1,8 @@
 function refreshDesigns(obj)
-%refreshDesigns  The Design menu and the Figures tab's Design list, from PlotDesign.list.
-%   The chosen design is ticked in the menu and shown in the list (its
-%   description as the list's tooltip). Called when the app is built and,
+%refreshDesigns  The Design menu and the Figures tab's two Design lists, from PlotDesign.list.
+%   The chosen design is ticked in the menu and shown in both lists (the
+%   preview's, DesignDropDown, and the Look section's Design and looks, E.design:
+%   they hold the same items and stay equal; the description is their tooltip). Called when the app is built and,
 %   through PlotDesign.listen, whenever a design is chosen, saved, imported
 %   or deleted anywhere (a figure's right-click menu too). The menu ends
 %   with Data tip fields... (DataTipFieldsDialog).
@@ -16,7 +17,9 @@ if isempty(k); k = 1; end
 labels = T.Name;
 mine = T.Source == "mine";
 labels(mine) = labels(mine) + "  (mine)";
-set(obj.DesignDropDown, "Items", labels, "ItemsData", T.Name, "Value", T.Name(k), ...
+lists = obj.DesignDropDown;
+if isstruct(obj.FigureEditor) && isfield(obj.FigureEditor, 'design'); lists(end+1) = obj.FigureEditor.design; end
+set(lists, "Items", labels, "ItemsData", T.Name, "Value", T.Name(k), ...
     "Tooltip", T.Name(k) + ": " + T.Description(k) + newline + "Choosing a design redraws every figure on screen; " + ...
     "runs draw their figures in it too.");
 

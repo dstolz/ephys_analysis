@@ -1,5 +1,7 @@
 function onDesignChosen(obj, name)
-%onDesignChosen  Draw every figure in design NAME (the Design menu or the Figures tab's Design list).
+%onDesignChosen  Draw every figure in design NAME (the Design menu or either of the Figures tab's Design lists).
+%   The preview's list and the Look section's (Design and looks) show the
+%   design chosen from any of them (refreshDesigns).
 %   PlotDesign.use: the choice is your preference, every figure on screen
 %   that follows it (the preview too) is redrawn at once, and runs draw
 %   their figures in it. A design that cannot be read says why.

@@ -31,7 +31,7 @@ elseif type == "probemap"
         "they share one scale.";
 elseif type == "waveforms"
     txt = "The panel is the unit's waveform (a fixed layer of several units: their means overlaid). Its own Y " + ...
-        "limits (Options), when not automatic, win over the Amplitude row.";
+        "limits (Axes), when not automatic, win over the Amplitude row.";
 else
     draws = false;
     switch type

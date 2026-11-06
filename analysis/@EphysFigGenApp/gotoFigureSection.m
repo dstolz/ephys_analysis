@@ -2,10 +2,10 @@ function gotoFigureSection(obj, name)
 %gotoFigureSection  Go to the figure editor's section NAME: open it and its supersection if collapsed, scroll to it, focus its header.
 %   NAME is as for onFigureSectionToggled. Ctrl+1 to Ctrl+9 and Ctrl+0
 %   call this on the Figures tab (onKeyPress), the keys following the
-%   editor's order: Observations 1, Event reference 2, Epoch window 3,
-%   Trial selection 4, Panels 5, Selected panel 6, Panel alignment 7, Layers
-%   8, Options 9, Text note 0; Sessions, Probe layout, Overlays,
-%   Appearance and Looks have none. A section the figure does not show (no panel picked, say)
+%   editor's order: Observations 1, Alignment 2, Layout 3, Panel 4, Panel
+%   alignment 5, Layers 6, Analysis 7, Display 8, Axes 9, Annotations 0;
+%   First-spike latency, Sessions, Probe layout, Waveform, Appearance and
+%   Looks have none. A section the figure does not show (no panel picked, say)
 %   stays where it is, and the status bar says so.
 i = find([obj.FigureSections.Name] == name, 1);
 if isempty(i); return; end

@@ -20,13 +20,13 @@ function fig = gatherFigureEditor(obj)
 %   padding to cm, and the rect kept on the page (x and y at least 0,
 %   width and height at least 0.01 and inside the page: a position typed
 %   moves the panel, a size typed is cut at the page's edge). Boxes mean
-%   is the drop-down's. The panel's options are its Options rows', every field
+%   is the drop-down's. The panel's options are its Analysis, Display and Axes rows', every field
 %   of its type, but its waveform: the Waveform section's rows (the time
 %   span [] while both its fields are blank, ampLim only with the fixed
 %   scale); a trial panel's its trial rows (gatherTrial). A layer's
 %   measures (a trials layer's measure and xMeasure) have no row: the
 %   Trial measure window sets them (trialMeasureDialog).
-%   The panel's text note is its Text note rows', its overlays the
+%   The panel's text note is its Annotations' Text note rows', its overlays the
 %   Overlays list's, the one picked read from its rows (overlayGather).
 %   The figure's latency block is the First-spike latency rows' (a value
 %   in ms written only when it differs from what applyFigureEditor showed).
@@ -242,7 +242,7 @@ end
 
 
 function op = gatherOptions(E, p)
-%gatherOptions  The panel's options as the Options rows (and Group shown) show them; fields of other types are not there.
+%gatherOptions  The panel's options as the Analysis, Display and Axes rows (and Trial group drawn) show them; fields of other types are not there.
 op = p.options;
 own = @(f) isfield(op, f);
 if isfield(op, 'group'); op.group = E.group.Value; end
@@ -416,7 +416,7 @@ end
 
 
 function op = gatherTrial(E, op, type)
-%gatherTrial  A trial distribution's, histogram's or scatter's options OP (of TYPE) as its Options rows show them (the fields it has).
+%gatherTrial  A trial distribution's, histogram's or scatter's options OP (of TYPE) as its Analysis, Display and Axes rows show them (the fields it has).
 %   Its error and y limits are the Error and Y limits rows' (gatherOptions);
 %   a parameter's bins are a list ("" = [], "5" = 5 bins, "0 100 200" =
 %   edges), the x limits two ascending values else [] (automatic).
@@ -484,7 +484,7 @@ end
 
 
 function nt = gatherNote(E, nt)
-%gatherNote  The panel's text note as the Text note rows show it.
+%gatherNote  The panel's text note as the Annotations' Text note rows show it.
 nt.text = strjoin(string(E.annText.Value(:)).', newline);
 nt.placement = string(E.annPlace.Value);
 nt.x = E.annX.Value;

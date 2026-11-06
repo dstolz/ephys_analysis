@@ -163,10 +163,10 @@ elseif inPanel
         case "title", section = "panel"; key = "panelTitle";
         case "xLabel", section = "panel"; key = "panelXLabel";
         case "yLabel", section = "panel"; key = "panelYLabel";
-        case "note", section = "note"; key = "annText";
+        case "note", section = "annotations"; key = "annText";
         case {"align", "valign", "box", "ref", "window", "selection"}, section = "palign";
         case "layers", section = "layers";
-        case "options", section = "options";
+        case "options", section = "analysis";
         otherwise, section = "panel";
     end
 else

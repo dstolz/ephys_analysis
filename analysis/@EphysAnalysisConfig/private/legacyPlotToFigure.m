@@ -395,7 +395,7 @@ fig = EphysAnalysisConfig.normalizeFigure(fig, "Figure");
 
     function oneGroupNote(what)
         if grouped
-            addNote(sprintf("The %s draws one trial group (group 1); the plot drew one per group: set the panel's Group shown, " + ...
+            addNote(sprintf("The %s draws one trial group (group 1); the plot drew one per group: set the panel's Trial group drawn, " + ...
                 "or add a panel per group.", what));
         end
     end

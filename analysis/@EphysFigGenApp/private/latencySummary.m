@@ -1,5 +1,5 @@
 function s = latencySummary(L, kind)
-%latencySummary  A raster's first-spike marks or a PSTH's latency box plot in a few words, for the Options row beside its button.
+%latencySummary  A raster's first-spike marks or a PSTH's latency box plot in a few words, for the Display row beside its button.
 %   S = latencySummary(L, KIND) for L, a panel's options.firstSpike (KIND
 %   "firstSpike", defaults("FirstSpike")) or options.latencyBox (KIND
 %   "latencyBox", defaults("LatencyBox")): "off", or "on" and the look:

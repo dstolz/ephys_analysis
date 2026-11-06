@@ -1,6 +1,6 @@
 function errorTypeItems(dd, type)
 %errorTypeItems  Offer the figure editor's Error drop-down the error types a panel type draws.
-%   errorTypeItems(DD, TYPE) sets the items of DD (the Options section's
+%   errorTypeItems(DD, TYPE) sets the items of DD (the Analysis section's
 %   Error, E.errorType) for a panel of TYPE: a continuous panel's band
 %   (EphysAnalysisConfig.AuxErrorTypes, with the interquartile range)
 %   and a trial distribution's, histogram's or scatter's summary (the same

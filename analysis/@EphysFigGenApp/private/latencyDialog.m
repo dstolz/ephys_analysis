@@ -1,5 +1,5 @@
 function d = latencyDialog(obj, kind)
-%latencyDialog  A raster's first-spike latency marks, or a PSTH's latency box plot: their look, in a modal window (the Options' buttons).
+%latencyDialog  A raster's first-spike latency marks, or a PSTH's latency box plot: their look, in a modal window (the Display section's buttons).
 %   D = latencyDialog(OBJ, KIND) opens a modal window (WindowStyle
 %   "modal", Tag latencyDialog; one at a time) on the panel selected in
 %   the Figures tab (OBJ.SelectedFigure, OBJ.SelectedPanel) and returns it:

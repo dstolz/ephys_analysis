@@ -7,7 +7,7 @@ function why = figureRowReason(label, key, type)
 %   the First-spike latency rows by the figure's panels and the method,
 %   the Sessions rows by Across datasets, the Probe layout rows by On the
 %   probe, the selected panel's rows, the
-%   picked layer's by its source and binding, the Options rows by the
+%   picked layer's by its source and binding, the Analysis, Display and Axes rows by the
 %   panel's type (an option of the selected type that is still hidden says
 %   what else it needs), the Waveform rows by the panel's type
 %   (waveformNote: why a type draws no waveform; an inset's place, a
@@ -21,7 +21,7 @@ arguments
     key (1,1) string
     type (1,1) string = ""
 end
-% the Options rows: the panel types that show each, and what more a row needs on one of them
+% the Analysis, Display and Axes rows: the panel types that show each, and what more a row needs on one of them
 if startsWith(key, "wave") && key ~= "waveLayout"   % the Waveform section's rows
     why = waveReason(label, key, type);
     return
@@ -130,7 +130,7 @@ switch type
     case "raster", s = "a raster lists its groups in blocks already.";
     case "rate", s = "a firing rate panel puts its groups along x.";
     case "eventTrace", s = "an event-trace panel has a row per line already.";
-    case "corrmap", s = "a unit correlation map is a units-by-units matrix (draw a panel per group with Group shown).";
+    case "corrmap", s = "a unit correlation map is a units-by-units matrix (draw a panel per group with Trial group drawn).";
     case {"waveforms" "probemap"}, s = "it has no trial groups to stack.";
     case cellstr(EphysAnalysisConfig.TrialPanelTypes), s = "a trial panel groups its values by Categories and Series instead.";
     otherwise, s = "pick such a panel.";
@@ -139,7 +139,7 @@ end
 
 
 function T = optionTypes()
-%optionTypes  The Options rows syncFigureEditor shows by panel type: the types, and what more the row needs on them ("" = nothing).
+%optionTypes  The Analysis, Display and Axes rows syncFigureEditor shows by panel type: the types, and what more the row needs on them ("" = nothing).
 o = @(types, needs) struct('types', types, 'needs', needs);
 spikesHeat = "on a heat map, of spikes";
 T = struct();
@@ -150,13 +150,13 @@ T.baselineMode = o(["psth" "continuous" "heatmap" "corrmap" "rate" "tuning" "spe
 T.baseFrom = T.baselineMode;
 T.psthDisplay = o("psth", "");
 T.normalize = o("psth", "");
-for f = ["histStyle" "fill" "smoothLine"]; T.(f) = o("psth", "with Display: trace"); end
+for f = ["histStyle" "fill" "smoothLine"]; T.(f) = o("psth", "with Draw as: trace"); end
 T.stack = o(["psth" "continuous" "heatmap" "tuning" "spectrum" "spectrogram" "coherence"], ...
-    "on a PSTH with Display: trace, on a heat map with Rows: the layer's units or channels (a raster lists its groups " + ...
+    "on a PSTH with Draw as: trace, on a heat map with Rows: the layer's units or channels (a raster lists its groups " + ...
     "in blocks already, a firing rate panel puts them along x; a waveforms, probe map, unit correlation or event-trace " + ...
     "panel has no groups over a shared axis to stack)");
 T.stackSpacing = T.stack;
-T.panelColormap = o("psth", "with Display: heat map");
+T.panelColormap = o("psth", "with Draw as: heat map");
 T.param = o("tuning", "");
 T.rateDisplay = o("rate", "");
 T.waveLayout = o("waveforms", "");
@@ -168,14 +168,14 @@ T.tickColor = T.yTicks;
 T.tickWidth = T.yTicks;
 T.backColor = T.yTicks;
 T.firstSpike = T.yTicks;
-T.latencyBox = o("psth", "with Display: trace");
+T.latencyBox = o("psth", "with Draw as: trace");
 T.onsetLine = o(["raster" "psth"], "");
 T.trialCount = o("psth", "");
 T.heatRows = o("heatmap", "");
 for f = ["contTrials" "statistic"]; T.(f) = o("continuous", ""); end
-T.errorType = o(["psth" "continuous" "rate" "tuning" EphysAnalysisConfig.TrialPanelTypes], "on a PSTH with Display: trace");
+T.errorType = o(["psth" "continuous" "rate" "tuning" EphysAnalysisConfig.TrialPanelTypes], "on a PSTH with Draw as: trace");
 T.errFace = o(["psth" "continuous" "spectrum" "coherence" "waveforms" "probemap"], ...
-    "on a PSTH with Display: trace, on a coherence panel unless drawn over time");
+    "on a PSTH with Draw as: trace, on a coherence panel unless drawn over time");
 T.errEdge = T.errFace;
 T.maskAfterStop = o(["raster" "psth" "heatmap"], spikesHeat);
 T.order = o("heatmap", "with Rows: the layer's units or channels");
@@ -186,13 +186,13 @@ T.value = o("probemap", "");
 T.legOrient = o("legend", "");
 T.legAlign = T.legOrient;
 T.unitLabels = o("probemap", "");
-T.waveColor = o("probemap", "with Waveform: Show, and Value: rate or nSpikes");
+T.waveColor = o("probemap", "with Waveform: Show, and Color by: rate or nSpikes");
 for f = ["metric" "correlation" "fisherZ" "detrend"]; T.(f) = o("corrmap", ""); end
 T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence" "trialDist" "trialScatter"], ...
-    "on a PSTH with Display: trace, on a coherence panel unless drawn over time (an image's scale is its Color limits)");
+    "on a PSTH with Draw as: trace, on a coherence panel unless drawn over time (an image's scale is its Color limits)");
 T.yLimMode = T.yLim;
 T.cLim = o(["psth" "heatmap" "probemap" "corrmap" "spectrogram" "coherence"], ...
-    "on a PSTH with Display: heat map, on a coherence panel drawn over time");
+    "on a PSTH with Draw as: heat map, on a coherence panel drawn over time");
 T.spTimeBase = o(["spectrum" "coherence"], "");
 T.spRangeFrom = o(["spectrum" "coherence"], "with Time base: segments of the recording");
 T.spSegment = o(["spectrum" "coherence"], "with Time base: segments of the recording (a coherence panel not drawn over time)");
@@ -241,11 +241,11 @@ switch key
         why = label + " sizes an inset (" + inset + " panels) or the glyphs of a probe map or of a unit waveforms " + ...
             "panel in the probe layout: in the grid layout the waveform fills its panel.";
     case {"waveSites" "waveNames"}
-        why = label + " is for a unit waveforms panel in the probe layout (Options: Layout); a probe map draws its " + ...
-            "sites always, and names its units with Unit labels (Options).";
+        why = label + " is for a unit waveforms panel in the probe layout (Display: Layout); a probe map draws its " + ...
+            "sites always, and names its units with Unit labels (Display).";
     case {"wavePP" "waveCount"}
         why = label + " labels an inset or a unit waveforms panel's waveform; a probe map names its units with " + ...
-            "Unit labels (Options).";
+            "Unit labels (Display).";
     otherwise
         why = label + " is not used by this panel's waveform.";
 end

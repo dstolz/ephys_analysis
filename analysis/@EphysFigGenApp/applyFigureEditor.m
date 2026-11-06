@@ -384,7 +384,7 @@ end
 
 
 function applyNote(E, nt)
-%applyNote  The panel's text note NT (defaults("Note")) in the Text note rows.
+%applyNote  The panel's text note NT (defaults("Note")) in the Annotations' Text note rows.
 E.annText.Value = cellstr(splitlines(nt.text));
 E.annPlace.Value = char(pickFrom(nt.placement, string(E.annPlace.ItemsData), "below"));
 E.annX.Value = min(E.annX.Limits(2), max(E.annX.Limits(1), nt.x));

@@ -8,18 +8,20 @@ function syncFigureEditor(obj)
 %                    auROC test), the channels for a signal, nothing more
 %                    for the dataset
 %     Panels         New panel..., Units, Boxes mean, Padding, Snap and the
-%                    Arrange hint always; the selected panel's line, its
-%                    Position and Size and its buttons (Bring forward
-%                    while a panel is drawn after it, Send back while one
-%                    is drawn before it; Set corners while the preview
-%                    shows the figure: syncArrangeOverlay)
-%                    once there is one, else "No panel yet"; the values
-%                    in the units picked (showPanelPlace)
-%     Panel, Panel alignment, Layers, Options   with a panel selected;
-%                    Group shown for the one-group types (heat map, unit
+%                    Arrange hint always, "No panel yet" until there is a
+%                    panel
+%     Panel, Panel alignment, Layers, Analysis, Display, Axes   with a panel
+%                    selected; the Panel section holds its line, type and
+%                    title and its place and buttons (Position and Size
+%                    once there is a panel, in the units picked:
+%                    showPanelPlace; Bring forward while a panel is drawn
+%                    after it, Send back while one is drawn before it; Set
+%                    corners while the preview shows the figure:
+%                    syncArrangeOverlay); Trial group drawn (Analysis) for
+%                    the one-group types (heat map, unit
 %                    correlation; hidden on a stack); the Y axis row's side grayed out on a
 %                    stacked line panel (a y axis on each side); a legend
-%                    panel's without Box and the axes' rows (it has no
+%                    panel's without Axes box and the axes' rows (it has no
 %                    axes); Panel alignment's rows grayed out (they
 %                    show the figure's) while "Same as the figure" is
 %                    ticked, and, with a note, for a type not aligned to
@@ -28,9 +30,10 @@ function syncFigureEditor(obj)
 %                    "Trial selection as the figure" is ticked; its Apply
 %                    to all panels only while the panel has its own,
 %                    Re-link all panels while any panel has its own
-%                    event, window or selection; Options' Apply to all
-%                    panels while the figure has another panel (every
-%                    one takes the axis sides)
+%                    event, window or selection; the Apply to all panels
+%                    button in the header of Analysis, Display and Axes while
+%                    the figure has another panel (Axes: every one takes the
+%                    axis sides)
 %     Event reference, Epoch window, Trial selection   unless every panel
 %                    of the figure is one not aligned to events (Trial
 %                    selection also with a trial panel, which takes it)
@@ -55,11 +58,16 @@ function syncFigureEditor(obj)
 %                    scatter's X measure), each with Edit... (the Trial
 %                    measure window); the color and line style but for marks
 %                    and spans
-%     Options        the panel type's own (titled "<Type> options"); a heat
+%     Analysis, Display, Axes   the panel type's own rows (titled "Analysis
+%                    - PSTH", "Display - PSTH" and "Axes": the type is
+%                    named but in Axes). Analysis is what an edit computes
+%                    again, Display what it only redraws, Axes what sets an
+%                    axis. A heat
 %                    map of a signal has no bins or measure; a PSTH's or a
-%                    spike heat map's auROC rows with the auroc baseline
-%                    (the test row with a per-unit test); a PSTH's display,
-%                    its trace rows (PSTH as, fill, y limits: the mode
+%                    spike heat map's auROC rows (Analysis, under a folded
+%                    sub-heading) with the auroc baseline (the test row with
+%                    a per-unit test); a PSTH's Draw as, its trace rows
+%                    (Trace, fill, y limits: the mode
 %                    drop-down, its lo-hi field enabled only for Fixed) or,
 %                    drawn as a heat map, its colormap and color limits;
 %                    the Stack row on every type that stacks
@@ -67,34 +75,37 @@ function syncFigureEditor(obj)
 %                    heat map of trials), its spacing grayed out while
 %                    Off;
 %                    the Error row of a PSTH (not drawn as a heat map),
-%                    continuous, rate or tuning panel (its items by type:
+%                    continuous, rate or tuning panel, under Analysis'
+%                    Statistics sub-heading with the trial panels' summary,
+%                    test and adjustment (its items by type:
 %                    errorTypeItems; grayed out on a rate panel but with
 %                    bars, its resamples but with the bootstrap CI), and
 %                    Band fill and Band edge on a PSTH, continuous,
 %                    spectrum, coherence (not over time), waveforms or
 %                    probe map panel (grayed out while its Error is Off;
 %                    the edge's style and width while the edge is none);
-%                    a continuous panel's trials (and at most, enabled
+%                    a continuous panel's single trials (and at most, enabled
 %                    unless off); a heat map's rows, its raster sort
-%                    rows for trials (and neither row order nor Group
-%                    shown then);
-%                    a rate panel's display; a tuning panel's parameter
+%                    rows for trials (and neither row order nor Trial group
+%                    drawn then);
+%                    a rate panel's Draw as; a tuning panel's parameter
 %                    and series; a waveforms panel's layout; a spectral
-%                    panel's Chronux rows (tapers, TW / K or W / p enabled
-%                    by the taper mode, pad, frequency range, detrend; a
+%                    panel's Chronux rows (tapers under a folded sub-heading,
+%                    TW / K or W / p enabled
+%                    by the taper mode, pad, frequency, detrend; a
 %                    spectrum's and a coherence panel's time base, its range
 %                    and segment on "segments", the error and its p-value;
-%                    the spike rate with a spike layer; the scale of a
+%                    the spike sampling with a spike layer; the power scale of a
 %                    spectrum or spectrogram; a spectrogram's moving window,
 %                    baseline, color limits and group; a coherence panel's
 %                    over-time box, its phase box or, over time, the moving
 %                    window, color limits and group); an event-trace
 %                    panel's rows (the bar outline with bars, the level
 %                    line with a line, the group bands with a sub-row per
-%                    epoch, the baseline's look with a baseline); a
+%                    epoch, the row line's look with a row line); a
 %                    trial panel's rows (trialEnable: a distribution's
-%                    categories, display, points and summary marks; a
-%                    histogram's display, bins, opacity and summary line;
+%                    categories, draw as, points and summary marks; a
+%                    histogram's draw as, bins, opacity and summary line;
 %                    a scatter's points, opacity, fit, correlation and
 %                    marginals; on all three the series, summary (with
 %                    the Error row), test, adjustment, how the tests show
@@ -111,11 +122,17 @@ function syncFigureEditor(obj)
 %                    location on a raster, PSTH, rate or tuning panel (an
 %                    inset), Size and On the probe on a waveforms panel in
 %                    the probe layout, Size on a probe map (no Label: its
-%                    Unit labels row, in Options, names the units)
-%     Text note, Overlays   with a panel selected: the panel's note rows
-%                    (its look enabled with text; x and y with "At x, y")
-%                    and its overlay list with the rows of the overlay
-%                    picked (a line's position and color, a patch's edges,
+%                    Unit labels row, in Display, names the units). The
+%                    title says the role: "Waveform inset on psth_1" (a
+%                    raster, PSTH, rate or tuning panel), "Waveforms on
+%                    wave_1" (a unit waveforms panel), "Unit glyphs on
+%                    probemap_1" (a probe map)
+%     Annotations    with a panel selected: the panel's note rows under
+%                    the Text note sub-heading (its look enabled with text;
+%                    x and y with "At x, y") and its overlay list with the
+%                    rows of the overlay picked under the Overlays
+%                    sub-heading, which counts them ("Overlays (2)") (a
+%                    line's position and color, a patch's edges,
 %                    fill and outline; the line style and width with a line
 %                    or an outline); titled with the panel's id
 %     Appearance     all rows; the site size with a probe map, the heat
@@ -139,11 +156,12 @@ function syncFigureEditor(obj)
 %   is the first, its values in the rows): a banner over the Panel
 %   section's rows names them, and only the rows each of them shows by
 %   its own type and values are shown (panelRowsShown, judged for the
-%   others by their stored options): their title, box, axis labels, Group
-%   shown, Options and Waveform rows, and Panel alignment when each one is
-%   aligned to events; not the type, the place (Position, Size), Bring
-%   forward and Send back, Options' and Panel alignment's Apply to all
-%   panels, nor Layers, Text note and Overlays (each panel's own). Remove
+%   others by their stored options): their title, axes box, axis labels,
+%   Trial group drawn, Analysis, Display, Axes and Waveform rows, and Panel
+%   alignment when each one is aligned to events; not the type, the place
+%   (Position, Size), Bring forward and Send back, the Apply to all panels
+%   buttons of Analysis, Display and Axes and of Panel alignment (disabled),
+%   nor Layers and Annotations (each panel's own). Remove
 %   panel says how many it removes, and the section titles count them.
 %   An edit then goes to all of them (onConfigChanged: spreadPanelEdit).
 %   The selection lets go of the others when the figure's panels change
@@ -160,8 +178,8 @@ function syncFigureEditor(obj)
 %   spacing when stacked, the legend rows with their box, and
 %   the list buttons (Add layer off on a legend panel, which has no
 %   layers: the Layers note says so); Up and Down when the figure has a
-%   neighbor that way in its group of the tree. The Panels section's
-%   values are shown again in the units picked (showPanelPlace: an edit
+%   neighbor that way in its group of the tree. The Panel section's place
+%   rows are shown again in the units picked (showPanelPlace: an edit
 %   kept on the page, a page resized), and the preview outlines the
 %   selected panel (markFigurePanel).
 E = obj.FigureEditor;
@@ -295,7 +313,7 @@ optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort
     "firstSpike" "latencyBox" "onsetLine" "trialCount" ...
     "maskAfterStop" "psthDisplay" "histStyle" "fill" "smoothLine" "normalize" "statistic" "errorType" "errFace" "errEdge" "order" ...
     "value" "unitLabels" "waveColor" "metric" "correlation" "fisherZ" "detrend" "yLim" "cLim" "panelColormap" ...
-    "optApplyAll" "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
+    "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
     "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
     "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing" "legOrient" "legAlign" ...
@@ -306,7 +324,7 @@ noteKeys = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annB
 overlayKeys = ["ovList" "ovName" "ovKind" "ovValue" "ovFrom" "ovLayer" "ovColor" "ovFill" "ovEdge" "ovStyle"];
 for f = [layerKeys optionKeys waveKeys noteKeys overlayKeys]; v.(f) = false; end
 waveSpiky = false;   % the panel's layers may be spikes: the Waveform section shows
-optionsTitle = "Options";
+optionsTitle = "";   % the type's label for Analysis' and Display's titles
 paligned = false;
 nOv = 0;
 if hasPanel
@@ -317,7 +335,7 @@ if hasPanel
     typeLabel = t;
     if known
         typeLabel = PT.Label(row);
-        optionsTitle = typeLabel + " options";
+        optionsTitle = typeLabel;
         paligned = PT.Aligned(row);
     end
     on = [p.layers.enabled];
@@ -395,7 +413,6 @@ if hasPanel
             pv.(f) = pv.(f) && qv.(f);
         end
     end
-    if several; pv.optApplyAll = false; end   % (Apply to all panels gives one panel's options to every other)
     waveSpiky = pv.waveSection;
     pv = rmfield(pv, 'waveSection');
     for f = string(fieldnames(pv)).'
@@ -441,7 +458,9 @@ if hasPanel
     if isstruct(p.window); stop = obj.PanelAlignControls.StopOn.Value; end
     en(E.maskAfterStop, stop);
     if ismember(t, EphysAnalysisConfig.TrialPanelTypes); trialEnable(E, t); end   % a trial panel's rows its values do not use: grayed out
-    en(E.optApplyAll, np > 1);   % Apply to all panels: any other panel (every one takes the axis sides; adoptPanelOptions)
+    % Apply to all panels (in the headers of Analysis, Display and Axes): any other panel, from one panel selected (it gives
+    % that panel's rows to every other; Axes: the sides go to every panel; adoptPanelOptions)
+    en([E.optApplyAll E.dispApplyAll E.axesApplyAll], np > 1 && ~several);
 
     % the unit waveform's note (what it sets, or why the type draws none) and its rows' enabling
     E.waveNote.Text = d.waveText;
@@ -539,11 +558,11 @@ for f = string(fieldnames(v)).'
 end
 for i = 1:numel(S)
     switch names(i)
-        case {"panel" "options"}
+        case {"panel" "analysis" "display" "axes"}
             S(i).Visible = hasPanel;
         case "palign"
             S(i).Visible = hasPanel && (~several || all(aligned([j others])));   % several: when each one is aligned to events
-        case {"layers" "note" "overlays"}
+        case {"layers" "annotations"}
             S(i).Visible = hasPanel && ~several;   % each panel's own
         case "waveform"
             S(i).Visible = hasPanel && waveSpiky;
@@ -557,27 +576,42 @@ for i = 1:numel(S)
             S(i).Visible = true;
     end
 end
-S(names == "options").Title = optionsTitle;
-S(names == "note").Title = "Text note";
-S(names == "overlays").Title = "Overlays";
-S(names == "waveform").Title = "Waveform";
-if hasPanel
-    S(names == "waveform").Title = "Waveform on " + fig.panels(j).id;
-    S(names == "note").Title = "Text note on " + fig.panels(j).id;
-    S(names == "overlays").Title = "Overlays on " + fig.panels(j).id;
-    if nOv > 0; S(names == "overlays").Title = "Overlays (" + nOv + ") on " + fig.panels(j).id; end
+% the titles: Analysis and Display name the type ("Analysis - PSTH"), Axes never does
+S(names == "analysis").Title = "Analysis";
+S(names == "display").Title = "Display";
+S(names == "axes").Title = "Axes";
+if optionsTitle ~= ""
+    S(names == "analysis").Title = "Analysis " + char(8212) + " " + optionsTitle;
+    S(names == "display").Title = "Display " + char(8212) + " " + optionsTitle;
 end
-S(names == "panel").Title = "Selected panel";
+S(names == "annotations").Title = "Annotations";
+S(names == "waveform").Title = "Waveform";
+S(names == "panel").Title = "Panel";
 S(names == "palign").Title = "Panel alignment";
+if hasPanel
+    S(names == "waveform").Title = waveformTitle(fig.panels(j));
+    S(names == "annotations").Title = "Annotations on " + fig.panels(j).id;
+    iA = find(names == "annotations");
+    k = find(S(iA).Sub & S(iA).SubKey == "overlays", 1);
+    if ~isempty(k) && ~isempty(S(iA).Items{k})
+        lbl = S(iA).Items{k}(arrayfun(@(h) isprop(h, 'Text'), S(iA).Items{k}));
+        txt = "Overlays";
+        if nOv > 0; txt = "Overlays (" + nOv + ")"; end
+        if ~isempty(lbl) && ~isequal(string(lbl(1).Text), txt); lbl(1).Text = txt; end
+    end
+end
 if several   % the sections' titles count the panels an edit goes to
     nSel = numel(sel);
     S(names == "panel").Title = sprintf("%d selected panels", nSel);
     S(names == "palign").Title = sprintf("Panel alignment of %d panels", nSel);
-    S(names == "waveform").Title = sprintf("Waveform on %d panels", nSel);
+    roles = unique(arrayfun(@(q) waveformRole(q), fig.panels([j others])));
+    S(names == "waveform").Title = sprintf("%s on %d panels", ternary(isscalar(roles), roles, "Waveform"), nSel);
     if isscalar(unique([fig.panels([j others]).type]))
-        S(names == "options").Title = optionsTitle + sprintf(" (%d panels)", nSel);
+        S(names == "analysis").Title = S(names == "analysis").Title + sprintf(" (%d panels)", nSel);
+        S(names == "display").Title = S(names == "display").Title + sprintf(" (%d panels)", nSel);
     else
-        S(names == "options").Title = sprintf("Options the %d panels share", nSel);
+        S(names == "analysis").Title = sprintf("Analysis the %d panels share", nSel);
+        S(names == "display").Title = sprintf("Display the %d panels share", nSel);
     end
 end
 S(names == "layers").Title = "Layers";
@@ -596,10 +630,27 @@ obj.markFigurePanel();   % the preview outlines the selected panel
 end
 
 
+function t = waveformTitle(p)
+%waveformTitle  The Waveform section's title for panel P, by the role of its waveform: an inset, the panel itself, or a probe map's glyphs.
+t = waveformRole(p) + " on " + p.id;
+end
+
+
+function r = waveformRole(p)
+%waveformRole  What the unit waveform is on panel P's type: "Waveform inset" (a raster, PSTH, rate or tuning panel), "Waveforms" (a unit waveforms panel) or "Unit glyphs" (a probe map).
+r = "Waveform inset";
+if p.type == "waveforms"
+    r = "Waveforms";
+elseif p.type == "probemap"
+    r = "Unit glyphs";
+end
+end
+
+
 function [v, d] = panelRowsShown(p, val, keys)
-%panelRowsShown  Which of panel P's own rows show while its rows hold the values VAL: Box, the axis labels, Group shown, its Options and Waveform rows.
+%panelRowsShown  Which of panel P's own rows show while its rows hold the values VAL: Axes box, the axis labels, Trial group drawn, its Analysis, Display, Axes and Waveform rows.
 %   [V, D] = panelRowsShown(P, VAL, KEYS): V has a field per key of KEYS
-%   (the Options and Waveform rows', off unless P's type uses them) and
+%   (the Analysis, Display, Axes and Waveform rows', off unless P's type uses them) and
 %   panelBox, panelXLabel, panelYLabel, group and waveSection (the
 %   Waveform section shows: the type's layers may be spikes). VAL holds
 %   the values the showing follows: editorValues (the editor's controls,
@@ -696,7 +747,6 @@ if t == "spectrogram"; v.baselineMode = true; v.baseFrom = true; end
 auOn = (t == "psth" || pointHeat) && val.baselineMode == "auroc";   % the panel's auROC settings
 v.auMethod = auOn; v.auWinMs = auOn; v.auModFrom = auOn; v.auCutoff = auOn; v.auMarks = auOn;
 v.auTest = auOn && ismember(val.aurocCutoff, ["test" "shuffle"]);   % shuffle: its n and alpha
-v.optApplyAll = known;
 % the unit waveform: its section for every type whose layers may be spikes, its rows where the type draws one
 v.waveSection = any(ismember(ch.Sources, EphysAnalysisConfig.SpikeSources));
 [waveText, draws] = waveformNote(t, val.waveLayout);
@@ -732,7 +782,7 @@ end
 
 
 function trialEnable(E, t)
-%trialEnable  A trial panel's (TYPE T) Options rows enabled by its values: what they do not use grayed out.
+%trialEnable  A trial panel's (TYPE T) Analysis, Display and Axes rows enabled by its values: what they do not use grayed out.
 %   A parameter's name and bins with "a trial parameter"; the pairs, the
 %   adjustment, alpha and how the tests show unless the test is none (the
 %   bracketed pairs on a distribution with brackets); x at values with

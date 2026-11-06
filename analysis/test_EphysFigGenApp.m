@@ -1765,6 +1765,7 @@ end
 
 if S.sec("5d.multi", "several panels selected with Shift+click: each outlined, the Panel header and a banner say so, the editor shows the rows they share, an edit goes to each one that takes it (one undo step), Remove panels; Escape, Ctrl+Click, a step, Arrange and the search")
     app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
+    app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));   % a Ctrl key an earlier section pressed (5d.keys, 5d.search), let go: an edit stays with its panels
     app.FigureHistory = FigureEditHistory();   % the steps counted below start here (the sections before may have filled its Depth, 100)
     rowShown = @(key) any(arrayfun(@(sc) any(cellfun(@(kk) any(kk == key), sc.Keys) & sc.Shown), app.FigureSections));
     secShown = @(name) app.FigureSections([app.FigureSections.Name] == name).Visible;

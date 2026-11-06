@@ -10,8 +10,11 @@ function S = formSection(parent, row, name, title, body, opts)
 %   S = formSection(..., "panel") makes the body a borderless panel for
 %   another builder to fill; set S.BodyHeight to its height.
 %
-%   formLayout packs the rows S.Shown to the top and sizes the section; S.Visible
-%   false hides it, S.Expanded false collapses it to its header.
+%   formLayout shows the rows S.Shown, gives the others no height, and
+%   sizes the section; S.Visible false hides it, S.Expanded false collapses
+%   it to its header. The body's rows have no spacing of their own: a row
+%   of S.Gap px (4) under each form row is the space between them, so a
+%   hidden row leaves no gap.
 %
 %   S = formSection(..., Color=RGB) sets the color of the header bar: RGB
 %   desaturated, keeping its hue, and lightened until black text reads on it
@@ -31,7 +34,7 @@ end
 bar = pale(opts.Color);
 S = struct('Name', name, 'Title', title, 'Grid', [], 'HeaderGrid', [], 'Toggle', [], 'Body', [], ...
     'Keys', {{}}, 'Heights', zeros(1, 0), 'Shown', true(1, 0), 'Items', {{}}, 'BodyHeight', 0, ...
-    'Visible', true, 'Expanded', true, 'Color', bar, 'Key', "");
+    'Visible', true, 'Expanded', true, 'Color', bar, 'Key', "", 'Gap', 4);
 S.Grid = uigridlayout(parent, [2 1]);
 S.Grid.Layout.Row = row;
 S.Grid.Padding = [0 0 0 0];
@@ -51,7 +54,7 @@ end
 if body == "form"
     S.Body = uigridlayout(S.Grid, [1 2]);
     S.Body.ColumnWidth = {110, '1x'};
-    S.Body.RowSpacing = 4;
+    S.Body.RowSpacing = 0;   % (the gaps are rows of their own: formRow)
     S.Body.ColumnSpacing = 6;
     S.Body.Padding = [4 2 4 2];
 else

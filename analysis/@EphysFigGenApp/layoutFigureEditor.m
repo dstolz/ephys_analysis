@@ -1,6 +1,6 @@
 function layoutFigureEditor(obj)
-%layoutFigureEditor  Pack the figure editor's shown sections, under their supersections' headers, to the top and size them.
-%   Each section packs its shown rows and takes its height (formLayout):
+%layoutFigureEditor  Size the figure editor's sections, under their supersections' headers: what does not show gets no height.
+%   Each section shows its rows and takes its height (formLayout):
 %   the header alone when collapsed, none when hidden. The always-open
 %   section (Id, Title, ...) comes first; then each supersection
 %   (FigureSupers): its header, 30 px while a figure is selected, then its
@@ -9,12 +9,14 @@ function layoutFigureEditor(obj)
 %   names the selected panel ("PANEL  psth_1 (PSTH)") or says none is
 %   picked; with several selected (Shift+click) it counts and names them
 %   ("PANEL  3 SELECTED: psth_1, psth_2, raster_1") on the selection's
-%   blue (SelectionColor) instead of the headers' dark gray. What shows takes the editor's first rows, what does not
-%   zero-height rows below it (out of sight, and skipped by Tab), and a
-%   last row the space left (the editor scrolls when they need more).
+%   blue (SelectionColor) instead of the headers' dark gray. Each header
+%   and section keeps its row of the editor, in that order, with a 6 px
+%   row under it for the gap; what does not show gets no height there (and
+%   is hidden, so Tab skips it), and a last row takes the space left (the
+%   editor scrolls when they need more). Nothing moves, so only the
+%   editor's row heights change (formLayout).
 %   syncFigureEditor decides what shows; onFigureSectionToggled and
-%   onFigureSuperToggled what is collapsed. Only what changed is set (a
-%   row's Layout.Row costs as much when it is the same: formLayout).
+%   onFigureSuperToggled what is collapsed. Only what changed is set.
 S = obj.FigureSections;
 U = obj.FigureSupers;
 n = numel(S);
@@ -46,14 +48,15 @@ for u = 1:numel(U)
     hs = [hs 30 * has h(in)]; %#ok<AGROW>
 end
 on = hs > 0;
-order = [find(on) find(~on)];
-for i = 1:numel(order)
-    if ~isequal(items{order(i)}.Layout.Row, i); items{order(i)}.Layout.Row = i; end   % (only a change: formLayout)
+for i = 1:numel(items)
+    if ~isequal(items{i}.Layout.Row, 2 * i - 1); items{i}.Layout.Row = 2 * i - 1; end   % (its place for good: set once)
 end
 for u = 1:numel(U)
     U(u).Header.Visible = matlab.lang.OnOffSwitchState(has);
 end
-rh = [num2cell([hs(on) zeros(1, nnz(~on))]) {'1x'}];
+gap = 6 * on;   % the space under each shown item (the grid's RowSpacing is 0: buildFiguresTab)
+gap(find(on, 1, 'last')) = 0;
+rh = [num2cell(reshape([hs .* on; gap], 1, [])) {'1x'}];
 if ~isequal(obj.FigureEditorGrid.RowHeight, rh); obj.FigureEditorGrid.RowHeight = rh; end
 obj.FigureSections = S;
 end

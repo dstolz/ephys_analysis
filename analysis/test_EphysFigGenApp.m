@@ -156,12 +156,15 @@ function test_EphysFigGenApp(opts)
 %   Arrange over the preview (5h.arrange: the overlay and a box per panel,
 %   the outline hidden; a drag's step snapped with the guides and the
 %   fields, the figure untouched; its release one undo step, laid out in
-%   place, or drawn again when the time stack changes; Escape and Alt;
+%   place (the editor's rows a moment after, by a timer), never drawn
+%   again: out of date when the time stack changes, drawn again at
+%   Arrange off when Auto allows; Escape and Alt;
 %   equal spacing and size; snapRect's unit cases; the arrow keys and their
 %   one undo step; several panels selected with Shift+click (moved, resized,
 %   nudged and removed together, Escape, a plain click); Set corners and New panel drawn by two clicks, Escape,
 %   a click off the page; the floating legend made a legend panel; out of
-%   date, another figure, a probe figure; off again with Ctrl+Click);
+%   date, another figure, a probe figure; off again with Ctrl+Click, the
+%   overlay hidden and shown again with the same boxes);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -3889,20 +3892,36 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         sprintf(['with the time gate exceeded: psth_1 parted from the raster is laid out at its new rect (its plot %.0f px of %.0f), ' ...
         'nothing drawn, the preview out of date and the status bar saying "Laid out ..."; then psth_2 moved over the out-of-date ' ...
         'preview is laid out there too (x %.0f px)'], out1(4), R.page(4), out2(1)));
-    % Arrange off: with Auto off the preview stays as laid out; with Auto on it is drawn again, whatever the time gate
+    % Arrange off: the preview Arrange left out of date is drawn again as after any edit, when Auto allows it (a timer a
+    % moment after the toggle); with Auto off, or over its limit, it stays out of date and the status bar says so
+    nudge5 = @(x) app.onArrangeMoved("psth_2", roiMove(rectOf5("psth_2"), [x 0 0.45 0.5]));
     app.FigureAutoSlider.Value = 0;
     arrangeToggle(app, false);
-    offNoAuto = app.FigurePreviewState == "stale" && all(isvalid(lines0));
+    offNoAuto = app.FigurePreviewState == "stale" && all(isvalid(lines0)) && isempty(app.FigureSettleTimer) ...
+        && contains(app.StatusBar.Text, "Auto is off") && ~app.FigureArrangeDirty;
     arrangeToggle(app, true);
-    app.FigureAutoSlider.Value = 1e-6;   % Auto on again, the time gate still exceeded
+    app.FigureAutoSlider.Value = 1e-6;   % Auto on again, the time gate exceeded
+    nudge5(0.52);
+    t0 = tic;
     arrangeToggle(app, false);
-    offAuto = app.FigurePreviewState == "drawn" && ~any(isvalid(ax12)) && contains(app.StatusBar.Text, "drawn again");
-    check(offNoAuto && offAuto, ...
-        'Arrange off with Auto off: the preview stays laid out and out of date; with Auto on it is drawn again (the time gate exceeded), labels and stacks caught up');
+    tOff = toc(t0);
+    timed = isa(app.FigureSettleTimer, 'timer') && isvalid(app.FigureSettleTimer) && app.FigurePreviewState == "stale";
+    fireTimer(app.FigureSettleTimer);
+    offGated = timed && app.FigurePreviewState == "stale" && all(isvalid(lines0)) && contains(app.StatusBar.Text, "over Auto's limit");
     arrangeToggle(app, true);
     autoAlways(app);
-    app.onUndoRedo("undo");
-    app.onUndoRedo("undo");
+    app.FigureAutoSlider.Value = 1;
+    nudge5(0.5);
+    arrangeToggle(app, false);
+    stillStale = app.FigurePreviewState == "stale";
+    fireTimer(app.FigureSettleTimer);
+    offAuto = stillStale && app.FigurePreviewState == "drawn" && ~any(isvalid(ax12)) && isempty(app.FigureSettleTimer);
+    check(offNoAuto && offGated && offAuto, ...
+        sprintf(['Arrange off with Auto off: the preview stays laid out and out of date, saying so; with Auto on over its ' ...
+        'limit, the timer leaves it so; with Auto on and the drawing quick enough, the timer draws it again (the panels ' ...
+        'moved drawn anew), labels and stacks caught up; the toggle itself took %.2f s'], tOff));
+    arrangeToggle(app, true);
+    for i = 1:4; app.onUndoRedo("undo"); end
     app.refreshFigurePreview(Force=true);
 
     % the unit cases of the snapping (private/snapRect)
@@ -4169,9 +4188,24 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     app.onKeyPress(pressed('control', {'control'}));
     app.onFigurePanelClicked(app.Config.Figures(k5).id, "psth_1", true, false);
     app.onKeyRelease(struct('Key', 'control', 'Modifier', {{}}));
-    check(~app.FigureArrange && isempty(app.FigureArrangeOverlay) && isempty(findall(app.FigurePreviewPanel, 'Tag', 'arrangeOverlay')) ...
+    K = app.FigureArrangeKept;
+    hiddenK = isstruct(K) && isvalid(K.axes) && ~K.axes.Visible && K.axes.PickableParts == "none" ...
+        && ~any(arrayfun(@(o) logical(o.Visible), allchild(K.axes)));
+    check(~app.FigureArrange && isempty(app.FigureArrangeOverlay) && hiddenK ...
         && nmOff == 4 && app.SelectedPanel == 2 && ~contains(app.FigurePreviewHint.Text, "Arrange") && isempty(app.FigurePanelExtra), ...
-        'Arrange off: the overlay and its boxes gone, the selected panel outlined again, Ctrl+Click selects as before');
+        'Arrange off: the overlay and its boxes hidden (kept for the next time, taking no click), the selected panel outlined again, Ctrl+Click selects as before');
+    wK = K.widgets('psth_1');   % (arrangeBox reads the overlay shown: none while Arrange is off)
+    t0 = tic;
+    arrangeToggle(app, true);
+    tOn = toc(t0);
+    O = app.FigureArrangeOverlay;
+    check(isstruct(O) && O.axes == K.axes && logical(O.axes.Visible) && isequal(arrangeBox(app, "psth_1"), wK) ...
+        && logical(wK.Visible) && isempty(app.FigureArrangeKept), ...
+        sprintf(['Arrange on again: the same overlay and boxes shown again, none made (%.2f s; overlay %d, the same axes %d, ' ...
+        'visible %d, the same box %d, kept cleared %d, the kept one over the preview %d)'], tOn, isstruct(O), ...
+        isstruct(O) && O.axes == K.axes, isstruct(O) && logical(O.axes.Visible), isequal(arrangeBox(app, "psth_1"), wK), ...
+        isempty(app.FigureArrangeKept), K.panel == app.FigurePreviewPanel));
+    arrangeToggle(app, false);
 
     noFigures();
     app.FigureSnap = snap5ha{1};

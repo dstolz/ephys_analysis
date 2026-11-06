@@ -16,15 +16,22 @@ function onArrangeToggled(obj)
 %   Arrange needs the Image Processing Toolbox (its boxes are
 %   images.roi.Rectangle): without a license the button goes back off and
 %   the status bar says so.
-%   Off, any drag or Set corners under way ends (cancelArrange), the
-%   boxes go and the preview is as usual again. With Auto on (its slider
-%   off the left end), the preview of the figure (drawn, or out of date:
-%   laid out by the drags) is then drawn again, whatever Auto's limit
-%   (refreshFigurePreview, Force), so the time stacks' labels and the
-%   ticks catch up with the new places; nothing kept is computed again.
-%   With Auto off it stays as laid out (out of date if it was).
+%   Off, any drag or Set corners under way ends (cancelArrange), a
+%   panel a press selected has the editor's rows filled
+%   (finishPendingSelect), the boxes are hidden (kept for the next time:
+%   syncArrangeOverlay) and the preview is as usual again. When Arrange
+%   laid the preview out at places that change its labels (a time stack,
+%   the top-left panel: FigureArrangeDirty, arrangedPreview left it out
+%   of date), it is drawn again as after any edit -- when Auto's slider
+%   and limit allow it (autoFigurePreview: from the runner's cache with
+%   no busy card when it holds every step) -- a moment after the toggle
+%   (a one-shot timer, FigureSettleTimer, settleArrange), so Arrange off
+%   itself paints at once; the status bar says which. Else it stays out
+%   of date, the badge and the status bar saying so (Preview draws it).
+%   Arrange on again before that timer fires stops it (the redraw is then
+%   due at the next Arrange off).
 %
-%   See also EphysFigGenApp.syncArrangeOverlay, EphysFigGenApp.cancelArrange, EphysFigGenApp.onSnapChanged.
+%   See also EphysFigGenApp.syncArrangeOverlay, EphysFigGenApp.cancelArrange, EphysFigGenApp.onSnapChanged, settleArrange.
 b = obj.FigureArrangeButton;
 on = ~isempty(b) && isvalid(b) && logical(b.Value);
 noLicense = false;
@@ -35,13 +42,16 @@ if on && ~license('test', 'Image_Toolbox')
 end
 obj.FigureArrange = on;
 if ~isempty(b) && isvalid(b); styleButton(b, ternary(on, "active", "secondary")); end
-redraw = false;
+settle = false;
+if stopSettleTimer(obj) && on; obj.FigureArrangeDirty = true; end   % (Arrange on again before the redraw after it came: due at the next off)
 if ~on
     obj.cancelArrange("");
+    finishPendingSelect(obj, "");   % (cancelArrange fills them too: a press that selected a box)
     obj.FigureArrangeFocus = false;
     k = obj.SelectedFigure;
-    redraw = ~noLicense && autoRedrawLimit(obj) > 0 && k >= 1 && k <= numel(obj.Config.Figures) ...
-        && ~obj.Config.Figures(k).sessions.enabled && previewShowsFigure(obj);   % (a session figure waits for Preview)
+    settle = obj.FigureArrangeDirty && ~noLicense && k >= 1 && k <= numel(obj.Config.Figures) ...
+        && ~obj.Config.Figures(k).sessions.enabled && obj.FigurePreviewState == "stale" && previewShowsFigure(obj);   % (a session figure waits for Preview)
+    obj.FigureArrangeDirty = false;
 end
 [shown, why] = obj.syncArrangeOverlay();
 obj.markFigurePanel();   % its outline waits while Arrange is on
@@ -61,9 +71,14 @@ elseif on && shown
         "Set corners places the selected panel by two clicks.");
 elseif on
     obj.setStatus(why);
-elseif redraw
-    obj.refreshFigurePreview(Force=true);   % the labels and the time stacks after the places changed
-    obj.setStatus("Arrange off: the preview drawn again at the panels' places.");
+elseif settle && autoRedrawLimit(obj) > 0
+    obj.setStatus("Arrange off: the preview is drawn again at the panels' places when Auto allows it, the labels with it.");
+    t = timer('StartDelay', 0.3, 'ExecutionMode', 'singleShot', 'Tag', 'arrangeSettleTimer', ...
+        'TimerFcn', @(~, ~) settleArrange(obj), 'StopFcn', @(t, ~) delete(t));
+    obj.FigureSettleTimer = t;
+    start(t);   % (after the toggle paints: the redraw is Auto's, as after any edit)
+elseif settle
+    obj.setStatus("Arrange off: the preview is out of date at the panels' new places (Auto is off); press Preview (Ctrl+P) to draw the labels again.");
 else
     obj.setStatus("Arrange off: the preview as usual.");
 end
@@ -72,4 +87,13 @@ end
 
 function s = ternary(c, a, b)
 if c; s = a; else; s = b; end
+end
+
+
+function stopped = stopSettleTimer(obj)
+%stopSettleTimer  The redraw after Arrange off not to come (its timer stopped; it deletes itself); STOPPED: one was waiting.
+t = obj.FigureSettleTimer;
+obj.FigureSettleTimer = [];
+stopped = ~isempty(t) && isvalid(t);
+if stopped; stop(t); end
 end

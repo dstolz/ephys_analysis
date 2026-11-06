@@ -32,7 +32,17 @@ function [shown, why] = syncArrangeOverlay(obj, opts)
 %   Arrange off, or the preview showing anything else, takes the overlay
 %   away (with Set corners or a drag under way: cancelArrange); when it
 %   was there with Arrange on, the status bar says why (WHY, from
-%   previewShowsFigure: "Arrange: preview <id> first (Ctrl+P)."). While a
+%   previewShowsFigure: "Arrange: preview <id> first (Ctrl+P)."). It is
+%   hidden, not deleted (its axes and everything in it Visible off, its
+%   axes taking no click: FigureArrangeKept), and shown again with its
+%   boxes when Arrange comes back over the same preview container, since
+%   making a box takes a tenth of a second; another container's overlay
+%   is deleted then and a new one made. While the overlay shows, the
+%   container is flagged (appdata ArrangeLive) and the cannot-draw signs'
+%   tooltip images in it (Tag "layerNoteTip": brokenGraphicTips) are
+%   hidden, so a sign whose axes a drag moves does not place its image at
+%   every step (brokenGraphic); once it goes, they show again at their
+%   signs, each sign placed anew. While a
 %   preview computes or draws nothing changes: the drawing calls this
 %   again when done. SHOWN: the overlay shows now.
 %   The Panels section's Set corners is on while the preview shows the
@@ -81,6 +91,7 @@ if ~obj.FigureArrange || ~ok
         if obj.FigureArrange && why ~= ""; obj.setStatus(why); end
     end
     if ~obj.FigureArrange; why = ""; end
+    keepOnTop(obj);   % (a drawing made since put its axes over the hidden overlay)
     return
 end
 P = obj.FigurePreviewPanel;
@@ -89,8 +100,10 @@ if isstruct(O) && (~isvalid(O.axes) || ~isvalid(O.panel) || O.panel ~= P)   % an
     removeOverlay(obj);
     O = [];
 end
+if ~isstruct(O); O = keptOverlay(obj, P); end   % (the one hidden at Arrange off, over this container)
 if ~isstruct(O); O = newOverlay(obj, P); end
 ax = O.axes;
+tipsShown(P, false);   % the cannot-draw signs' images wait while the panels move
 page = double(reshape(R.page, 1, 4));
 if ~isequal(ax.Position, page); ax.Position = page; end
 top = allchild(P);   % (the overlay's handle is hidden: Children leaves it out)
@@ -116,6 +129,7 @@ for i = 1:numel(ids)
     r = reshape(r, 1, 4);
     if isKey(W, char(id))
         w = W(char(id));
+        if ~w.Visible; w.Visible = 'on'; end   % (hidden while Arrange was off)
         arrangeWidgetSet(w, r);
         arrangeWidgetSelect(w, arrangeSelectLevel(id, sel));
     else
@@ -142,6 +156,7 @@ elseif isempty(O.legend) || ~isvalid(O.legend)
     O.legend = arrangeWidget(ax, lr, ":legend", false, cb);
     arrangeWidgetLock(O.legend, locked);
 else
+    if ~O.legend.Visible; O.legend.Visible = 'on'; end
     arrangeWidgetSet(O.legend, lr);
     arrangeWidgetLock(O.legend, locked);
 end
@@ -160,7 +175,7 @@ ax = axes(P, 'Units', 'pixels', 'Position', [1 1 10 10], 'XLim', [0 1], 'YLim', 
     'XColor', 'none', 'YColor', 'none', 'XTick', [], 'YTick', [], 'Box', 'off', 'HandleVisibility', 'off', ...
     'Tag', 'arrangeOverlay', 'PickableParts', 'all', 'HitTest', 'on', 'ButtonDownFcn', @(~, ~) obj.onArrangeClicked("", []));
 disableDefaultInteractivity(ax);
-ax.Toolbar.Visible = 'off';
+ax.Toolbar = [];   % (none: hiding the default one makes it first, a third of a second)
 O = struct('axes', ax, 'panel', P, 'widgets', containers.Map('KeyType', 'char', 'ValueType', 'any'), 'legend', [], ...
     'legendRect', [], 'guides', [], 'sizes', [], 'band', [], 'timer', [], 'ids', []);
 end
@@ -174,17 +189,82 @@ end
 
 
 function removeOverlay(obj)
-%removeOverlay  The overlay gone, with its widgets, guides and timer; Set corners or a drag under way ends first.
+%removeOverlay  The overlay gone, hidden with its widgets, guides and size labels (FigureArrangeKept), its timer stopped; Set corners or a drag under way ends first.
 if obj.FigureArrangeMode ~= ""
     obj.cancelArrange("");
     obj.FigureArrangeMode = "";   % (a drag's box goes too: no release will come)
 end
+arrangeCues(obj, [], []);   % (the guides note what they show: hidden through it)
 O = obj.FigureArrangeOverlay;
 obj.FigureArrangeOverlay = [];
 arrangeClickDone(obj);
 if ~isstruct(O); return; end
 if ~isempty(O.timer) && isvalid(O.timer); stop(O.timer); end   % (it deletes itself when stopped)
-if ~isempty(O.axes) && isvalid(O.axes); delete(O.axes); end   % its widgets, their menus and the guides with it
+O.timer = [];
+if ~isempty(O.panel) && isvalid(O.panel); tipsShown(O.panel, true); end
+if isempty(O.axes) || ~isvalid(O.axes); return; end
+set(allchild(O.axes), 'Visible', 'off');   % its widgets, guides and size labels
+set(O.axes, 'Visible', 'off', 'PickableParts', 'none');
+K = obj.FigureArrangeKept;
+if isstruct(K) && ~isempty(K.axes) && isvalid(K.axes) && K.axes ~= O.axes; delete(K.axes); end   % (one kept: the last container's)
+obj.FigureArrangeKept = O;
+end
+
+
+function keepOnTop(obj)
+%keepOnTop  The hidden overlay (FigureArrangeKept) put over the drawing again when a drawing put its axes above it.
+%   Done while hidden, as the drawing that called this (markFigurePanel,
+%   after a preview is drawn) paints: restacked later, at Arrange on, the
+%   canvas makes its axes' views again, a second or more on a figure of
+%   many panels.
+K = obj.FigureArrangeKept;
+if ~isstruct(K) || isempty(K.axes) || ~isvalid(K.axes) || ~isvalid(K.panel) || K.panel ~= obj.FigurePreviewPanel; return; end
+top = allchild(K.panel);
+if ~isempty(top) && top(1) ~= K.axes; uistack(K.axes, 'top'); end
+end
+
+
+function O = keptOverlay(obj, P)
+%keptOverlay  The overlay hidden at Arrange off (FigureArrangeKept), shown again when it lies over P; else [] (one over another container deleted).
+O = [];
+K = obj.FigureArrangeKept;
+obj.FigureArrangeKept = [];
+if ~isstruct(K) || isempty(K.axes) || ~isvalid(K.axes); return; end
+if ~isvalid(K.panel) || K.panel ~= P
+    delete(K.axes);   % its widgets, their menus and the guides with it
+    return
+end
+set(K.axes, 'Visible', 'on', 'PickableParts', 'all');   % (its widgets shown as they are synced; the size labels by arrangeSizeLabels)
+O = K;
+end
+
+
+function tipsShown(P, on)
+%tipsShown  The cannot-draw signs' tooltip images in the container P (Tag "layerNoteTip") shown or hidden; P flagged ArrangeLive while hidden.
+%   Shown again, each sign is placed anew (its axes may have moved while
+%   the flag held its listener back: brokenGraphic).
+if on
+    if ~isappdata(P, 'ArrangeLive'); return; end
+    rmappdata(P, 'ArrangeLive');
+else
+    setappdata(P, 'ArrangeLive', true);
+end
+C = allchild(P);
+T = C(strcmp(get(C, 'Tag'), 'layerNoteTip'));
+for t = reshape(T, 1, [])
+    if on
+        t.Visible = 'on';
+        if isappdata(t, 'LayerNoteSquare')
+            fr = getappdata(t, 'LayerNoteSquare');
+            if isvalid(fr) && isappdata(fr, 'LayerNoteSign')
+                U = getappdata(fr, 'LayerNoteSign');
+                U.place();
+            end
+        end
+    elseif t.Visible
+        t.Visible = 'off';
+    end
+end
 end
 
 

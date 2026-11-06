@@ -91,7 +91,7 @@ else
     obj.refreshEpochDiagram();
 end
 clear guard   % the editor shows the config now: its callbacks may run (the status bar's paint, a busy preview's polls)
-if msg ~= ""; obj.setStatus(msg); end
+if msg ~= "" && ~opts.Arrange; obj.setStatus(msg); end   % (Arrange's: arrangedPreview says it, one paint)
 if drew
     markFigureTree(obj);
 elseif opts.Arrange

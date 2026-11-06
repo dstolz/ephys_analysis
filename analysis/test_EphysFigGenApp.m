@@ -3823,37 +3823,46 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
         sprintf(['psth_2 moved near an equal spacing snaps to it (both gaps read "%s"); its right edge near raster_1''s ' ...
         'width snaps to it (the readout says "= raster_1", raster_1 outlined)'], strjoin(eqTexts, '", "')));
 
-    % a resize that parts psth_1 from the raster: the time stack changes, so the preview is drawn again (psth_1, which
-    % moved; the others kept and dressed anew: renderFigure Reuse)
+    % a resize that parts psth_1 from the raster: the time stack's labels change, but while Arrange is on nothing is drawn
+    % or dressed again: the parts are laid out at the new rect (psth_1 alone), the preview out of date until Arrange is off
     app.FigureSnap = false;
     ax1 = findPanelAxes(P, "psth_1");
     axR = findPanelAxes(P, "raster_1");
+    pR = axR.Position;
+    lines0 = findall(figAxes(), 'Type', 'line');
     r1 = rectOf5("psth_1");
     busy0 = app.FigurePreviewBusyCount;
     app.onArrangeMoving("psth_1", roiMove(r1, [0 0 0.45 0.4]));
     app.onArrangeMoved("psth_1", roiMove(r1, [0 0 0.45 0.4]));
-    check(rectIs(rectOf5("psth_1"), [0 0 0.45 0.4]) && app.FigureHistory.undoLabel() == "Resize panel" && app.FigurePreviewState == "drawn" ...
-        && ~isvalid(ax1) && isvalid(axR) && rectIs(arrangeBox(app, "psth_1").Position, [0 0 0.45 0.4]) && app.FigurePreviewBusyCount == busy0, ...
-        ['psth_1 resized off the raster (no longer flush): the preview is drawn again from the cache with no busy card ' ...
-        '(psth_1 drawn anew, the raster kept), the boxes kept']);
+    R = getappdata(P, 'FigureLayoutResult');
+    out1 = R.panels(R.ids == "psth_1").outer;
+    check(rectIs(rectOf5("psth_1"), [0 0 0.45 0.4]) && app.FigureHistory.undoLabel() == "Resize panel" && app.FigurePreviewState == "stale" ...
+        && isvalid(ax1) && isvalid(axR) && isequal(axR.Position, pR) && all(isvalid(lines0)) && abs(out1(4) - 0.4 * R.page(4)) < 2.5 ...
+        && rectIs(arrangeBox(app, "psth_1").Position, [0 0 0.45 0.4]) && app.FigurePreviewBusyCount == busy0 && app.FigureArrangeDirty ...
+        && contains(app.StatusBar.Text, "Laid out") && contains(app.StatusBar.Text, "Arrange is off"), ...
+        sprintf(['psth_1 resized off the raster (no longer flush): laid out at its new rect in place (its plot %.0f px of %.0f), ' ...
+        'nothing drawn (the same lines; the raster where it was), the preview out of date ("%s")'], out1(4), R.page(4), app.StatusBar.Text));
     app.onUndoRedo("undo");
     check(rectIs(rectOf5("psth_1"), r1) && rectIs(arrangeBox(app, "psth_1").Position, r1), 'Undo: the rect and its box back');
-    % a move that snaps psth_2 flush against psth_1: the panels touch now, so the preview is drawn again from the cache
-    % with no busy card (psth_2, which moved, drawn anew; the raster kept)
+    % a move that snaps psth_2 flush against psth_1: the panels touch now; laid out in place all the same, nothing drawn
     app.FigureSnap = true;
+    if app.FigurePreviewState ~= "drawn"; app.refreshFigurePreview(Force=true); end
     r2 = rectOf5("psth_2");
     axR = findPanelAxes(P, "raster_1");
-    ax1 = findPanelAxes(P, "psth_1");
     ax2 = findPanelAxes(P, "psth_2");
     busy0 = app.FigurePreviewBusyCount;
+    t0 = tic;
     app.onArrangeMoving("psth_2", roiMove(r2, [0.45 + px2(1), 0, 0.45, 0.5]));
     app.onArrangeMoved("psth_2", roiMove(r2, [0.45 + px2(1), 0, 0.45, 0.5]));
-    check(rectIs(rectOf5("psth_2"), [0.45 0 0.45 0.5]) && app.FigurePreviewState == "drawn" && app.FigurePreviewBusyCount == busy0 ...
-        && isvalid(axR) && findPanelAxes(P, "raster_1") == axR && ~isvalid(ax2) && rectIs(arrangeBox(app, "psth_2").Position, [0.45 0 0.45 0.5]), ...
-        sprintf(['psth_2 snapped flush against psth_1: drawn again from the cache with no busy card, psth_2 drawn anew, ' ...
-        'the raster kept (psth_1 kept %d; state %s, busy +%d)'], isvalid(ax1), app.FigurePreviewState, app.FigurePreviewBusyCount - busy0));
+    tFlush = toc(t0);
+    check(rectIs(rectOf5("psth_2"), [0.45 0 0.45 0.5]) && app.FigurePreviewState == "stale" && app.FigurePreviewBusyCount == busy0 ...
+        && isvalid(axR) && findPanelAxes(P, "raster_1") == axR && isvalid(ax2) && findPanelAxes(P, "psth_2") == ax2 ...
+        && rectIs(arrangeBox(app, "psth_2").Position, [0.45 0 0.45 0.5]), ...
+        sprintf(['psth_2 snapped flush against psth_1: laid out in place in %.2f s, nothing drawn (psth_2''s axes kept), ' ...
+        'out of date (state %s, busy +%d)'], tFlush, app.FigurePreviewState, app.FigurePreviewBusyCount - busy0));
     app.onUndoRedo("undo");
     app.FigureSnap = false;
+    app.refreshFigurePreview(Force=true);
 
     % a slow preview (the time gate exceeded): a release lays the drawing out at the new rect all the same; one that parts
     % the stack leaves it out of date (laid out, saying so); out of date, a release still lays it out

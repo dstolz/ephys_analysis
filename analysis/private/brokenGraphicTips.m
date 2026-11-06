@@ -9,7 +9,8 @@ function n = brokenGraphicTips(root)
 %   over it, at its size: its tooltip is the message (wrapped), and a
 %   click on it shows the whole message in a window over the figure, as a
 %   click on the sign does. The image is the app's, not the figure's: it
-%   follows the sign (brokenGraphic's listener) and goes with it. A sign
+%   follows the sign (brokenGraphic's listener) and goes with it; it keeps
+%   its sign's square (appdata LayerNoteSquare). A sign
 %   that has one keeps it; one that lost it (a drawing with Reuse keeps a
 %   panel's axes and empties the rest) gets a new one. A sign in a figure
 %   window gets none (print cannot write a figure holding UI components as
@@ -37,6 +38,7 @@ for fr = reshape(signs, 1, [])
     show = U.show;
     U.overlay = uiimage(host, 'ImageSource', blank, 'ScaleMethod', 'fill', 'Tag', 'layerNoteTip', ...
         'Tooltip', U.lines, 'ImageClickedFcn', @(~, ~) show());
+    setappdata(U.overlay, 'LayerNoteSquare', fr);   % (its sign, placed again from it: the app's Arrange)
     setappdata(fr, 'LayerNoteSign', U);
     U.place();
     n = n + 1;

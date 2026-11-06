@@ -7,7 +7,9 @@ function S = brokenGraphic(ax, msg, opts)
 %   its size in pixels whatever AX's size and limits, and it is left out of
 %   AX's automatic limits and of every legend. A listener on AX
 %   (MarkedClean) keeps it where it belongs when AX's limits or size change
-%   (a time panel's window, a y range, figureLayout).
+%   (a time panel's window, a y range, figureLayout), except while its
+%   tooltip image is hidden or its axes' container is flagged ArrangeLive
+%   (appdata: the analysis app's Arrange).
 %
 %   MSG is the reason (a string array: one line each). It is kept on both
 %   lines (appdata "LayerNote", the lines joined by newline) and shown
@@ -101,7 +103,16 @@ end
 
 function followAxes(fr)
 %followAxes  AX was drawn again: the sign back at its place (when its limits or size moved it) and its tooltip image with it.
+%   Not while its tooltip image is hidden or its axes sit in a container
+%   flagged ArrangeLive (the analysis app's Arrange: the panels move at
+%   every step of a drag; the app shows the images again and places each
+%   sign once it is off, through the sign's place function).
 if ~isvalid(fr); return; end
+U = getappdata(fr, 'LayerNoteSign');
+o = U.overlay;
+if ~isempty(o) && isvalid(o) && ~o.Visible; return; end
+ax = fr.Parent;
+if isgraphics(ax) && isappdata(ax.Parent, 'ArrangeLive'); return; end
 placeSign(fr);
 end
 

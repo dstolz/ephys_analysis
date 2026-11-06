@@ -33,9 +33,12 @@ function onArrangeMoving(obj, id, evt, alt)
 %   box stays where it was until the drag ends. What a step reads that the
 %   drag does not change (the rects, the page, the snap step and reach:
 %   arrangeContext; the overlay's place) is read on the first step and
-%   kept in FigureDrag (ctx). The box, the guides and the fields follow
-%   every step; the plots follow on the first step and then at most every
-%   40 ms (FigureDrag.moved), since moving them is what a step costs most.
+%   kept in FigureDrag (ctx). The box and the guides (their readout gives
+%   the place and size) follow every step; the plots follow on the first
+%   step and then at most every 40 ms (FigureDrag.moved), and the Position
+%   and Size fields at most every quarter second (FigureDrag.fields: a
+%   field's new value repaints the editor, the dearest part of a step's
+%   paint); the release shows the rect in them exactly (showPanelPlace).
 %   onArrangeMoving(OBJ, ID, EVT, ALT): ALT true or false in place of the
 %   window's CurrentModifier (the tests).
 %
@@ -82,7 +85,7 @@ if first
         C.names = C.names(keep);
     end
     C.pg = obj.FigureArrangeOverlay.axes.Position;   % the page on the canvas, px
-    D = struct('id', id, 'parts', {arrangeParts(obj, id, C.rect0)}, 'group', G, 'ctx', C, 'moved', tic);   % what moves with the box
+    D = struct('id', id, 'parts', {arrangeParts(obj, id, C.rect0)}, 'group', G, 'ctx', C, 'moved', tic, 'fields', tic);   % what moves with the box
     obj.FigureDrag = D;
     arrangeSizeLabels(obj);   % hidden: the readout shows the size now
 end
@@ -113,7 +116,10 @@ if live && ~isempty(D.parts)   % the panel's plots go with it
     arrangePartsAt(D.parts, toPx(rect));
 end
 arrangeCues(obj, rect, g, PageCm=C.pageCm, Dpi=C.dpi);
-if C.j > 0 && C.j == obj.SelectedPanel; showRect(obj, rect, C); end
+if C.j > 0 && C.j == obj.SelectedPanel && (first || toc(D.fields) > 0.25)
+    showRect(obj, rect, C);
+    if ~first; D.fields = tic; obj.FigureDrag = D; end
+end
 end
 
 

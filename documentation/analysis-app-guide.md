@@ -93,7 +93,8 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
      Or press **Set corners** and click two opposite corners on the preview.
    - The preview on the right draws the figure for the unit picked above it.
      Step through the units to look at them one by one. Right-click the plot
-     to change colors, fonts and labels. After a change it draws again on
+     to change colors, fonts and labels, or press **Edit aesthetics...**
+     right of **Favorites**. After a change it draws again on
      its own when that is quick enough for the **Auto** slider left of it.
 4. **Export.** Tick the formats (png, svg, pdf), press **Run**, then **Open
    report**.
@@ -104,7 +105,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 
 | ...do this | Do this |
 | --- | --- |
-| change how a figure looks (colors, line widths, fonts, axis labels) | right-click a part of the preview and edit it there, or pick a ready-made look in the **Design** menu (journal, talk, ...) |
+| change how a figure looks (colors, line widths, fonts, axis labels) | right-click a part of the preview and edit it there (or press **Edit aesthetics...** above the preview), or pick a ready-made look in the **Design** menu (journal, talk, ...) |
 | draw a smooth line over a PSTH's bars | select the PSTH and, in its options, tick **Smoothed line: Draw**. **SD (ms)** sets how smooth the line is; **Smooth (ms)** still sets the bars' own smoothing, apart from the line's |
 | write a label that follows the data, such as *Time (s) re Stim onset* or *Hit trials* | type a variable in braces in a title, an axis label, a layer's name or a note: **Time (s) re {Line} {Edge}**, **{Response} trials**. Each figure fills it in. The **{x}** button beside the field lists them, with what each means (see [Labels that follow the data](#labels-that-follow-the-data)) |
 | give one figure its own event or window | in the figure's panel settings, set its own event reference and epoch window; the Alignment tab is only the default |

@@ -83,7 +83,9 @@ classdef EphysFigGenApp < handle
     %                while that is predicted to take under the slider's
     %                limit, autoFigurePreview), with its own badge (setFigurePreviewState), drawn
     %                in the design picked above it (Design, PlotDesign; Save
-    %                look as design...: onSaveDesign); each figure keeps its
+    %                look as design...: onSaveDesign; Edit aesthetics...: the
+    %                aesthetics editor without a right-click,
+    %                onEditAesthetics); each figure keeps its
     %                preview in a container of its own (syncFigureView: a
     %                switch back shows it without drawing it again, up to
     %                MaxFigureViews kept) and the editor as it left it, and
@@ -320,6 +322,7 @@ classdef EphysFigGenApp < handle
         FigureArrangeButton    matlab.ui.control.StateButton    % Arrange, on the template row: panels moved and resized over the preview (onArrangeToggled)
         DesignDropDown         matlab.ui.control.DropDown       % the design every figure is drawn in (PlotDesign; also the Design menu)
         SaveDesignButton       matlab.ui.control.Button         % Save look as design...: the figure preview's look (onSaveDesign)
+        EditAestheticsButton   matlab.ui.control.Button         % Edit aesthetics..., right of Favorites: the aesthetics editor on the preview's selected panel (onEditAesthetics)
         FigureTemplateDropDown matlab.ui.control.DropDown       % your figure templates (FigureTemplate.list; refreshTemplates), above the preview
         FigureTemplateApplyButton  matlab.ui.control.Button     % Apply...: the template into figures picked, or as a new one (onApplyTemplate)
         FigureTemplateSaveButton   matlab.ui.control.Button     % Save as...: the figure shown as a new template (onFigureTemplate "save")
@@ -586,6 +589,7 @@ classdef EphysFigGenApp < handle
         % --- plot designs (Design menu, the Figures tab's Design row) ---
         onDesignChosen(obj, name)
         onSaveDesign(obj, name, description)
+        d = onEditAesthetics(obj)
         onImportDesign(obj, file)
         onDeleteDesign(obj, name, opts)
         onDesignsFolder(obj, action, folder)

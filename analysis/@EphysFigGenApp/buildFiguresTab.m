@@ -157,7 +157,10 @@ function buildFiguresTab(obj)
 %           drop-down is right of the dataset (the design every figure is
 %           drawn in, also in the Design menu: onDesignChosen; Save look as
 %           design... under it: the preview's look as a design of yours,
-%           onSaveDesign). Under them a row: Template: (your figure
+%           onSaveDesign; Edit aesthetics... under that, right of
+%           Favorites: the aesthetics editor on the preview's selected
+%           panel without a right-click, onEditAesthetics). Under them a
+%           row: Template: (your figure
 %           templates, FigureTemplate: the drop-down, re-listed as it
 %           opens, refreshTemplates; Apply... into figures picked or as a
 %           new figure, onApplyTemplate; Save as..., Update, Remove,
@@ -1843,8 +1846,9 @@ obj.FigureSearchIndex = figureSearchIndex(obj.FigureSections, U);   % the rows a
 
 % --- right: the observation picker and the preview ----------------------------------------------
 % the buttons in a column of their own at the left, beside the Dataset, Observation and Favorites rows (three rows
-% tall enough for its five); Design and Save look as design sit at the right of Dataset and Observation; the
-% template row (and Apply last change) above the preview. Ctrl is Cmd on a Mac (onKeyPress).
+% tall enough for its five); Design, Save look as design and Edit aesthetics sit at the right of Dataset,
+% Observation and Favorites; the template row (and Apply last change) above the preview. Ctrl is Cmd on a Mac
+% (onKeyPress).
 pg = uigridlayout(g, [7 5]);
 pg.RowHeight = {46, 46, 46, 34, '1x', 30, 20};
 pg.ColumnWidth = {110, 'fit', '1x', 'fit', 125};   % (110: Export preview unclipped, room for Auto's slider)
@@ -1905,7 +1909,12 @@ obj.FigureObservationNote = noteButton(obj, sg, "observation");
 l = uilabel(pg, "Text", "Favorites:");
 l.Layout.Row = 3; l.Layout.Column = 2;
 obj.FigureFavorites = buildFavorites(obj, pg, "FigureFavorites");   % every starred dataset, channel and unit
-obj.FigureFavorites.Grid.Layout.Row = 3; obj.FigureFavorites.Grid.Layout.Column = [3 5];
+obj.FigureFavorites.Grid.Layout.Row = 3; obj.FigureFavorites.Grid.Layout.Column = 3;
+% the aesthetics editor on the preview without a right-click, right of Favorites (under Save look as design...)
+obj.EditAestheticsButton = uibutton(pg, "Text", "Edit aesthetics...", "ButtonPushedFcn", @(~,~) obj.onEditAesthetics(), ...
+    "Tooltip", "Change the colors, lines, markers, fonts and labels of the preview: the editor a right-click on a part " + ...
+    "of the plot opens, here on the selected panel's axes. Every part of the figure is in its list.");
+obj.EditAestheticsButton.Layout.Row = 3; obj.EditAestheticsButton.Layout.Column = [4 5];
 % the design every figure is drawn in (PlotDesign; also the Design menu), right of the Dataset and Observation
 % drop-downs, and the preview's look kept as one
 l = uilabel(pg, "Text", "Design:");

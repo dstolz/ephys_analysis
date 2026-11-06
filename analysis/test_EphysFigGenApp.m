@@ -794,8 +794,11 @@ if S.sec("3", "the Figures tab: the toolbar's Preview, the Design row, the epoch
         && app.FigureFavorites.Grid.Parent == pgrid && app.FigureFavorites.Grid.Layout.Row == osg.Layout.Row + 1 ...
         && app.FigurePreviewHost.Parent == pgrid && app.FigurePreviewPanel.Parent == app.FigurePreviewHost ...
         && app.FigureTemplateDropDown.Parent.Parent == pgrid && app.FigureTemplateDropDown.Parent.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 1 ...
-        && app.FigurePreviewHost.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 2, ...
-        'the Design list sits right of Dataset and Save look as design... right of Observation, in their rows, each drop-down with its star and note button; Favorites under them, the template row under that, the preview (the figures'' containers) under it');
+        && app.FigurePreviewHost.Layout.Row == app.FigureFavorites.Grid.Layout.Row + 2 ...
+        && app.EditAestheticsButton.Parent == pgrid && app.EditAestheticsButton.Layout.Row == app.FigureFavorites.Grid.Layout.Row ...
+        && isequal(app.EditAestheticsButton.Layout.Column, app.SaveDesignButton.Layout.Column) ...
+        && min(app.EditAestheticsButton.Layout.Column) > max(app.FigureFavorites.Grid.Layout.Column), ...
+        'the Design list sits right of Dataset, Save look as design... right of Observation and Edit aesthetics... right of Favorites, in their rows, each drop-down with its star and note button; Favorites under them, the template row under that, the preview (the figures'' containers) under it');
     % the buttons in a column of their own left of those rows: Preview, Redraw All, Export preview, Auto (its label and slider), < > (a row each)
     bgrid = app.FigurePreviewButton.Parent;
     btnCol = [app.FigurePreviewButton app.FigureRedrawAllButton app.FigureExportPreviewColumnButton app.FigureAutoSlider.Parent app.FigureObsPrevButton.Parent];
@@ -1911,6 +1914,14 @@ if S.sec("5d.look", "the gather / apply round trip, a remembered look and Forget
         && app.Config.Figures(1).aesthetics.value == 0.4 && isequal(app.Runner.Config.Figures(1).aesthetics, app.Config.Figures(1).aesthetics) ...
         && startsWith(string(FE.looksText.Text), "1 remembered") && FE.looksForget.Enable == "on", ...
         'the figure preview is editable (right-click); rules remembered for the figure go into the config (rememberFigureAesthetics)');
+    dA = app.onEditAesthetics();   % the Edit aesthetics... button, right of Favorites
+    okA = isa(dA, 'PlotAestheticsDialog') && isvalid(dA) && isvalid(dA.Fig) && startsWith(string(dA.Fig.Name), "Figure aesthetics");
+    rowA = table();
+    if okA; rowA = dA.Components(dA.Selected, :); end
+    check(okA && contains(func2str(app.EditAestheticsButton.ButtonPushedFcn), "onEditAesthetics") ...
+        && rowA.TileName == app.Config.Figures(1).panels(2).id && ismember(rowA.Role, ["axes" "rasterAxes"]), ...
+        'Edit aesthetics... opens the aesthetics editor on the preview without a right-click, the selected panel''s axes picked');
+    if isa(dA, 'PlotAestheticsDialog') && isvalid(dA); dA.cancel(); end
     tipParts = findall(app.FigurePreviewPanel, '-function', @(o) isappdata(o, FigureDataTips.InfoKey));
     arrayfun(@PlotAesthetics.fillMenu, findall(app.Fig, 'Type', 'uicontextmenu', 'Tag', PlotAesthetics.MenuTag));   % (made when each opens)
     tipItems = findall(app.Fig, 'Tag', FigureDataTips.MenuTag);
@@ -5737,6 +5748,9 @@ if S.sec("5w", "label variables: the {x} button beside each label's text, its me
     bx = FE.varButton.panelXLabel;
     bx.ButtonPushedFcn(bx, []);
     cm5w = getappdata(bx, 'LabelVariableMenu');
+    shown5w = contextMenuShown(app.Fig);
+    check(isnan(shown5w) || shown5w == 1, sprintf(['the {x} menu is drawn in the window, not only made (%g shown; ' ...
+        'NaN: the page could not be read)'], shown5w));
     tops5w = string(get(cm5w.Children, 'Text'));
     itemL = findobj(cm5w, 'Tag', 'Line');
     check(all(ismember(["Alignment" "Trials" "Observation" "Data" "Figure"], tops5w)) && isscalar(itemL) ...
@@ -6190,6 +6204,25 @@ function pickLabelVariable(b, name)
 cm = getappdata(b, 'LabelVariableMenu');
 m = findobj(cm, 'Tag', char(name));
 feval(m(1).MenuSelectedFcn, m(1), []);
+end
+
+
+function n = contextMenuShown(fig)
+%contextMenuShown  How many context menus FIG's page draws now (its .mwContextMenu elements with a size), NaN if it cannot be read.
+%   The menu objects exist whether or not open drew them, so only the page can tell (R2025a's CEF window, read
+%   through struct: undocumented, hence NaN when that fails).
+n = NaN;
+drawnow;
+pause(0.5);
+drawnow;
+try
+    w = warning('off', 'MATLAB:structOnObject');
+    restoreW = onCleanup(@() warning(w));
+    ww = struct(struct(struct(fig).Controller).PlatformHost).CEF;
+    n = str2double(ww.executeJS(['(function(){var n=0;var a=document.querySelectorAll(''.mwContextMenu'');' ...
+        'for(var i=0;i<a.length;i++){var r=a[i].getBoundingClientRect();if(r.width>0&&r.height>0){n++;}}return n;})()']));
+catch
+end
 end
 
 

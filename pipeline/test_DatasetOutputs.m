@@ -329,6 +329,33 @@ mkdir(fullfile(cp, 'm1', 'other_v3'));
 save(fullfile(cp, 'm1', 'other_v3', "other_v3_spikes.mat"), '-struct', 'Sp');
 check(EphysProject.outputFolderName(fullfile(cp, 'm1', 'other_v3')) == "other_v3", ...
     'a folder whose outputs carry its own _v<n> name keeps it');
+% The manifest (its tags) stays beside the recording; an output root opened
+% alone finds it through the sourceFolder its files name, and the newer of
+% that and a copy in the output folder wins.
+n3 = "m3_260903_103000";
+rec3 = fullfile(root, 'recs', 'm3', n3);
+oroot = fullfile(root, 'outroot');
+o3Dir = fullfile(oroot, n3);
+mkdir(rec3); mkdir(o3Dir);
+S3 = S; S3.conversion = struct('dataset', n3, 'sourceFolder', string(rec3));
+save(fullfile(o3Dir, n3 + "_extract_LFP.mat"), '-struct', 'S3');
+writeJsonFile(fullfile(o3Dir, n3 + "_manifest.json"), struct('schema', "intan-dataset-manifest/2", ...
+    'name', n3, 'tags', {{'old'}}));   % an older copy
+pause(1.1);
+writeJsonFile(fullfile(rec3, n3 + "_manifest.json"), struct('schema', "intan-dataset-manifest/2", ...
+    'name', n3, 'tags', {{'ofc' 'pre-training'}}));
+o3 = DatasetOutputs(o3Dir);
+check(o3.ManifestFile == string(fullfile(rec3, n3 + "_manifest.json")) && isequal(outputTags(o3), {'ofc' 'pre-training'}), ...
+    'a folder of outputs alone: the manifest beside the recording its files name, newer than the copy, gives the tags');
+ws = warning('off', 'EphysProject:OutputsOnly');
+P3 = EphysProject(oroot);
+warning(ws);
+check(isequal(outputTags(P3.dataset(n3).outputs()), {'ofc' 'pre-training'}), ...
+    'so does a dataset of an output root opened as a project');
+pause(1.1);
+writeJsonFile(fullfile(o3Dir, n3 + "_manifest.json"), struct('schema', "intan-dataset-manifest/2", ...
+    'name', n3, 'tags', {{'copy'}}));
+check(isequal(outputTags(DatasetOutputs(o3Dir)), {'copy'}), 'a newer copy in the output folder wins');
 
 %% ---- 7. the files the analysis app needs, and the probe file beside them ------
 fprintf('\n== 7. analysisFiles and probeFile ==\n');

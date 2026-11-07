@@ -60,7 +60,7 @@ not matter, so configured `Suffix` values are found:
 | `spikes` | `detected` + `conversion` | `spikesToMat` |
 | `behavior` | `behavior` + `conversion` | `behaviorToMat` (behavior step) |
 | `nwb` | a `<Name>*.nwb` whose `/general/notes` JSON names `EphysDataset.exportNWB` (and this dataset), read with `h5read` | `exportNWB` (NWB 2) |
-| `manifest` | `<Name>_manifest.json` | `writeManifest` |
+| `manifest` | `<Name>_manifest.json`, under the roots or in the recording folder the files' provenance names (`sourceFolder`) | `writeManifest` |
 | `artifacts` | `<Name>_artifacts.json` | `EphysPipeline` artifact cache |
 
 A file whose `conversion.dataset` (an `.nwb`'s notes) names a different dataset
@@ -73,6 +73,15 @@ drive or root still count), so of two recordings with the same name
 files are listed in `Foreign`. Every file
 found is listed in `Candidates` (`Kind`, `File`, `Signal`, `Modified`, `Bytes`).
 When a kind has several files, **the newest wins**.
+
+The manifest holds the dataset's tags. It lives beside the recording, and the
+pipeline writes the outputs under `OutputRoot`. So `refresh()` also looks for
+`<Name>_manifest.json` in each recording folder that the found files'
+provenance names (`sourceFolder`). Opened alone, a folder of outputs (or an
+`OutputRoot` given to the analysis app as its root) then has its tags and
+associations, as long as the recording folder is on this machine. A copy of
+the manifest in the output folder counts too, and the newer file wins, so a
+tag edited in the pipeline app shows even when an older copy is there.
 
 Reading a file's variables and provenance opens it, which over a network
 share costs a few tenths of a second a file. Two things keep that down:

@@ -31,7 +31,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   built from a dataset - another recording folder (sourceFolder, see
     %   EphysDataset.isOwnSource), so of two recordings with the same name
     %   (mouse1/rec, mouse2/rec) neither picks up the other's files.
-    %   <Name>_manifest.json and <Name>_artifacts.json are found by name.
+    %   <Name>_manifest.json and <Name>_artifacts.json are found by name; the
+    %   manifest also in the recording folder the files' provenance names
+    %   (sourceFolder), so a folder of outputs alone has its tags.
     %   When several files of one kind exist, the newest wins; every
     %   candidate is listed in Candidates. A -v7.3 .mat is read for its
     %   HDF5 root group's names only (whos sizes every variable, ~10 times
@@ -202,6 +204,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             remove(obj.InfoSignals, keys(obj.InfoSignals));
             T = DatasetOutputs.emptyCandidates();
             foreign = strings(0, 1);
+            sources = strings(1, 0);   % the recording folders this dataset's files name (sourceFolder)
             prefix = "^" + string(regexptranslate('escape', char(obj.Name))) + "([_\-. ].*)?";
             for root = obj.Roots
                 tree = listTree(root, obj.Recursive);   % one walk for every pattern
@@ -215,6 +218,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                         foreign(end+1, 1) = m.path; %#ok<AGROW>
                         continue
                     end
+                    sources = [sources, sourceOf(owner)]; %#ok<AGROW>
                     sig = "";
                     if kind == "extract"
                         tok = regexp(m.name, '_(LFP|MUA|SPIKE|AUX)\.mat$', 'tokens', 'once');
@@ -232,6 +236,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                         foreign(end+1, 1) = m.path; %#ok<AGROW>
                         continue
                     end
+                    sources = [sources, sourceOf(meta)]; %#ok<AGROW>
                     T = [T; candidateRow("nwb", m, "")]; %#ok<AGROW>
                 end
                 for kind = ["manifest" "artifacts"]
@@ -241,6 +246,11 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                     end
                 end
             end
+            % The manifest beside the recording these files were made from
+            % (their provenance's sourceFolder), so a folder of outputs
+            % alone (an OutputRoot opened without the recording root) still
+            % has the dataset's tags and associations; the newest wins.
+            T = [T; sourceManifests(obj.Name, sources)];
             OutputFileIndex.save();   % what was read from the files, for the next scan
             [~, keep] = unique(lower(T.File), 'stable');
             T = T(keep, :);
@@ -701,7 +711,10 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                         if b ~= ""; f = b; src = "manifest"; end
                     end
                 case "manifest"
-                    if ~isempty(ds) && isfile(ds.manifestFile())
+                    % The recording's own manifest; a dataset of outputs
+                    % alone takes the newest found (its folder's copy, or
+                    % the one beside the recording its files name).
+                    if obj.ownManifest()
                         f = string(ds.manifestFile()); src = "dataset";
                         return
                     end
@@ -763,10 +776,12 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
 
         function m = manifestStruct(obj)
             %manifestStruct  The decoded manifest, or struct() (never errors).
+            %   The manifest in effect (resolve): the dataset's own, else the
+            %   newest found, also for a dataset without its recording.
             m = struct();
             f = obj.Pinned.manifest;
             if isempty(f)
-                if ~isempty(obj.Dataset)
+                if obj.ownManifest()
                     f = string(obj.Dataset.manifestFile());
                 else
                     if isnat(obj.LastRefreshed) && obj.Name ~= ""; obj.refresh(); end
@@ -780,6 +795,12 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             else
                 warning('DatasetOutputs:Unreadable', 'Cannot read the manifest %s; it is treated as empty.', f);
             end
+        end
+
+        function tf = ownManifest(obj)
+            %ownManifest  True when the dataset's own manifest file is the one in effect: it is there, beside the recording.
+            ds = obj.Dataset;
+            tf = ~isempty(ds) && isfile(ds.manifestFile()) && ds.hasRecording();
         end
 
         function tf = ownsProvenance(obj, p)
@@ -940,6 +961,30 @@ function row = candidateRow(kind, m, sig)
 row = table(string(kind), m.path, string(sig), ...
     datetime(m.datenum, 'ConvertFrom', 'datenum'), m.bytes, ...
     'VariableNames', {'Kind', 'File', 'Signal', 'Modified', 'Bytes'});
+end
+
+
+function s = sourceOf(owner)
+%sourceOf  The sourceFolder a provenance struct OWNER names (1x0 when none).
+s = strings(1, 0);
+if isstruct(owner) && isfield(owner, 'sourceFolder')
+    s = stripSep(textField(owner, 'sourceFolder'));
+    s = s(strlength(s) > 0);
+end
+end
+
+
+function T = sourceManifests(name, folders)
+%sourceManifests  Candidate rows for <NAME>_manifest.json in each of FOLDERS that has one.
+T = DatasetOutputs.emptyCandidates();
+[~, keep] = unique(lower(folders), 'stable');
+for f = folders(sort(keep))
+    d = dir(fullfile(f, name + "_manifest.json"));
+    if ~isscalar(d) || d.isdir; continue; end
+    m = struct('name', string(d.name), 'path', string(fullfile(d.folder, d.name)), ...
+        'datenum', d.datenum, 'bytes', d.bytes);
+    T = [T; candidateRow("manifest", m, "")]; %#ok<AGROW>
+end
 end
 
 

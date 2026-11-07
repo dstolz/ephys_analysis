@@ -422,6 +422,10 @@ says how to cut a release.
 
 ### Fixed
 
+- Dataset tags were missing when the analysis app or the dataset browser opened an `OutputRoot` without the recording
+  root: the manifest that holds them stays beside the recording. `DatasetOutputs` now also finds
+  `<Name>_manifest.json` in the recording folder the outputs' provenance names (`sourceFolder`); of that and a copy in
+  the output folder the newer wins, and a dataset of outputs alone no longer takes its folder's copy over a newer one.
 - The analysis app's window fits the screen when it opens: a default or saved size from a larger display is shrunk
   and moved onto the primary screen (`fitToScreen`, in `pipeline/`).
 - The pipeline app's background-sort monitor (`pollKSRuns`) could be entered again by its timer while `stopKSRuns`

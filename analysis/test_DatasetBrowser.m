@@ -1504,6 +1504,103 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyTrue(isfield(m2.custom, 'browser_kcsd'));
         end
 
+        function tagsEditedAndWritten(tc)
+            B = tc.open(Settings=tc.Spike);
+            k1 = tc.Keys(1); k2 = tc.Keys(2);
+            name1 = B.Datasets.name(B.Datasets.key == k1);
+            outOf = @(k) B.Runner.Outputs(B.Runner.index(k));
+            files = [string(outOf(k1).ManifestFile); string(outOf(k2).ManifestFile)];
+            texts = [string(fileread(files(1))); string(fileread(files(2)))];
+            tc.addTeardown(@() putTexts(files, texts));   % the shared fixture's tags as they were
+            fileTags = @(k) string(TagSet.parse(EphysDataset.readManifest(string(outOf(k).ManifestFile)).tags));
+            rowTags = @(k) B.Datasets.tags(B.Datasets.key == k);
+            seen = containers.Map();
+            B.OnChange = @(~, what) count(seen, what);
+            menu = B.Ctl.Table.ContextMenu.Children;
+            tc.verifyTrue(all(ismember(["Edit tags..." "Edit tags (ticked)..."], string({menu.Text}))), 'The right-click menu edits tags.');
+
+            % from a script: Add, Remove, Set; only tags and updated change
+            m0 = EphysDataset.readManifest(files(2));
+            B.setTags(k2, Add="Cohort-3, pilot");
+            tc.verifyEqual(fileTags(k2), ["cohort-3" "ofc" "pilot"]);
+            tc.verifyEqual(rowTags(k2), "cohort-3;ofc;pilot");
+            m = EphysDataset.readManifest(files(2));
+            tc.verifyEqual(rmfield(m, {'tags', 'updated'}), rmfield(m0, {'tags', 'updated'}), 'The manifest''s other fields stay.');
+            tc.verifyTrue(isKey(seen, 'tags'), 'OnChange gets "tags".');
+            B.setTags([k1 k2], Remove="pilot");
+            tc.verifyEqual(fileTags(k1), "ofc");
+            tc.verifyEqual(fileTags(k2), ["cohort-3" "ofc"]);
+            txt = string(fileread(files(2)));
+            B.setTags(k2, Add="OFC");
+            tc.verifyEqual(string(fileread(files(2))), txt, 'An unchanged set is not written (its stamp stays).');
+            B.setTags(k1, Set="");
+            tc.verifyEmpty(fileTags(k1));
+            tc.verifyEqual(rowTags(k1), "");
+            B.setFilter(Tags="cohort-3");
+            tc.verifyEqual(B.Shown, k2, 'The filter follows at once.');
+            tc.verifyTrue(ismember("cohort-3", string(B.Ctl.Tags.Items)), 'The tag filter lists the new tag.');
+            B.clearFilter();
+            tc.verifyError(@() B.setTags(k2, Add="bad tag!"), 'TagSet:Invalid');
+            tc.verifyError(@() B.setTags([k1 k2], Add="t" + compose("%02d", 1:11)), 'TagSet:TooMany');
+            tc.verifyEmpty(fileTags(k1), 'Nothing is written unless every set fits.');
+            tc.verifyError(@() B.setTags(k2), 'DatasetBrowser:BadValue');
+            tc.verifyError(@() B.setTags("nope", Add="x"), 'DatasetBrowser:UnknownDataset');
+
+            % a source loaded already, and the result's rows, carry the new tags
+            B.source(k2);
+            B.setTags(k2, Add="loaded");
+            tc.verifyEqual(string(B.source(k2).tags), ["cohort-3" "loaded" "ofc"], 'A loaded source''s tags follow.');
+            R = B.compute();
+            tc.verifyTrue(all(R.rows.Tags(R.rows.Dataset == k2) == "cohort-3;loaded;ofc"), 'Compute takes the new tags.');
+
+            % the dialog: a Tags cell is that dataset alone
+            T = B.Ctl.Table.Data;
+            col = find(string(T.Properties.VariableNames) == "Tags");
+            click = @(row, c) B.Ctl.Table.ClickedFcn(B.Ctl.Table, struct('InteractionInformation', struct('Row', row, 'Column', c)));
+            click(find(T.Key == k1), col - 1);
+            tc.verifyEmpty(B.TagWindow, 'A click on another column opens no dialog.');
+            click(find(T.Key == k1), col);
+            dlg = B.TagWindow;
+            tc.verifyClass(dlg, 'TagDialog');
+            tc.verifyEqual(dlg.Mode, "set");
+            tc.verifyEqual(dlg.Fig.Visible, matlab.lang.OnOffSwitchState.off, 'Hidden with the browser.');
+            tc.verifyEqual(B.editTags(k2), dlg, 'With the dialog open, that one is returned.');
+            dlg.addTyped("Pilot, draft");
+            dlg.ok();
+            tc.verifyEqual(fileTags(k1), ["draft" "pilot"]);
+            tc.verifyEqual(B.Ctl.Table.Data.Tags(B.Ctl.Table.Data.Key == k1), "draft, pilot");
+            tc.verifyTrue(contains(string(B.Ctl.Status.Text), "Tagged " + name1 + ": draft, pilot."), B.Ctl.Status.Text);
+            tc.verifyEmpty(B.TagWindow);
+            % the rows selected: tags added to both
+            B.Ctl.Table.Selection = [1 2; 2 2];
+            dlg = B.editTags();
+            tc.verifyEqual(dlg.Mode, "add", 'Two rows selected: bulk mode.');
+            dlg.addTyped("shared");
+            dlg.ok();
+            tc.verifyEqual(fileTags(k1), ["draft" "pilot" "shared"]);
+            tc.verifyEqual(fileTags(k2), ["cohort-3" "loaded" "ofc" "shared"]);
+            tc.verifyTrue(contains(string(B.Ctl.Status.Text), "Tagged 2 datasets: added shared."), B.Ctl.Status.Text);
+            % the ticked datasets, from the menu
+            item = menu(string({menu.Text}) == "Edit tags (ticked)...");
+            B.untickAll();
+            item.MenuSelectedFcn(item, []);
+            tc.verifyEmpty(B.TagWindow);
+            tc.verifyTrue(contains(string(B.Ctl.Status.Text), "Tick at least one dataset to tag."), B.Ctl.Status.Text);
+            B.tick(k2, true);
+            item.MenuSelectedFcn(item, []);
+            dlg = B.TagWindow;
+            tc.verifyEqual(dlg.Mode, "set", 'One dataset ticked: its set.');
+            tc.verifyEqual(dlg.Pending, {'cohort-3', 'loaded', 'ofc', 'shared'});
+            dlg.cancel();
+            tc.verifyEmpty(B.TagWindow);
+            tc.verifyEqual(fileTags(k2), ["cohort-3" "loaded" "ofc" "shared"], 'Cancel writes nothing.');
+            % closing the browser cancels an open dialog
+            dlg = B.editTags(k1);
+            B.close();
+            tc.verifyFalse(isvalid(dlg.Fig));
+            tc.verifyEqual(fileTags(k1), ["draft" "pilot" "shared"]);
+        end
+
         function computeOnTheStrip(tc)
             B = tc.open(Settings=tc.Spike, Workers=0);   % here, one dataset after the other, whatever pool another suite left open
             seen = containers.Map();
@@ -1875,6 +1972,16 @@ function clearBaseExcept(keep)
 %clearBaseExcept  Clear the base workspace's variables but KEEP (what a post-processing script left).
 names = setdiff(evalin('base', 'who'), keep);
 if ~isempty(names); evalin('base', char("clear " + strjoin(string(names), " "))); end
+end
+
+
+function putTexts(files, texts)
+%putTexts  Write each file's text back as it was.
+for k = 1:numel(files)
+    fid = fopen(files(k), 'w', 'n', 'UTF-8');
+    fwrite(fid, char(texts(k)), 'char');
+    fclose(fid);
+end
 end
 
 

@@ -13,7 +13,8 @@ function applyVizSettings(obj, what)
 %     "processing"  Reference, High-pass / Low-pass / Filter order, Remove offset
 %     "spikes"      the Sorted units / Detected spikes layers: shown or
 %                   not, ticks or waveforms, where they are drawn, which
-%                   units by label; and the counts under them
+%                   units by label, units' waveforms on every channel they
+%                   reach; and the counts under them
 %     "events"      the digital-input events (VizData.events): drawn over
 %                   the traces, above them as TTL rows, both or not; the
 %                   lines picked in the Lines list
@@ -146,6 +147,9 @@ if every || what == "spikes"
         'Enable', matlab.lang.OnOffSwitchState(hasUnits));
     set([obj.VizDetectedCheckBox, obj.VizDetectedStyleDropDown], 'Enable', matlab.lang.OnOffSwitchState(hasDet));
     obj.VizPlacementDropDown.Enable = matlab.lang.OnOffSwitchState(hasUnits || hasDet);
+    v.UnitFootprint = logical(obj.VizFootprintCheckBox.Value);
+    obj.VizFootprintCheckBox.Enable = matlab.lang.OnOffSwitchState(hasUnits ...
+        && string(obj.VizUnitStyleDropDown.Value) == "waveforms" && placement == "channels");
     if ~hasUnits; txt = ["no sorted units", txt]; end
     if ~hasDet; txt(end+1) = "no detected spikes"; end
     obj.VizSpikesLabel.Text = strjoin(txt, "; ") + ".";

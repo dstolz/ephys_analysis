@@ -518,6 +518,9 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   de-duplicates what it reads, and drops an entry that is not a valid tag
   (or any past the twelfth) with a warning, `EphysDataset:applyManifest:Tags`;
   the Scan names it in its alert, and the next write leaves it out. The
+  pipeline app's tag window writes them through the dataset; the dataset
+  browser's, and scripts, with `writeManifestTags`, which changes only `tags`
+  and `updated` in the file's text. The
   [metadata table](EphysProject.md) (`gatherMetadata`, a `Tags` column joined
   with `;`), the run record's `datasets` and the `.mat` and NWB outputs
   carry the same set: a cellstr in a `conversion` struct

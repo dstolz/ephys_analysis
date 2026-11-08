@@ -360,6 +360,7 @@ classdef EphysPipelineApp < handle
         VizUnitsCheckBox   matlab.ui.control.CheckBox
         VizUnitStyleDropDown matlab.ui.control.DropDown   % ticks / waveforms
         VizUnitGroupsDropDown matlab.ui.control.DropDown  % which units by label
+        VizFootprintCheckBox matlab.ui.control.CheckBox   % units' waveforms on every channel they reach
         VizDetectedCheckBox matlab.ui.control.CheckBox
         VizDetectedStyleDropDown matlab.ui.control.DropDown
         VizPlacementDropDown matlab.ui.control.DropDown   % spikes on their channel's lane / lanes of their own
@@ -372,6 +373,7 @@ classdef EphysPipelineApp < handle
         VizSortByProbeCheckBox matlab.ui.control.CheckBox
         VizTraceColorDropDown matlab.ui.control.DropDown
         VizShadingCheckBox matlab.ui.control.CheckBox
+        VizSaveSVGButton   matlab.ui.control.Button       % save the view as an SVG (onVizSaveSVG)
         VizArtEditButton   matlab.ui.control.Button       % go to the Artifacts tab, where the periods are marked
         VizArtStatusLabel  matlab.ui.control.Label
         VizEventsDropDown  matlab.ui.control.DropDown     % events: off / over the traces / above them / both
@@ -906,6 +908,7 @@ classdef EphysPipelineApp < handle
         VizHelpFig = []            % the "?" window (showVizHelp)
         VizSourceKind (1,1) string = "recording"   % the kind shown, kept across datasets
         VizGesture (1,1) string = ""               % "pan" | "seek" while a button is held
+        VizSVGFolder (1,1) string = ""             % where the last SVG of the view was saved
 
         % --- Artifacts tab viewer (in memory; showArtifactView / drawArtifactView) ---
         % intervals: the last preview's detected artifacts (recording-relative
@@ -1297,6 +1300,7 @@ classdef EphysPipelineApp < handle
         loadVizEvents(obj, out, read)
         onVizReadEvents(obj)
         onVizEventJump(obj, direction)
+        onVizSaveSVG(obj, file)
         showVizHelp(obj)
 
         % --- Probe tab ---

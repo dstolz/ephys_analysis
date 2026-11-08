@@ -3,7 +3,8 @@ function onPlotVisualization(obj)
 %   Finds what the dataset has on disk (EphysDataset.outputs): the
 %   recording when its files can be read, the Sorting .bin, the Signals
 %   step's LFP / MUA / SPIKE / AUX (EphysTraceSource.forDataset), its
-%   sorted units (readSortedUnits on the associated sort), the Spikes
+%   sorted units (readSortedUnits on the associated sort, with every
+%   channel's template for the units' footprints, then let go), the Spikes
 %   step's detected spikes (<Name>_spikes.mat), the artifact periods the
 %   last run detected (<Name>_artifacts.json) and the digital-input events
 %   (loadVizEvents). The Show box then offers
@@ -57,7 +58,7 @@ try
     if out.has("sorting")
         dlg.Message = "Reading the sorted units of " + d.Name + "...";
         try
-            units = out.readUnits();
+            units = out.readUnits(FullTemplates=true);
         catch ME
             notes(end+1) = "Sorted units not read: " + string(ME.message);
         end
@@ -84,6 +85,9 @@ end
 layers = EphysTraceViewer.emptyLayers();
 if ~isempty(units) && ~isempty(units.unitId)
     layers(end+1) = EphysTraceViewer.unitLayer(units);
+end
+if ~isempty(units)
+    units.templateFull = [];      % the footprints are in the layer; the full templates can be large
 end
 if ~isempty(detected) && ~isempty(detected.ts)
     layers(end+1) = EphysTraceViewer.detectedLayer(detected);

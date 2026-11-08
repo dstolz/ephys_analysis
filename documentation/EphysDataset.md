@@ -2810,6 +2810,24 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   addToManifest(P.Datasets, info, batch="pilot");
   ```
 
+- **`t = writeManifestTags(target, tags)`** makes `tags` the dataset's tag set
+  in its manifest, without the dataset: `target` is the manifest file or a
+  folder holding one (the top-level `tags` array and `updated` are spliced
+  into the file's text, as `addToManifest` splices its block, so nothing else
+  changes and no recording is needed), or a dataset (its `Tags` set and its
+  manifest written). `tags` is anything `TagSet.require` takes; the set
+  written comes back trimmed, lowercase and sorted. A dataset object open on
+  the same folder reads the new tags back at its next `writeManifest` (unless
+  it changed its own tags since). The dataset browser edits tags this way
+  ([Editing tags](DatasetBrowser.md#editing-tags)). It errors and writes
+  nothing on a bad tag or too many (`TagSet:Invalid`, `TagSet:TooMany`), a
+  folder with no manifest or several (`writeManifestTags:NoManifest`,
+  `:Ambiguous`) and a manifest it cannot read (`writeManifestTags:Unreadable`).
+
+  ```matlab
+  writeManifestTags("S:\outputs\subjA_260101_120000", ["ofc" "cohort-3"]);
+  ```
+
 - `ManifestViewerApp(ds)` shows it in a window
   ([ManifestViewerApp](ManifestViewerApp.md)).
 - `[tf, why] = applyManifest()` restores `ProbeFile`,

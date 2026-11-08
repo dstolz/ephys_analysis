@@ -359,6 +359,74 @@ check(t6 == on1(1) && k6 == 1 && t7 == on1(2) && k7 == 2 && t8 == on1(1) && k8 =
 v.setEvents(E);
 check(isempty(v.EventJump), 'new events forget the last jump');
 
+fprintf('\n== 5b. unit footprints, SVG export ==\n');
+% Unit 1 (peak channel 3): peak to peak 70 on ch3, 25 on ch2 (above 25%),
+% 15 on ch4 (below). Unit 2: ch5 only.
+units2 = units;
+units2.templateFull = zeros(3, nCh, 2);
+units2.templateFull(:, 3, 1) = [0; -50; 20];
+units2.templateFull(:, 2, 1) = [0; -20; 5];
+units2.templateFull(:, 4, 1) = [0; -10; 5];
+units2.templateFull(:, 5, 2) = [0; -10; 5];
+units2.channelMap = (1:nCh).';
+U2 = EphysTraceViewer.unitLayer(units2);
+check(isequal(U2.footprint, {[3 2], 5}) && isequal(U.footprint, {3, 5}), ...
+    'unitLayer: a unit''s footprint is its peak channel, then those its template reaches at 25% of the peak to peak (just the peak channel without templateFull)');
+v.setSource(rec);
+v.setVisibleLanes(8);
+v.RemoveOffset = false;
+v.setSpacing(1000);
+v.setLayers(U2);
+v.setLayerStyle("Sorted units", "waveforms");
+v.EventOverlay = true;
+v.EventStrip = true;
+v.Shading = struct('intervals', {[1.495 1.5]}, 'color', {[0.95 0.6 0.1]}, 'alpha', {0.15});
+v.setView(1.49, 0.02);
+[~, sy] = spikePoints(ax);
+check(any(abs(sy) < 1e-6) && ~any(sy > -1.5 & sy < -0.5), 'without UnitFootprint only the peak channel''s lane is recolored');
+v.UnitFootprint = true;
+v.render();
+[sx, sy] = spikePoints(ax);
+on2 = sy > -1.5 & sy < -0.5;
+check(any(abs(sy) < 1e-6) && any(on2) && ~any(sy > -3.5 & sy < -2.5) ...
+    && all(sx(on2) >= 1.5 + U2.winMs(1) / 1e3 - 1 / Fs & sx(on2) <= 1.5 + U2.winMs(2) / 1e3 + 1 / Fs), ...
+    'UnitFootprint: the spike is recolored on every lane of the unit''s footprint (ch3, ch2), not beyond it (ch4)');
+f2 = v.exportFigure();
+ex = findall(f2, 'Type', 'axes');
+tr = findall(ex, 'Tag', 'trace');
+uw = findall(ex, 'Tag', 'units:waveforms');
+allX = [tr.XData, uw.XData];
+allX = allX(~isnan(allX));
+[~, iU] = ismember(uw, ex.Children);
+[~, iT] = ismember(tr, ex.Children);
+check(isscalar(ex) && numel(tr) == nCh && isequal(sort(string(get(tr, 'DisplayName'))), sort("ch" + (1:nCh)).') ...
+    && isscalar(uw) && uw.DisplayName == "su007" && numel(uw.YData(uw.YData > -1.5 & uw.YData < -0.5)) > 0 ...
+    && max(iU) < min(iT) && isempty(findall(ex, 'Type', 'patch')) ...
+    && ~isempty(findall(ex, 'Tag', 'EventMarks')) && ~isempty(findall(ex, 'Tag', 'EventTraces')) ...
+    && isequal(ex.XLim, ax.XLim) && isequal(ex.YTickLabel, ax.YTickLabel) ...
+    && all(allX >= ax.XLim(1) - 1e-12 & allX <= ax.XLim(2) + 1e-12), ...
+    'exportFigure: a line per lane, the unit''s spikes (every footprint lane) on top, the events; no shading; cut at the window');
+delete(f2);
+U3 = EphysTraceViewer.unitLayer(units2, Palette=[0 0.45 0.74]);   % both units in one color
+v.setLayers(U3);
+v.setView(0, 3);
+f2 = v.exportFigure();
+ut = findall(f2, 'Tag', 'units:ticks');
+check(numel(findall(ax, 'Tag', 'TickLines', 'Visible', 'on')) == 1 && numel(ut) == 2 ...
+    && isequal(sort(string(get(ut, 'DisplayName'))), ["mua009"; "su007"]), ...
+    'units sharing a color are one line on screen but one line each in the export');
+delete(f2);
+svg = string(fullfile(root, "view"));
+out = v.exportSVG(svg);
+txt = fileread(out);
+check(out == svg + ".svg" && isfile(out) && contains(txt, "<svg") && count(txt, "<polyline") >= nCh + 2 ...
+    && ~contains(txt, "<image"), ...
+    'exportSVG writes the view as an SVG of vectors (".svg" added)');
+v.UnitFootprint = false;
+v.Shading = struct('intervals', {}, 'color', {}, 'alpha', {});
+v.EventOverlay = false;
+v.EventStrip = false;
+
 fprintf('\n== 6. envelope: views wider than one read ==\n');
 B = EphysTraceEnvelope.blockSizes(30000 * 7200, 64);       % 2 h of 64 channels at 30 kHz
 check(isequal(B, 1024 * 4 .^ (0:3)) && ceil(30000 * 7200 / B(end)) <= 4096, ...

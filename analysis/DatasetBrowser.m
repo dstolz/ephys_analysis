@@ -131,6 +131,10 @@ classdef DatasetBrowser < handle
     %                  FN(SRC) or FN(SRC, INFO) per dataset, kept in Runs
     %                  (DatasetRuns.run); Name defaults to "forEach/" + func2str(FN)
     %     forget(B, NAME, KEYS); forgetTicked(B)   (nothing ticked: nothing dropped)
+    %     DLG = editTags(B, KEYS)            the tag dialog (TagDialog) on datasets (default: the rows
+    %                                        selected, else the clicked one; a click on a Tags cell,
+    %                                        the right-click menu); OK writes them to the manifests
+    %     setTags(B, KEYS, Set=, Add=, Remove=)   the same from a script (writeManifestTags)
     %     loadSettings(B, FILE)              (no FILE: a file dialog; File > Load settings)
     %     saveSettings(B, FILE)              (no FILE: SettingsFile, else a file dialog; File > Save settings)
     %     saveSettingsAs(B)                  a file dialog (File > Save settings as)
@@ -388,7 +392,7 @@ classdef DatasetBrowser < handle
     end
 
     properties
-        OnChange = []                      % OnChange(B, what): "scan" | "filter" | "ticks" | "settings" | "definitions" | "result" | "sessions" | "script" | "done" | "closed"
+        OnChange = []                      % OnChange(B, what): "scan" | "filter" | "ticks" | "tags" | "settings" | "definitions" | "result" | "sessions" | "script" | "done" | "closed"
     end
 
     properties (Hidden)
@@ -401,6 +405,7 @@ classdef DatasetBrowser < handle
         CountsWindow = []                  % the Epochs per group window (showGroupCounts), when open
         RasterWindow = []                  % the Trial rasters window (showRasters), when open
         DetailsWindow = []                 % the Details window (showDetails), when open
+        TagWindow = []                     % the tag dialog (editTags: TagDialog), when open
         LastRun table = table()          % what the last compute, forEach or load did, a row per dataset and kind: kind, key, name, status, message, seconds (runDetails)
     end
 
@@ -445,6 +450,7 @@ classdef DatasetBrowser < handle
         RunFraction (1,1) double = 0
         LastPrint (1,1) double = -Inf      % seconds into the run of the last printed line
         ListKey (1,1) string = ""          % the clicked row's dataset: the lists load its source
+        TagPolicy (1,1) string = "all"     % the tag dialog's bulk policy last chosen ("all" | "skip"), kept for the session
         ProbeKey (1,1) string = ""         % the dataset whose probe the Channels tab draws ("" = none drawn)
         SettingsFolder (1,1) string = ""
         DoneFlag (1,1) logical = false
@@ -974,11 +980,14 @@ classdef DatasetBrowser < handle
                 "  Use box         tick or untick the dataset for Compute and Load"
                 "  Column header   sort the table by that column (a second click reverses it)"
                 "  A row           the form's lists (events, lines, parameters, probe) load that dataset"
+                "  A Tags cell     edit that dataset's tags (written to its manifest)"
                 "  Probe           click a shank or a site to keep it; All keeps every one"
                 ""
                 "RIGHT-CLICK THE TABLE"
                 "  Clear sort                    back to the scan's order"
                 "  Open manifest viewer          the clicked row's dataset in the manifest viewer (also File menu)"
+                "  Edit tags...                  the tags of the selected rows (click, Shift+click, Ctrl+click), else the clicked row"
+                "  Edit tags (ticked)...         the tags of the ticked datasets: add tags to all of them, or remove tags from all"
                 "  Forget cached (ticked)        drop the kept parts of the ticked datasets, so Compute works them out again"
                 "  Details of the last run...    the datasets the last Compute or Load gave nothing for, and why"
                 ""
@@ -1015,6 +1024,122 @@ classdef DatasetBrowser < handle
             v = ManifestViewerApp(file);
             if B.headless(); v.Fig.Visible = "off"; end
             B.setStatus("Opened the manifest of " + B.Datasets.name(B.Datasets.key == key) + ".");
+        end
+
+        function dlg = editTags(B, keys)
+            %editTags  Edit datasets' tags in the tag dialog (TagDialog); OK writes them to the datasets' manifests.
+            %   DLG = B.editTags() opens it on the rows selected in the
+            %   table (click, Shift+click, Ctrl+click: the right-click
+            %   menu's Edit tags...), else on the clicked row's dataset
+            %   (else the first ticked, else the first). B.editTags(KEYS)
+            %   opens it on those datasets (keys, names or indices of
+            %   Datasets); the menu's Edit tags (ticked)... passes the
+            %   ticked ones. A click on a Tags cell opens it on that row's
+            %   dataset alone.
+            %   One dataset: the dialog edits its set. Several: it adds
+            %   tags to all of them or removes tags from all of them; a
+            %   dataset an Add would take past TagSet.MaxTags either cancels
+            %   the edit or is left out (the dialog's policy, kept for the
+            %   session). It offers the tags in use on the root's datasets.
+            %   On OK each new set is written as setTags writes it
+            %   (writeManifestTags), and the status line says what was
+            %   done; Cancel writes nothing. DLG is the TagDialog: its
+            %   methods (pick, addTyped, removeCurrent, setMode, setPolicy,
+            %   ok, cancel) drive it as the clicks do. With the dialog open
+            %   already, that one comes to the front and is returned.
+            %   Hidden with the browser. Refused while Busy.
+            arguments
+                B
+                keys = []
+            end
+            B.needRunner();
+            dlg = B.TagWindow;
+            if ~isempty(dlg) && isvalid(dlg) && isvalid(dlg.Fig)
+                if dlg.Fig.Visible == "on"; figure(dlg.Fig); end
+                return
+            end
+            if B.Busy
+                error('DatasetBrowser:Busy', 'Wait for the run to end (or cancel it) before editing tags.');
+            end
+            if isempty(keys)
+                keys = B.selectedRowKeys();
+                if isempty(keys); keys = B.listKey(); end
+            end
+            keys = unique(B.keysOf(keys), 'stable');
+            keys = keys(keys ~= "");
+            if isempty(keys)
+                error('DatasetBrowser:NoDataset', 'No dataset to tag: scan the root first.');
+            end
+            D = B.Datasets;
+            [~, loc] = ismember(keys, D.key);
+            parent = [];
+            if B.uiOk(); parent = B.Fig; end
+            dlg = TagDialog(reshape(D.tagSet(loc), 1, []), TagSet.vocabulary(reshape(D.tagSet, 1, [])), ...
+                Labels=reshape(D.name(loc), 1, []), Parent=parent, Policy=B.TagPolicy, Visible=~B.headless(), ...
+                OnDone=@(r) B.uiRun(@() B.onTagsDone(keys, r)));
+            B.TagWindow = dlg;
+        end
+
+        function setTags(B, keys, opts)
+            %setTags  Change datasets' tags from a script: B.setTags(KEYS, Set=, Add=, Remove=).
+            %   KEYS are keys, names or indices of Datasets. Set= is each
+            %   dataset's whole new set ("" or {} for none), Add= tags added
+            %   to each set, Remove= tags taken off each; given together:
+            %   Set, then Add, then Remove. Tags are a string array, a
+            %   cellstr or text separated by commas ("ofc, cohort-3"),
+            %   trimmed and lowercased (TagSet). Every new set is checked
+            %   first, and nothing is written unless all fit: a tag that
+            %   breaks the rules errors TagSet:Invalid, a set past
+            %   TagSet.MaxTags TagSet:TooMany (the dataset named).
+            %   Each set is then written to the dataset's manifest
+            %   (writeManifestTags: only its "tags" and "updated" change;
+            %   a dataset without one, but with its recording, gets one).
+            %   The table, the tag filter's lists and the sources already
+            %   loaded follow; OnChange gets "tags". A dataset whose manifest
+            %   cannot be written is named in the error
+            %   DatasetBrowser:TagsNotWritten, after the others are written.
+            %   The manifest counts in each dataset's stamp, so the next
+            %   Scan marks a retagged dataset's parts "old", as after a tag
+            %   edit in the pipeline app; until then they stay cached.
+            arguments
+                B
+                keys
+                opts.Set
+                opts.Add
+                opts.Remove
+            end
+            if ~any(isfield(opts, ["Set" "Add" "Remove"]))
+                error('DatasetBrowser:BadValue', 'Give the tags to set, add or remove: Set=, Add= or Remove=.');
+            end
+            B.needRunner();
+            keys = unique(B.keysOf(keys), 'stable');
+            given = struct();
+            for f = intersect(["Set" "Add" "Remove"], string(fieldnames(opts)).', 'stable')
+                [given.(f), ~, why] = TagSet.fromText(opts.(f), TagSet.EntryDelimiter);
+                if ~isempty(why)
+                    error('TagSet:Invalid', '%s: %s', f, strjoin(why, '; '));
+                end
+            end
+            D = B.Datasets;
+            sets = cell(numel(keys), 1);
+            for j = 1:numel(keys)
+                k = find(D.key == keys(j), 1);
+                t = D.tagSet{k};
+                if isfield(given, 'Set'); t = given.Set; end
+                if isfield(given, 'Add'); t = TagSet.union(t, given.Add); end
+                if isfield(given, 'Remove'); t = TagSet.remove(t, given.Remove); end
+                [ok, why] = TagSet.checkCount(t);
+                if ~ok
+                    error('TagSet:TooMany', '%s would have %s.', D.name(k), why);
+                end
+                sets{j} = t;
+            end
+            failed = B.writeTags(keys, sets);
+            if ~isempty(failed)
+                B.setStatus("Tags not written: " + strjoin(failed, "; "), true);
+                error('DatasetBrowser:TagsNotWritten', 'Tags not written: %s', strjoin(failed, "; "));
+            end
+            B.setStatus(sprintf("Wrote the tags of %d %s.", numel(keys), ternary(numel(keys) == 1, "dataset", "datasets")));
         end
 
         function w = showDetails(B)
@@ -1963,13 +2088,17 @@ classdef DatasetBrowser < handle
                 "CellEditCallback", @(~, evt) B.uiRun(@() B.onTableEdit(evt)), ...
                 "CellSelectionCallback", @(~, evt) B.uiRun(@() B.onTableSelect(evt)), ...
                 "DisplayDataChangedFcn", @(~, evt) B.onTableSorted(evt), ...
+                "ClickedFcn", @(~, evt) B.uiRun(@() B.onTableClicked(evt)), ...
                 "ContextMenu", uicontextmenu(f));
             uimenu(c.Table.ContextMenu, "Text", "Clear sort", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.clearSort()));
             uimenu(c.Table.ContextMenu, "Text", "Open manifest viewer", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.viewManifest()));
+            uimenu(c.Table.ContextMenu, "Text", "Edit tags...", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.editTags()));
+            uimenu(c.Table.ContextMenu, "Text", "Edit tags (ticked)...", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.onEditTagsTicked()));
             uimenu(c.Table.ContextMenu, "Text", "Forget cached (ticked)", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.forgetTicked()));
             uimenu(c.Table.ContextMenu, "Text", "Details of the last run...", "Separator", "on", ...
                 "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.showDetails()));
-            c.TableHint = uilabel(L, "Text", "Right-click the table: open the manifest viewer, clear the sort, forget cached parts, details of the last run.", ...
+            c.TableHint = uilabel(L, "Text", "Click a Tags cell to tag that dataset. Right-click the table: edit tags (selected or ticked rows), " + ...
+                "open the manifest viewer, clear the sort, forget cached parts, details of the last run.", ...
                 "FontColor", B.TextColor);
 
             % --- right: the settings
@@ -2581,6 +2710,116 @@ classdef DatasetBrowser < handle
 
         function onTableSorted(B, evt)
             B.Sort = TableSort.fromEvent(B.Ctl.Table, evt, B.Sort);
+        end
+
+        function onTableClicked(B, evt)
+            %onTableClicked  A click on a Tags cell: the tag dialog on that row's dataset alone (editTags).
+            %   The table's ClickedFcn; InteractionInformation's Row and
+            %   Column are the cell in Data, whatever a header sort shows.
+            %   A right-click is the context menu's.
+            info = evt.InteractionInformation;
+            if isempty(info.Row) || isempty(info.Column); return; end
+            if B.uiOk() && B.Fig.SelectionType == "alt"; return; end
+            T = B.Ctl.Table.Data;
+            if ~istable(T) || info.Row > height(T) || info.Column > width(T) || T.Properties.VariableNames{info.Column} ~= "Tags"
+                return
+            end
+            B.editTags(B.Datasets.key(T.Idx(info.Row)));
+        end
+
+        function onEditTagsTicked(B)
+            %onEditTagsTicked  The right-click menu's Edit tags (ticked)...: the tag dialog on the ticked datasets.
+            keys = B.tickedKeys();
+            if isempty(keys)
+                error('DatasetBrowser:NoneTicked', 'Tick at least one dataset to tag.');
+            end
+            B.editTags(keys);
+        end
+
+        function onTagsDone(B, keys, r)
+            %onTagsDone  The tag dialog closed: write the new sets (KEYS(k) gets R.sets{k} where R.applied(k)) and say what was done.
+            if ~isvalid(B); return; end
+            dlg = B.TagWindow;
+            if ~isempty(dlg) && isvalid(dlg); B.TagPolicy = dlg.Policy; end   % chosen even when canceled
+            B.TagWindow = [];
+            if isempty(r); return; end
+            applied = reshape(logical(r.applied), 1, []);
+            failed = B.writeTags(keys(applied), reshape(r.sets(applied), [], 1));
+            if ~isempty(failed)
+                B.setStatus("Tags not written: " + strjoin(failed, "; "), true);
+                return
+            end
+            [~, loc] = ismember(keys, B.Datasets.key);
+            [text, detail] = TagDialog.describe(r, reshape(B.Datasets.name(loc), 1, []));
+            if detail ~= ""; text = text + " For the rest, " + detail; end
+            B.setStatus(text);
+        end
+
+        function failed = writeTags(B, keys, sets)
+            %writeTags  Write each dataset's new tag set (KEYS(j) gets SETS{j}) to its manifest; Datasets, the table and loaded sources follow.
+            %   The target is the manifest in effect (DatasetOutputs.ManifestFile),
+            %   else the dataset itself when the outputs know it
+            %   (writeManifestTags writes it a manifest). A set equal to the
+            %   dataset's is not written. FAILED holds a line per dataset not
+            %   written, "<name>: <why>"; the others are written. OnChange
+            %   gets "tags" when any was.
+            failed = strings(0, 1);
+            wrote = false;
+            for j = 1:numel(keys)
+                k = find(B.Datasets.key == keys(j), 1);
+                if isempty(k)
+                    failed(end+1, 1) = keys(j) + ": not in the scan"; %#ok<AGROW>
+                    continue
+                end
+                try
+                    if isequal(TagSet.require(sets{j}), TagSet.require(B.Datasets.tagSet{k}))
+                        continue   % unchanged (an Add of a tag it has): its manifest, and so its stamp, stay
+                    end
+                    i = B.Runner.index(keys(j));
+                    if i == 0
+                        error('DatasetBrowser:NoDataset', 'not in the scan');
+                    end
+                    out = B.Runner.Outputs(i);
+                    target = out.ManifestFile;   % string.empty when there is none
+                    if ~isempty(target) && target(1) ~= ""
+                        target = target(1);
+                    elseif ~isempty(out.Dataset)
+                        target = out.Dataset;
+                    else
+                        error('DatasetBrowser:NoManifest', 'no manifest');
+                    end
+                    t = writeManifestTags(target, sets{j});
+                catch ME
+                    failed(end+1, 1) = B.Datasets.name(k) + ": " + string(ME.message); %#ok<AGROW>
+                    continue
+                end
+                wrote = true;
+                B.Datasets.tagSet{k} = t;
+                B.Datasets.tags(k) = TagSet.toText(t, TagSet.ExportDelimiter);
+                out.clearCache();   % its manifest (CacheData) is read again
+                S = B.Runner.Sources;   % a source loaded already: its tags too
+                if ~isempty(S) && isKey(S, char(keys(j)))
+                    src = S(char(keys(j)));
+                    src.tags = t;
+                    S(char(keys(j))) = src;
+                end
+            end
+            B.refreshTable();
+            if wrote; B.changed("tags"); end
+        end
+
+        function keys = selectedRowKeys(B)
+            %selectedRowKeys  The datasets of the rows selected in the table, in its order; none without a window.
+            %   Selection is [row column] per selected cell, rows of Data
+            %   (not of a header sort's order), mapped through Idx.
+            keys = strings(0, 1);
+            if ~B.uiOk(); return; end
+            T = B.Ctl.Table.Data;
+            sel = B.Ctl.Table.Selection;
+            if isempty(sel) || ~istable(T) || height(T) == 0; return; end
+            rows = unique(sel(:, 1));
+            rows = rows(rows >= 1 & rows <= height(T));
+            keys = B.Datasets.key(T.Idx(rows));
         end
 
         function onFormEdit(B, name)
@@ -3434,7 +3673,7 @@ classdef DatasetBrowser < handle
         end
 
         function closeWindows(B)
-            %closeWindows  The Event sequence, Epoch Diagram, Epochs per group and Trial rasters windows go.
+            %closeWindows  The Event sequence, Epoch Diagram, Epochs per group and Trial rasters windows and the tag dialog go (the dialog as canceled).
             B.closeSequenceDialog();
             d = B.EpochWindow;
             if ~isempty(d) && isvalid(d); d.close(); end
@@ -3445,6 +3684,9 @@ classdef DatasetBrowser < handle
             w = B.RasterWindow;
             if ~isempty(w) && isvalid(w); w.close(); end
             B.RasterWindow = [];
+            w = B.TagWindow;
+            if ~isempty(w) && isvalid(w); w.cancel(); end
+            B.TagWindow = [];
         end
 
         function changed(B, what)

@@ -115,9 +115,11 @@ The line above the table reads *showing 12 of 34 (3 ticked hidden) · 9 ticked*.
 ### The table
 
 Click a header to sort; the sort is remembered (preference `Sort`). The
-right-click menu has **Open manifest viewer**, **Clear sort**, **Forget cached
-(ticked)** and **Details of the last run...** (a one-line hint under the table
-says so). Clicking a row makes it the dataset the form's lists are read from.
+right-click menu has **Open manifest viewer**, **Edit tags...**, **Edit tags
+(ticked)...**, **Clear sort**, **Forget cached (ticked)** and **Details of the
+last run...** (a one-line hint under the table says so). Clicking a row makes
+it the dataset the form's lists are read from; clicking its **Tags** cell
+edits its tags ([Editing tags](#editing-tags)).
 **Open manifest viewer** (also **File → Open manifest viewer**) shows that
 dataset's manifest in a `ManifestViewerApp` window; `B.viewManifest(KEY)` does
 the same for the dataset with that key and returns the viewer. A dataset
@@ -129,10 +131,58 @@ without a manifest on disk is named in the status line.
 | **Name**, **Key** | the dataset's name and its project key |
 | **Subject**, **Date** | from `subjectAndDate`, the same function and inputs `epochMatrix` uses, so the table and `R.rows` agree: the subject from the name pattern; the date is the acquisition date (the day the recording started) when known, else the date in the name |
 | **Session** | each subject's datasets numbered 1, 2, ... by date; datasets on the same day share a number |
-| **Tags** | the manifest's tags |
+| **Tags** | the manifest's tags; click the cell to edit them |
 | **Units**, **Detected**, **Behavior** | a check mark when the sorting, the spikes file or the behavior file exists |
 | **Signals** | the derived signals the dataset has (`LFP`, `MUA`, `SPIKE`, `AUX`) |
 | **Cached** | the dataset's part for the current **Data** and settings: `✓ 62 units` (kept and current; the units, or for signals the channels, the dataset adds to the result: one matrix row each, so `✓ 8 channels` for signals), `skipped: no sorted units` (nothing to compute, with the reason; kept so), `error` (the last **Compute** failed on it with these settings and outputs: tried again next time), `old` (kept, but either the settings or the stamp of the dataset's output files differ: computed again next time), or blank. A `skipped` or `error` cell is in red text; **Details...** has the whole message. With several kinds of **Data** ticked: `✓ 62 units, 32 LFP` once every kind is kept and current (a kind the dataset lacks reads `AUX skipped`), `old` when one kind is, `skipped: <reason>` when all are, else blank. The whole row is tinted to match: pale green (cached), pale yellow (`old`), pale red (`skipped` or `error`), none (blank) |
+
+#### Editing tags
+
+The browser edits the tags it filters by, so a group can be tagged where it
+is picked. The tag window is the pipeline app's (`TagDialog`):
+
+| To tag | Do this |
+| --- | --- |
+| one dataset | click its **Tags** cell: the window shows its tags; pick from the tags in use or type new ones (`cohort-3, pilot`), **OK** |
+| several | select their rows (click, Shift+click, Ctrl+click), right-click the table: **Edit tags...**; then **Add to all** or **Remove from all** |
+| the ticked datasets | right-click the table: **Edit tags (ticked)...** (filter, **Tick shown only**, then tag them all) |
+
+**OK** writes each new set into the dataset's manifest (`<Name>_manifest.json`,
+the one the Tags column reads; for outputs copied to another disk, the copy
+beside them) with [`writeManifestTags`](EphysDataset.md#dataset-manifest):
+only the manifest's `tags` and `updated` change, and no recording is needed.
+The table, the tag filter's lists and the sources already loaded follow at
+once, and the status line says what was done (*Tagged 3 datasets: added
+cohort-3.*). **Cancel** writes nothing. A dataset an **Add** would take past 12
+tags either cancels the whole edit or is left out, as the window's policy
+says (kept for the session). The pipeline app, open on the same datasets,
+reads the new tags back the next time it writes their manifests.
+
+`B.editTags(KEYS)` opens the window on those datasets and returns it (no
+`KEYS`: the rows selected, else the clicked row's dataset); its methods
+(`pick`, `addTyped`, `setMode`, `setPolicy`, `ok`, `cancel`) drive it as the
+clicks do. From a script, `B.setTags(KEYS, Set=, Add=, Remove=)` changes them
+without a window:
+
+```matlab
+B.setFilter(Search="SUBJ-ID-1255");
+B.setTags(B.Shown, Add="cohort-3");               % add to each
+B.setTags("SUBJ-ID-1255_260101", Remove="pilot");  % by key or name
+B.setTags(B.Selected, Set=["ofc" "perceptual_training"]);   % the whole set
+```
+
+`Set` (the whole set; `""` for none), then `Add`, then `Remove`; tags are a
+string array, a cellstr or text separated by commas. Every new set is checked
+first and nothing is written unless all fit (`TagSet:Invalid`,
+`TagSet:TooMany`, the dataset named); a manifest that cannot be written is
+named in `DatasetBrowser:TagsNotWritten` after the others are written.
+`OnChange` gets `"tags"`.
+
+A tag edit changes the manifest, which counts in each dataset's stamp
+(`outputsStamp`): until the next **Scan** the retagged datasets stay cached;
+after it their parts read `old` and **Compute** works them out again, as after
+a tag edit in the pipeline app. **Compute** takes the new tags into `R.rows`
+and `R.name` at once.
 
 ### The settings form
 
@@ -620,6 +670,7 @@ R = B.compute();
 | `[D, T] = loadSessions(B, TrialsOnly=false)` | the ticked datasets whole, in `B.Sessions` ([Load whole recordings](#load-whole-recordings)) |
 | `[VALUES, T] = forEach(B, FN, ...)` | [your own per-dataset code, cached](#foreach) |
 | `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
+| `DLG = editTags(B, KEYS)`, `setTags(B, KEYS, Set=, Add=, Remove=)` | the tag window on datasets (no `KEYS`: the rows selected, else the clicked one); the same edit from a script, written to the manifests ([Editing tags](#editing-tags)) |
 | `loadSettings(B, FILE)` | read a [settings file](#settings) (no `FILE`: a file dialog) |
 | `saveSettings(B, FILE)`, `saveSettingsAs(B)` | write one (no `FILE`: `B.SettingsFile`, else a file dialog; `saveSettingsAs`: always a dialog) |
 | `TXT = exportScript(B, FILE)` | [a script](#export-a-script) that computes `B.Settings` on the ticked datasets without the browser (no `FILE`: a file dialog; `""`: the text only) |
@@ -640,7 +691,7 @@ change of `Normalize` alone does not move it), `ResultName` (read-only: the
 result's default name, `R.name`; `""` before a result), `Definitions` (read-only: the [event & trial definitions](#event--trial-definitions)), `ResultFile`, `Workers` ([Workers](#workers)), `Runs` (the `DatasetRuns` with the kept parts),
 `Runner`, `Busy`, `CancelRequested`, `Fig` and `Ctl` (the window and its
 controls). `OnChange(B, what)` is called with `"scan"`, `"filter"`,
-`"ticks"`, `"settings"`, `"definitions"`, `"result"`, `"sessions"`, `"script"`, `"done"` or `"closed"`.
+`"ticks"`, `"tags"`, `"settings"`, `"definitions"`, `"result"`, `"sessions"`, `"script"`, `"done"` or `"closed"`.
 
 ### Export a script
 
@@ -1211,6 +1262,7 @@ out).
 | the per-dataset cache and run engine | [`DatasetRuns.m`](../analysis/DatasetRuns.m) |
 | the stamp of a dataset's output files (names, sizes, times) | [`outputsStamp.m`](../analysis/outputsStamp.m) |
 | the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../pipeline/datasetFilter.m) |
+| the tag window and the tag rules; writing a manifest's tags | [`TagDialog.m`](../pipeline/TagDialog.m), [`TagSet.m`](../pipeline/TagSet.m); [`writeManifestTags.m`](../pipeline/writeManifestTags.m) |
 | the sorted table | [`TableSort.m`](../pipeline/TableSort.m) |
 | the clickable probe of the Channels tab | [`ProbePicker.m`](../analysis/ProbePicker.m) |
 | the time left | [`ProgressClock.m`](../pipeline/ProgressClock.m) |
@@ -1222,4 +1274,4 @@ out).
 | [`test_DatasetFilter.m`](../pipeline/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, `noteInManifest` (the `custom.browser_<tool>` field written, replaced and left off other datasets, a bad key warning), the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, `noteInManifest` (the `custom.browser_<tool>` field written, replaced and left off other datasets, a bad key warning), tags (`setTags`: Add, Remove and Set written to the manifests with nothing else changed, the table and the tag filter following, the refusals writing nothing, a loaded source's tags and `R.rows`; the tag window from a Tags cell, the selected rows and the ticked ones, OK, Cancel and closing the browser), the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |

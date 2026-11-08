@@ -65,7 +65,7 @@ files = strings(size(targets));
 texts = cell(size(targets));
 blocks = cell(size(targets));
 for k = 1:numel(targets)
-    files(k) = manifestOf(targets{k});
+    files(k) = manifestOf(targets{k}, 'addToManifest');
     [texts{k}, blocks{k}] = withFields(files(k), names, values);
 end
 for k = 1:numel(targets)
@@ -95,49 +95,14 @@ for k = 1:numel(names)
 end
 stamp = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
 txt = fileread(file);
-txt = setMember(txt, 'custom', indented(jsonencode(c, 'PrettyPrint', true)));
-txt = setMember(txt, 'updated', jsonencode(stamp));
+txt = setJsonMember(txt, 'custom', c, 'addToManifest');
+txt = setJsonMember(txt, 'updated', stamp, 'addToManifest');
 try
     decoded = jsondecode(txt);
 catch ME
     error('addToManifest:BadValue', 'Cannot add these fields to %s: %s', file, ME.message);
 end
 c = decoded.custom;
-end
-
-function txt = setMember(txt, key, valueText)
-%setMember  TXT with the value of its top-level member KEY replaced by VALUETEXT.
-%   TXT is the text of a JSON object and VALUETEXT a JSON value. A member
-%   that is not there is added after the last one. Nothing else in TXT is
-%   touched: it is not decoded. The text is read as its strings and
-%   brackets (a string may hold any of the others), counting the depth.
-[tok, st, en] = regexp(txt, '"(?:[^"\\]|\\.)*"|[{}\[\],:]', 'match', 'start', 'end');
-if isempty(tok)
-    error('addToManifest:Unreadable', 'The manifest is not a JSON object.');
-end
-c = cellfun(@(t) t(1), tok);
-after = cumsum((c == '{' | c == '[') - (c == '}' | c == ']'));
-before = [0, after(1:end-1)];
-isKey = c == '"' & before == 1 & [c(2:end) == ':', false] & strcmp(tok, ['"' key '"']);
-ki = find(isKey, 1);
-if ~isempty(ki)
-    a = en(ki + 1) + find(~isspace(txt(en(ki + 1) + 1:end)), 1);   % where the value starts
-    j = ki + 1 + find(before(ki + 2:end) == 1 & (c(ki + 2:end) == ',' | c(ki + 2:end) == '}'), 1);
-    b = find(~isspace(txt(1:st(j) - 1)), 1, 'last');                % where it ends
-    txt = [txt(1:a - 1), valueText, txt(b + 1:end)];
-else
-    close = find(c == '}' & before == 1 & after == 0, 1);
-    p = find(~isspace(txt(1:st(close) - 1)), 1, 'last');            % the last member's end
-    sep = ',';
-    if txt(p) == '{'; sep = ''; end
-    txt = [txt(1:p), sep, newline, '    "', key, '": ', valueText, txt(p + 1:end)];
-end
-end
-
-function t = indented(t)
-%indented  The pretty-printed JSON T for a member of the top-level object: its lines
-%   after the first indented one level.
-t = strrep(t, newline, [newline '    ']);
 end
 
 function [names, values] = fieldsToAdd(args)
@@ -168,36 +133,5 @@ for k = 1:numel(names)
         error('addToManifest:BadValue', 'Cannot write %s to a manifest (%s): %s', ...
             names{k}, class(values{k}), ME.message);
     end
-end
-end
-
-function file = manifestOf(target)
-%manifestOf  The manifest file of an EphysDataset, a folder or a file path.
-if isa(target, 'EphysDataset') && isscalar(target)
-    file = target.manifestFile();
-    if ~isfile(file) && ~target.writeManifest()
-        error('addToManifest:NoManifest', 'Could not write a manifest for %s.', target.Name);
-    end
-    return
-end
-if ~((ischar(target) && isrow(target)) || (isstring(target) && isscalar(target)))
-    error('addToManifest:BadInput', 'TARGET must be one EphysDataset, a folder or a manifest file.');
-end
-target = string(target);
-if isfile(target)
-    file = target;
-elseif isfolder(target)
-    d = dir(fullfile(target, '*_manifest.json'));
-    d = d(~strcmpi({d.name}, 'session_manifest.json'));
-    if isempty(d)
-        error('addToManifest:NoManifest', ...
-            'No dataset manifest in %s. EphysDataset(folder).writeManifest() writes one.', target);
-    elseif ~isscalar(d)
-        error('addToManifest:Ambiguous', '%d dataset manifests in %s (%s): name the file.', ...
-            numel(d), target, strjoin(string({d.name}), ", "));
-    end
-    file = string(fullfile(d.folder, d.name));
-else
-    error('addToManifest:NotFound', 'No such file or folder: %s', target);
 end
 end

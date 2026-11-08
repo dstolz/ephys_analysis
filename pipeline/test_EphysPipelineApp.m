@@ -3694,6 +3694,15 @@ if S.sec("6", "a config for another root; a rescan; the Visualize tab")
     app.onVizControlsChanged("events");
     app.VizEventsDropDown.Value = 'strip';
     app.onVizControlsChanged("events");
+    app.Viewer.setView((tSpike - 5) / Fs, 40 / Fs);
+    svgFile = string(tempname) + ".svg";
+    app.onVizSaveSVG(svgFile);
+    svgTxt = "";
+    if isfile(svgFile); svgTxt = string(fileread(svgFile)); delete(svgFile); end
+    check(contains(svgTxt, "<svg") && app.VizSVGFolder == string(fileparts(svgFile)) ...
+        && app.VizSaveSVGButton.Text == "Save view as SVG..." ...
+        && app.VizFootprintCheckBox.Enable == "off" && isempty(app.VizData.units), ...
+        'Save view as SVG writes the view shown (folder kept for the next save); without sorted units the footprint box is off');
     app.Viewer.setView(0, nTot / Fs);
     p = findall(app.VizAxes, 'Type', 'patch', 'Visible', 'on');
     check(isempty(app.vizDetectedIntervals()) && contains(app.VizArtStatusLabel.Text, "Detect / Preview") ...

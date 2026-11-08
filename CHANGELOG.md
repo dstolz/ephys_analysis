@@ -511,6 +511,22 @@ says how to cut a release.
 
 ### Added
 
+- Pipeline app, Visualize tab: **Waveforms on every channel of the unit** recolors each sorted unit's spikes, in the
+  unit's color, on every channel its template reaches (at least 25% of its peak channel's peak to peak; the unit's
+  footprint, `EphysTraceViewer.unitLayer`), not only on its peak channel. **Save view as SVG...** saves the view
+  shown as vectors: a path per trace lane, a path per unit (or detected channel) on top of them, the event lines and
+  TTL rows, the scale bar and the axes; the artifact shading is left out. From a script:
+  `EphysTraceViewer.exportSVG(file)` and `exportFigure()`; `UnitFootprint` turns the footprint on.
+- Dataset browser: tags are edited where they are filtered. A click on a **Tags** cell opens the tag window (the
+  pipeline app's `TagDialog`) on that dataset; the table's right-click menu has **Edit tags...** (the rows selected)
+  and **Edit tags (ticked)...**, which add tags to all of them or remove tags from all of them. **OK** writes the new
+  sets into the datasets' manifests, and the table, the tag filter and the loaded sources follow. From a script:
+  `B.editTags(KEYS)` and `B.setTags(KEYS, Set=, Add=, Remove=)`; `OnChange` gets `"tags"`.
+- `writeManifestTags(target, tags)`: a dataset's tags written into its manifest (a file, a folder or a dataset), only
+  `tags` and `updated` spliced into the file's text, so outputs without their recording can be tagged.
+  `addToManifest` and it share the splice (`pipeline/private/setJsonMember.m`, `manifestOf.m`).
+  `TagDialog.describe(R, LABELS)` words what an OK did, for both apps' status lines.
+
 - PSTH smoothed line: `options.smoothLine.legend` (true by default) shows or hides the line's legend entry,
   *Smoothed (SD 25 ms)*; the Figures editor's **Smoothed line** row has a **Legend** box for it.
 - Analysis app, Figures tab: Arrange's align bar. While Arrange is on, a bar in the template controls' place above

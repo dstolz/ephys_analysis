@@ -67,8 +67,17 @@ classdef EphysTraceViewer < handle
     %                  waveforms (LastRender.notes gives it), not the
     %                  traces' Spacing. More than MaxWaveforms spikes in
     %                  view, or a trace below 10 kHz, fall back to ticks
-    %                  (LastRender.notes says so)
+    %                  (LastRender.notes says so). With UnitFootprint, a
+    %                  sorted unit's spike is recolored on every trace lane
+    %                  of its footprint (the channels its template reaches,
+    %                  unitLayer), not only on its peak channel's
     %   Each unit or channel takes a color of Palette.
+    %
+    %   exportSVG(FILE) saves the view shown as an SVG of vectors: a path
+    %   per trace lane, a path per unit or channel on top of them, the
+    %   event lines, the scale bar and the axes; not the shaded periods.
+    %   exportFigure draws the same into an invisible figure of its own
+    %   (for exportgraphics to another format, or edits first).
     %
     %   Events (setEvents, eventLines): digital-input lines, each drawn
     %     over the traces   (EventOverlay) a solid line at every onset and
@@ -142,6 +151,7 @@ classdef EphysTraceViewer < handle
         CacheSamples (1,1) double = 2^26       % samples x channels kept at full rate
         PieceSamples (1,1) double = 2^23       % samples x channels per read
         MaxWaveforms (1,1) double = 4000       % more spikes in view: ticks
+        UnitFootprint (1,1) logical = false    % units' waveforms on every channel of their footprint, not only the peak's
         RenderDelay (1,1) double = 0.03        % merge interactions this close (s); 0 = draw at once
         BuildEnvelope (1,1) logical = true     % build a source's envelope in the background when it has none
         ViewChangedFcn = []                    % f(viewer) after the view changes
@@ -179,6 +189,7 @@ classdef EphysTraceViewer < handle
         Env = []            % reduced samples: key, b, r0, mn, mx, offset, set, level (0: from full rate)
         Cache = []          % processed full-rate samples: key, r0, X, set
         Drawn = []          % what the axes show: span, b
+        LastDraw = []       % the last draw's trace samples T, lanes, vis, span (exportSVG)
         Timer = []
         AxesListener = []   % deletes the viewer with its axes
         Drag = []
@@ -683,6 +694,119 @@ classdef EphysTraceViewer < handle
                     s = "the envelope of " + E.Source.Name + " could not be built: " + E.Message;
             end
         end
+
+        function file = exportSVG(obj, file, opts)
+            %exportSVG  Save the view shown as an SVG of vectors.
+            %   V.exportSVG(FILE) writes exportFigure's picture of the view
+            %   to FILE (".svg" added when missing) and returns FILE.
+            %   Size= as exportFigure.
+            arguments
+                obj (1,1) EphysTraceViewer
+                file (1,1) string
+                opts.Size (1,2) double = [NaN NaN]
+            end
+            if ~endsWith(lower(file), ".svg"); file = file + ".svg"; end
+            fig = obj.exportFigure(Size=opts.Size);
+            closer = onCleanup(@() delete(fig));
+            old = warning('off', 'MATLAB:print:ContentTypeImageSuggested');
+            restoreWarning = onCleanup(@() warning(old));
+            print(fig, char(file), '-dsvg', '-vector');
+            clear restoreWarning closer
+        end
+
+        function fig = exportFigure(obj, opts)
+            %exportFigure  The view shown, in an invisible figure of its own, for export.
+            %   FIG = V.exportFigure() draws the window and lanes on screen
+            %   into a new invisible figure (delete it when done): the
+            %   traces, one line per lane (Tag "trace", DisplayName the
+            %   lane's name; in heatmap mode the heatmap, as an image); the
+            %   spikes on top of them, one line per unit or channel shown
+            %   (Tag "<layer kind>:<ticks|waveforms>", DisplayName its label;
+            %   its ticks or waveforms in its color, as drawn, with
+            %   UnitFootprint on every lane of the footprint); the event
+            %   lines over the traces and the TTL rows above them; the
+            %   dotted lane breaks, the scale bar, the lane names and the
+            %   time axis. Every line is cut at the window's edges. The
+            %   shaded periods (artifacts), a selection being made, the
+            %   overview strip and the ticks' halo are left out. Size=
+            %   [width height] in pixels (default the plot's on screen).
+            arguments
+                obj (1,1) EphysTraceViewer
+                opts.Size (1,2) double = [NaN NaN]
+            end
+            if isempty(obj.LastDraw) || isempty(obj.Drawn)
+                obj.render();
+            end
+            D = obj.LastDraw;
+            ax = obj.Axes;
+            sz = opts.Size;
+            if any(~(sz > 0))
+                pos = getpixelposition(ax);
+                sz = max(pos(3:4), [200 150]);
+            end
+            fig = figure('Visible', 'off', 'Units', 'pixels', 'Position', [20 20 sz], ...
+                'Color', [1 1 1], 'InvertHardcopy', 'off', 'PaperPositionMode', 'auto', ...
+                'HandleVisibility', 'off', 'Name', 'EphysTraceViewer export');
+            try
+                ex = axes(fig, 'Units', 'normalized', 'OuterPosition', [0 0 1 1]);
+                hold(ex, 'on');
+                xl = ax.XLim;
+                set(ex, 'XLim', xl, 'YLim', ax.YLim, 'XLimMode', 'manual', 'YLimMode', 'manual', ...
+                    'YTick', ax.YTick, 'YTickLabel', ax.YTickLabel, 'TickDir', 'out', 'Box', 'on', ...
+                    'TickLabelInterpreter', 'none', 'FontSize', ax.FontSize, 'Layer', 'top', ...
+                    'Color', axesColor(ax), 'YDir', ax.YDir);
+                xlabel(ex, ax.XLabel.String);
+                tl = string(ax.Title.String);
+                if any(tl ~= ""); title(ex, tl, 'Interpreter', 'none'); end
+
+                % Traces: a path per lane, back to front as drawn.
+                T = D.T;
+                if ~isempty(T) && ~isempty(T.lanes)
+                    if obj.Mode == "traces"
+                        colors = repmat(obj.TraceColor, numel(obj.Channels), 1);
+                        if ~isempty(obj.LaneColors); colors = obj.LaneColors; end
+                        for j = 1:numel(T.lanes)
+                            k = T.lanes(j);
+                            [x, y] = clipToX(T.x, -(k - 1) + T.y(:, j) / obj.Spacing, xl);
+                            if isempty(x); continue; end
+                            line(ex, x, y, 'Color', colors(k, :), 'LineWidth', 0.5, ...
+                                'Tag', 'trace', 'DisplayName', D.lanes.label(k));
+                        end
+                    elseif isgraphics(obj.Image) && strcmp(obj.Image.Visible, 'on')
+                        copyobj(obj.Image, ex);
+                        colormap(ex, char(obj.Colormap));
+                        ex.CLim = ax.CLim;
+                    end
+                end
+                % Breaks and events as drawn, cut at the window.
+                keep = [obj.BreakLine; obj.EventTraces(:); obj.StripLine; obj.EventMarks(:)];
+                for h = keep(isgraphics(keep)).'
+                    if ~strcmp(h.Visible, 'on'); continue; end
+                    [x, y] = clipToX(h.XData, h.YData, xl);
+                    if isempty(x); continue; end
+                    c = copyobj(h, ex);
+                    set(c, 'XData', x, 'YData', y);
+                end
+                % Spikes on top: a path per unit or channel.
+                R0 = struct('nSpikes', 0, 'styles', strings(1, 0), 'notes', strings(1, 0));
+                P = obj.spikeGeometry(T, D.lanes, D.vis, D.span, R0, "group");
+                for p = P
+                    [x, y] = clipToX(p.x, p.y, xl);
+                    if isempty(x); continue; end
+                    width = 1.2;
+                    if p.kind == "ticks"; width = 2; end
+                    line(ex, x, y, 'Color', obj.Palette(p.color, :), 'LineWidth', width, ...
+                        'Tag', char(obj.Layers(p.layer).kind + ":" + p.kind), 'DisplayName', p.label);
+                end
+                % The scale bar and its label.
+                for h = [obj.ScaleLine, obj.ScaleText]
+                    if isgraphics(h) && strcmp(h.Visible, 'on'); copyobj(h, ex); end
+                end
+            catch ME
+                delete(fig);
+                rethrow(ME);
+            end
+        end
     end
 
     methods (Access = private)
@@ -725,6 +849,7 @@ classdef EphysTraceViewer < handle
             S = obj.stripRows(vis);
             obj.drawEvents(span, S);
             obj.Drawn = struct('span', span);
+            obj.LastDraw = struct('T', T, 'lanes', lanes, 'vis', vis, 'span', span);
             obj.Message.String = msg;
 
             % Axes: the view, the lanes shown and the TTL rows above them, their names.
@@ -754,7 +879,8 @@ classdef EphysTraceViewer < handle
             %emptyLayers  The struct every spike layer has (no layers).
             L = struct('name', {}, 'kind', {}, 'style', {}, 'placement', {}, 'labels', {}, ...
                 'channels', {}, 'colorIndex', {}, 'order', {}, 'show', {}, 't', {}, 'g', {}, 'k', {}, ...
-                'wf', {}, 'template', {}, 'wfTimeMs', {}, 'templateUV', {}, 'winMs', {}, 'wfPeak', {});
+                'wf', {}, 'template', {}, 'wfTimeMs', {}, 'templateUV', {}, 'winMs', {}, 'wfPeak', {}, ...
+                'footprint', {});
         end
 
         function E = emptyEvents()
@@ -811,10 +937,16 @@ classdef EphysTraceViewer < handle
             %   then id). Each unit's lane label is its class and id
             %   ("su042"); its channel is its peak recording channel; its
             %   waveform is its template on the peak channel, and its
-            %   wfPeak the template's largest absolute value.
+            %   wfPeak the template's largest absolute value. With every
+            %   channel's template (units.templateFull, readSortedUnits
+            %   FullTemplates=true), its footprint is the recording channels
+            %   (units.channelMap) whose template is at least
+            %   FootprintFraction of the peak channel's peak to peak, the
+            %   peak channel first; without it, just the peak channel.
             arguments
                 units (1,1) struct
                 opts.Order (1,:) double = []
+                opts.FootprintFraction (1,1) double {mustBeInRange(opts.FootprintFraction, 0, 1)} = 0.25
                 opts.Name (1,1) string = "Sorted units"
                 opts.Style (1,1) string = "ticks"
                 opts.Placement (1,1) string = "channels"
@@ -854,6 +986,7 @@ classdef EphysTraceViewer < handle
             for u = 1:nU
                 if ~isempty(tmpl{u}); L.wfPeak(u) = max(abs(double(tmpl{u}(:)))); end
             end
+            L.footprint = unitFootprints(units, opts.FootprintFraction);
             L.style = opts.Style;
             L.placement = opts.Placement;
         end
@@ -1319,11 +1452,41 @@ classdef EphysTraceViewer < handle
         function R = drawSpikes(obj, T, lanes, vis, span, R)
             % Ticks and waveforms of every layer: per palette color one
             % line of waveforms and one of ticks, the ticks over a halo.
+            [P, R] = obj.spikeGeometry(T, lanes, vis, span, R, "color");
             nPal = size(obj.Palette, 1);
             X = cell(nPal, 1);        % waveforms
             Y = cell(nPal, 1);
             TX = cell(nPal, 1);       % ticks
             TY = cell(nPal, 1);
+            for p = P
+                c = p.color;
+                if p.kind == "ticks"
+                    TX{c} = [TX{c}; p.x];
+                    TY{c} = [TY{c}; p.y];
+                else
+                    X{c} = [X{c}; p.x];
+                    Y{c} = [Y{c}; p.y];
+                end
+            end
+            obj.fillPool("SpikeLines", X, Y);
+            obj.fillPool("TickLines", TX, TY);
+            tx = vertcat(TX{:});
+            if isempty(tx)
+                set(obj.TickHalo, 'XData', NaN, 'YData', NaN, 'Visible', 'off');
+            else
+                set(obj.TickHalo, 'XData', tx, 'YData', vertcat(TY{:}), ...
+                    'Color', axesColor(obj.Axes), 'Visible', 'on');
+            end
+        end
+
+        function [P, R] = spikeGeometry(obj, T, lanes, vis, span, R, by)
+            % The spikes of every layer drawn over SPAN, as pieces: BY
+            % "color" one per layer, palette color and kind; BY "group" one
+            % per layer, unit / channel and kind. Each piece has its layer,
+            % group (0 by color), label ("" by color), palette color, kind
+            % ("ticks" | "waveforms") and vertices x, y (NaN after each
+            % spike). R gains the spike count, styles and notes.
+            P = struct('layer', {}, 'group', {}, 'label', {}, 'color', {}, 'kind', {}, 'x', {}, 'y', {});
             visSet = false(1, max(numel(lanes.kind), 1));
             visSet(vis) = true;
             pp = plotPixels(obj.Axes);
@@ -1345,10 +1508,10 @@ classdef EphysTraceViewer < handle
                     [~, laneOfGroup] = ismember(L.channels, lanes.traceChannel);
                     lane = reshape(laneOfGroup(g), [], 1);
                 end
+                all0 = struct('idx', idx, 'g', g, 'lane', lane);   % before the lanes shown
                 keep = lane > 0 & reshape(L.show(g), [], 1);
                 keep(keep) = visSet(lane(keep));
                 idx = idx(keep); g = g(keep); lane = lane(keep);
-                t = L.t(idx);
                 R.nSpikes = R.nSpikes + numel(idx);
                 style = L.style;
                 if style == "waveforms"
@@ -1366,14 +1529,27 @@ classdef EphysTraceViewer < handle
                     end
                 end
                 R.styles(end+1) = style;
+                if style == "waveforms" && ~raster && obj.UnitFootprint && L.kind == "units"
+                    % Every trace lane of each unit's footprint shown.
+                    [idx, g, lane] = footprintLanes(L, all0, lanes);
+                    keep = lane > 0 & reshape(L.show(g), [], 1);
+                    keep(keep) = visSet(lane(keep));
+                    idx = idx(keep); g = g(keep); lane = lane(keep);
+                end
+                t = L.t(idx);
                 ci = L.colorIndex(g);
                 ci = ci(:);
+                if by == "group"
+                    key = g(:);
+                else
+                    key = ci;
+                end
                 center = -(lane - 1);
                 if style == "ticks"
-                    % One tick per lane, pixel column and color.
+                    % One tick per lane, pixel column and piece.
                     col = floor((t - obj.TStart) / obj.TWidth * px);
-                    [~, first] = unique([lane, col, ci], 'rows', 'stable');
-                    t = t(first); center = center(first); ci = ci(first);
+                    [~, first] = unique([lane, col, key], 'rows', 'stable');
+                    t = t(first); center = center(first); key = key(first); ci = ci(first);
                     if raster
                         y0 = center - 0.4; y1 = center + 0.4;
                     elseif L.kind == "detected"
@@ -1381,19 +1557,11 @@ classdef EphysTraceViewer < handle
                     else
                         y0 = center + 0.15; y1 = center + 0.45;
                     end
-                    for c = unique(ci).'
-                        s = ci == c;
-                        TX{c} = [TX{c}; reshape([t(s), t(s), NaN(nnz(s), 1)].', [], 1)];
-                        TY{c} = [TY{c}; reshape([y0(s), y1(s), NaN(nnz(s), 1)].', [], 1)];
-                    end
+                    xs = [t, t, NaN(numel(t), 1)].';
+                    ys = [y0, y1, NaN(numel(t), 1)].';
                 elseif ~raster
                     % Recolor the trace over each spike's window.
                     [xs, ys] = traceSegments(T, t, lane, L.winMs, obj.Spacing);
-                    for c = unique(ci).'
-                        s = ci == c;
-                        X{c} = [X{c}; reshape(xs(:, s), [], 1)];
-                        Y{c} = [Y{c}; reshape(ys(:, s), [], 1)];
-                    end
                 else
                     % The stored waveform on the spike's own lane, microvolts
                     % on the own lanes' scale (RasterSpacing).
@@ -1403,21 +1571,17 @@ classdef EphysTraceViewer < handle
                         R.notes(end+1) = sprintf("%s: waveforms on their own lanes, %s between lanes", ...
                             L.name, spacingText(rs, "uV"));
                     end
-                    for c = unique(ci).'
-                        s = ci == c;
-                        X{c} = [X{c}; reshape(xs(:, s), [], 1)];
-                        Y{c} = [Y{c}; reshape(ys(:, s), [], 1)];
-                    end
                 end
-            end
-            obj.fillPool("SpikeLines", X, Y);
-            obj.fillPool("TickLines", TX, TY);
-            tx = vertcat(TX{:});
-            if isempty(tx)
-                set(obj.TickHalo, 'XData', NaN, 'YData', NaN, 'Visible', 'off');
-            else
-                set(obj.TickHalo, 'XData', tx, 'YData', vertcat(TY{:}), ...
-                    'Color', axesColor(obj.Axes), 'Visible', 'on');
+                kind = "waveforms";
+                if style == "ticks"; kind = "ticks"; end
+                for c = unique(key).'
+                    s = key == c;
+                    j = find(s, 1);
+                    grp = 0; lbl = "";
+                    if by == "group"; grp = c; lbl = L.labels(c); end
+                    P(end+1) = struct('layer', i, 'group', grp, 'label', lbl, 'color', ci(j), ...
+                        'kind', kind, 'x', reshape(xs(:, s), [], 1), 'y', reshape(ys(:, s), [], 1)); %#ok<AGROW>
+                end
             end
         end
 
@@ -1919,6 +2083,106 @@ L.wfTimeMs = [];
 L.templateUV = false;
 L.winMs = [-0.5 1];
 L.wfPeak = NaN(1, nG);
+L.footprint = repmat({zeros(1, 0)}, 1, nG);
+end
+
+
+function [x, y] = clipToX(x, y, xl)
+% The polyline X, Y (NaN between its pieces) cut to xl(1) <= x <= xl(2):
+% points outside are dropped, and where a segment crosses an edge a point
+% is put on the edge (two, for a segment across the whole window). Columns;
+% empty when nothing is inside.
+x = double(x(:)); y = double(y(:));
+n = numel(x);
+bad = isnan(x) | isnan(y);
+in = ~bad & x >= xl(1) & x <= xl(2);
+if all(in | bad)
+    [x, y] = dropNaNRuns(x, y, bad);
+    return
+end
+if n < 2
+    x = zeros(0, 1); y = x;
+    return
+end
+a = x(1:n-1); b = x(2:n); ya = y(1:n-1); yb = y(2:n);
+seg = ~bad(1:n-1) & ~bad(2:n) & a ~= b;
+s1 = (xl(1) - a) ./ (b - a);
+s2 = (xl(2) - a) ./ (b - a);
+lo = max(0, min(s1, s2));
+hi = min(1, max(s1, s2));
+enter = seg & lo < hi & lo > 0;           % the segment comes in at LO
+leave = seg & lo < hi & hi < 1;           % and goes out at HI
+X = NaN(3, n); Y = NaN(3, n);
+X(1, in) = x(in); Y(1, in) = y(in);       % outside: a break
+X(2, 1:n-1) = a + lo .* (b - a); Y(2, 1:n-1) = ya + lo .* (yb - ya);
+X(3, 1:n-1) = a + hi .* (b - a); Y(3, 1:n-1) = ya + hi .* (yb - ya);
+use = [true(1, n); [enter.'; leave.'], false(2, 1)];
+x = X(use); y = Y(use);
+[x, y] = dropNaNRuns(x, y, isnan(x) | isnan(y));
+end
+
+
+function [x, y] = dropNaNRuns(x, y, gap)
+% One NaN between pieces: no NaN first or last, none repeated.
+x(gap) = NaN; y(gap) = NaN;
+drop = gap & [true; gap(1:end-1)];
+x(drop) = []; y(drop) = [];
+if ~isempty(x) && isnan(x(end))
+    x(end) = []; y(end) = [];
+end
+end
+
+
+function [idx, g, lane] = footprintLanes(L, A, lanes)
+% Each spike of A (idx, g, lane: the spikes in the span, on their peak
+% channel's lane) once per trace lane of its unit's footprint (L.footprint,
+% recording channels; the peak channel's lane when it has none on a lane).
+nG = numel(L.labels);
+laneSets = cell(1, nG);
+for u = unique(A.g(:)).'
+    ln = zeros(0, 1);
+    if numel(L.footprint) >= u && ~isempty(L.footprint{u})
+        [~, ln] = ismember(L.footprint{u}(:), lanes.traceChannel);
+        ln = ln(ln > 0);
+    end
+    if isempty(ln)
+        ln = A.lane(find(A.g == u, 1));
+    end
+    laneSets{u} = ln(:);
+end
+n = zeros(numel(A.idx), 1);
+for u = unique(A.g(:)).'
+    n(A.g == u) = numel(laneSets{u});
+end
+idx = repelem(A.idx(:), n);
+g = repelem(A.g(:), n);
+lane = vertcat(laneSets{A.g(:)});
+if isempty(lane); lane = zeros(0, 1); end
+end
+
+
+function fp = unitFootprints(units, frac)
+% Per unit, the recording channels its template reaches: the peak channel,
+% then every other sorted channel (in channelMap order) whose template's
+% peak to peak is at least FRAC of the peak channel's. Just the peak
+% channel without every channel's template (templateFull) and channelMap.
+nU = numel(units.unitId);
+fp = cell(1, nU);
+for u = 1:nU
+    fp{u} = double(units.channel(u));
+end
+if ~isfield(units, 'templateFull') || ~isfield(units, 'channelMap') || ndims(units.templateFull) < 2 ...
+        || size(units.templateFull, 3) ~= nU || size(units.templateFull, 2) ~= numel(units.channelMap)
+    return
+end
+map = double(units.channelMap(:)).';
+for u = 1:nU
+    p2p = max(units.templateFull(:, :, u), [], 1) - min(units.templateFull(:, :, u), [], 1);
+    top = max(p2p);
+    if ~(top > 0); continue; end
+    ch = map(p2p >= frac * top);
+    fp{u} = [fp{u}, ch(ch ~= fp{u}(1))];
+end
 end
 
 

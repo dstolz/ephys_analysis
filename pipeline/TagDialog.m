@@ -475,6 +475,50 @@ classdef TagDialog < handle
         end
     end
 
+    methods (Static)
+        function [text, detail] = describe(r, labels, noun)
+            %describe  What an OK did, for a status line: [TEXT, DETAIL] = TagDialog.describe(R, LABELS, NOUN).
+            %   R is the dialog's result (OnDone's, not []), LABELS the
+            %   targets' names in SETS order, NOUN what a target is
+            %   (default "dataset"). TEXT is "Tagged recA: draft, pilot.",
+            %   "recA has no tags now.", "Removed pilot from 3 datasets.",
+            %   "Tagged 3 datasets: added pilot." or, when policy "skip"
+            %   left targets out, "Added pilot to 2 of 3 datasets; skipped
+            %   1 over the tag limit."; DETAIL is "" but then: "remove tags
+            %   from recB (13 tags, 1 over the limit of 12), then add
+            %   again." The apps' status lines (EphysPipelineApp,
+            %   DatasetBrowser) show these.
+            arguments
+                r (1,1) struct
+                labels (1,:) string
+                noun (1,1) string = "dataset"
+            end
+            nouns = noun + "s";
+            detail = "";
+            tags = TagSet.toText(r.tags, TagSet.DisplayDelimiter);
+            applied = reshape(logical(r.applied), 1, []);
+            switch r.mode
+                case "set"
+                    if isempty(r.tags)
+                        text = labels(1) + " has no tags now.";
+                    else
+                        text = "Tagged " + labels(1) + ": " + tags + ".";
+                    end
+                case "remove"
+                    text = sprintf("Removed %s from %d %s.", tags, numel(applied), nouns);
+                otherwise   % "add"
+                    if all(applied)
+                        text = sprintf("Tagged %d %s: added %s.", numel(applied), nouns, tags);
+                    else
+                        skipped = ~applied;
+                        text = sprintf("Added %s to %d of %d %s; skipped %d over the tag limit.", ...
+                            tags, nnz(applied), numel(applied), nouns, nnz(skipped));
+                        detail = "remove tags from " + strjoin(labels(skipped) + " (" + r.why(skipped) + ")", "; ") + ", then add again.";
+                    end
+            end
+        end
+    end
+
     methods (Static, Access = private)
         function checkPolicy(policy)
             if ~isscalar(policy) || ~ismember(policy, ["all" "skip"])

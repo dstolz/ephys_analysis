@@ -98,13 +98,21 @@ ticks, settings and result.
 ## Pick recordings by tag
 
 The browser is where [tags](pipeline-app-guide.md#tag-your-datasets) pay
-off most. Tag your recordings in the pipeline app (by area, cohort,
-condition, training stage), and here a group is one filter away:
+off most. Tag your recordings (by area, cohort, condition, training stage)
+in the pipeline app or right here, and a group is one filter away:
 
 - **Tags** *any of* `ofc`, `acx` keeps the recordings with either tag;
   *all of* `ofc`, `cohort-3` keeps those with both.
 - **not** `pilot`, `exclude` leaves out every recording with either tag.
 - **Tick shown only** ticks exactly what the filter shows.
+
+**Tag recordings here.** Click a recording's **Tags** cell to change its
+tags: pick from the tags in use or type new ones, then **OK**. To tag several
+at once, select their rows (Shift+click, Ctrl+click) or tick them, right-click
+the table and choose **Edit tags...** (the selected rows) or **Edit tags
+(ticked)...**, then **Add to all** or **Remove from all**. The tags are saved
+in each recording's manifest, so the pipeline app and the analysis app see
+them too. After the next **Scan**, a recording you retagged is computed again.
 
 The result is named after the filter's tags (`ofc_StimOnset_Hit_FiringRate`),
 and every row of it carries its recording's tags (the Tags column), so a
@@ -123,6 +131,7 @@ shown only** and **Compute** to take in the recordings tagged since.
 | run the same computation without the window | **File → Export compute script...** |
 | compute faster | set **Workers** to compute several recordings at once (needs the Parallel Computing Toolbox and memory for one recording per worker) |
 | start a recording again from scratch | right-click the table: **Forget cached (ticked)** |
+| tag the recordings you picked (`cohort-3`) | tick them, right-click the table: **Edit tags (ticked)...**, type the tag, **Add to all**, **OK** |
 | see how a recording was processed (its manifest) | click its row, then right-click the table: **Open manifest viewer** (or **File → Open manifest viewer**) |
 
 ## When something goes wrong

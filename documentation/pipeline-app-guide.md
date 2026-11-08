@@ -180,8 +180,10 @@ habit: tag every recording when it is scanned.
 | every new recording, automatically | tick **Tag new datasets** under **Scan** and type the tags (`cohort-3, pilot`): each recording a scan finds for the first time gets them. The setting is saved with the config |
 
 A recording holds up to 12 tags, each made of letters, digits, `-`, `_`
-and `.`, stored in lowercase. Tags are edited here, in the pipeline app; the
-analysis app and the dataset browser show them and filter by them.
+and `.`, stored in lowercase. Tags are edited here, in the pipeline app, and
+in the [dataset browser](dataset-browser-guide.md#pick-recordings-by-tag) (a
+click on a **Tags** cell there too); the analysis app shows them and filters
+by them.
 
 **Good habits.**
 
@@ -207,6 +209,7 @@ analysis app and the dataset browser show them and filter by them.
 | choose which datasets a run takes | tick them in the Project table; **Clear ticks (= all)** unticks every row, and with no row ticked a run takes all the datasets |
 | run one step again, on the ticked datasets | that step's tab: **Run this step** |
 | look at the raw signal around an event or an artifact | [Visualize](EphysPipelineApp.md#visualize) tab |
+| a picture of the traces with the units on them, for a figure | Visualize tab: show the stretch, set the units to **Waveforms** (tick **Waveforms on every channel of the unit** to color each unit on all its channels), then **Save view as SVG...**. Each unit is a path of its own, in its color; the artifact shading is left out |
 | check how well units are sorted | [Review](EphysPipelineApp.md#review) tab, or **Open in phy** |
 | label datasets (a brain area, a condition) to find them later | [tag them](#tag-your-datasets): Project tab, select rows, **Tags...** |
 | make figures of every processed recording | make them in the [analysis app](analysis-app-guide.md), then choose that config on the Analysis tab |

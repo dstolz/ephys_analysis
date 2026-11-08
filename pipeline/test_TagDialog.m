@@ -7,6 +7,7 @@ classdef test_TagDialog < matlab.unittest.TestCase
     %   (the window stays open and names it) and "skip" (one confirmation,
     %   withdrawn by any change, then the target left out with its reason).
     %   The controls' callbacks take the same paths as the methods.
+    %   TagDialog.describe words each kind of result for a status line.
     %
     %   Usage:  runtests("test_TagDialog")
 
@@ -318,6 +319,24 @@ classdef test_TagDialog < matlab.unittest.TestCase
             tc.verifyEmpty(tc.Got);
             tc.verifyEqual(dlg.OKText, "OK", 'no Apply to 0');
             tc.verifySubstring(dlg.ErrorText, "Cannot add 1 tag: f1 would have 13 tags");
+        end
+
+        % ---- the status text ----
+        function describeWordsEachResult(tc)
+            r = struct('mode', "set", 'tags', {{'draft', 'pilot'}}, 'applied', true, 'why', "");
+            [t, d] = TagDialog.describe(r, "rec1");
+            tc.verifyEqual([t d], ["Tagged rec1: draft, pilot." ""]);
+            r.tags = {};
+            tc.verifyEqual(TagDialog.describe(r, "rec1"), "rec1 has no tags now.");
+            r = struct('mode', "remove", 'tags', {{'pilot'}}, 'applied', [true true true], 'why', strings(1, 3));
+            tc.verifyEqual(TagDialog.describe(r, ["a" "b" "c"]), "Removed pilot from 3 datasets.");
+            r.mode = "add";
+            tc.verifyEqual(TagDialog.describe(r, ["a" "b" "c"], "unit"), "Tagged 3 units: added pilot.");
+            r.applied = [true false true];
+            r.why = ["" "13 tags, 1 over the limit of 12" ""];
+            [t, d] = TagDialog.describe(r, ["a" "b" "c"]);
+            tc.verifyEqual(t, "Added pilot to 2 of 3 datasets; skipped 1 over the tag limit.");
+            tc.verifyEqual(d, "remove tags from b (13 tags, 1 over the limit of 12), then add again.");
         end
     end
 end

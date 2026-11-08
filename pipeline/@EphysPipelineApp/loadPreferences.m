@@ -109,6 +109,7 @@ if AppPrefs.ispref(g, 'VizOptions')
         applyIf(v, 'units',     @(x) set(obj.VizUnitsCheckBox, 'Value', logical(x)));
         applyIf(v, 'unitStyle', @(x) set(obj.VizUnitStyleDropDown, 'Value', char(x)));
         applyIf(v, 'unitGroups', @(x) set(obj.VizUnitGroupsDropDown, 'Value', char(x)));
+        applyIf(v, 'unitFootprint', @(x) set(obj.VizFootprintCheckBox, 'Value', logical(x)));
         applyIf(v, 'detected',  @(x) set(obj.VizDetectedCheckBox, 'Value', logical(x)));
         applyIf(v, 'detectedStyle', @(x) set(obj.VizDetectedStyleDropDown, 'Value', char(x)));
         applyIf(v, 'placement', @(x) set(obj.VizPlacementDropDown, 'Value', char(x)));

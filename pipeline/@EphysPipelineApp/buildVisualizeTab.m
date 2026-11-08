@@ -15,7 +15,8 @@ function buildVisualizeTab(obj)
 %   manual periods opens on the stretch shown here, vizToMarkView). At the
 %   right of the toolbar an event line's arrows step the view from onset
 %   to onset (onVizEventJump), and the "?" lists the mouse and key
-%   controls (showVizHelp).
+%   controls (showVizHelp). Save view as SVG writes the view shown as
+%   vectors (onVizSaveSVG).
 %
 %   See also onPlotVisualization, onVizControlsChanged, onVizInput,
 %   onVizEventJump, showVizHelp, EphysTraceViewer, EphysTraceSource.
@@ -28,7 +29,7 @@ g.Padding     = [10 10 10 10];
 ctrl = uipanel(g, "Title", "Display options (never change the data)");
 ctrl.Layout.Column = 1;
 
-nRows = 28;
+nRows = 30;
 cg = uigridlayout(ctrl, [nRows 4]);
 cg.RowHeight   = [repmat({'fit'}, 1, nRows - 1), {'1x'}];
 cg.ColumnWidth = {84, 80, 66, 80};   % fixed: wrapped labels never widen the panel
@@ -132,6 +133,14 @@ obj.VizUnitGroupsDropDown = uidropdown(cg, "Items", {'All but noise', 'Good + MU
 obj.VizUnitGroupsDropDown.Layout.Row = row; obj.VizUnitGroupsDropDown.Layout.Column = [2 4];
 
 row = row + 1;
+obj.VizFootprintCheckBox = uicheckbox(cg, "Text", "Waveforms on every channel of the unit", "Value", false, ...
+    "Tooltip", ["With Waveforms on their channel's lane: each unit's spikes are recolored, in the " ...
+        "unit's color, on every channel its template reaches (at least 25% of its peak channel's " ...
+        "peak to peak), not only on its peak channel."], ...
+    "ValueChangedFcn", changed("spikes"));
+obj.VizFootprintCheckBox.Layout.Row = row; obj.VizFootprintCheckBox.Layout.Column = [1 4];
+
+row = row + 1;
 obj.VizDetectedCheckBox = uicheckbox(cg, "Text", "Detected spikes", "Value", true, ...
     "Tooltip", "Threshold crossings from the Spikes step (<Name>_spikes.mat), one color per channel.", ...
     "ValueChangedFcn", changed("spikes"));
@@ -227,6 +236,15 @@ obj.VizColormapDropDown = uidropdown(cg, "Items", {'turbo', 'parula', 'hot', 'gr
     "Value", 'turbo', "Tooltip", "Colormap: the heatmap, and traces colored by depth or channel", ...
     "ValueChangedFcn", @(~, ~) cellfun(@(w) obj.onVizControlsChanged(w), {"channels", "mode"}));
 obj.VizColormapDropDown.Layout.Row = row; obj.VizColormapDropDown.Layout.Column = 4;
+
+row = row + 1;
+obj.VizSaveSVGButton = uibutton(cg, "Text", "Save view as SVG...", ...
+    "Tooltip", ["Save what the plot shows as an SVG of vectors: the traces (a path per lane), " ...
+        "each unit or channel's spikes as a path of its own on top of them, and the events. " ...
+        "The shaded artifact periods and the overview strip are left out."], ...
+    "ButtonPushedFcn", @(~, ~) obj.onVizSaveSVG());
+obj.VizSaveSVGButton.Layout.Row = row; obj.VizSaveSVGButton.Layout.Column = [1 4];
+cg.RowHeight{row} = 30;
 
 row = row + 1;
 heading(cg, "Artifact periods", row);

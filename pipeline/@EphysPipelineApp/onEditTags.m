@@ -76,25 +76,10 @@ end
 obj.saveManifests(targets(applied));
 obj.refreshDatasetsTable(Datasets=idx(applied));
 
-names = [targets.Name];
-tags = TagSet.toText(r.tags, TagSet.DisplayDelimiter);
-switch r.mode
-    case "set"
-        if isempty(r.tags)
-            obj.setStatus(names(1) + " has no tags now.");
-        else
-            obj.setStatus("Tagged " + names(1) + ": " + tags + ".");
-        end
-    case "remove"
-        obj.setStatus(sprintf("Removed %s from %d datasets.", tags, numel(targets)));
-    otherwise   % "add"
-        if all(applied)
-            obj.setStatus(sprintf("Tagged %d datasets: added %s.", numel(targets), tags));
-        else
-            skipped = ~applied;
-            obj.setStatus(sprintf("Added %s to %d of %d datasets; skipped %d over the tag limit.", ...
-                tags, nnz(applied), numel(targets), nnz(skipped)), ...
-                "remove tags from " + strjoin(names(skipped) + " (" + r.why(skipped) + ")", "; ") + ", then add again.");
-        end
+[text, detail] = TagDialog.describe(r, [targets.Name]);
+if detail == ""
+    obj.setStatus(text);
+else
+    obj.setStatus(text, detail);
 end
 end

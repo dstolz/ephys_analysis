@@ -2953,7 +2953,7 @@ datasets.
 | Reference | the recording only: *As the pipeline (Artifacts tab)* (the config's common reference, `Reference.Mode`, over its good channels, as every step reads the recording) / *None (as recorded)* / *Common average (mean)* / *Common median* across the channels shown, taken on the recording as stored, so one reference at most is ever applied. The other signals carry their own |
 | High-pass / Low-pass, Filter order | a display filter on any signal (`filterContinuous`, zero phase); blank = off, both = band-pass. Each window is read with a margin so the filter settles. A new filter or reference rescales the traces |
 | Remove offset | center each lane on its median in the window drawn |
-| Sorted units | ticks or waveforms, one color per unit (twelve colors, in probe order); *Units*: all but noise / good + MUA / good only, by phy's labels (else Kilosort4's) |
+| Sorted units | ticks or waveforms, one color per unit (twelve colors, in probe order); *Units*: all but noise / good + MUA / good only, by phy's labels (else Kilosort4's); **Waveforms on every channel of the unit**: with *Waveforms* on *Their channel's lane*, each spike is recolored, in its unit's color, on every channel of the unit's footprint (below), not only on its peak channel |
 | Detected spikes | ticks or waveforms, one color per channel |
 | Draw on | *Their channel's lane* (a unit on its peak channel) or *Lanes of their own* (a raster lane per unit / channel after the traces). With *None* they always get their own lanes |
 | Events: Draw, Lines | the digital-input events: *Over the traces* (a solid line at each onset, a dotted one at each offset, across the lanes), *Above the traces (TTL)* (each line as a TTL trace in a 16-pixel row of its own above the top lane), *Both* or *Off*; *Lines* picks the lines drawn (at first every line with an event). **Read events** reads them from the recording when nothing else has them, see below |
@@ -2962,6 +2962,7 @@ datasets.
 | Order by probe | lanes by shank, top of the shank first, with a dotted line between shanks (`channelLayout` on the dataset's probe, else the config's default probe); the units' and channels' own lanes follow the same order |
 | Traces | trace color: a solid color (black, blue, red, green, magenta, orange, gray), **By shank** (needs a probe), or **By depth** (position on the probe, top first) / **By channel** (lane order) in the Colors colormap |
 | Shade artifact periods | orange (detected) and purple (manual), see below |
+| Save view as SVG... | saves what the plot shows as an SVG of vectors, see below |
 
 The display settings are kept between sessions (the `VizOptions`
 preference), all but the dataset, **Start**, **Spacing** and the event
@@ -3051,7 +3052,25 @@ snippet spans about 2 ms, so its shape shows only zoomed in (about 20 pixels
 in a 0.1 s window on a 1,000-pixel plot); in a wider window it is a vertical
 stroke as tall as the spike.
 With more than 4,000 spikes in view, or on a trace below 10 kHz, waveforms fall
-back to ticks and the status line says so.
+back to ticks and the status line says so. A unit's *footprint* is its peak
+channel and every other sorted channel where its template's peak to peak is at
+least 25% of the peak channel's (`EphysTraceViewer.unitLayer`, from every
+channel's template, `readSortedUnits(FullTemplates=true)`; the full templates
+are let go once the footprints are worked out). Ticks stay on the peak
+channel.
+
+**Save view as SVG.** **Save view as SVG...** asks where (the folder used last,
+else the dataset's output folder; `<Name>_<start>s.svg`) and writes the window
+and lanes shown as vectors, for a figure (`EphysTraceViewer.exportSVG`): the
+traces, one path per lane; each unit's or detected channel's spikes as one path
+of its own, in its color, on top of the traces (ticks or waveforms, as drawn,
+on every footprint lane when that is on); the event lines over the traces and
+the TTL rows above them; the dotted lines between shanks, the scale bar, the
+lane names and the time axis. Every path is cut at the window's edges. The
+shaded artifact periods, the overview strip and the ticks' halo are left out;
+a heatmap is saved as an image. From a script, `fig = v.exportFigure()` draws
+the same into an invisible figure (`exportgraphics` it to another format;
+delete it when done).
 
 **Events.** The events come from the Signals step's extract (lines named and
 their polarity applied as when the step ran), else from the dataset's events
@@ -3841,7 +3860,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onSpikesPreview.m`, `syncSpikesEnableStates.m` | Spikes tab |
 | `onBrowseExportOutput.m` | Export tab (output folder) |
 | `buildAnalysisTab.m`, `gatherAnalysisSection.m`, `applyAnalysisSection.m`, `onAnalysisControlsChanged.m`, `onBrowseAnalysisConfig.m`, `onOpenAnalysisConfig.m`, `refreshAnalysisSummary.m`, `onOpenAnalysisOutput.m` | Analysis tab (the analysis config, its summary, Open in the analysis app, Open report / figures folder) |
-| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `updateVizArtStatus.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m`, `pipeline/EphysTraceEnvelope.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none; `updateVizArtStatus`: their counts, and whether the last run's match the current settings); the digital-input events and Read events; the "?" window of mouse and key controls; the viewer, the windowed sources behind it and their envelopes (min / max cached on disk, built in the background) |
+| `onPlotVisualization.m`, `applyVizSettings.m`, `onVizControlsChanged.m`, `onVizViewChanged.m`, `onVizInput.m`, `onVizButtonDown/Up.m`, `refreshVizShading.m`, `vizDetectedIntervals.m`, `updateVizArtStatus.m`, `syncVizDataset.m`, `loadVizEvents.m`, `onVizReadEvents.m`, `onVizSaveSVG.m`, `showVizHelp.m`; `pipeline/EphysTraceViewer.m`, `pipeline/EphysTraceSource.m`, `pipeline/EphysTraceEnvelope.m` | Visualize tab: loading the active dataset's signals and spikes, the controls, the wheel / keys / drags, the shading (`vizDetectedIntervals`: the Artifacts preview's intervals the plot shades, or why none; `updateVizArtStatus`: their counts, and whether the last run's match the current settings); the digital-input events and Read events; Save view as SVG; the "?" window of mouse and key controls; the viewer, the windowed sources behind it and their envelopes (min / max cached on disk, built in the background) |
 | `buildFlowTab.m`, `refreshFlowChart.m`, `flowChartHTML.m`, `flowOverviewHTML.m`, `onFlowViewChanged.m`, `onFlowLayoutChanged.m`, `onSaveFlowChart.m`, `onOpenFlowChartInBrowser.m`, `onFlowNavigate.m`, `flowNavControls.m`, `clearFlowHighlight.m` | Diagram tab: the page in the view picked, drawn by [`PipelineDiagram`](../pipeline/@PipelineDiagram/PipelineDiagram.m), a plain class the app calls (`detail`: every parameter; `overview`: the data flow; `manifest`: a dataset's manifest, for the manifest viewer; `private/grid*`: the grid those two share, laid out and routed there; `zoomFrame`: the zoom and pan, kept per view by the app), save / open, a box's click |
 | `buildCopyTab.m`, `onCopyFind.m`, `onCopyRun.m`, `refreshCopyTable.m`, `onCopyTableEdited.m`, `onCopyStitch.m`, `onCopyUnstitch.m`, `onBrowseCopyFolder.m`, `copyLog.m`, `onCopyCancel.m`, `startCopyMonitor.m`, `stopCopyMonitor.m`, `pollCopyJob.m`, `setCopyRunning.m`, `applyCopyResult.m`, `finishCopyRun.m`, `showCopyProgress.m`, `copySummaryText.m`, `refreshCopySchedule.m`, `onCopyScheduleSave.m`, `onCopyScheduleRemove.m`, `onCopyScheduleRunNow.m`, `onCopyScheduleLog.m`; `pipeline/findCopySessions.m`, `pipeline/stitchCopySessions.m`, `pipeline/copySessions.m`, `pipeline/copy_engine.ps1`, `pipeline/stitchEpsychSessions.m`, `pipeline/CopySchedule.m` | Copy tab, the pairing / stitching / copy functions it calls, the detached copy engine, and the scheduled copy (its Windows task and what each run does) |
 | `loadReviewResults.m`, `renderReviewPlots.m`, `syncReviewDataset.m`, `showReviewSorts.m`, `onReviewSortEdited.m`, `reviewSortChoice.m`, `onReviewUseSort.m`, `private/reviewSorts.m`, `private/sorterOfSort.m`, `showReviewUnits.m`, `refreshReviewDatasets.m`, `onReviewDatasetSelected.m` | Review tab (`refreshReviewDatasets`: the Datasets table, each dataset's sort read once and kept; `onReviewDatasetSelected`: a row click makes its dataset active; `reviewSorts`: the active dataset's sorts and the one to show; `onReviewSortEdited` / `reviewSortChoice`: a row's Sort cell picks which of the dataset's sorts the tab loads when it shows the dataset, kept per dataset, for review only; `showReviewSorts`: whether Use this sort is on; `onReviewUseSort`: the sort shown made the dataset's own; `showReviewUnits`: the units table in its sort, the selected unit's row kept) |

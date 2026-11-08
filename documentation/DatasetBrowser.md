@@ -115,9 +115,13 @@ The line above the table reads *showing 12 of 34 (3 ticked hidden) · 9 ticked*.
 ### The table
 
 Click a header to sort; the sort is remembered (preference `Sort`). The
-right-click menu has **Clear sort**, **Forget cached (ticked)** and **Details
-of the last run...** (a one-line hint under the table says so). Clicking a
-row makes it the dataset the form's lists are read from.
+right-click menu has **Open manifest viewer**, **Clear sort**, **Forget cached
+(ticked)** and **Details of the last run...** (a one-line hint under the table
+says so). Clicking a row makes it the dataset the form's lists are read from.
+**Open manifest viewer** (also **File → Open manifest viewer**) shows that
+dataset's manifest in a `ManifestViewerApp` window; `B.viewManifest(KEY)` does
+the same for the dataset with that key and returns the viewer. A dataset
+without a manifest on disk is named in the status line.
 
 | Column | Shows |
 | --- | --- |

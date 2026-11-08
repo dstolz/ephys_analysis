@@ -123,6 +123,7 @@ shown only** and **Compute** to take in the recordings tagged since.
 | run the same computation without the window | **File → Export compute script...** |
 | compute faster | set **Workers** to compute several recordings at once (needs the Parallel Computing Toolbox and memory for one recording per worker) |
 | start a recording again from scratch | right-click the table: **Forget cached (ticked)** |
+| see how a recording was processed (its manifest) | click its row, then right-click the table: **Open manifest viewer** (or **File → Open manifest viewer**) |
 
 ## When something goes wrong
 

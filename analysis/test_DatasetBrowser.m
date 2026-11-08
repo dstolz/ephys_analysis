@@ -1458,6 +1458,19 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyTrue(contains(lines(end), "Loop done") && contains(lines(end), "done in"), txt);
         end
 
+        function viewManifestOpensViewer(tc)
+            B = tc.open();
+            cm = B.Ctl.Table.ContextMenu.Children;
+            tc.verifyTrue(any(string({cm.Text}) == "Open manifest viewer"), 'The table''s right-click menu opens the viewer.');
+            v = B.viewManifest(tc.Keys(2));
+            tc.addTeardown(@() delete(v));
+            tc.verifyClass(v, 'ManifestViewerApp');
+            out = B.Runner.Outputs(B.Runner.index(tc.Keys(2)));
+            tc.verifyEqual(string(v.File), string(out.ManifestFile), 'It shows the dataset''s own manifest.');
+            tc.verifyEqual(v.Fig.Visible, matlab.lang.OnOffSwitchState.off, 'Hidden with the browser.');
+            tc.verifyError(@() B.viewManifest("nope"), 'DatasetBrowser:NoDataset');
+        end
+
         function noteInManifestRecords(tc)
             B = tc.open();
             B.noteInManifest(tc.Keys(1), "NeuroGLM", struct('binMs', 5, 'window', [-0.5 Inf], 'file', ""));

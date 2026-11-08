@@ -978,6 +978,7 @@ classdef DatasetBrowser < handle
                 ""
                 "RIGHT-CLICK THE TABLE"
                 "  Clear sort                    back to the scan's order"
+                "  Open manifest viewer          the clicked row's dataset in the manifest viewer (also File menu)"
                 "  Forget cached (ticked)        drop the kept parts of the ticked datasets, so Compute works them out again"
                 "  Details of the last run...    the datasets the last Compute or Load gave nothing for, and why"
                 ""
@@ -986,6 +987,34 @@ classdef DatasetBrowser < handle
                 "  red      skipped: <reason>, or error         (Details... has the whole message)"];
             w = AppDialog.showText("Dataset browser: keyboard shortcuts and right-click menus", L, Parent=B.Fig, Size=[700 420], ...
                 Visible=~B.headless());
+        end
+
+        function v = viewManifest(B, key)
+            %viewManifest  Open a dataset's manifest in a ManifestViewerApp window (the table's right-click menu, File menu).
+            %   V = B.viewManifest() opens the clicked row's dataset (else
+            %   the first ticked, else the first); B.viewManifest(KEY) the
+            %   dataset with that key. The viewer is read-only. A dataset
+            %   without a manifest on disk is named in the status line and
+            %   V is empty. The window stays hidden when the browser is.
+            arguments
+                B
+                key (1,1) string = ""
+            end
+            v = [];
+            B.needRunner();
+            if key == ""; key = B.listKey(); end
+            i = B.Runner.index(key);
+            if i == 0
+                error('DatasetBrowser:NoDataset', 'No dataset "%s".', key);
+            end
+            file = string(B.Runner.Outputs(i).ManifestFile);
+            if file == "" || ~isfile(file)
+                B.setStatus("No manifest on disk for " + B.Datasets.name(B.Datasets.key == key) + ".", true);
+                return
+            end
+            v = ManifestViewerApp(file);
+            if B.headless(); v.Fig.Visible = "off"; end
+            B.setStatus("Opened the manifest of " + B.Datasets.name(B.Datasets.key == key) + ".");
         end
 
         function w = showDetails(B)
@@ -1870,6 +1899,8 @@ classdef DatasetBrowser < handle
             uimenu(c.FileMenu, "Text", "Export compute script...", "Separator", "on", ...
                 "Tooltip", "A script that computes these settings on the ticked datasets without the window (epochMatrix).", ...
                 "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.exportScript()));
+            uimenu(c.FileMenu, "Text", "Open manifest viewer", "Separator", "on", ...
+                "Tooltip", "The clicked row's dataset in the manifest viewer.", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.viewManifest()));
             uimenu(c.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~, ~) B.close());
 
             % --- the Help menu: the wiki, and which version of the code this is
@@ -1934,10 +1965,11 @@ classdef DatasetBrowser < handle
                 "DisplayDataChangedFcn", @(~, evt) B.onTableSorted(evt), ...
                 "ContextMenu", uicontextmenu(f));
             uimenu(c.Table.ContextMenu, "Text", "Clear sort", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.clearSort()));
+            uimenu(c.Table.ContextMenu, "Text", "Open manifest viewer", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.viewManifest()));
             uimenu(c.Table.ContextMenu, "Text", "Forget cached (ticked)", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.forgetTicked()));
             uimenu(c.Table.ContextMenu, "Text", "Details of the last run...", "Separator", "on", ...
                 "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.showDetails()));
-            c.TableHint = uilabel(L, "Text", "Right-click the table: clear the sort, forget cached parts, details of the last run.", ...
+            c.TableHint = uilabel(L, "Text", "Right-click the table: open the manifest viewer, clear the sort, forget cached parts, details of the last run.", ...
                 "FontColor", B.TextColor);
 
             % --- right: the settings

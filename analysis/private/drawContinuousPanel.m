@@ -276,12 +276,12 @@ if mode == "faint"
     c = paleColor(c, 0.6, style);
     lw = max(0.25, 0.4 * style.LineWidth);
 end
-k = size(X, 2);
+nE = size(X, 2);   % the epochs (K is the row's scale)
 xx = NaN;
 yy = NaN;
-if k > 0
-    xx = repmat([t(:); NaN], k, 1);
-    yy = [X; NaN(1, k, 'like', X)];
+if nE > 0
+    xx = repmat([t(:); NaN], nE, 1);
+    yy = [X; NaN(1, nE, 'like', X)];
     if k ~= 1; yy = yy * cast(k, 'like', X); end
     if off ~= 0; yy = yy + cast(off, 'like', X); end
     yy = reshape(yy, [], 1);

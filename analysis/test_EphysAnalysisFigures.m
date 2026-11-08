@@ -3796,6 +3796,14 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
         && PlotAesthetics.roleLabel("trialTrace") == "Trial traces" && tt(1).LineWidth < mt(1).LineWidth ...
         && ~isequal(tt(1).Color, mt(1).Color), ...
         sprintf('trials "faint": one NaN-joined pale line of traces per group (%d epochs in all) under each mean, role trialTrace', nK));
+    drawnTr = true;   % each group's traces drawn at their own values: they average to a drawn mean (not scaled by their count)
+    for x = reshape(tt, 1, [])
+        if isscalar(x.YData); continue; end   % a group without traces
+        Y = reshape(double(x.YData), numel(Rtr.t) + 1, []);
+        Y = mean(Y(1:end-1, :), 2);
+        drawnTr = drawnTr && any(arrayfun(@(m) max(abs(Y - double(m.YData(:)))) <= 1e-4 * max(abs(double(m.YData))) + 1e-9, mt));
+    end
+    check(drawnTr, 'trials "faint": the traces are drawn at their values, so each group''s traces average to its drawn mean');
     kids = htr.axes(1).Children;   % top first
     tags = string(get(kids, 'Tag'));
     iT = find(tags == "trialTrace");

@@ -2132,7 +2132,7 @@ classdef DatasetBrowser < handle
             c.Summary = uilabel(R, "Text", "", "WordWrap", "on", "VerticalAlignment", "top");
 
             % --- the progress strip and the status line
-            s = uigridlayout(g, [1 6], "ColumnWidth", {'1x', '1x', 'fit', 'fit', 60, 100}, "RowHeight", {30}, "Padding", [0 0 0 0]);
+            s = uigridlayout(g, [1 6], "ColumnWidth", {'1x', '1x', 250, 'fit', 60, 100}, "RowHeight", {30}, "Padding", [0 0 0 0]);
             c.ProgMsg = uilabel(s, "Text", "", "FontColor", B.TextColor);
             bgc = [0.92 0.92 0.94];
             bp = uipanel(s, "BorderType", "line", "BackgroundColor", bgc);

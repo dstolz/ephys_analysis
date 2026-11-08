@@ -266,7 +266,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             % every control applied as it shows gives the settings back
             for name = ["Data" "Line" "Edge" "Which" "N" "Scope" "Offset" "MinDur" "MaxDur" "TimeFrom" "TimeTo" ...
                     "ShiftParam" "ShiftUnit" "Pre" "Post" "Filter" "Response" "Flags" "Group1" "Group2" "Order" "MaxGroups" ...
-                    "ExcludeArtifacts" "MinArtifact" "Normalize" "NormBaseline" "NormScope" "Merge" "Shanks" "Measure" "Bin" "Baseline" "Channels" "SigBaseline" "Statistic" ...
+                    "ExcludeArtifacts" "MinArtifact" "Normalize" "NormBaseline" "NormScope" "Merge" "Classes" "Shanks" "Measure" "Bin" "Baseline" "Channels" "SigBaseline" "Statistic" ...
                     "Detrend" "Rectify" "Magnitude" "KeepEpochs"]
                 B.formEdit(name);
                 tc.verifyEqual(B.Settings, S, name + " applied as shown changes nothing");
@@ -375,6 +375,65 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             B.loadSettings(f);
             tc.verifyEqual(B.Settings, before);
             tc.verifyError(@() B.loadSettings(), 'DatasetBrowser:NoFile', 'Hidden: no file dialog.');
+        end
+
+        function unitClassesControl(tc)
+            % the Spikes block's Unit classes: a box per class, writing units.classes
+            B = tc.open();
+            c = B.Ctl;
+            offered = EphysAnalysisConfig.UnitClasses;
+            on = @(tf) repmat(matlab.lang.OnOffSwitchState(tf), 1, numel(offered));
+            tc.verifyEqual(string({c.Classes.Text}), offered, 'A box per class offered.');
+            tc.verifyEmpty(B.Settings.units.classes, 'Every class by default.');
+            tc.verifyFalse(any([c.Classes.Value]), 'Every class: no box ticked.');
+            % a click writes the classes ticked
+            k = find(offered == "su");
+            c.Classes(k).Value = true;
+            c.Classes(k).ValueChangedFcn(c.Classes(k), []);
+            tc.verifyEqual(B.Settings.units.classes, "su", 'su alone: single units only.');
+            B.formEdit("Classes", ["mua" "su"]);
+            tc.verifyEqual(B.Settings.units.classes, ["su" "mua"], 'In the boxes'' order.');
+            B.formEdit("Classes", string.empty(1, 0));
+            tc.verifyEmpty(B.Settings.units.classes, 'None ticked: every class.');
+            B.formEdit("Classes", offered);
+            tc.verifyEmpty(B.Settings.units.classes, 'All ticked: every class.');
+            tc.verifyEqual([c.Classes.Value], true(1, numel(offered)), 'All ticked stay ticked.');
+            % settings fill the boxes
+            S = B.Settings;
+            S.units.classes = "mua";
+            B.Settings = S;
+            tc.verifyEqual([c.Classes.Value], offered == "mua");
+            tc.verifyEqual(string(c.ClassNote.Text), "");
+            % a class without a box is named and survives edits
+            S.units.classes = ["su" "other"];
+            B.Settings = S;
+            tc.verifyEqual([c.Classes.Value], offered == "su");
+            tc.verifyEqual(string(c.ClassNote.Text), "also other");
+            B.formEdit("Classes");   % applied as shown changes nothing
+            tc.verifyEqual(B.Settings.units.classes, ["su" "other"]);
+            B.formEdit("Classes", ["su" "mua"]);
+            tc.verifyEqual(B.Settings.units.classes, ["su" "mua" "other"]);
+            B.formEdit("Pre", -0.5);
+            tc.verifyEqual(B.Settings.units.classes, ["su" "mua" "other"], 'Another control''s edit keeps them.');
+            % a settings file fills the boxes
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            f = fullfile(tmp.Folder, "classes.json");
+            B.saveSettings(f);
+            B.Settings = [];
+            tc.verifyFalse(any([c.Classes.Value]));
+            B.loadSettings(f);
+            tc.verifyEqual(B.Settings.units.classes, ["su" "mua" "other"]);
+            tc.verifyEqual([c.Classes.Value], ismember(offered, ["su" "mua"]));
+            tc.verifyEqual(string(c.ClassNote.Text), "also other");
+            % Enable follows Data: sorted units only (detections have no classes)
+            tc.verifyEqual([c.Classes.Enable], on(true));
+            B.formEdit("Data", "detected");
+            tc.verifyEqual([c.Classes.Enable], on(false));
+            B.formEdit("Data", "LFP");
+            tc.verifyEqual([c.Classes.Enable], on(false));
+            B.formEdit("Data", ["units" "LFP"]);
+            tc.verifyEqual([c.Classes.Enable], on(true));
+            tc.verifyEqual(B.Settings.units.classes, ["su" "mua" "other"], 'Data edits keep the classes.');
         end
 
         function fileMenuAndRecent(tc)

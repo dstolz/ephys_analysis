@@ -511,6 +511,10 @@ says how to cut a release.
 
 ### Added
 
+- Dataset browser, Measure tab: **Unit classes** in the Spikes block, a box each for `su`, `mua`, `uns` and `noise`
+  (`units.classes`; the new `EphysAnalysisConfig.UnitClasses`). Tick `su` alone to keep only single units; none
+  ticked, or all, keeps every class, as before. On only with Data `units` (detected channels have no classes). A class
+  the settings hold that has no box (`other`) is named beside the boxes and kept through edits.
 - Pipeline app, Visualize tab: **Waveforms on every channel of the unit** recolors each sorted unit's spikes, in the
   unit's color, on every channel its template reaches (at least 25% of its peak channel's peak to peak; the unit's
   footprint, `EphysTraceViewer.unitLayer`), not only on its peak channel. **Save view as SVG...** saves the view

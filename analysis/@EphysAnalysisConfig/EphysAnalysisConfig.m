@@ -144,6 +144,10 @@ classdef EphysAnalysisConfig
         Sections = ["Source" "Defaults" "Export" "Report"]
         SpikeSources  = ["units" "detected"]
         SignalSources = ["LFP" "MUA" "SPIKE" "AUX"]
+        % The sorted-unit classes a form offers for UnitSelection.classes (readPhyUnits' class: su good, mua, uns
+        % unsorted, noise; a phy label of its own is "other"). Detection channels are all "det", which classes do not
+        % filter (selectUnits).
+        UnitClasses = ["su" "mua" "uns" "noise"]
         % What a figure layer reads (Layer.source): spike times, a digital / derived line's events, a signal, or one
         % number per trial (a trial measure, Layer.measure); sourceCategories groups them, panelTypes says which
         % categories each panel type draws.

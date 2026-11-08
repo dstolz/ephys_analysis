@@ -476,7 +476,7 @@ classdef DatasetBrowser < handle
         DataItems = ["units" "detected" "LFP" "MUA" "SPIKE" "AUX"]
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
             "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
-            "Shanks" "Channels" "ProbeAll" "Probe" "Merge" "Measure" "Bin" "Baseline" ...
+            "Shanks" "Channels" "ProbeAll" "Probe" "Merge" "Classes" "Measure" "Bin" "Baseline" ...
             "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "LoadSessions" "LoadTrials" "Workers" ...
             "GroupCounts" "Details" "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun" "DefList" "DefAdd" "DefRemove"]
         MaxRecent = 10                     % RecentSettings' length
@@ -843,6 +843,10 @@ classdef DatasetBrowser < handle
             control = string(control);
             if nargin > 2 && control == "Data"   % a box per kind: VALUE the kinds ticked
                 for k = 1:numel(B.Ctl.Data); B.Ctl.Data(k).Value = ismember(B.DataItems(k), string(value)); end
+            elseif nargin > 2 && control == "Classes"   % a box per unit class: VALUE the classes ticked
+                for k = 1:numel(B.Ctl.Classes)
+                    B.Ctl.Classes(k).Value = ismember(EphysAnalysisConfig.UnitClasses(k), string(value));
+                end
             elseif nargin > 2
                 if isfield(B.Ctl.Align, control)
                     c = B.Ctl.Align.(control);
@@ -2176,9 +2180,22 @@ classdef DatasetBrowser < handle
                 "so the groups keep their differences; per group: each group its own.");
 
             sp = uipanel(M, "Title", "Spikes (units, detected)");
-            sg = uigridlayout(sp, [3 4], "ColumnWidth", {'fit', '1x', 'fit', '1x'}, "RowHeight", {24, 24, 24}, "Padding", [6 4 6 4], "RowSpacing", 4);
+            sg = uigridlayout(sp, [4 4], "ColumnWidth", {'fit', '1x', 'fit', '1x'}, "RowHeight", {24, 24, 24, 24}, "Padding", [6 4 6 4], "RowSpacing", 4);
             c.Merge = place(uicheckbox(sg, "Text", "Merge neighboring sites", "ValueChangedFcn", edit("Merge"), ...
                 "Tooltip", "detected: join the channels of neighboring sites that hold one neuron (groupDetected)."), 1, [1 4]);
+            classTip = "units: the sorted-unit classes kept (su single units, mua multiunits, uns unsorted, noise). " + ...
+                "Tick su alone to keep only single units; none ticked, or all, keeps every class. " + ...
+                "Detected spikes have no classes (every channel is det)." + newline + "Script name: units.classes";
+            place(uilabel(sg, "Text", "Unit classes", "Tooltip", classTip), 4, 1);
+            cr = place(uigridlayout(sg, [1 numel(EphysAnalysisConfig.UnitClasses) + 1], ...
+                "ColumnWidth", [repmat({'fit'}, 1, numel(EphysAnalysisConfig.UnitClasses)), {'1x'}], ...
+                "RowHeight", {'1x'}, "Padding", [0 0 0 0], "ColumnSpacing", 10), 4, [2 4]);
+            for k = 1:numel(EphysAnalysisConfig.UnitClasses)
+                c.Classes(k) = uicheckbox(cr, "Text", EphysAnalysisConfig.UnitClasses(k), ...
+                    "ValueChangedFcn", edit("Classes"), "Tooltip", classTip);
+            end
+            c.ClassNote = uilabel(cr, "Text", "", "FontColor", B.TextColor, ...
+                "Tooltip", "Classes in the settings that have no box here; they stay kept through edits in the form.");
             place(uilabel(sg, "Text", "Measure"), 2, 1);
             c.Measure = place(uidropdown(sg, "Items", {'rate', 'count', 'auroc'}, "ValueChangedFcn", edit("Measure")), 2, 2);
             place(uilabel(sg, "Text", "Bin (ms)"), 2, 3);
@@ -2497,6 +2514,9 @@ classdef DatasetBrowser < handle
                 c.Probe.select(pick.channels, pick.shanks);
             end
             c.Merge.Value = logical(S.units.merge.enabled);
+            [shown, extra] = classBoxes(S.units.classes, [c.Classes.Value]);
+            for k = 1:numel(c.Classes); c.Classes(k).Value = shown(k); end
+            c.ClassNote.Text = ternary(isempty(extra), "", "also " + strjoin(extra, ", "));
             c.Measure.Value = char(S.measure);
             c.Bin.Value = round(S.binSec * 1000, 6);   % the form is in ms, the settings' binSec in s
             c.Baseline.Value = char(numbersText(S.baseline));
@@ -2534,7 +2554,8 @@ classdef DatasetBrowser < handle
                     ternary(aux, " (AUX, which has no probe, keeps all its columns).", ".");
             end
             c.Merge.Enable = on(any(S.data == "detected"));
-            auroc = spikes && S.measure == "auroc";
+            set(c.Classes, "Enable", on(any(S.data == "units")));   % detections have no classes (all "det")
+            auroc =spikes && S.measure == "auroc";
             c.Baseline.Enable = on(auroc);
             normalized = signals || ~auroc;   % auROC is not normalized
             c.Normalize.Enable = on(normalized);
@@ -2828,6 +2849,8 @@ classdef DatasetBrowser < handle
             try
                 if name == "Data"
                     v = B.DataItems([B.Ctl.Data.Value]);   % the kinds ticked, in the boxes' order
+                elseif name == "Classes"
+                    v = EphysAnalysisConfig.UnitClasses([B.Ctl.Classes.Value]);   % the classes ticked
                 else
                     v = B.Ctl.(name).Value;
                 end
@@ -2897,6 +2920,7 @@ classdef DatasetBrowser < handle
         function S = applyControl(~, S, name, v)
             %applyControl  S with control NAME's value V put in its field (the other fields as they were).
             if name == "Data"; S.data = reshape(string(v), 1, []); return; end   % the kinds: none ticked is refused by the check
+            if name == "Classes"; S.units.classes = classesTicked(v, S.units.classes); return; end
             if iscell(v); v = v{1}; end
             switch name
                 case "Normalize"; S.normalize.method = string(v);
@@ -4004,6 +4028,34 @@ function S = withPick(S, field, v)
 isSpike = ismember(S.data, ["units" "detected"]);
 if any(isSpike); S.units.(field) = v; end
 if any(~isSpike & S.data ~= "AUX") || all(S.data == "AUX"); S.signal.(field) = v; end
+end
+
+
+function c = classesTicked(ticked, current)
+%classesTicked  units.classes from the Unit classes boxes TICKED, keeping the CURRENT classes that have no box.
+%   None ticked, or every box, is every class (string.empty(1, 0)), which
+%   holds the classes without a box too; otherwise the boxes ticked and,
+%   after them, the CURRENT classes the boxes do not offer.
+offered = EphysAnalysisConfig.UnitClasses;
+ticked = offered(ismember(offered, string(ticked)));
+if isempty(ticked) || numel(ticked) == numel(offered)
+    c = string.empty(1, 0);
+    return
+end
+current = reshape(string(current), 1, []);
+c = [ticked, unique(current(~ismember(current, offered)), "stable")];
+end
+
+
+function [shown, extra] = classBoxes(classes, ticked)
+%classBoxes  The Unit classes boxes' values for units.classes CLASSES, and the classes that have no box.
+%   Every class (CLASSES empty) shows as no box ticked, or as every box
+%   when the boxes (TICKED, their values now) are all ticked already.
+offered = EphysAnalysisConfig.UnitClasses;
+classes = reshape(string(classes), 1, []);
+shown = ismember(offered, classes);
+if isempty(classes) && all(ticked); shown(:) = true; end
+extra = unique(classes(~ismember(classes, offered)), "stable");
 end
 
 

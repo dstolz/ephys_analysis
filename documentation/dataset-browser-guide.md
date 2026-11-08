@@ -67,7 +67,9 @@ ticks, settings and result.
     (by `Depth`, say). **Epochs per group** counts them.
   - **Channels**: which shanks or channels to keep, picked on the probe.
   - **Measure**: firing rate, count or auROC, the bin size, and an optional
-    normalization against the baseline.
+    normalization against the baseline. For sorted `units`, **Unit
+    classes** picks which units count: tick **su** for single units only.
+    With no box ticked, every unit counts.
 - **Bottom:** **Compute**, **Details...**, the post-processing script, and a
   progress bar with **Cancel**.
 - **Help → Keyboard shortcuts and right-click menus** lists the keys and what
@@ -125,6 +127,7 @@ shown only** and **Compute** to take in the recordings tagged since.
 | ...do this | Do this |
 | --- | --- |
 | compare the same measure across two definitions of the event or trials | keep each as an **Event & trial definition** (**+**), then switch between them in one click |
+| keep only single units, not multiunits | tick **units** in **Data**, then on **Measure** tick **su** under **Unit classes** (and leave **mua** unticked) before **Compute** |
 | look at single trials, not just the averages | tick **Keep single trials, not just averages** before **Compute** |
 | get the whole recording, not cut around events (for a model or a toolbox) | **Load whole recordings** (or **Load trials only** for the behavior alone) |
 | hand the data to FieldTrip, Chronux, neuroGLM, the mTRF toolbox or a CSD estimate | pick that script in the **Post-processing script** list and **Run now** |

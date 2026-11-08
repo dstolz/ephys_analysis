@@ -212,11 +212,11 @@ mode and its stop event.
 | **Trials** tab: **Epochs per group** | opens the *Epochs per group* window (`EpochGroupCounts`, also `B.showGroupCounts()`) for the dataset the lists come from: see [Epochs per group](#epochs-per-group). It is redrawn on every settings edit and row click until closed, and closes with the browser |
 | **Measure** tab: **Normalize**, **Baseline (s)**, scope | `normalize`: `method`, `baseline` and `scope` (*per row* or *per group*); see [Normalization](#normalization). A change normalizes the result again in place and computes nothing. Off for measure `auroc` (unless a signal is ticked too); **Baseline (s)** only for the methods that use it |
 | **Channels** tab | **Shanks** and **Channels**: `units.shanks` and `units.channels` for `units` and `detected`, `signal.shanks` and `signal.channels` for a signal (blank = all; both with several kinds), also picked by clicking the probe; see [Shanks and channels](#shanks-and-channels) |
-| **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Measure**, **Bin (ms)** (`binSec`, in seconds, in a script), **auROC baseline (s)** (with measure `auroc`) |
+| **Measure** tab: **Spikes** block | **Merge neighboring sites** (`units.merge.enabled`, `detected` only), **Measure**, **Bin (ms)** (`binSec`, in seconds, in a script), **auROC baseline (s)** (with measure `auroc`), **Unit classes** (`units.classes`, `units` only: a box each for `su`, `mua`, `uns` and `noise`, `EphysAnalysisConfig.UnitClasses`; tick `su` alone for single units only; none ticked, or all, is every class, `[]`. A class the settings hold that has no box, such as `other`, is named beside the boxes and kept when a box is ticked or unticked; detected channels are all `det` and have no classes) |
 | **Measure** tab: **Signals** block | **Baseline (s)**, **Statistic**, **Detrend**, **Rectify**, **Magnitude (AUX)** |
 | Above **Compute**: **Keep single trials, not just averages** | `keepEpochs`: the result also keeps every epoch before the average ([Each epoch](#each-epoch-repochs)), which `B.showRasters` draws ([Trial rasters](#trial-rasters)). Every kind of **Data** |
 
-The form does not show every field (the unit classes and tests, the auROC
+The form does not show every field (the unit quality and response tests, the auROC
 section, the selection's explicit trial rows, and an interval length or time
 range of a stop event). Load a settings file or assign `B.Settings` for
 those; an edit in the form keeps them.

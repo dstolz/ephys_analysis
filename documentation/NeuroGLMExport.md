@@ -96,7 +96,8 @@ ends a trial where the next trial of `D.trials` begins (its onset + pre), the
 last at the end of the recording, so the trials tile the session. Trials
 running off the recording are dropped (`info.nDroppedEdge`), and those whose
 span touches an erased period (`D.artifacts`) unless `DropArtifacts=false`
-(`info.nDroppedArtifact`).
+(`info.nDroppedArtifact`). With `Signal=`, the trials the signal does not
+cover are dropped too (`info.nDroppedSignal`).
 
 | Registered | From | Label |
 | --- | --- | --- |
@@ -121,7 +122,15 @@ variables as a struct of values), `fs`, `binMs`, `window`, `align`,
 is in the browser's post-processing script list. Tick datasets, set **Data**
 to *units* or *detected*, **Raw Data**, pick the script and **Run
 now** (or tick *Run it after each Compute or Load*). For each dataset it
-builds the experiment and, for every unit with spikes, fits the GLM on the
+builds the experiment, with trials that tile the session (`opts.window = [-0.5 Inf]`:
+from 0.5 s before each trial's onset to 0.5 s before the next one's), so an event
+between trials, such as `Trough_on`, is in a trial and has its kernel; a finite
+`opts.window(2)` leaves out every event after it. It prints where the trials went: how many the
+browser's trial selection keeps, how many fall off the recording, on erased periods
+or off the signal, and how many are fitted and held out. A dataset with fewer than
+`opts.minTrials` (20) trials fitted is passed over, and so is a unit with fewer than
+`opts.minSpikes` (100) spikes in those trials, each with a line printed. For every
+other unit it fits the GLM on the
 same first 80% of the trials (`opts.trainFraction`; the last block of consecutive
 trials is held out, `NeuroGLMExport.split`) with a kernel per line edge (one per trial group for the
 browser's event line when `opts.groupKernels` is on), the trial's response (below), a
@@ -129,7 +138,7 @@ spike-history filter and,
 with `opts.withSignal = "LFP"`, the LFP as a covariate, predicts the held-out
 trials and prints bits per spike for both, a line per unit. The fit is the paper's by default
 (`opts.fitMethod = "matRegress"`, `opts.ridge = "evidence"`); `opts.fitMethod = "glmfit"`
-is the quick maximum-likelihood alternative. The workspace gets `glm{k}` per dataset (`expt`,
+is the quick maximum-likelihood alternative. The workspace gets `glm{k}` per dataset fitted (`expt`,
 `info`, the train/test split, and `fits`, one element per unit: `unit`,
 `dspec`, `F`, `P`) and three figures:
 
@@ -182,7 +191,7 @@ Every line stays in `glm{k}.expt` whatever `opts.events` holds, so the plots
 can still mark it. Decoding in a plot script needs the response kernels it
 swaps, e.g. `response_time` split by `Hit` and `Miss`.
 
-The fields of `opts` at the top of the script (`binMs`, `window`, `events`, `kernelMs`,
+The fields of `opts` at the top of the script (`binMs`, `window`, `minTrials`, `minSpikes`, `events`, `kernelMs`,
 `acausal`, `acausalMs`, `groupKernels`, `responses`, `responseEvents`, `responseTime`,
 `responseLine`, `responseEdge`, `responseAfter`, `history`, `coupling`, `withSignal`,
 `auxParts`, `fitMethod`, `ridge`, `workers`, `outDir`) are the knobs; `opts.workers` (4; 0 =

@@ -21,6 +21,10 @@ says how to cut a release.
   keeping single and working a block of columns at a time).
 - `S_DatasetBrowserToNeuroGLM.m`: `opts.events` names the events given a kernel (every line edge and `response_time`
   by default), and `opts.auxParts` the AUX columns used as covariates (`magnitude`, `axes`, `slow`).
+- `S_DatasetBrowserToNeuroGLM.m`: `opts.minTrials` (20) passes over a dataset with fewer trials fitted, and
+  `opts.minSpikes` (100) a unit with fewer spikes in them; each dataset prints where its trials went. The trials tile
+  the session by default (`opts.window = [-0.5 Inf]`), so events between trials, such as `Trough_on`, have kernels.
+  `sessionDataNeuroGLM`'s `info.nDroppedSignal` counts the trials the signal does not cover.
 
 ### Changed
 

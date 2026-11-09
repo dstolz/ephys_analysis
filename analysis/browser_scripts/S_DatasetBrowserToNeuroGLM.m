@@ -2,7 +2,8 @@
 % A post-processing script of the DatasetBrowser (or run by hand with B in the
 % workspace): it hands the browser's whole sessions to the neuroGLM toolbox
 % (Pillow lab; Park, Meister, Huk & Pillow, Nat. Neurosci. 2014) and fits,
-% for every unit of each dataset, the paper's trial-based Poisson GLM:
+% for every unit with opts.minSpikes spikes in the trials fitted, of each
+% dataset with opts.minTrials trials fitted, the paper's trial-based Poisson GLM:
 %
 %   rate(t) = exp( sum over events of kernel_e * event_e(t) + h * spikes(t) )
 %
@@ -37,7 +38,10 @@
 % they finish; the results are in unit order either way. The browser's progress
 % strip follows the units, and its Cancel stops the fits.
 %
-% Leaves glm{k} per dataset in the workspace: expt (neuroGLM's experiment),
+% Each dataset prints where its trials went (the browser's selection, the
+% recording's edges, erased periods, the signal) and how many are fitted.
+%
+% Leaves glm{k} per dataset fitted in the workspace: expt (neuroGLM's experiment),
 % info (labels and trial rows), the train/test split (the same trials for
 % every unit: the last block of consecutive trials is held out) and fits, one element per unit with spikes: unit (its row of
 % D.units), dspec (the design), F (the fit: F.kernels.<covariate>.tr ms /
@@ -54,8 +58,10 @@ opts = struct();                    % the settings, noted whole in each dataset'
 opts.neuroGLMPath = 'c:\src\neuroGLM';   % added when neuroGLM is not on the path (the folder holding +buildGLM)
 opts.outDir = "";                        % a folder to save <dataset>_neuroglm.mat in (in a subfolder named after the browser's tags); "" keeps them in the workspace only
 opts.binMs = 5;                          % neuroGLM's bin (1 ms, as the paper); 5-10 ms fits much faster on long sessions
-opts.window = [-0.5 1];                % s around TrialOnset; Inf = up to the next trial's start
-opts.events = string.empty;              % the events given a kernel, named as the kernels are: "<line>_on", "<line>_off", "response_time", e.g. ["Stim_on" "RespWindow_on" "response_time"]; string.empty = every line edge and response_time. One a dataset lacks is left out, with a line printed
+opts.window = [-0.5 Inf];                % s around TrialOnset; Inf = up to the next trial's start, so the trials tile the session and every event between trials (Trough_on mostly) is in one; a finite end leaves out the events after it
+opts.minTrials = 20;                     % a dataset with fewer trials fitted (the training block) is not fitted, with a line printed
+opts.minSpikes = 100;                    % a unit with fewer spikes in the trials fitted is not fitted, with a line printed
+opts.events = ["Platform_off","Stim_on"];%,"Trough_on"];              % the events given a kernel, named as the kernels are: "<line>_on", "<line>_off", "response_time", e.g. ["Stim_on" "RespWindow_on" "response_time"]; string.empty = every line edge and response_time. One a dataset lacks is left out, with a line printed
 opts.kernelMs = 500;                     % each event kernel's reach after the event
 opts.nBases = 8;                         % raised cosines per kernel
 opts.acausal = string.empty;             % event variables whose kernel also precedes the event, e.g. "Resp_on" for the animal's response
@@ -108,13 +114,14 @@ end
 % on the browser's progress strip: Cancel stops the fits; the datasets finished stay in glm (and in opts.outDir)
 glm = cell(numel(S), 1);
 nAll = max(1, sum(arrayfun(@(D) nnz(~cellfun(@isempty, D.spikes)), S)));
+nDone = 0;      % units fitted or passed over, for the progress strip
 nFit = 0;
 B.progressStart("Fitting neuroGLM");
 try
     for k = 1:numel(S)
         D = S(k);
         name = D.name;
-        B.progress(nFit / nAll, name + ": building the experiment");
+        B.progress(nDone / nAll, name + ": building the experiment");
         B.checkCancel();
         args = {};
         if opts.withSignal ~= ""
@@ -195,17 +202,35 @@ try
         % to each other share drift and spike history, so scattered held-out trials would be tested
         % on what the fit has seen of their neighbors
         [train, test] = NeuroGLMExport.split(expt, TestFraction=1 - opts.trainFraction);
-
-        noSpikes = cellfun(@isempty, reshape(D.spikes, [], 1));
-        for u = reshape(find(noSpikes), 1, [])
-            fprintf('%s, unit %s: no spikes, not fitted\n', name, info.units.label(u));
+        nWithSpikes = nnz(~cellfun(@isempty, D.spikes));
+        fprintf(['%s: %d trials, %d kept by the browser''s trial selection; left out: %d off the recording, ' ...
+            '%d on erased periods, %d off the signal; %d fitted, %d held out\n'], name, height(D.trials), nnz(D.kept), ...
+            info.nDroppedEdge, info.nDroppedArtifact, info.nDroppedSignal, numel(train), numel(test));
+        if numel(train) < opts.minTrials
+            fprintf('%s: not fitted (%d trials fitted, fewer than opts.minTrials = %d)\n', name, numel(train), opts.minTrials);
+            nDone = nDone + nWithSpikes;
+            continue
         end
-        units = info.units(~noSpikes, :);
+
+        % the units with enough spikes in the trials fitted
+        nSpikes = arrayfun(@(v) sum(arrayfun(@(tr) numel(tr.(v)), expt.trial(train))), info.units.variable);
+        few = nSpikes < max(1, opts.minSpikes);
+        for u = reshape(find(few), 1, [])
+            fprintf('%s, unit %s: not fitted (%d spikes in the trials fitted, fewer than opts.minSpikes = %d)\n', ...
+                name, info.units.label(u), nSpikes(u), opts.minSpikes);
+        end
+        units = info.units(~few, :);
+        if isempty(units)
+            fprintf('%s: not fitted (no unit has opts.minSpikes = %d spikes in the trials fitted)\n', name, opts.minSpikes);
+            nDone = nDone + nWithSpikes;
+            continue
+        end
         fits = NeuroGLMExport.fitUnits(expt, units, Design=dsArgs, Trials=train, Test=test, ...
             Method=opts.fitMethod, Ridge=opts.ridge, Workers=opts.workers, ...
-            ProgressFcn=@(f, m) B.progress((nFit + f * height(units)) / nAll, name + ": " + m), ...
+            ProgressFcn=@(f, m) B.progress((nDone + f * height(units)) / nAll, name + ": " + m), ...
             LogFcn=@(m) fprintf('%s, %s\n', name, m), CheckFcn=@() B.checkCancel());
         nFit = nFit + height(units);
+        nDone = nDone + nWithSpikes;
 
         g = struct();
         g.key = D.key; g.name = D.name; g.variables = D.variables;   % the dataset's variables (a struct of values)
@@ -214,7 +239,7 @@ try
         glm{k} = g;
         savedTo = "";
         if opts.outDir ~= ""
-            B.progress(nFit / nAll, name + ": saving");
+            B.progress(nDone / nAll, name + ": saving");
             savedTo = fullfile(opts.outDir, g.name + "_neuroglm.mat");
             save(savedTo, '-struct', 'g', '-v7.3');
         end
@@ -231,7 +256,8 @@ catch ME
     end
     rethrow(ME);
 end
-B.progressFinish(sprintf("%d units of %d dataset(s) fitted", nFit, numel(S)));
+glm = glm(~cellfun(@isempty, glm));      % the datasets fitted
+B.progressFinish(sprintf("%d units of %d dataset(s) fitted (%d passed over)", nFit, numel(glm), numel(S) - numel(glm)));
 
 % By hand, from here:
 %   g = glm{1}; f = g.fits(1);                                % the first dataset's first fitted unit

@@ -54,7 +54,8 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %   plus variable), lines (table: line, on, off: the variable names), values
 %   (table: column, variable), signal (the continuous variable's name, ""),
 %   response, responseTime (those variables' names, ""), nDroppedEdge,
-%   nDroppedArtifact. expt.param holds key, name, variables (D.variables, the
+%   nDroppedArtifact, nDroppedSignal (trials the signal does not cover, or
+%   shorter than one bin). expt.param holds key, name, variables (D.variables, the
 %   dataset's variables as a struct of values), fs, binMs, window, align,
 %   trialLine, groups (D.groups) and the same tables and names.
 %
@@ -259,6 +260,7 @@ if sigName ~= ""; param.channels = opts.Signal.channels; end
     Continuous=C, Id=D.key + "/neuroGLM", Param=param, Describe=Dsc);
 info.trialIndex = idx(keep);
 info.spans = spans(keep, :);
+info.nDroppedSignal = nnz(~keep);
 expt.param.trialIndex = info.trialIndex;
 end
 

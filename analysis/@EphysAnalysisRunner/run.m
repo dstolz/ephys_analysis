@@ -242,6 +242,7 @@ function T = sessionsSummary(obj, idx)
 S = obj.sessionTable(idx);
 T = table(S.label, S.subject, S.dateText, S.name, S.key, S.tags, ...
     'VariableNames', {'Session', 'Subject', 'Date', 'Dataset', 'Key', 'Tags'});
+T = [T, S(:, startsWith(S.Properties.VariableNames, DatasetVariables.ColumnPrefix))];   % the datasets' variables, after Tags
 end
 
 

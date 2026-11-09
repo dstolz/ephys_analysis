@@ -34,7 +34,12 @@ classdef TrialDataExport
     %     tA, tB       the A and B events' times, s (NaN where the measure
     %                  has none)
     %   then the trial parameters the values carry (the selection's groupBy,
-    %   a category or series parameter), panels lacking one left missing.
+    %   a category or series parameter), panels lacking one left missing,
+    %   and last the dataset variables: a column var_<name> (var_probeDepth)
+    %   per variable, each value its dataset's (F.variables; a session
+    %   figure's, its sessions' var_ columns), a number column when the
+    %   value is a number, else a string column; missing where a dataset
+    %   lacks the variable.
     %   Errors: TrialDataExport:NoPanel (K names no panel of F),
     %   TrialDataExport:NotTrialPanel (K is not a trial panel).
     %
@@ -273,6 +278,29 @@ for v = vars(~ismember(vars, std))
         T.(v) = double(c);
     else
         T.(v) = string(c);
+    end
+end
+V = variablesOf(F, R, session, n);
+V = V(:, ~ismember(V.Properties.VariableNames, T.Properties.VariableNames));
+T = [T, V];
+end
+
+
+function V = variablesOf(F, R, session, n)
+%variablesOf  The dataset variables of each value's dataset, a var_<name> column each: the merged figure's sessions', else the figure's.
+V = table('Size', [n 0], 'VariableTypes', {}, 'VariableNames', {});
+if isfield(R, 'sessions') && istable(R.sessions) && any(startsWith(string(R.sessions.Properties.VariableNames), DatasetVariables.ColumnPrefix))
+    idx = double(session);
+    idx(~(idx >= 1 & idx <= height(R.sessions) & idx == round(idx))) = 0;
+    V = variableColumns(R.sessions, idx);
+    V.Properties.VariableDescriptions = {};
+    V.Properties.VariableUnits = {};
+elseif isfield(F, 'variables') && isstruct(F.variables) && isscalar(F.variables)
+    for name = string(fieldnames(F.variables)).'
+        x = F.variables.(name);
+        if isnumeric(x); V.(DatasetVariables.ColumnPrefix + name) = repmat(double(x), n, 1);
+        else; V.(DatasetVariables.ColumnPrefix + name) = repmat(string(x), n, 1);
+        end
     end
 end
 end

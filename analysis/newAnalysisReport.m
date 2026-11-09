@@ -17,7 +17,10 @@ function report = newAnalysisReport(opts)
 %               sessions", whose summary is a struct of tables of its own)
 %               -- and starred (the dataset is starred: DatasetFavorites;
 %               false for a section) -- and tags (the dataset's tags, a
-%               cellstr: loadAnalysisSource's tags; {} for a section)
+%               cellstr: loadAnalysisSource's tags; {} for a section) --
+%               and variables (the dataset's variables as a
+%               DatasetVariables set, with labels and units, from
+%               loadAnalysisSource's variableInfo; struct() for a section)
 %     pageFolder  where the PDF report's pages are kept (reportPdfPage): a
 %               folder under tempdir, removed when the last copy of the
 %               report is cleared (pageCleanup); "" for an HTML report
@@ -39,7 +42,7 @@ report.provenance = ephysProvenance();   % the code, MATLAB and machine that mad
 report.config = opts.Config;
 report.options = EphysAnalysisConfig.normalizeSection("Report", opts.Options);
 report.export = EphysAnalysisConfig.normalizeSection("Export", opts.Export);
-report.datasets = struct('name', {}, 'key', {}, 'folder', {}, 'summary', {}, 'entries', {}, 'kind', {}, 'starred', {}, 'tags', {});
+report.datasets = struct('name', {}, 'key', {}, 'folder', {}, 'summary', {}, 'entries', {}, 'kind', {}, 'starred', {}, 'tags', {}, 'variables', {});
 report.pageFolder = "";
 report.pageCleanup = [];
 if report.options.Format ~= "html"

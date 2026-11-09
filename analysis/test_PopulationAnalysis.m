@@ -424,6 +424,84 @@ classdef test_PopulationAnalysis < matlab.unittest.TestCase
             tc.verifyFalse(contains(pages(1), "2. " + src2.name + " (0 figure(s)) ["), 'no bracket without tags');
         end
 
+        function variablesInExports(tc)
+            % a dataset's variables (the manifest's) reach the source, the tables, the session table and the reports
+            r0 = EphysAnalysisRunner(tc.Config, LogFcn=[]);
+            f1 = r0.Outputs(1).ManifestFile;
+            f2 = r0.Outputs(2).ManifestFile;
+            for f = [f1 f2]
+                tc.addTeardown(@restoreText, f, string(fileread(f)));
+            end
+            writeManifestVariables(f1, Name="probeDepth", Value=1200, Label="Probe Depth", Units="um");
+            writeManifestVariables(f1, Name="cohort", Value="A");
+            writeManifestVariables(f2, Name="probeDepth", Value=900, Label="Probe Depth", Units="um");
+            r = EphysAnalysisRunner(tc.Config, LogFcn=[]);
+            src = r.source(1);
+            src2 = r.source(2);
+            tc.verifyEqual(src.variables.probeDepth, 1200, 'loadAnalysisSource: the manifest''s variables, as values');
+            tc.verifyEqual(src.variables.cohort, "A");
+            tc.verifyEqual(src2.variables, struct('probeDepth', 900));
+            tc.verifyEqual(src.variableInfo.Name, ["probeDepth"; "cohort"], 'variableInfo: a row per variable');
+            tc.verifyEqual(src.variableInfo.Label(1), "Probe Depth");
+            tc.verifyEqual(src.variableInfo.Units(1), "um");
+            v = outputVariables(r.Outputs(1));
+            tc.verifyEqual(DatasetVariables.values(v).probeDepth, 1200, 'outputVariables: the set, without loading a source');
+            tc.verifyEqual(v.probeDepth.label, "Probe Depth");
+            % the session table, directly and through the runner
+            S = sessionTable(["a"; "b"], ["a"; "b"], Tags=["x;y"; ""], Variables={v; struct()});
+            names = string(S.Properties.VariableNames);
+            tc.verifyEqual(names(find(names == "tags") + (1:2)), ["var_probeDepth" "var_cohort"], 'sessionTable: var_ columns follow tags');
+            tc.verifyEqual(S.var_probeDepth, [1200; NaN]);
+            tc.verifyEqual(ismissing(S.var_cohort), [false; true]);
+            tc.verifyEqual(S.Properties.VariableUnits{find(names == "var_probeDepth")}, 'um');
+            tc.verifyFalse(any(startsWith(string(sessionTable(["a"; "b"], ["a"; "b"]).Properties.VariableNames), "var_")), 'no Variables=: no columns');
+            tc.verifyError(@() sessionTable(["a"; "b"], ["a"; "b"], Variables={v}), 'sessionTable:Size');
+            sessions = r.sessionTable();
+            tc.verifyEqual(sessions.var_probeDepth(sessions.index == 1), 1200, 'EphysAnalysisRunner.sessionTable: var_ columns');
+            tc.verifyEqual(sessions.var_probeDepth(sessions.index == 2), 900);
+            % the population tables and files
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            out = fullfile(tmp.Folder, "pop");
+            P = populationAnalysis(tc.Config, Tests=false, Folder=out, LogFcn=[]);
+            tc.verifyEqual(P.datasets.var_probeDepth(P.datasets.datasetKey == r.Keys(1)), 1200, 'P.datasets.var_probeDepth');
+            tc.verifyEqual(P.datasets.var_probeDepth(P.datasets.datasetKey == r.Keys(2)), 900);
+            rows = P.units.datasetKey == r.Keys(1);
+            tc.verifyTrue(all(P.units.var_probeDepth(rows) == 1200) && all(P.units.var_probeDepth(~rows) == 900), 'P.units: the dataset''s value on each unit');
+            tc.verifyTrue(all(P.units.var_cohort(rows) == "A") && all(ismissing(P.units.var_cohort(~rows))), 'a text variable, missing without');
+            un = string(P.units.Properties.VariableNames);
+            tc.verifyEqual(un(find(un == "tags") + 1), "var_probeDepth", 'the var_ columns follow tags');
+            T = readtable(fullfile(out, "population_units.csv"), 'TextType', 'string');
+            tc.verifyEqual(T.var_probeDepth, P.units.var_probeDepth, 'population_units.csv holds the var_ columns');
+            J = readJsonFile(fullfile(out, "population.json"));
+            tc.verifyTrue(isfield(J.datasets, 'var_probeDepth'), 'population.json: the datasets carry the variables');
+            if license('test', 'Statistics_Toolbox') && exist('signrank', 'file') > 0   % the auROC calls name their unit's dataset
+                Pt = populationAnalysis(tc.Config, LogFcn=[]);
+                cn = string(Pt.auroc.calls.Properties.VariableNames);
+                tc.verifyEqual(cn(1:6), ["dataset" "datasetKey" "subject" "tags" "var_probeDepth" "var_cohort"], 'P.auroc.calls: tags and the var_ columns');
+                tc.verifyEqual(Pt.auroc.calls.var_probeDepth(Pt.auroc.calls.datasetKey == r.Keys(2)), repmat(900, nnz(Pt.auroc.calls.datasetKey == r.Keys(2)), 1));
+            end
+            % the report: the model, the Recording table, the HTML and the PDF
+            T1 = reportSummaryTables(src);
+            tc.verifyEqual(T1.recording.Value(T1.recording.Field == "Probe Depth (um)"), "1200", 'the Recording table: a row per variable');
+            tc.verifyEqual(T1.recording.Value(T1.recording.Field == "Cohort"), "A");
+            T2 = reportSummaryTables(src2);
+            tc.verifyFalse(any(T2.recording.Field == "Cohort"), 'only the variables the dataset has');
+            report = newAnalysisReport(Options=struct('Format', "both"));
+            report = addReportDataset(report, src);
+            report = addReportDataset(report, src2);
+            report = addReportSection(report, "Across sessions");
+            tc.verifyEqual(DatasetVariables.values(report.datasets(1).variables).probeDepth, 1200, 'the report keeps the dataset''s variables (the set)');
+            tc.verifyEqual(report.datasets(1).variables.probeDepth.units, "um");
+            tc.verifyEqual(report.datasets(3).variables, struct(), 'a section has none');
+            html = writeHtmlReport(report, fullfile(string(tmp.Folder), "report.html"));
+            txt = string(fileread(html));
+            tc.verifyTrue(contains(txt, "title=""variables"">probeDepth = 1200 um; cohort = A</span>"), 'the HTML section header shows the variables');
+            tc.verifyTrue(contains(txt, "<td>Probe Depth (um)</td><td>1200</td>"), 'the Recording table has the variable row');
+            pdf = writePdfReport(report, fullfile(string(tmp.Folder), "report.pdf"));
+            pages = pdfPageTexts(pdf);
+            tc.verifyTrue(contains(pages(1), "{probeDepth = 1200 um; cohort = A}"), 'the PDF title page: the dataset line gains the variables');
+        end
+
         function errors(tc)
             tc.verifyError(@() populationAnalysis(tc.Config, Units=struct('response', struct('enabled', true)), LogFcn=[]), ...
                 'populationAnalysis:ResponseSelection');

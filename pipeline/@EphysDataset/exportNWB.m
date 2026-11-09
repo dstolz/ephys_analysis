@@ -47,10 +47,12 @@ function out = exportNWB(obj, opts)
 %     general             session_description, session_start_time (the
 %                         recording's start in Metadata.TimeZone),
 %                         session_id = Name, the subject, experimenter, lab
-%                         and institution (Metadata), notes = the dataset's
-%                         tags (a JSON array; the keywords stay the config's)
-%                         and the provenance as JSON, source_script = the
-%                         code version
+%                         and institution (Metadata), notes = JSON with the
+%                         dataset's tags (an array), its variables (an object
+%                         with a field per variable: label, value, units,
+%                         description, created, updated; DatasetVariables)
+%                         and the provenance (the keywords stay the config's),
+%                         source_script = the code version
 %
 %   One clock. The digital inputs count rows (t = row/Fs) while signals and
 %   spikes put row r at (r-1)/Fs. NWB holds one clock, so every trial and
@@ -473,10 +475,11 @@ shapes.invalid_times = "full";
 % --- session, subject, provenance --------------------------------------------------------------
 desc = field(M, 'SessionDescription');
 if desc == ""; desc = obj.Name + ": extracellular recording, exported by ephys_analysis"; end
-% The dataset's tags go in these notes (a JSON array), not in the NWB keywords,
-% which stay the config's Export.NWB.Keywords.
+% The dataset's tags (a JSON array) and variables (a JSON object: label, value,
+% units, description, created, updated for each) go in these notes, not in the
+% NWB keywords, which stay the config's Export.NWB.Keywords.
 note = struct('tool', "EphysDataset.exportNWB", 'dataset', obj.Name, 'tags', {obj.Tags}, ...
-    'sourceFolder', obj.Folder, 'sources', in.sources, 'probeFile', probeFile, 'provenance', provenanceForJson(prov));
+    'variables', obj.Variables, 'sourceFolder', obj.Folder, 'sources', in.sources, 'probeFile', probeFile, 'provenance', provenanceForJson(prov));
 session = struct('description', desc, 'identifier', "", ...
     'start_time', string(startTime, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"), 'session_id', obj.Name, ...
     'experimenter', {cellstr(fieldList(M, 'Experimenter'))}, 'lab', field(M, 'Lab'), ...

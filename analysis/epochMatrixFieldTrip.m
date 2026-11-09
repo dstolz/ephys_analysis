@@ -26,9 +26,11 @@ function data = epochMatrixFieldTrip(R, opts)
 %   Both carry
 %     trialinfo   [resultGroup trial]: the epoch's group in R.groupLabels
 %                 (the same across datasets) and its trial in the session
-%     cfg         dataset, name, description, event, window, groupLabels,
-%                 groups (R.labels.groups), trialinfoColumns and epochs (the
-%                 epochs' table, R.epochs(k).E)
+%     cfg         dataset, name, variables (the dataset's variables, a struct
+%                 of values: R.datasets' var_ columns), description, event,
+%                 window, groupLabels, groups (R.labels.groups),
+%                 trialinfoColumns and epochs (the epochs' table,
+%                 R.epochs(k).E)
 %   Class="single" keeps a signal's data single.
 %
 %   Errors: epochMatrixFieldTrip:NoEpochs, epochMatrixFieldTrip:BadFs.
@@ -95,7 +97,8 @@ end
 
 function cfg = epochCfg(R, e)
 %epochCfg  What every structure of R.epochs(k) records about the result.
-cfg = struct('dataset', e.key, 'name', e.name, 'description', R.labels.description, ...
+cfg = struct('dataset', e.key, 'name', e.name, 'variables', resultVariables(R, e.key), ...
+    'description', R.labels.description, ...
     'event', R.labels.event, 'window', R.labels.window, 'groupLabels', R.groupLabels, ...
     'groups', R.labels.groups, 'trialinfoColumns', ["resultGroup" "trial"], 'epochs', e.E);
 end

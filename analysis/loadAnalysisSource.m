@@ -40,6 +40,13 @@ function src = loadAnalysisSource(out, opts)
 %     tags              the dataset's tags (the manifest's tags, TagSet): a
 %                       1 x N cellstr, sorted, lowercase; {} when none or
 %                       without a manifest
+%     variables         the dataset's variables (the manifest's variables,
+%                       DatasetVariables.values): a struct with a field per
+%                       variable holding its value, S.probeDepth = 1200;
+%                       struct() when none
+%     variableInfo      table, a row per variable: Name, Label, Value (a
+%                       cell), Units, Description, Created, Updated
+%                       (DatasetVariables.info); no rows when none
 %     invertedLines     lines whose polarity was inverted
 %     lines             table: Line, Count, MeanDurationSec, First, Last,
 %                       Inverted, Derived (a derived event's description,
@@ -116,6 +123,12 @@ src.tags = {};
 if isfield(m, 'tags')
     src.tags = TagSet.parse(m.tags);
 end
+varSet = struct();
+if isfield(m, 'variables')
+    varSet = DatasetVariables.parse(m.variables);
+end
+src.variables = DatasetVariables.values(varSet);
+src.variableInfo = DatasetVariables.info(varSet);
 src.probeFile = out.probeFile();
 src.probe = [];
 if src.probeFile ~= ""

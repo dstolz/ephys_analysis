@@ -15,6 +15,8 @@ function X = epochMatrixRaster(R, row, opts)
 %   Fields of X
 %     row, label     ROW and its R.rows.label
 %     key, name      its dataset (R.epochs(k).key and name)
+%     variables      the dataset's variables, a struct of values
+%                    (X.variables.probeDepth = 1200; R.datasets' var_ columns)
 %     rowKind        "unit" or "channel" (R.rowKind)
 %     order          the Order used
 %     t              R.t (column, s from the event)
@@ -96,6 +98,7 @@ X.row = row;
 X.label = string(R.rows.label(row));
 X.key = string(e.key);
 X.name = string(e.name);
+X.variables = resultVariables(R, e.key);
 X.rowKind = string(R.rowKind);
 X.order = opts.Order;
 X.t = R.t(:);

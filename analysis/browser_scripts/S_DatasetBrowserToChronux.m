@@ -66,6 +66,9 @@ if ~isempty(R) && ~isempty(R.epochs)
         c = struct();
         c.key = e.key;
         c.name = e.name;
+        dsrc = B.source(e.key);
+        c.tags = dsrc.tags;
+        c.variables = dsrc.variables;           % the dataset's variables (a struct of values)
         c.rows = R.rows(e.rows, :);
         c.labels = string(c.rows.label).';
         c.group = e.E.resultGroup;              % each trial's group in R.groupLabels
@@ -107,6 +110,8 @@ if ~isempty(S) && any(arrayfun(@(D) ~isempty(D.signal) || ~isempty(D.spikes), S)
         c = struct();
         c.key = D.key;
         c.name = D.name;
+        c.tags = D.tags;
+        c.variables = D.variables;              % the dataset's variables (a struct of values)
         c.data = D.data;
         c.groupLabels = D.groups;
         c.window = win;

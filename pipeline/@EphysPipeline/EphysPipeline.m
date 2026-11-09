@@ -372,7 +372,7 @@ classdef EphysPipeline < handle
             %   schema ephys-pipeline-run/1, the run id, the outcome
             %   ("finished" | "canceled" | "failed", with the error), when it
             %   started and finished, the steps, the datasets (key, name,
-            %   tags, folders), the code and
+            %   tags, variables as a struct of values, folders), the code and
             %   machine (provenance), the config and the Results rows. A
             %   record that cannot be written is a warning
             %   (EphysPipeline:RunRecord), never an error: the run's outputs
@@ -390,7 +390,7 @@ classdef EphysPipeline < handle
                 dsets = cell(1, numel(ds));
                 for k = 1:numel(ds)
                     dsets{k} = struct('key', string(EphysPipelineConfig.datasetKey(obj.Project.Root, ds(k).Folder)), ...
-                        'name', ds(k).Name, 'tags', {ds(k).Tags}, 'folder', ds(k).Folder, 'outputFolder', string(ds(k).outputFolder()));
+                        'name', ds(k).Name, 'tags', {ds(k).Tags}, 'variables', DatasetVariables.values(ds(k).Variables), 'folder', ds(k).Folder, 'outputFolder', string(ds(k).outputFolder()));
                 end
                 runs = cell(1, numel(obj.LaunchedRuns));
                 for k = 1:numel(obj.LaunchedRuns)

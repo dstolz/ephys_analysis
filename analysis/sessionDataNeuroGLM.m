@@ -54,7 +54,8 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %   plus variable), lines (table: line, on, off: the variable names), values
 %   (table: column, variable), signal (the continuous variable's name, ""),
 %   response, responseTime (those variables' names, ""), nDroppedEdge,
-%   nDroppedArtifact. expt.param holds key, name, fs, binMs, window, align,
+%   nDroppedArtifact. expt.param holds key, name, variables (D.variables, the
+%   dataset's variables as a struct of values), fs, binMs, window, align,
 %   trialLine, groups (D.groups) and the same tables and names.
 %
 %   Errors: sessionDataNeuroGLM:NoSpikes, :NoTrials, :NoColumn, :NoLine,
@@ -248,7 +249,7 @@ info.responseTime = timeVar;
 info.nDroppedEdge = nDroppedEdge;
 info.nDroppedArtifact = nDroppedArtifact;
 
-param = struct('key', D.key, 'name', D.name, 'fs', D.fs, 'binMs', opts.BinMs, 'window', opts.Window, ...
+param = struct('key', D.key, 'name', D.name, 'variables', D.variables, 'fs', D.fs, 'binMs', opts.BinMs, 'window', opts.Window, ...
     'align', opts.Align, 'trialLine', D.trialLine, 'groups', D.groups, ...
     'units', info.units, 'lines', info.lines, 'values', info.values, 'signal', sigName, ...
     'response', respVar, 'responseTime', timeVar);

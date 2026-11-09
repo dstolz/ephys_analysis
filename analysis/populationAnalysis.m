@@ -44,7 +44,11 @@ function [P, S, files] = populationAnalysis(source, opts)
 %   P fields
 %     units     table, one row per unit: dataset, datasetKey, subject (the
 %               name pattern's SubjectID, else the behavior's), tags (the
-%               dataset's tags, ";"-joined), then
+%               dataset's tags, ";"-joined), a column per dataset variable
+%               (var_probeDepth: its dataset's value; a number column when
+%               every dataset's is a number, else a string column; the
+%               label and units are in VariableDescriptions and
+%               VariableUnits: DatasetVariables.columns), then
 %               selectUnits' columns (label, unitId, class, channel,
 %               channelName, shank, x, y, nSpikes and, with
 %               Units.quality, the quality metrics), rateHz (nSpikes /
@@ -69,7 +73,8 @@ function [P, S, files] = populationAnalysis(source, opts)
 %               unit), window, binSec, smoothSec, measure, baselineMode
 %     auroc     ([] without Tests) t [nWindows x 1] (window centers, s),
 %               calls (table, one row per unit and group, a unit's groups
-%               together: dataset, datasetKey, subject, label, unitId,
+%               together: dataset, datasetKey, subject, tags, the
+%               var_ columns, label, unitId,
 %               unit (its row of P.units), group, nEpochs, mean and phasic
 %               (the mean auROC and mean |auROC - 0.5| over the windows
 %               inside Auroc.modulationWindow; NaN for a unit silent over
@@ -92,7 +97,8 @@ function [P, S, files] = populationAnalysis(source, opts)
 %               (the epochs)
 %     datasets  table: datasetKey, dataset, subject, starred (the
 %               dataset's star: DatasetFavorites), tags (its tags,
-%               ";"-joined: TagSet.ExportDelimiter), status ("done" |
+%               ";"-joined: TagSet.ExportDelimiter), its variables (the
+%               same var_ columns as in units), status ("done" |
 %               "skipped" | "error"), message, nUnits, nEpochs (the PSTH's),
 %               nTestEpochs, nTestEpochsLeftOut
 %     params    every option as used (ref, window and selection resolved)
@@ -263,6 +269,7 @@ D = table(strings(nD, 1), strings(nD, 1), strings(nD, 1), false(nD, 1), strings(
 skipIds = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLeft" "epochTable:NoEpochs" ...
     "resolveEvents:NoEvents" "resolveEvents:NoLine" "responseStats:NoEpochs"];
 parts = cell(nD, 1);
+vsets = cell(nD, 1);   % each dataset's variables (DatasetVariables set)
 psth = cell(nD, 1);
 aur = cell(nD, 1);
 lev = cell(nD, 1);
@@ -283,6 +290,7 @@ for j = 1:nD
     D.starred(j) = r.starred;
     D.subject(j) = r.subject;
     D.tags(j) = r.tags;
+    vsets{j} = r.variables;
     if r.status ~= "done"
         D.status(j) = r.status;
         D.message(j) = r.message;
@@ -335,6 +343,9 @@ for j = 1:nD
     D.nTestEpochs(j) = info.nEpochs;
     D.nTestEpochsLeftOut(j) = info.nEpochsLeftOut;
 end
+vcols = DatasetVariables.columns(vsets);   % a column per variable, a row per dataset
+k = find(strcmp(D.Properties.VariableNames, 'tags'));
+D = [D(:, 1:k), vcols, D(:, k + 1:end)];
 reportDatasets(D);
 done = find(D.status == "done").';
 if isempty(done)
@@ -351,6 +362,11 @@ if opts.Param ~= ""
     end
 end
 U = vertcat(parts{done});
+if width(vcols) > 0   % each unit takes its dataset's variables, after the tags column
+    uv = DatasetVariables.columns(vsets, Rows=repelem(done(:), D.nUnits(done)));
+    k = find(strcmp(U.Properties.VariableNames, 'tags'));
+    U = [U(:, 1:k), uv, U(:, k + 1:end)];
+end
 rateAll = [psth{done}];
 if opts.Tests
     U.qEvoked = adjust(U.pEvoked, U.datasetKey, opts.Correction, opts.Family);
@@ -477,8 +493,8 @@ function r = popDataset(job, out, key, load)
 %popDataset  One dataset's part of populationAnalysis: its units, PSTHs, response tests and auROCs, before the family's table.
 %   JOB: the settings (populationAnalysis' options and what it resolved); OUT the dataset's outputs and KEY its key; LOAD
 %   gives its source ([]: loaded from OUT, on a worker). R.status is "done", "skipped" (nothing to analyze: JOB.skipIds) or
-%   "error", with R.message; the subject, tags and stars are set as far as the dataset got.
-r = struct('status', "error", 'message', "", 'starred', false, 'subject', "", 'tags', "", 'meta', [], 'nEpochs', 0, ...
+%   "error", with R.message; the subject, tags, variables (the dataset's DatasetVariables set) and stars are set as far as the dataset got.
+r = struct('status', "error", 'message', "", 'starred', false, 'subject', "", 'tags', "", 'variables', struct(), 'meta', [], 'nEpochs', 0, ...
     'R', [], 'T', [], 'info', [], 'A', [], 'unitStarred', [], 'durationSec', NaN);
 fav = [];
 try
@@ -494,6 +510,7 @@ try
     end
     r.subject = subjectOf(src, job.namePattern);
     r.tags = TagSet.toText(src.tags, TagSet.ExportDelimiter);
+    r.variables = DatasetVariables.fromInfo(src.variableInfo);
     win = job.win;
     au = job.au;
     [st, meta] = selectUnits(src, job.usel, Ref=job.ref, Selection=job.sel);
@@ -576,7 +593,7 @@ end
 
 function [C, curves, nulls] = aurocRows(U, aur)
 %aurocRows  One row per unit and auROC group, from each dataset's aurocCurves result (AUR, in the order of U's rows).
-%   C: the unit's identity (dataset, datasetKey, subject, label, unitId),
+%   C: the unit's identity (dataset, datasetKey, subject, tags, its dataset's var_ columns, label, unitId),
 %   unit (its row of U), group, nEpochs, mean, phasic, peak, peakTime, p;
 %   CURVES [nWindows x height(C)] its auROC curve; NULLS [nDraws x
 %   height(C)] its shuffled phasic modulations (Cutoff "shuffle"; else
@@ -598,7 +615,10 @@ for j = 1:numel(aur)
     if isfield(A, 'null'); nulls = [nulls, reshape(permute(A.null, [1 3 2]), size(A.null, 1), [])]; end %#ok<AGROW>
     row0 = row0 + n;
 end
-id = intersect(["dataset" "datasetKey" "subject" "label" "unitId"], string(U.Properties.VariableNames), 'stable');
+names = string(U.Properties.VariableNames);
+id = [intersect(["dataset" "datasetKey" "subject" "tags"], names, 'stable'), ...
+    names(startsWith(names, DatasetVariables.ColumnPrefix)), ...   % the dataset's variables
+    intersect(["label" "unitId"], names, 'stable')];
 C = [U(C.unit, id), C];
 end
 

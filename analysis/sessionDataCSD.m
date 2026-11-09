@@ -19,7 +19,8 @@ function P = sessionDataCSD(D, opts)
 %                     (D.eventsContinuous: line -> [t_on t_off])
 %     units           "V"
 %     cfg             dataset, name, data, groups (the session's groups
-%                     table), scale (what multiplied the signal to give V)
+%                     table), variables (the dataset's variables, a struct
+%                     of values), scale (what multiplied the signal to give V)
 %   and, with Window=[pre post] (s), the kept trials cut around Align (a
 %   column of D.trials on the digital clock, "TrialOnset" by default) as
 %   epochMatrixCSD gives a result's epochs:
@@ -93,7 +94,8 @@ for k = 1:numel(D)
         p.artifacts = d.artifacts;
         p.events = d.eventsContinuous;
         p.units = "V";
-        p.cfg = struct('dataset', p.key, 'name', p.name, 'data', d.data, 'groups', d.groups, 'scale', scale);
+        p.cfg = struct('dataset', p.key, 'name', p.name, 'data', d.data, 'groups', d.groups, ...
+            'variables', d.variables, 'scale', scale);
         if cut
             [C, keep, t] = mTRFExport.trials(d.signal(:, c.rows), fs, on, opts.Window, Artifacts=d.artifacts);
             p.t = t(:);

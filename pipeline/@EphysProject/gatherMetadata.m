@@ -3,11 +3,18 @@ function T = gatherMetadata(obj, opts)
 %   T = P.gatherMetadata() calls refreshMetadata on each dataset (header-only;
 %   no amplifier data is read) and returns a table with one row per dataset:
 %     Name, Folder, NumFiles, NumChannels, Fs, Duration, AcqDate, Tags,
-%     ChannelNames, HasProbe, BinExists, HasKilosort
+%     <variable columns>, ChannelNames, HasProbe, BinExists, HasKilosort
 %
 %   Tags is the dataset's tags (EphysDataset.Tags) as one string joined with
 %   ";" (TagSet.ExportDelimiter), "" when it has none; TagSet.fromText(s, ";")
 %   gives the set back.
+%
+%   The dataset's variables (EphysDataset.Variables) follow Tags as one column
+%   per variable named var_<name> (var_probeDepth), a number column when every
+%   dataset's value is a number and a string column otherwise, with the
+%   variable's label and units in the table's VariableDescriptions and
+%   VariableUnits (DatasetVariables.columns). No column when no dataset has a
+%   variable.
 %
 %   HasProbe/BinExists test the dataset's assigned probe and canonical .bin
 %   path; HasKilosort comes from the dataset's DatasetTracker (true when any
@@ -40,6 +47,7 @@ Duration    = zeros(n, 1);
 AcqDate     = NaT(n, 1);
 Tags        = strings(n, 1);
 ChannelNames = cell(n, 1);
+varSets     = cell(n, 1);
 HasProbe    = false(n, 1);
 BinExists   = false(n, 1);
 HasKilosort = false(n, 1);
@@ -57,6 +65,7 @@ for i = 1:n
     Duration(i)    = d.Duration;
     AcqDate(i)     = d.AcqDate;
     Tags(i)        = TagSet.toText(d.Tags, TagSet.ExportDelimiter);
+    varSets{i}     = d.Variables;
     ChannelNames{i} = d.ChannelNames;
     HasProbe(i)    = d.ProbeFile ~= "" && isfile(d.ProbeFile);
     BinExists(i)   = isfile(d.BinFile);
@@ -65,4 +74,9 @@ end
 
 T = table(Name, Folder, NumFiles, NumChannels, Fs, Duration, AcqDate, Tags, ...
     ChannelNames, HasProbe, BinExists, HasKilosort);
+V = DatasetVariables.columns(varSets);
+if width(V) > 0
+    k = find(strcmp(T.Properties.VariableNames, 'Tags'));
+    T = [T(:, 1:k), V, T(:, k + 1:end)];
+end
 end

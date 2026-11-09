@@ -94,7 +94,11 @@ function [R, T] = epochMatrix(source, S, opts)
 %                    One row per unit (spikes) or channel (signals), in
 %                    data's first-dimension order. Columns for every kind:
 %                    label, Dataset (key), Subject, Date (day), Session,
-%                    Tags (";"-joined). Units add unitId, class ("su",
+%                    Tags (";"-joined), then a column per dataset variable
+%                    (var_probeDepth, DatasetVariables.columns: a number
+%                    column when every dataset's value is a number, else a
+%                    string column; the label and units are in the table's
+%                    VariableDescriptions and VariableUnits). Units add unitId, class ("su",
 %                    "mua", "det", ...), channel, channelName, shank, x, y,
 %                    nSpikes, and nSites/sites when merged. Channels add
 %                    channel, shank, x, y, units. A column that some
@@ -121,10 +125,11 @@ function [R, T] = epochMatrix(source, S, opts)
 %                    R.settings.measure, R.settings.data,
 %                    R.settings.window.pre.
 %     R.datasets     table, one row per ticked dataset
-%                    key, name, subject, date, status ("done", "cached",
-%                    "skipped" or "error"), message, nRows, nEpochs,
-%                    nGroups, seconds. This table answers "why is dataset
-%                    X missing".
+%                    key, name, subject, date, tags (";"-joined), the
+%                    dataset variables (a var_<name> column each, as in
+%                    R.rows), status ("done", "cached", "skipped" or
+%                    "error"), message, nRows, nEpochs, nGroups, seconds.
+%                    This table answers "why is dataset X missing".
 %     R.keys         string column
 %                    The datasets whose rows are in R, in row order.
 %     R.created      datetime
@@ -176,10 +181,12 @@ function [R, T] = epochMatrix(source, S, opts)
 %     Datasets     the datasets to use: keys, names or indices of the
 %                  runner ([] = all of them)
 %     Info         table: key, name, subject, date (datetime, the day),
-%                  tags (";"-joined), one row per dataset; default: from
-%                  the runner without loading a source (subject and date
-%                  as described above, outputTags). Its rows give R.rows'
-%                  Subject, Date and Tags
+%                  tags (";"-joined) and, optionally, a var_<name> column
+%                  per dataset variable (DatasetVariables.columns), one
+%                  row per dataset; default: from the runner without
+%                  loading a source (subject and date as described above,
+%                  outputTags, outputVariables). Its rows give R.rows'
+%                  Subject, Date, Tags and var_ columns
 %     Runs         a DatasetRuns that keeps the parts (default: a new one,
 %                  dropped afterwards). Pass one to reuse parts across
 %                  calls; after a cancel it holds the parts finished
@@ -436,7 +443,7 @@ end
 
 
 function info = datasetInfo(runner, keys)
-%datasetInfo  key, name, subject, date, tags of each dataset, without loading a source.
+%datasetInfo  key, name, subject, date, tags and a var_<name> column per variable of each dataset, without loading a source.
 %   Subject and date come from runnerIdentity, as DatasetBrowser's table.
 n = numel(keys);
 idx = zeros(n, 1);
@@ -444,10 +451,13 @@ for j = 1:n; idx(j) = runner.index(keys(j)); end
 names = reshape(runner.Names(idx), [], 1);
 [subject, day] = runnerIdentity(runner, keys);
 tags = strings(n, 1);
+sets = cell(n, 1);
 for j = 1:n
     tags(j) = TagSet.toText(outputTags(runner.Outputs(idx(j))), TagSet.ExportDelimiter);
+    sets{j} = outputVariables(runner.Outputs(idx(j)));
 end
-info = table(keys, names, subject, day, tags, 'VariableNames', {'key', 'name', 'subject', 'date', 'tags'});
+info = [table(keys, names, subject, day, tags, 'VariableNames', {'key', 'name', 'subject', 'date', 'tags'}), ...
+    DatasetVariables.columns(sets)];
 end
 
 
@@ -465,7 +475,7 @@ end
 
 
 function info = completeInfo(info, keys)
-%completeInfo  Info's rows for KEYS (in that order), every column present: key, name, subject, date, tags.
+%completeInfo  Info's rows for KEYS (in that order), every column present: key, name, subject, date, tags; its var_ columns come along.
 n = numel(keys);
 out = table(keys, keys, strings(n, 1), NaT(n, 1), strings(n, 1), 'VariableNames', {'key', 'name', 'subject', 'date', 'tags'});
 if isempty(info)
@@ -491,7 +501,7 @@ out.name(out.name == "" | ismissing(out.name)) = out.key(out.name == "" | ismiss
 for c = ["subject" "tags"]
     out.(c)(ismissing(out.(c))) = "";
 end
-info = out;
+info = [out, variableColumns(info, loc .* tf)];
 end
 
 
@@ -521,6 +531,9 @@ D = table(T.key, T.name, strings(n, 1), NaT(n, 1), T.status, T.message, zeros(n,
     'VariableNames', {'key', 'name', 'subject', 'date', 'status', 'message', 'nRows', 'nEpochs', 'nGroups', 'seconds'});
 D.subject(tf) = info.subject(loc(tf));
 D.date(tf) = info.date(loc(tf));
+D = addvars(D, strings(n, 1), 'After', 'date', 'NewVariableNames', 'tags');
+D.tags(tf) = info.tags(loc(tf));
+D = [D(:, 1:5), variableColumns(info, loc .* tf), D(:, 6:end)];
 ok = false(n, 1);
 for j = 1:n
     p = values{j};
@@ -578,6 +591,7 @@ for i = 1:numel(use)
     U.Subject = repmat(info.subject(r), m, 1);
     U.Date = repmat(info.date(r), m, 1);
     U.Tags = repmat(info.tags(r), m, 1);
+    U = [U, variableColumns(info, repmat(r, m, 1))];
     tabs{i} = U;
 end
 rows = stackRows(tabs);

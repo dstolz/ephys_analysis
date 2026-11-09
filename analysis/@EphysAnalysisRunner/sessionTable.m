@@ -2,11 +2,12 @@ function S = sessionTable(obj, idx)
 %sessionTable  The sessions of some datasets, by date: sessionTable over the runner's datasets.
 %   S = r.sessionTable(IDX) (dataset indices, keys or names; left out:
 %   all; an empty IDX: none) is sessionTable(Names, Keys, NamePattern=Source.NamePattern,
-%   AcqDates=, Folders=, Tags=, Index=, Sort=true): AcqDates from the project's
+%   AcqDates=, Folders=, Tags=, Variables=, Index=, Sort=true): AcqDates from the project's
 %   datasets (each recording's own start; NaT in folders mode), Folders
 %   their output folders, Tags the ";"-joined tags (the manifest's, as
-%   loadAnalysisSource reads them, without loading a source) and index
-%   the runner's dataset index; sorted by
+%   loadAnalysisSource reads them, without loading a source), Variables
+%   the datasets' variables (outputVariables: a var_<name> column each,
+%   after the tags) and index the runner's dataset index; sorted by
 %   date, then name, before the labels are made unique.
 %
 %   See also sessionTable, EphysAnalysisRunner.sessionFigureObservations.
@@ -25,9 +26,11 @@ n = numel(idx);
 acq = NaT(n, 1);
 folders = strings(n, 1);
 tags = strings(n, 1);
+vars = cell(n, 1);
 for j = 1:n
     folders(j) = obj.datasetFolder(idx(j));
     tags(j) = TagSet.toText(outputTags(obj.Outputs(idx(j))), TagSet.ExportDelimiter);
+    vars{j} = outputVariables(obj.Outputs(idx(j)));
 end
 if ~isempty(obj.Project) && n > 0
     pk = obj.Project.findByKey(obj.Keys(idx));
@@ -37,5 +40,5 @@ if ~isempty(obj.Project) && n > 0
     end
 end
 S = sessionTable(reshape(obj.Names(idx), [], 1), reshape(obj.Keys(idx), [], 1), ...
-    NamePattern=obj.Config.Source.NamePattern, AcqDates=acq, Folders=folders, Tags=tags, Index=idx, Sort=true);
+    NamePattern=obj.Config.Source.NamePattern, AcqDates=acq, Folders=folders, Tags=tags, Variables=vars, Index=idx, Sort=true);
 end

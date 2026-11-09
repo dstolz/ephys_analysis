@@ -30,6 +30,7 @@ classdef test_NWBExport < matlab.unittest.TestCase
         function staged(tc)
             D = tc.Data;
             D.ds.Tags = {'pilot', 'Draft'};
+            D.ds.setVariables(DatasetVariables.require(struct('probeDepth', DatasetVariables.entry("Probe Depth", 1200, Units="um"))));
             out = D.ds.exportNWB(Extract=D.S, Units=D.U, Behavior=D.B, ProbeFile=D.probe, StageOnly=true, ...
                 Metadata=D.meta);
             tc.verifyEqual(out.file, "");
@@ -81,6 +82,9 @@ classdef test_NWBExport < matlab.unittest.TestCase
             tc.verifyEqual(string(notes.tool), "EphysDataset.exportNWB");
             tc.verifyEqual(notes.tags, {'draft'; 'pilot'}, 'the dataset''s tags are in the notes');
             tc.verifyEmpty(st.session.keywords, 'the tags are not NWB keywords: those stay the config''s');
+            tc.verifyEqual(notes.variables.probeDepth.value, 1200, 'the dataset''s variables are in the notes, with their labels and units');
+            tc.verifyEqual(string(notes.variables.probeDepth.label), "Probe Depth");
+            tc.verifyEqual(string(notes.variables.probeDepth.units), "um");
         end
 
         function writesAndReadsBack(tc)

@@ -29,8 +29,9 @@ function M = epochMatrixMTRF(R, opts)
 %   trialinfo is [resultGroup trial] (the epoch's group in R.groupLabels
 %   and its trial in the session) as a table; start each epoch's first
 %   sample on the dataset's continuous clock; cfg holds dataset, name,
-%   data, description, event, window, groupLabels, groups and the epochs
-%   table.
+%   variables (the dataset's variables, a struct of values: R.datasets'
+%   var_ columns), data, description, event, window, groupLabels, groups
+%   and the epochs table.
 %
 %   Each epoch of a signal is resampled with the others in one call and
 %   mirrored past its ends (mTRFExport.resample), so its first and last
@@ -161,7 +162,8 @@ for k = 1:numel(R.epochs)
              'which inflates the prediction. Shorten the window, or group them with mTRFExport.folds, ' ...
              'which keeps overlapping epochs in one fold.'], e.name, nOver, nE);
     end
-    cfg = struct('dataset', e.key, 'name', e.name, 'data', R.settings.data, 'description', R.labels.description, ...
+    cfg = struct('dataset', e.key, 'name', e.name, 'variables', resultVariables(R, e.key), ...
+        'data', R.settings.data, 'description', R.labels.description, ...
         'event', R.labels.event, 'window', R.labels.window, 'groupLabels', R.groupLabels, ...
         'groups', R.labels.groups, 'stimulus', stimText, 'sourceFs', fsR, 'epochs', E);
     M{k} = mTRFExport.package(stim, resp, fs, StimLabels=stimLabels, ...

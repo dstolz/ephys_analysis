@@ -23,8 +23,9 @@ function data = sessionDataFieldTrip(D, opts)
 %     cfg.event   the pulses at the recording rate (sample = timestamp + 1)
 %     cfg.artifact the erased periods, [tStart tEnd] s
 %
-%   Both carry cfg.dataset, cfg.name and cfg.groups (the session's groups
-%   table). Window=[pre post] (s) adds cfg.trl, the trials the Trials tab
+%   Both carry cfg.dataset, cfg.name, cfg.groups (the session's groups
+%   table) and cfg.variables (the dataset's variables, a struct of values:
+%   cfg.variables.probeDepth = 1200). Window=[pre post] (s) adds cfg.trl, the trials the Trials tab
 %   keeps around Align (a column of D.trials on the digital clock,
 %   "TrialOnset" by default), as [beg end offset group trial]: group is the
 %   trial's row of cfg.groups, trial its row of D.trials; trials that run off
@@ -50,7 +51,7 @@ for k = 1:numel(D)
     if isSpikes && isempty(d.units) || ~isSpikes && isempty(d.signal)
         error('sessionDataFieldTrip:NoData', '%s holds no spikes or signal (data "%s").', d.name, d.data);
     end
-    cfg = struct('dataset', d.key, 'name', d.name, 'groups', d.groups);
+    cfg = struct('dataset', d.key, 'name', d.name, 'groups', d.groups, 'variables', d.variables);
     if isSpikes
         fs = d.fs;
         nSamples = round(d.durationSec * fs) + 1;

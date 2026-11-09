@@ -63,6 +63,7 @@ classdef test_Provenance < matlab.unittest.TestCase
             pipe.LogFcn = [];
             pipe.Project.Datasets(1).Tags = {'pilot', 'Draft'};
             pipe.Project.Datasets(1).writeManifest();   % run() restores each manifest first
+            writeManifestVariables(pipe.Project.Datasets(1), Name="probeDepth", Value=1200, Label="Probe Depth", Units="um");
             pipe.run();
             file = pipe.RunRecordFile;
             tc.assertTrue(isfile(file), "the run record exists");
@@ -74,6 +75,7 @@ classdef test_Provenance < matlab.unittest.TestCase
             tc.verifyTrue(any(string(rec.steps) == "spikes"), "the steps run");
             tc.verifyEqual(string(rec.datasets(1).key), "mouse1/M1_260101_120000");
             tc.verifyEqual(rec.datasets(1).tags, {'draft'; 'pilot'}, "each dataset's tags are in the record");
+            tc.verifyEqual(rec.datasets(1).variables.probeDepth, 1200, "and its variables (the values)");
             res = rec.results;
             if iscell(res); res = [res{:}]; end
             spk = res(string({res.Step}) == "spikes");
@@ -83,6 +85,7 @@ classdef test_Provenance < matlab.unittest.TestCase
             M = load(spk(1).Output);
             p = M.conversion.provenance;
             tc.verifyEqual(p.runId, string(rec.runId), "the spikes file names the run");
+            tc.verifyEqual(M.conversion.variables.probeDepth, 1200, "the spikes file carries the dataset's variables");
             tc.verifyEqual(p.commit, ephysVersion().Commit);
             tc.verifyTrue(EphysPipelineConfig.fromStruct(p.config).isequalConfig(tc.Cfg), "and the config");
             tc.verifyEmpty(pipe.Provenance, "a run's provenance ends with the run");

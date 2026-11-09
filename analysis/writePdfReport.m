@@ -290,7 +290,9 @@ end
 
 
 function s = tagsWord(D)
-%tagsWord  " [draft, pilot]" after a dataset's line (its tags field), else "".
+%tagsWord  " [draft, pilot] {probeDepth = 1200 um}" after a dataset's line (its tags and variables fields), else "".
 s = "";
 if ~isempty(D.tags); s = " [" + TagSet.toText(D.tags, TagSet.DisplayDelimiter) + "]"; end
+v = DatasetVariables.toText(D.variables);
+if v ~= ""; s = s + " {" + v + "}"; end
 end

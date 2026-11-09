@@ -1,6 +1,6 @@
 function S = sessionTable(names, keys, opts)
 %sessionTable  One row per dataset of a session figure: who, when, and the label it is drawn with.
-%   S = sessionTable(NAMES, KEYS, NamePattern=, AcqDates=, Folders=, Tags=) has one
+%   S = sessionTable(NAMES, KEYS, NamePattern=, AcqDates=, Folders=, Tags=, Variables=) has one
 %   row per dataset (NAMES and KEYS: string vectors of one length), in the
 %   order given:
 %     index     Index= (default 1..n): the runner passes its dataset indices
@@ -11,6 +11,12 @@ function S = sessionTable(names, keys, opts)
 %               (DatasetFavorites); false without a folder
 %     tags      the dataset's tags as text (Tags=; TagSet.toText with the
 %               export delimiter ";", "" when none)
+%     var_<name> one column per dataset variable (Variables=;
+%               DatasetVariables.columns), right after tags: a number
+%               column when every dataset's value is a number, else a
+%               string column, missing for a dataset without it; the
+%               label and units are in VariableDescriptions and
+%               VariableUnits. No such column without Variables=
 %     subject   the SubjectID token of NamePattern (subjectAndDate), "" when
 %               unknown
 %     date      datetime: AcqDates (the recording's own start) where given,
@@ -24,7 +30,9 @@ function S = sessionTable(names, keys, opts)
 %   I/O is each folder's favorites file (a dataset's star). AcqDates and
 %   Folders may be one value for every row. Tags= is the text of each row's
 %   tags (a string vector, "" for none; one value or one per row), as the
-%   runner reads them from the manifests (loadAnalysisSource).
+%   runner reads them from the manifests (loadAnalysisSource). Variables=
+%   is a cell with one dataset's variables per row, in the order of NAMES
+%   (the set, as outputVariables reads it from a manifest; {} for none).
 %
 %   See also combineSessions, figureSessionCompute, subjectAndDate,
 %   EphysAnalysisRunner.sessionTable.
@@ -36,6 +44,7 @@ arguments
     opts.AcqDates (:,1) datetime = NaT
     opts.Folders (:,1) string = ""
     opts.Tags (:,1) string = ""
+    opts.Variables (:,1) cell = {}
     opts.Index (:,1) double = []
     opts.Sort (1,1) logical = false
 end
@@ -75,7 +84,14 @@ for k = reshape(find(folder ~= "" & isfolder(folder)), 1, [])
     catch   % unreadable: no star
     end
 end
-S = table(index, key, name, folder, starred, tags, subject, date, dateText);
+S = table(index, key, name, folder, starred, tags);
+if ~isempty(opts.Variables)
+    if numel(opts.Variables) ~= n
+        error('sessionTable:Size', 'Variables has %d entries for %d datasets.', numel(opts.Variables), n);
+    end
+    S = [S, DatasetVariables.columns(opts.Variables)];
+end
+S = [S, table(subject, date, dateText)];
 if opts.Sort && n > 1
     [~, order] = sortrows(table(S.date, S.name), [1 2], 'ascend', 'MissingPlacement', 'last');
     S = S(order, :);

@@ -639,6 +639,14 @@ T2 = P.gatherMetadata();
 check(T2.Tags(1) == "draft;pilot" && T2.Tags(2) == "" && isequal(TagSet.fromText(T2.Tags(1), TagSet.ExportDelimiter), {'draft', 'pilot'}), ...
     'gatherMetadata: Tags is the set joined with ";", and TagSet.fromText reads it back');
 P.Datasets(1).Tags = {};
+P.Datasets(1).setVariables(DatasetVariables.require(struct('probeDepth', DatasetVariables.entry("Probe Depth", 1200, Units="um"))));
+T2 = P.gatherMetadata();
+vn = T2.Properties.VariableNames;
+check(strcmp(vn{find(strcmp(vn, 'Tags')) + 1}, 'var_probeDepth') && isequaln(T2.var_probeDepth, [1200; NaN]) ...
+    && strcmp(T2.Properties.VariableUnits{find(strcmp(vn, 'var_probeDepth'))}, 'um'), ...
+    'gatherMetadata: a var_<name> column per dataset variable after Tags, NaN for a dataset without it');
+P.Datasets(1).setVariables(struct());
+check(~any(startsWith(P.gatherMetadata().Properties.VariableNames, 'var_')), 'gatherMetadata: no var_ column without variables');
 
 fprintf('\n== 10. split formats (one-file-per-signal / one-file-per-channel) ==\n');
 % Known int16 amplifier codes; microvolts = 0.195 * int16 (no 32768 offset).
@@ -1923,9 +1931,13 @@ check(isempty(wfN) || all(cellfun(@isempty, wfN)), 'Waveforms=false suppresses e
 % ArtifactMode "reject" (the default is "erase", checked below).
 dsSpk.ManualArtifacts = [4000 6100] / Fs;
 dsSpk.Tags = {'Pilot', 'draft'};
+dsSpk.setVariables(DatasetVariables.require(struct('probeDepth', DatasetVariables.entry("Probe Depth", 1200, Units="um"))));
 o2 = dsSpk.spikesToMat(DetectOptions=dopt, Overwrite=true, Channels=1, ArtifactMode="reject");
 M2 = load(o2.file);
 check(isequal(M2.conversion.tags, {'draft', 'pilot'}), 'spikesToMat: the dataset''s tags are in conversion.tags');
+check(M2.conversion.variables.probeDepth == 1200 && M2.conversion.variableInfo.Units == "um" && M2.conversion.variableInfo.Label == "Probe Depth", ...
+    'spikesToMat: the dataset''s variables are in conversion.variables and conversion.variableInfo');
+check(isequal(M.conversion.variables, struct()) && height(M.conversion.variableInfo) == 0, 'spikesToMat: no variables: struct() and an empty table');
 check(isequal(o2.nRejectedArtifact, 2) && numel(M2.detected.ts{1}) == 8 ...
     && ~any(M2.detected.ts{1} >= 4000/Fs & M2.detected.ts{1} <= 6100/Fs), ...
     'events inside a manual artifact period are rejected');
@@ -2157,9 +2169,11 @@ dsx.writeManifest();
 mx = readJsonFile(dsx.manifestFile());
 check(strcmp(mx.behavior.subject, 'subjA') && mx.behavior.n_trials == 2, 'manifest behavior block carries subject / n_trials');
 dsx.Tags = {'pilot', 'Draft'};
+dsx.setVariables(DatasetVariables.require(struct('probeDepth', DatasetVariables.entry("Probe Depth", 1200, Units="um"))));
 oB = dsx.behaviorToMat();
 B = load(oB.file);
 check(isequal(B.conversion.tags, {'draft', 'pilot'}), 'behaviorToMat: the dataset''s tags are in conversion.tags');
+check(B.conversion.variables.probeDepth == 1200 && B.conversion.variableInfo.Name == "probeDepth", 'behaviorToMat: the dataset''s variables are in conversion');
 check(oB.file == string(fullfile(expOut, dsx.Name + "_behavior.mat")) && B.behavior.nTrials == 2 ...
     && B.conversion.behaviorFile == string(behFile) && isequal(sort(string(fieldnames(B))), ["behavior"; "conversion"; "pairing"]), ...
     'behaviorToMat writes <Name>_behavior.mat with behavior + conversion (+ the small pairing copy)');
@@ -2193,6 +2207,7 @@ if license('test', 'Signal_Toolbox')
     oM = dsx.toMat(SignalOptions=struct('dataTypeOut', ["LFP" "MUA"], 'LFP_Fs', 1000, 'MUA_Fs', 2000));
     Mx = load(oM.file, 'conversion');
     check(isfile(oM.file) && isequal(Mx.conversion.tags, {'draft', 'pilot'}), 'toMat: the dataset''s tags are in conversion.tags');
+check(Mx.conversion.variables.probeDepth == 1200 && Mx.conversion.variableInfo.Value{1} == 1200, 'toMat: the dataset''s variables are in conversion');
 else
     fprintf('  (toMat tags check skipped: no Signal Processing Toolbox)\n');
 end

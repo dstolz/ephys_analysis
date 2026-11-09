@@ -31,6 +31,9 @@ function D = sessionData(src, S, opts)
 %
 %   D fields
 %     key, name, folder, subject, startTime, tags
+%     variables         the dataset's variables as a struct of values
+%                       (D.variables.probeDepth = 1200; src.variables)
+%     variableInfo      table of them with label and units (src.variableInfo)
 %     fs, durationSec   the recording's rate and length (NaN when unknown)
 %     data              the kind: "units" | "detected" | "LFP" | "MUA" |
 %                       "SPIKE" | "AUX"; "trials" with TrialsOnly
@@ -84,6 +87,8 @@ D.folder = src.folder;
 D.subject = src.subject;
 D.startTime = src.startTime;
 D.tags = src.tags;
+D.variables = src.variables;
+D.variableInfo = src.variableInfo;
 D.fs = fs;
 D.durationSec = src.durationSec;
 D.data = "trials";

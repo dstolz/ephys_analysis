@@ -1,8 +1,9 @@
 function S = reportSummaryTables(src)
 %reportSummaryTables  The tables a report shows at the top of a dataset.
 %   S = reportSummaryTables(SRC) for a dataset SRC (loadAnalysisSource):
-%     recording  Field / Value: name, key, starred, tags, folder, rate,
-%                duration, subject, session start, probe, signals, units,
+%     recording  Field / Value: name, key, starred, tags, the dataset's
+%                variables (a row each: "Probe Depth (um)" and its value),
+%                folder, rate, duration, subject, session start, probe, signals, units,
 %                detections, pairing, and the starred channels and units
 %                (DatasetFavorites) when there are any
 %     lines      the digital lines (SRC.lines): Line, Count, Mean duration
@@ -37,6 +38,10 @@ if ~isempty(fav); add("Starred", yesNo(fav.Dataset, "")); end
 tagText = TagSet.toText(src.tags, TagSet.DisplayDelimiter);
 if tagText == ""; tagText = "(none)"; end
 add("Tags", tagText);
+vi = src.variableInfo;   % the dataset's variables, a row each
+for k = 1:height(vi)
+    add(DatasetVariables.displayLabel(vi.Label(k), vi.Units(k)), DatasetVariables.valueText(vi.Value{k}));
+end
 add("Output folder", src.folder);
 add("Recording rate (Hz)", num(src.fs));
 add("Duration (s)", num(src.durationSec));

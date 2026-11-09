@@ -181,7 +181,7 @@ try
         nFit = nFit + height(units);
 
         g = struct();
-        g.key = D.key; g.name = D.name;
+        g.key = D.key; g.name = D.name; g.variables = D.variables;   % the dataset's variables (a struct of values)
         g.expt = expt; g.info = info; g.fits = fits;
         g.trainTrials = train; g.testTrials = test;
         glm{k} = g;

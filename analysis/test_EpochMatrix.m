@@ -269,7 +269,7 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             tc.verifyEmpty(R.epochs, 'No epochs without keepEpochs.');
             tc.verifyEqual(R.labels, epochMatrixLabels(R));
             tc.verifyEqual(R.settings, S);
-            tc.verifyEqual(R.datasets.Properties.VariableNames, {'key', 'name', 'subject', 'date', 'status', ...
+            tc.verifyEqual(R.datasets.Properties.VariableNames, {'key', 'name', 'subject', 'date', 'tags', 'status', ...
                 'message', 'nRows', 'nEpochs', 'nGroups', 'seconds'});
             tc.verifyEqual(R.datasets.key, reshape(r.Keys, [], 1));
             tc.verifyEqual(sum(R.datasets.nRows), height(R.rows));
@@ -755,6 +755,72 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             end
         end
 
+        function variablesInRowsAndDatasets(tc)
+            % the datasets' variables: info and parts (a var_ column per variable), then the real runner's manifests
+            A = makePart("A", [1; 2], 2);
+            B = makePart("B", [1; 2], 1);
+            C = makePart("C", [1; 2], 1);
+            info = table(["A"; "B"; "C"], ["a"; "b"; "c"], ["s1"; "s1"; "s2"], ...
+                [datetime(2026, 1, 5); datetime(2026, 1, 2); datetime(2026, 1, 9)], ["x;y"; ""; "y"], ...
+                'VariableNames', {'key', 'name', 'subject', 'date', 'tags'});
+            info = [info, DatasetVariables.columns({ ...
+                DatasetVariables.require(struct('probeDepth', DatasetVariables.entry("Probe Depth", 1200, Units="um"))), ...
+                DatasetVariables.require(struct('probeDepth', DatasetVariables.entry("Probe Depth", 900, Units="um"), ...
+                    'cohort', DatasetVariables.entry("Cohort", "B"))), struct()})];
+            R = epochMatrix([A B C], [], Info=info);
+            tc.verifyEqual(R.rows.var_probeDepth, [1200; 1200; 900; NaN], 'R.rows: each unit takes its dataset''s value');
+            tc.verifyEqual(ismissing(R.rows.var_cohort), [true; true; false; true]);
+            tc.verifyEqual(R.rows.var_cohort(3), "B");
+            names = R.rows.Properties.VariableNames;
+            k = find(strcmp(names, 'Tags'));
+            tc.verifyEqual(names(k + 1:k + 2), {'var_probeDepth', 'var_cohort'}, 'the var_ columns follow Tags');
+            tc.verifyEqual(R.datasets.var_probeDepth, [1200; 900; NaN], 'R.datasets: a row per dataset');
+            tc.verifyEqual(R.datasets.tags, ["x;y"; ""; "y"], 'R.datasets has the tags too');
+            names = R.datasets.Properties.VariableNames;
+            tc.verifyEqual(names(4:7), {'date', 'tags', 'var_probeDepth', 'var_cohort'});
+            tc.verifyEqual(R.datasets.Properties.VariableDescriptions(6:7), {'Probe Depth', 'Cohort'}, 'labels travel');
+            tc.verifyEqual(R.datasets.Properties.VariableUnits{6}, 'um');
+            % Info without var_ columns, and keys Info lacks, give no columns / missing
+            R0 = epochMatrix([A B], [], Info=info(1:2, 1:5));
+            tc.verifyFalse(any(startsWith(R0.rows.Properties.VariableNames, "var_")));
+            R2 = epochMatrix([A B C], [], Info=info([1 3], :));
+            tc.verifyEqual(R2.rows.var_probeDepth, [1200; 1200; NaN; NaN], 'a dataset Info lacks: NaN');
+            % the real runner: the manifests' variables, through datasetInfo
+            r0 = EphysAnalysisRunner(tc.Config, LogFcn=[]);
+            f1 = r0.Outputs(1).ManifestFile;
+            tc.addTeardown(@restoreFile, f1, string(fileread(f1)));
+            writeManifestVariables(f1, Name="probeDepth", Value=1200, Label="Probe Depth", Units="um");
+            r = EphysAnalysisRunner(tc.Config, LogFcn=[]);
+            S = tc.spikeSettings(keepEpochs=true);
+            Rr = epochMatrix(r, S);
+            on = Rr.rows.Dataset == r.Keys(1);
+            tc.verifyTrue(all(Rr.rows.var_probeDepth(on) == 1200) && all(isnan(Rr.rows.var_probeDepth(~on))), ...
+                'R.rows: the manifest''s variable on its dataset''s units');
+            tc.verifyEqual(Rr.datasets.var_probeDepth(Rr.datasets.key == r.Keys(1)), 1200);
+            tc.verifyTrue(isnan(Rr.datasets.var_probeDepth(Rr.datasets.key == r.Keys(2))));
+            % what is made of R: the raster and the FieldTrip structure carry the dataset values
+            row = find(on, 1);
+            X = epochMatrixRaster(Rr, row);
+            tc.verifyEqual(X.variables.probeDepth, 1200, 'epochMatrixRaster: variables');
+            Xo = epochMatrixRaster(Rr, find(~on, 1));
+            tc.verifyEqual(Xo.variables, struct(), 'a dataset without variables: struct()');
+            F = epochMatrixFieldTrip(Rr);
+            tc.verifyEqual(F{1}.cfg.variables.probeDepth, 1200, 'epochMatrixFieldTrip: cfg.variables');
+            % the session data: src.variables, D.variables
+            src = r.source(1);
+            tc.verifyEqual(src.variables.probeDepth, 1200);
+            tc.verifyEqual(src.variableInfo.Label, "Probe Depth");
+            tc.verifyEqual(src.variableInfo.Units, "um");
+            tc.verifyEqual(src.variableInfo.Value{1}, 1200);
+            D = sessionData(src, tc.spikeSettings());
+            tc.verifyEqual(D.variables.probeDepth, 1200, 'sessionData: variables');
+            tc.verifyEqual(D.variableInfo, src.variableInfo, 'sessionData: variableInfo');
+            ft = sessionDataFieldTrip(D);
+            tc.verifyEqual(ft{1}.cfg.variables.probeDepth, 1200, 'sessionDataFieldTrip: cfg.variables');
+            tc.verifyEqual(r.source(2).variables, struct(), 'no variables: struct()');
+            tc.verifyEqual(height(r.source(2).variableInfo), 0);
+        end
+
         function rowsUnionAndSession(tc)
             A = makePart("A", [1; 2], 2);
             B = makePart("B", [1; 2], 1);
@@ -937,6 +1003,14 @@ elseif isstring(groupLabels) && isnumeric(x)
 else
     c = find(groupLabels == x, 1);
 end
+end
+
+
+function restoreFile(file, txt)
+%restoreFile  Put a file's text back as it was.
+fid = fopen(file, 'w');
+c = onCleanup(@() fclose(fid));
+fwrite(fid, txt);
 end
 
 

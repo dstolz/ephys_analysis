@@ -21,7 +21,8 @@ function [PF, K] = figureProbeCompute(src, spec, opts)
 %
 %   PF fields
 %     kind         "probeFigure"
-%     id, spec, dataset (SRC.name), subject (SRC.subject), created
+%     id, spec, dataset (SRC.name), subject (SRC.subject), variables
+%     (SRC.variables, a struct of values), created
 %     observation  as figureCompute's F.observation: kind "probe", label
 %                  what the tiles are ("23 units at their sites", "16 LFP
 %                  channels at their sites"; "detections" for detected),
@@ -128,6 +129,8 @@ PF.spec = spec;
 PF.dataset = src.name;
 PF.subject = "";
 if isfield(src, 'subject'); PF.subject = string(src.subject); end
+PF.variables = struct();
+if isfield(src, 'variables'); PF.variables = src.variables; end
 PF.observation = probeObservation(spec, n);
 PF.probe = [];
 if isfield(src, 'probe'); PF.probe = src.probe; end

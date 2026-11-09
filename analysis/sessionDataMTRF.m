@@ -47,7 +47,8 @@ function M = sessionDataMTRF(D, opts)
 %   (respLabels, pos), the feature names (stimLabels), each trial's start
 %   on the continuous clock (start), trialinfo (segments: first and last
 %   sample at fs; trials: the trial's row of D.trials and its group, or
-%   the pulse's index) and cfg (dataset, name, data, mode, window, align,
+%   the pulse's index) and cfg (dataset, name, variables (the dataset's
+%   variables, a struct of values), data, mode, window, align,
 %   stimulus, the options).
 %
 %   A stimulus shorter than the response is padded with zeros (silence
@@ -142,7 +143,7 @@ for k = 1:numel(D)
     end
     start = (rows(:, 1) - 1) / fs;
 
-    cfg = struct('dataset', d.key, 'name', d.name, 'data', d.data, 'mode', opts.Mode, ...
+    cfg = struct('dataset', d.key, 'name', d.name, 'variables', d.variables, 'data', d.data, 'mode', opts.Mode, ...
         'window', opts.Window, 'align', opts.Align, 'stimulus', stimText, 'nSamples', N, ...
         'sourceFs', d.signalFs, 'groups', d.groups, 'options', rmfield(opts, 'Stimulus'));
     if opts.Mode == "trials"; cfg.align = alignText; end

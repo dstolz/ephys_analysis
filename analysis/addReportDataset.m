@@ -4,7 +4,9 @@ function report = addReportDataset(report, src)
 %   (loadAnalysisSource) with its summary tables (reportSummaryTables, when
 %   the report's IncludeSummary is on) and its star (starred: the
 %   dataset's own star, DatasetFavorites; the reports mark it) and its
-%   tags (tags: SRC.tags, a cellstr; the reports show them). Figures
+%   tags (tags: SRC.tags, a cellstr; the reports show them) and its
+%   variables (variables: the set DatasetVariables.fromInfo makes of
+%   SRC.variableInfo; the reports show them beside the tags). Figures
 %   added next with addReportFigure go into this section.
 %
 %   See also newAnalysisReport, addReportFigure, reportSummaryTables,
@@ -28,5 +30,6 @@ try
 catch   % a source without outputs: no star
 end
 report.datasets(end+1) = struct('name', src.name, 'key', src.key, 'folder', src.folder, ...
-    'summary', summary, 'entries', entry, 'kind', "dataset", 'starred', starred, 'tags', {src.tags});
+    'summary', summary, 'entries', entry, 'kind', "dataset", 'starred', starred, 'tags', {src.tags}, ...
+    'variables', DatasetVariables.fromInfo(src.variableInfo));
 end

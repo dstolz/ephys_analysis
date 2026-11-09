@@ -26,9 +26,11 @@ function P = epochMatrixCSD(R, opts)
 %                     epoch's group (E.resultGroup)
 %     groupLabels     R.groupLabels; nEpochs [nGroups x 1] the epochs per group
 %     units           "V"
-%     cfg             dataset, name, data, description, event, window,
-%                     groupLabels, groups (R.labels.groups), scale (what
-%                     divided the result's values to give V)
+%     cfg             dataset, name, variables (the dataset's variables, a
+%                     struct of values; R.datasets' var_ columns), data,
+%                     description, event, window, groupLabels, groups
+%                     (R.labels.groups), scale (what divided the result's
+%                     values to give V)
 %   The potentials are what R.data averages: each epoch after Detrend,
 %   Baseline, Magnitude and Rectify, never normalized, scaled from the
 %   result's unit (uV, mV or V in R.rows.units, else R.valueUnits) to V.
@@ -119,7 +121,7 @@ for k = 1:numel(R.epochs)
         p.groupLabels = R.groupLabels;
         p.nEpochs = n;
         p.units = "V";
-        p.cfg = struct('dataset', p.key, 'name', p.name, 'data', R.settings.data, ...
+        p.cfg = struct('dataset', p.key, 'name', p.name, 'variables', resultVariables(R, p.key), 'data', R.settings.data, ...
             'description', R.labels.description, 'event', R.labels.event, 'window', R.labels.window, ...
             'groupLabels', R.groupLabels, 'groups', R.labels.groups, 'scale', scale);
         P(end + 1, 1) = p; %#ok<AGROW>

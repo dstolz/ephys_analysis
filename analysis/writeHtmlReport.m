@@ -344,9 +344,13 @@ end
 
 
 function s = tagsMark(D)
-%tagsMark  " <span>draft, pilot</span>" after a dataset's name (its tags field), else "".
+%tagsMark  " <span>draft, pilot</span> <span>probeDepth = 1200 um</span>" after a dataset's name (its tags and variables fields), else "".
 s = "";
 if ~isempty(D.tags)
     s = " <span class=""tags"" title=""tags"">" + htmlEscape(TagSet.toText(D.tags, TagSet.DisplayDelimiter)) + "</span>";
+end
+v = DatasetVariables.toText(D.variables);
+if v ~= ""
+    s = s + " <span class=""tags"" title=""variables"">" + htmlEscape(v) + "</span>";
 end
 end

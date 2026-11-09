@@ -74,14 +74,6 @@ JUnit report). The tests keep the apps' preferences in a temporary file, never y
 runs them all on each push to `main`, and on a pull request the suites its change can reach
 ([MATLAB tests](.github/workflows/matlab-tests.yml); [Tests](documentation/README.md#tests)).
 
-## Versions, license and citation
-
-The release number is in [`VERSION`](VERSION) and every output records it
-with the git commit that wrote it (`ephysVersion`). Changes are listed in
-[CHANGELOG.md](CHANGELOG.md). To cut a release: move the changelog's
-*Unreleased* entries under the new number, set that number in `VERSION` and
-[`CITATION.cff`](CITATION.cff), merge to `main`, then tag the merge commit
-`v<number>` and publish a GitHub release from the tag.
 
 The code is released under the [MIT License](LICENSE). Bundled third-party
 code keeps its own terms: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

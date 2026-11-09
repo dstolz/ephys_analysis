@@ -2749,7 +2749,7 @@ classdef DatasetBrowser < handle
                 other = nnz(~ismember(st, ["done" "cached"]));
                 if other > 0; t = t + sprintf(", %d not computed (Details...)", other); end
                 if isfield(R, 'epochs') && ~isempty(R.epochs)
-                    t = t + sprintf("; %d epochs kept (R.epochs)", sum(arrayfun(@(e) height(e.E), R.epochs)));
+                    t = t + sprintf("; %d epochs kept", sum(arrayfun(@(e) height(e.E), R.epochs)));
                 end
                 if isfield(R, 'labels') && isstruct(R.labels) && isfield(R.labels, 'normalization') && R.labels.normalization ~= ""
                     t = t + "; " + R.labels.normalization;

@@ -38,9 +38,8 @@ function drawWaveInsets(obj, R, sel)
 %   them (the .bin is gone) the unit's template is drawn instead.
 mode = obj.ReviewWaveModeDropDown.Value;
 if mode == "off" || sel < 1 || sel > numel(R.clusterID); return; end
-pk = R.peakChan(sel);
-if ~(isfinite(pk) && pk >= 1 && pk <= numel(R.chanShanks)) || isempty(R.wfFull); return; end
-chans = find(R.chanShanks == R.chanShanks(pk));
+[chans, pk] = unitShankChannels(R, sel);
+if isempty(chans); return; end
 C = obj.ReviewSpikeWaves;
 key = struct('folder', string(R.folder), 'unit', R.clusterID(sel), 'n', obj.ReviewShankCountSpinner.Value);
 if isempty(C) || ~isequal(C.key, key)

@@ -3330,6 +3330,14 @@ dataset whose name does not match `Project.NamePattern`, is read with
   - When the `.bin` is not there (a Clean up removed it, or its disk is not
     connected), the unit's template is drawn in its place. The subtitle says
     so, and the status bar names the file.
+- **Plot in new figure** (under the units table): draws the selected units
+  in a new MATLAB figure, each on its own shank, side by side. Pick more than
+  one row with Ctrl+click or Shift+click; they are drawn left to right in
+  the order the table shows them. With no row selected, it draws the unit
+  the plots focus on. Each unit is drawn as **Unit on its shank** draws it:
+  every channel on its shank, with the Spikes, count, Mean and band set
+  above that plot. Save or export the figure with its own File menu or
+  toolbar.
 
 <!-- wiki: ![The units table scrolled to Notes](images/app-review-notes.png) -->
 

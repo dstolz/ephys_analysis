@@ -245,6 +245,7 @@ them the same way.
 | look at the raw signal around an event or an artifact | [Visualize](EphysPipelineApp.md#visualize) tab |
 | a picture of the traces with the units on them, for a figure | Visualize tab: show the stretch, set the units to **Waveforms** (tick **Waveforms on every channel of the unit** to color each unit on all its channels), then **Save view as SVG...**. Each unit is a path of its own, in its color; the artifact shading is left out |
 | check how well units are sorted | [Review](EphysPipelineApp.md#review) tab, or **Open in phy** |
+| see units side by side on their shanks, in a figure of their own | Review tab: select the units in the table (Ctrl+click for more), set Spikes, Mean and the band above the shank plot, then **Plot in new figure** |
 | label datasets (a brain area, a condition) to find them later | [tag them](#tag-your-datasets): Project tab, select rows, **Tags...** |
 | make figures of every processed recording | make them in the [analysis app](analysis-app-guide.md), then choose that config on the Analysis tab |
 | analyze on another computer | **File → Copy files for the analysis app...** copies just what the analysis app reads |

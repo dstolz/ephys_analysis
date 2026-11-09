@@ -2853,9 +2853,37 @@ if S.sec("4a", "Review tab: unit labels, location, notes")
     app.renderReviewUnitShank();
     check(n1 == 0 && n2 == 4 + 1 && nOf('line') == 4 + 1 && isequal(app.ReviewSpikeWaves, reads), ...
         'Spikes, Mean and the band each switch their part; the spikes are not read again');
-    app.ReviewShankMeanCheckBox.Value = true; app.ReviewShankBandDropDown.Value = 'SD';
+    app.ReviewShankMeanCheckBox.Value = true; app.ReviewShankBandDropDown.Value = 'SEM';
+    ids = cell2mat(app.ReviewUnitsTable.Data(:, 1));
+    app.ReviewUnitsTable.Selection = find(ismember(ids, [0 1])).';     % unit 0 still has the focus
+    f = app.onReviewUnitsFigure();
+    tileAxes = @(f) sortTiles(findobj(f, 'Type', 'axes'));
+    fa = tileAxes(f);
+    nIn = @(a, type) numel(findobj(a, 'Type', type));
+    lab = @(u) app.ReviewData.unitLabel(app.ReviewData.clusterID == u);
+    want = ids(ismember(ids, [0 1]));
+    check(isscalar(f) && isgraphics(f, 'figure') && f ~= app.Fig && numel(fa) == 2 ...
+        && all(arrayfun(@(k) startsWith(string(fa(k).Title.String), lab(want(k)) + " on shank 0"), 1:2)) ...
+        && all(arrayfun(@(a) nIn(a, 'line') == 4 + 4 + 1 && nIn(a, 'patch') == 4 ...
+            && nnz(startsWith(string(get(findobj(a, 'Type', 'text'), 'String')), "A-")) == 4, fa)) ...
+        && string(fa(want == 0).Subtitle.String) == "3 of 3 spikes, mean " + char(177) + " SEM" ...
+        && string(fa(want == 1).Subtitle.String) == "2 of 2 spikes, mean " + char(177) + " SEM" ...
+        && isequal(app.ReviewSpikeWaves, reads) && contains(string(app.StatusBar.Text), "Drew 2 unit(s)"), ...
+        'Plot in new figure: each selected unit on every channel of its shank, side by side, with the panel''s options; the shank plot''s spikes stay');
+    close(f);
+    app.ReviewShankSpikesCheckBox.Value = false; app.ReviewShankBandDropDown.Value = 'none';
+    app.ReviewUnitsTable.Selection = [];
+    f = app.onReviewUnitsFigure();
+    fa = tileAxes(f);
+    check(numel(fa) == 1 && startsWith(string(fa.Title.String), lab(0)) && nIn(fa, 'line') == 4 + 1 && nIn(fa, 'patch') == 0 ...
+        && string(fa.Subtitle.String) == "3 of 3 spikes, mean", ...
+        'with no row selected it draws the focused unit, without the spikes and band the panel turned off');
+    close(f);
+    app.ReviewShankSpikesCheckBox.Value = true; app.ReviewShankBandDropDown.Value = 'SD';
     app.onReviewAllUnits();
     check(ax.Title.String == "Unit on its shank", '"Show all units" clears the shank plot');
+    check(isempty(app.onReviewUnitsFigure()) && contains(string(app.StatusBar.Text), "Pick one or more units"), ...
+        'with no unit picked Plot in new figure opens nothing and says what to do');
     delete(fullfile(phyDir, 'x.bin'));
     app.syncReviewDataset();
     app.onReviewUnitSelected(struct('Indices', [row 1]));
@@ -4267,4 +4295,11 @@ function p = markPixel(ax, t)
 pp = getpixelposition(ax, true);
 box = [pp(1:2) + ax.InnerPosition(1:2) - ax.OuterPosition(1:2), ax.InnerPosition(3:4)];
 p = [box(1) + (t - ax.XLim(1)) / diff(ax.XLim) * box(3), box(2) + box(4) / 2];
+end
+
+
+function a = sortTiles(a)
+%sortTiles  Axes of a tiled layout in tile order.
+[~, o] = sort(arrayfun(@(x) x.Layout.Tile, a));
+a = a(o);
 end

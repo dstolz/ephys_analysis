@@ -556,6 +556,7 @@ classdef EphysPipelineApp < handle
         ReviewUnitsTable    matlab.ui.control.Table
         ReviewAllUnitsButton matlab.ui.control.Button
         ReviewQCButton      matlab.ui.control.Button          % the loaded sort's QC report (writeUnitQualityReport)
+        ReviewFigureButton  matlab.ui.control.Button          % the selected units on their shanks in a new figure (onReviewUnitsFigure)
         ReviewCriteriaFields struct = struct()                % Sorting.Quality: one text field per threshold
         ReviewShankAxes     matlab.ui.control.UIAxes
         ReviewISIAxes       matlab.ui.control.UIAxes          % the selected unit's inter-spike intervals
@@ -1412,7 +1413,7 @@ classdef EphysPipelineApp < handle
         loadReviewResults(obj)
         renderReviewPlots(obj)
         renderReviewUnitShank(obj)
-        C = reviewSpikeWaves(obj, chans)
+        C = reviewSpikeWaves(obj, chans, u)   % u: a row of ReviewData; the selected unit when omitted
         onBrowseReviewFolder(obj)
         onOpenReviewFolder(obj)
         onReviewOpenPhy(obj)
@@ -1429,6 +1430,7 @@ classdef EphysPipelineApp < handle
         onReviewAllUnits(obj)
         onReviewCriteriaChanged(obj)
         onReviewQCReport(obj)
+        fig = onReviewUnitsFigure(obj)
         showReviewUnits(obj)
 
         % --- Synthetic tab ---

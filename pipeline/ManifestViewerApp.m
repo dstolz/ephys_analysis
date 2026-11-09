@@ -22,6 +22,12 @@ classdef ManifestViewerApp < handle
 %                       made (Processing: per record its file, run, the
 %                       common reference applied, a sort referenced twice,
 %                       and every option it was made with)
+%     Variables         the dataset's variables as they are now (label,
+%                       name, value, units, description, when made and
+%                       last changed) and when each was created,
+%                       updated, renamed or removed, and by whom (only
+%                       the latest values are kept). Read-only: the apps' Variables...
+%                       dialogs and writeManifestVariables change them
 %     Flow chart        how the outputs were made, as a flow chart with four
 %                       levels of detail, from the major steps to each
 %                       parameter's value, from top to bottom or from left
@@ -76,6 +82,10 @@ classdef ManifestViewerApp < handle
         FlowHideCheckBox
         FlowSummaryLabel
         FlowStale logical = true         % the chart does not show obj.Manifest yet
+        VariablesTab
+        VariablesTable                   % the variables now: Label, Name, Value, Units, Description, Created, Updated
+        VariableHistoryTable             % every change: Time, Change, Variable, What changed, User (never a value)
+        VariablesNote                    % "3 variables, 7 changes" (or why there are none)
         TimeAxes
         ProbeAxes
         Tree
@@ -225,6 +235,19 @@ classdef ManifestViewerApp < handle
                 'ColumnWidth', {110, 150, '2x', '1x'}, 'RowName', {}, ...
                 'ColumnSortable', false);
 
+            obj.VariablesTab = uitab(obj.Tabs, 'Title', 'Variables');
+            tg = uigridlayout(obj.VariablesTab, [4 1]);
+            tg.RowHeight = {'fit', '1x', 'fit', '2x'};
+            obj.VariablesNote = uilabel(tg, 'Text', '', 'WordWrap', 'on', 'FontColor', [0.3 0.3 0.3]);
+            obj.VariablesTable = uitable(tg, 'RowName', {}, 'ColumnSortable', true, ...
+                'ColumnName', {'Label', 'Name', 'Value', 'Units', 'Description', 'Created', 'Updated'}, ...
+                'ColumnWidth', {140, 120, 110, 60, '1x', 130, 130});
+            uilabel(tg, 'Text', 'History: when each variable was created, updated, renamed or removed (oldest first). Only the latest values are kept.', ...
+                'FontWeight', 'bold', 'WordWrap', 'on');
+            obj.VariableHistoryTable = uitable(tg, 'RowName', {}, 'ColumnSortable', true, ...
+                'ColumnName', {'Time', 'Change', 'Variable', 'What changed', 'User'}, ...
+                'ColumnWidth', {140, 80, 200, '1x', 100});
+
             obj.FlowTab = uitab(obj.Tabs, 'Title', 'Flow chart');
             tg = uigridlayout(obj.FlowTab, [2 1]);
             tg.RowHeight = {30, '1x'};
@@ -300,6 +323,7 @@ classdef ManifestViewerApp < handle
                 obj.SummaryTable.Data = table();
                 removeStyle(obj.SummaryTable);
                 delete(obj.Tree.Children);
+                obj.renderVariables([]);
                 cla(obj.TimeAxes, 'reset');
                 cla(obj.ProbeAxes, 'reset');
                 obj.StatusLabel.Text = strjoin([err, note], ' ');
@@ -311,6 +335,7 @@ classdef ManifestViewerApp < handle
 
             obj.Rows = manifestSummary(m, obj.DefaultProbeFile);
             obj.renderSummary();
+            obj.renderVariables(m);
             obj.renderTimeline(m);
             obj.renderProbe(m);
             obj.renderTree(m);
@@ -494,6 +519,32 @@ classdef ManifestViewerApp < handle
             addTreeChildren(obj.Tree, m);
         end
 
+        function renderVariables(obj, m)
+            %renderVariables  The Variables tab: the variables now, their history, the plot's choices.
+            raw = []; rawH = [];
+            if isstruct(m) && isfield(m, 'variables'); raw = m.variables; end
+            if isstruct(m) && isfield(m, 'variable_history'); rawH = m.variable_history; end
+            [s, bad] = DatasetVariables.parse(raw);
+            h = DatasetVariables.parseHistory(rawH);
+            I = DatasetVariables.info(s);
+            val = strings(height(I), 1);
+            for k = 1:height(I); val(k) = DatasetVariables.valueText(I.Value{k}); end
+            obj.VariablesTable.Data = table(I.Label, I.Name, val, I.Units, I.Description, I.Created, I.Updated, ...
+                'VariableNames', {'Label', 'Name', 'Value', 'Units', 'Description', 'Created', 'Updated'});
+            obj.VariableHistoryTable.Data = variableHistoryTable(h);
+            note = sprintf('%d variable(s) now, %d change(s) in the history.', height(I), numel(h));
+            if isempty(m)
+                note = '';
+            elseif height(I) == 0 && isempty(h)
+                note = 'No variables: the apps'' Variables... (pipeline app Project tab, analysis app Data tab, dataset browser) record them.';
+            end
+            if ~isempty(bad)
+                note = sprintf('%s Not valid, so left out by the apps: %s.', note, strjoin(bad, ', '));
+            end
+            obj.VariablesNote.Text = note;
+        end
+
+
         function [html, summary] = flowHTML(obj)
             %flowHTML  The Flow chart's page, opening on the level and direction last picked.
             [html, summary] = PipelineDiagram.manifest(obj.Manifest, Level=obj.FlowLevel, Direction=obj.FlowDirection, ...
@@ -625,6 +676,35 @@ upd = txtOf(getf(m, 'updated', ""));
 R = addRow(R, S, "Updated", upd, "", ageText(upd));
 [tg, lv, ck] = tagsCheck(getf(m, 'tags', {}));
 R = addRow(R, S, "Tags", tg, lv, ck);
+
+% The variables as they are now, a row each, and their history in one row.
+if isfield(m, 'variables') || isfield(m, 'variable_history')
+    S = "Variables";
+    [vs, bad] = DatasetVariables.parse(getf(m, 'variables', []));
+    h = DatasetVariables.parseHistory(getf(m, 'variable_history', []));
+    for n = DatasetVariables.names(vs)
+        e = vs.(n);
+        ck = n;
+        if e.updated ~= "" && e.updated ~= e.created
+            ck = ck + ", updated " + e.updated;
+        elseif e.created ~= ""
+            ck = ck + ", created " + e.created;
+        end
+        R = addRow(R, S, DatasetVariables.displayLabel(e.label, e.units), DatasetVariables.valueText(e.value), "", ck);
+    end
+    for n = bad
+        R = addRow(R, S, n, fmtValue(getf(m, "variables." + n, [])), "warn", "not a valid variable: the apps leave it out");
+    end
+    if isempty(DatasetVariables.names(vs)) && isempty(bad)
+        R = addRow(R, S, "Variables", "(none)");
+    end
+    if isempty(h)
+        R = addRow(R, S, "History", "no changes recorded");
+    else
+        R = addRow(R, S, "History", sprintf('%d change(s)', numel(h)), "", ...
+            "last: " + h(end).name + " " + h(end).action + " " + h(end).time + " (Variables tab)");
+    end
+end
 
 nch = numOf(getf(m, 'metadata.num_channels', NaN));
 dur = numOf(getf(m, 'metadata.duration_s', NaN));
@@ -897,7 +977,7 @@ if isfield(m, 'behavior') && isstruct(m.behavior)
 end
 
 known = ["schema" "name" "folder" "recording_format" "reader" "updated" "metadata" "probe" ...
-    "exclude_channels" "tags" "reference_exclude" "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "kilosort" ...
+    "exclude_channels" "tags" "variables" "variable_history" "reference_exclude" "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "kilosort" ...
     "sorting" "processing" "behavior"];
 other = setdiff(string(fieldnames(m)).', known, 'stable');
 for f = other
@@ -910,6 +990,24 @@ end
 
 T = array2table(R, 'VariableNames', {'Section', 'Field', 'Value', 'Check', 'Level'});
 end
+
+function T = variableHistoryTable(h)
+% The history as the Variables tab lists it: a row per change, when and
+% what part changed, never a value.
+n = numel(h);
+[tm, act, nm, chg, usr] = deal(strings(n, 1));
+for k = 1:n
+    r = h(k);
+    tm(k) = r.time;
+    act(k) = r.action;
+    nm(k) = r.name;
+    if r.action == "renamed"; nm(k) = r.name + " (was " + r.previous_name + ")"; end
+    chg(k) = strjoin(r.changed, ", ");
+    usr(k) = r.user;
+end
+T = table(tm, act, nm, chg, usr, 'VariableNames', {'Time', 'Change', 'Variable', 'WhatChanged', 'User'});
+end
+
 
 function [txt, level, check] = tagsCheck(v)
 % The manifest's tags as the table shows them (", "-joined, "(none)" when

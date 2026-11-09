@@ -119,6 +119,34 @@ mTg.tags = {'Pilot', 'bad tag!', 'ok'};
 Tt = ManifestViewerApp.summaryRows(mTg);
 check(Tt.Value(Tt.Field == "Tags") == "ok, pilot" && rowIs(Tt, "Tags", "warn") ...
     && contains(Tt.Check(Tt.Field == "Tags"), "bad tag!"), 'Tags row: an invalid tag is named in a warning (applyManifest drops it)');
+
+fprintf('\n== variables ==\n');
+fv = fullfile(root, 'vars_manifest.json');
+writeJsonFile(fv, struct('schema', EphysDataset.ManifestSchema, 'name', "vars", 'updated', ""));
+writeManifestVariables(fv, Name="probeDepth", Value=1200, Label="Probe Depth", Units="µm");
+writeManifestVariables(fv, Name="probeDepth", Value=1300);
+writeManifestVariables(fv, Name="cohort", Value="A");
+writeManifestVariables(fv, Remove="cohort");
+vv = ManifestViewerApp(fv);
+Tv = vv.Rows;
+check(any(Tv.Section == "Variables" & Tv.Field == "Probe Depth (µm)" & Tv.Value == "1300") ...
+    && ~any(Tv.Section == "Other" & startsWith(Tv.Field, "variable")), ...
+    'Variables rows: a row per variable now (label, units, value), none under Other');
+check(any(Tv.Section == "Variables" & Tv.Field == "History" & Tv.Value == "4 change(s)" & contains(Tv.Check, "cohort removed")), ...
+    'Variables: the history in one row, its last change named');
+H = vv.VariableHistoryTable.Data;
+check(height(H) == 4 && isequal(H.Change.', ["created" "updated" "created" "removed"]) && H.WhatChanged(2) == "value" ...
+    && ~any(ismember(["Value" "Before"], string(H.Properties.VariableNames))), ...
+    'Variables tab: when each variable changed and what part, never a value');
+check(height(vv.VariablesTable.Data) == 1 && vv.VariablesTable.Data.Units == "µm" && vv.VariablesTable.Data.Updated ~= "", ...
+    'Variables tab: the variables now, with units and when last changed');
+mv = EphysDataset.readManifest(fv);
+mv.variables.bad = struct('label', '', 'value', 1);
+Tw = ManifestViewerApp.summaryRows(mv);
+check(any(Tw.Section == "Variables" & Tw.Field == "bad" & Tw.Level == "warn"), 'Variables: an invalid entry is a warning');
+[html, ~] = PipelineDiagram.manifest(mv, Level="steps");
+check(contains(html, "variables: probeDepth = 1300"), 'Flow chart: the recording card lists the variables');
+delete(vv);
 r = T(T.Field == "Reference exclude", :);
 check(rowIs(T, "Reference exclude", "warn") && contains(r.Check, "set by hand") && contains(r.Check, "2 left out"), ...
     'reference exclusion: counted, source named, beyond the channel count: warning');

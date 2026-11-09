@@ -65,12 +65,15 @@ end
 if any(parts ~= ""); c.lines(end+1) = joinParts(parts); end
 tags = TagSet.toText(tagsOf(m), TagSet.DisplayDelimiter);
 if tags ~= ""; c.lines(end+1) = "tags: " + tags; end
+vars = DatasetVariables.toText(DatasetVariables.parse(ManifestText.field(m, 'variables', [])));
+if vars ~= ""; c.lines(end+1) = "variables: " + vars; end
 c.key = [kv("Format", fieldText(m, 'recording_format')); kv("Reader", fieldText(m, 'reader')); ...
     kv("Acquired", fieldText(md, 'acq_date')); kv("Files", fieldText(md, 'num_files')); ...
     kv("Manifest updated", fieldText(m, 'updated'))];
 
 c.all = flatRows(rmfieldIf(m, ["metadata" "probe" "exclude_channels" "reference_exclude" "bad_channels" ...
-    "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "processing" "kilosort" "sorting" "behavior"]), "");
+    "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "processing" "kilosort" "sorting" "behavior" ...
+    "variable_history"]), "");
 c.all = [["#" "recording"]; flatRows(md, ""); c.all];
 end
 

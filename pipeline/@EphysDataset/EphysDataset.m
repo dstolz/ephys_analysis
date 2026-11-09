@@ -276,6 +276,28 @@ classdef EphysDataset < handle
         Custom (1,1) struct = struct()
     end
 
+    properties (SetAccess = private)
+        % The user's variables on this dataset (a probe's depth, a dose, a
+        % cohort): a set as DatasetVariables keeps it, a struct with a
+        % field per name (label, value, units, description, created,
+        % updated); struct() when none. Saved as the manifest's
+        % "variables" object, restored by applyManifest, and written into
+        % the outputs (values beside the tags in the MAT files' info, the
+        % NWB file's notes). Set it with setVariables (or
+        % writeManifestVariables), which also logs the change in
+        % VariableHistory. Metadata only: no step reads them.
+        Variables (1,1) struct = struct()
+    end
+
+    properties (SetAccess = private, Hidden)
+        % When each variable was created, updated, renamed or removed,
+        % oldest first (DatasetVariables: time, action, name, which part
+        % changed, who), never what it held: only the latest value is
+        % kept (Variables). The manifest's "variable_history" list, shown
+        % by the manifest viewer. Rows are only ever added.
+        VariableHistory struct = DatasetVariables.emptyHistory()
+    end
+
     properties (SetAccess = protected)
         % The acquisition reader for Folder (an EphysReader subclass such as
         % IntanReader or BinaryReader), chosen by EphysReader.forFolder in
@@ -462,6 +484,29 @@ classdef EphysDataset < handle
 
         function set.Tags(obj, v)
             obj.Tags = TagSet.require(v);
+        end
+
+        function added = setVariables(obj, s, opts)
+            %setVariables  Make S the dataset's variables, logging each change in VariableHistory.
+            %   ADDED = ds.setVariables(S) takes the whole new set S (a
+            %   struct of entries, DatasetVariables.entry; struct() for
+            %   none): a name not there before is "created", one whose
+            %   label, value, units or description changed "updated", one
+            %   missing from S "removed" (DatasetVariables.update), each
+            %   with the time and the user. Renamed= ([k x 2] string: old
+            %   name, new name) logs a rename instead of a removal and a
+            %   creation. ADDED holds the history rows added (none when
+            %   nothing changed). The manifest is not written: call
+            %   writeManifest (writeManifestVariables does both). S is
+            %   checked whole first, and an error changes nothing.
+            arguments
+                obj (1,1) EphysDataset
+                s
+                opts.Renamed string = strings(0, 2)
+            end
+            [v, h, added] = DatasetVariables.update(obj.Variables, obj.VariableHistory, s, Renamed=opts.Renamed);
+            obj.Variables = v;
+            obj.VariableHistory = h;
         end
 
         function discoverFiles(obj)
@@ -1013,6 +1058,11 @@ classdef EphysDataset < handle
             % The user's tags (a JSON array of strings, [] for none).
             m.tags = obj.Tags;
 
+            % The user's variables (an object keyed by name, {} for none)
+            % and every change to them (a list, [] for none).
+            m.variables = obj.Variables;
+            m.variable_history = DatasetVariables.historyCell(obj.VariableHistory);
+
             % Channels left out of the common reference, and whether they
             % were suggested or set by hand ("" = never set).
             m.reference_exclude = struct( ...
@@ -1084,12 +1134,13 @@ classdef EphysDataset < handle
             %   saved into it since this object last read or wrote it (its
             %   "updated" value and size differ from what the object noted)
             %   is read back first (mergeManifest): the editable state -
-            %   tags, manual periods, probe, exclusions, pairing, sorting
+            %   tags, variables (one by one; the history keeps the rows of
+            %   both), manual periods, probe, exclusions, pairing, sorting
             %   folder, the custom block (addToManifest), the records of how
             %   each output was made - is restored from the file, except
             %   what this object changed since, which stays and is saved.
             %   An object that has never read or written the file overwrites
-            %   it, but for the custom block.
+            %   it, but for the custom block and the variables.
             tf = false;
             if obj.Folder == "" || ~isfolder(obj.Folder); return; end
             f = obj.manifestFile();
@@ -1122,7 +1173,9 @@ classdef EphysDataset < handle
             %   detected artifacts' bounds moved by hand, an
             %   explicit ("manual") sorting folder, the behavior file and the
             %   records of how each output was made (Processing) and the
-            %   custom block (Custom, addToManifest). The object notes the
+            %   custom block (Custom, addToManifest) and the variables with their
+            %   history (Variables, VariableHistory; invalid ones are dropped
+            %   with a warning, EphysDataset:applyManifest:Variables). The object notes the
             %   file's "updated" value and size and the state it restored,
             %   which writeManifest compares to see that another session has
             %   saved since. The
@@ -1175,6 +1228,14 @@ classdef EphysDataset < handle
                         'Manifest of %s: %d tag(s) dropped as invalid or over the limit of %d (%s); %d kept.', ...
                         obj.Name, numel(bad), TagSet.MaxTags, strjoin(string(bad), ", "), numel(t));
                 end
+            end
+            [v, bad] = DatasetVariables.parse(fieldOrEmpty(m, 'variables'));
+            obj.Variables = v;
+            obj.VariableHistory = DatasetVariables.parseHistory(fieldOrEmpty(m, 'variable_history'));
+            if ~isempty(bad)
+                warning('EphysDataset:applyManifest:Variables', ...
+                    'Manifest of %s: %d variable(s) dropped as not valid (%s); %d kept.', ...
+                    obj.Name, numel(bad), strjoin(bad, ", "), numel(fieldnames(v)));
             end
             if isfield(m, 'reference_exclude') && isstruct(m.reference_exclude) ...
                     && all(isfield(m.reference_exclude, {'channels', 'source'})) ...
@@ -1506,6 +1567,10 @@ classdef EphysDataset < handle
                 if isempty(fieldnames(obj.Custom)) && isfield(m, 'custom') && isstruct(m.custom) && isscalar(m.custom)
                     obj.Custom = m.custom;
                 end
+                if isempty(fieldnames(obj.Variables)) && isempty(obj.VariableHistory)
+                    obj.Variables = DatasetVariables.parse(fieldOrEmpty(m, 'variables'));
+                    obj.VariableHistory = DatasetVariables.parseHistory(fieldOrEmpty(m, 'variable_history'));
+                end
                 return
             end
             if manifestStamp(f, m) == seen.stamp; return; end
@@ -1518,6 +1583,30 @@ classdef EphysDataset < handle
                             obj.Processing.(k) = mine.Processing.(k);
                         end
                     end
+                elseif name == "Variables"
+                    % Variable by variable: the file's, but for those this
+                    % object made, changed or removed since.
+                    v = obj.Variables;
+                    for k = unique([DatasetVariables.names(mine.Variables), DatasetVariables.names(seen.state.Variables)], 'stable')
+                        a = []; b = [];
+                        if isfield(mine.Variables, k); a = mine.Variables.(k); end
+                        if isfield(seen.state.Variables, k); b = seen.state.Variables.(k); end
+                        if isequaln(a, b); continue; end
+                        if isempty(a)
+                            if isfield(v, k); v = rmfield(v, k); end
+                        else
+                            v.(k) = a;
+                        end
+                    end
+                    obj.Variables = v;
+                elseif name == "VariableHistory"
+                    % The rows this object added since go after the file's.
+                    new = mine.VariableHistory(numel(seen.state.VariableHistory) + 1:end);
+                    h = obj.VariableHistory;
+                    for k = 1:numel(new)
+                        if ~any(arrayfun(@(r) isequaln(r, new(k)), h)); h(end+1, 1) = new(k); end %#ok<AGROW>
+                    end
+                    obj.VariableHistory = h;
                 elseif ~isequaln(mine.(name), seen.state.(name))
                     obj.(name) = mine.(name);
                 end
@@ -2449,9 +2538,16 @@ function s = editableState(obj)
 s = struct();
 for name = ["ProbeFile" "ExcludeChannels" "Tags" "ReferenceExclude" "ReferenceExcludeSource" ...
         "BadChannels" "BadChannelsSource" "ManualArtifacts" "ArtifactAdjustments" "SortingDir" ...
-        "BehaviorFile" "TrialPairing" "Processing" "Custom"]
+        "BehaviorFile" "TrialPairing" "Processing" "Custom" "Variables" "VariableHistory"]
     s.(name) = obj.(name);
 end
+end
+
+
+function v = fieldOrEmpty(s, f)
+%fieldOrEmpty  S.(F), or [] when S has no such field.
+v = [];
+if isstruct(s) && isfield(s, f); v = s.(f); end
 end
 
 

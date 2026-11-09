@@ -410,6 +410,14 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   },
   "exclude_channels": <compact list, e.g. "5,17-18", or "">,
   "tags":             [<lowercase strings>],        the user's tags on the dataset, [] when none
+  "variables": {                                     the user's variables, {} when none
+    <name>: { "label": <string>, "value": <number or string>, "units": <string or "">,
+              "description": <string or "">, "created": <"yyyy-MM-dd HH:mm:ss">,
+              "updated": <"yyyy-MM-dd HH:mm:ss"> }, ... },
+  "variable_history": [                              when each variable changed, oldest first, [] when none
+    { "time": <"yyyy-MM-dd HH:mm:ss">, "action": "created" | "updated" | "renamed" | "removed",
+      "name": <name>, "previous_name": <the name before a rename, else "">,
+      "changed": [<"name" | "label" | "value" | "units" | "description">, ...], "user": <string> }, ... ],
   "reference_exclude": { "channels": <compact list or "">,   left out of the common reference
                          "source": "" | "suggested" | "manual" },
   "bad_channels": { "enabled": <bool>,                  Artifacts.ExcludeBadChannels
@@ -469,6 +477,17 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
 }
 ```
 
+- `variables` holds the values the user recorded on the dataset (a probe
+  depth, a dose: [EphysDataset: Variables](EphysDataset.md#variables)),
+  keyed by a valid MATLAB name, each a number or text with its label,
+  optional units and description, and when it was created and last
+  updated. Only the latest value is kept: `variable_history` says when each
+  variable was created, updated (and which part: `changed`), renamed or
+  removed, and by whom, never what it held. The apps' **Variables...**
+  windows and [`writeManifestVariables`](../pipeline/writeManifestVariables.m)
+  change both, and both only (with `updated`), in the file's text; a dataset
+  holds them as `Variables` (`setVariables`). The outputs carry the values
+  (`variables`, `variableInfo`, `var_<name>` columns).
 - `custom` holds the fields a script added with
   [`addToManifest`](EphysDataset.md#dataset-manifest), which changes this
   block and `updated` in the file's text and nothing else. A dataset holds it
@@ -479,6 +498,8 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   different `updated` value or size): tags, manual periods, probe, exclusions,
   pairing, sorting folder, `custom` and the `processing` records stay as the
   other session saved them, unless this dataset changed the same thing since.
+  The variables are merged one by one, and `variable_history` keeps the rows
+  of both sessions.
 - `options_hash` of a `processing` record is a hash of the options the output
   was made with: of the writer's own `options` when a script called it, or,
   for a pipeline run, `cfg-` and 16 hexadecimal digits of the config options
@@ -1201,7 +1222,7 @@ inputs), each holding only that signal in `Y` and `info`:
 | `Y` | struct with `LFP`, `MUA`, `SPIKE` (`single`, `[nSamples x nChan]`, µV) and `AUX` (volts); unrequested fields are `single([])`. Row k of a signal is at `(k-1)/info.<type>.Fs` |
 | `events` | struct, one field per digital-input line, `[k x 2]` `[t_on t_off]` seconds; onset = rising edge, or falling edge for the lines in `info.invertedLines` (`Signals.InvertedLines`). Plus the [derived events](EphysPipeline.md#derived-events) marked `InDataset`, which `info.derivedEvents` lists (`name`, `line`, `conditions`, `combine`, `expression`, `description`); the behavior step keeps them up to date |
 | `info` | per signal `Fs` and `nSamples` (the row count; there are no time vectors), `origFs`, `labels`, `invertedLines`, `badChannels` (the columns interpolated, their recording channels, the method per column and the weights), `reference` (the common reference: `mode`, `channels`, and `signals`, the ones it was subtracted from; each signal's own `info.<TYPE>.reference` says `"none"`, `"car"` or `"cmr"`), `artifacts` (the periods erased before any signal was derived: `intervals` `[k x 2]` `[tStart tEnd)` s on the continuous clock, `fill` `"line"`, `nSamples` replaced; in every file, combined or per type), `importOptions`, ...; see [intan2matlab.md](intan2matlab.md#outputs) |
-| `conversion` | `tool`, `created`, `dataset`, `tags` (the dataset's tags, a cellstr, `{}` when none), `sourceFolder`, `recordingFormat`, `matFileVersion`, `matlabVersion`, `provenance` ([Provenance](#provenance)) |
+| `conversion` | `tool`, `created`, `dataset`, `tags` (the dataset's tags, a cellstr, `{}` when none), `variables` (the dataset's [variables](#dataset-manifest) as a struct of values, `struct()` when none) and `variableInfo` (the same as a table: `Name`, `Label`, `Value`, `Units`, `Description`, `Created`, `Updated`), `sourceFolder`, `recordingFormat`, `matFileVersion`, `matlabVersion`, `provenance` ([Provenance](#provenance)) |
 
 ## Spikes `.mat` (`EphysDataset.spikesToMat`; the Spikes step)
 
@@ -1211,7 +1232,7 @@ is rewritten as a whole. Sorted units are not in it; they stay in the sorting fo
 | Variable | Contents |
 | --- | --- |
 | `detected` | `ts {1 x nChan}` spike times (s, `(index-1)/Fs`, recording-relative, `double`); `wf {1 x nChan}` `[nSpikes x nWin]` µV (`single`) or `[]`; `info` (`detectSpikes` info filtered to the kept events: `index {1 x nChan}` the 1-based sample of each event as `int32` - `double` for a recording of 2^31 samples or more - and `amplitude` `double`, so a reader that does arithmetic on `index` or `wf` casts with `double()`; `chunkThreshold`: per chunk the start time, threshold, noise, event count and rate, for a QC plot of the threshold over time; `info.coincidence`: one spike's copies on neighboring sites, `mode` (`"remove"`, `"tag"` or `"none"`), `radiusUm`, `jitterMs`, `positions` (the sites, µm), `neighbors`, `nCopies` per channel; with `"tag"` also `info.eventId {1 x nChan}` (each event's spike number, shared by its copies) and `info.primary {1 x nChan}` (true for the deepest copy)); `channels` (1-based recording channels); `channelNames`; `reference` (the common reference detection ran on: `mode`, `channels`, and `wcar` for the weighted CAR, as in the [`.bin` sidecar](#bin-json-sidecar)); `detection` (options used, `artifactMode` (`"reject"`, `"erase"` or `"none"`), artifact intervals applied, `nRejectedArtifact` per channel, `coincidence` (`requested`, `probeFile` the sites came from, `note` when it could not run, e.g. `"no probe"`); after an erase `info.artifacts` gives the periods and the samples erased) |
-| `conversion` | `tool`, `created`, `dataset`, `tags`, `sourceFolder`, `recordingFormat`, `fs`, `matFileVersion`, `matlabVersion`, `provenance` ([Provenance](#provenance)) |
+| `conversion` | `tool`, `created`, `dataset`, `tags`, `variables`, `variableInfo` (as in the extract's `conversion`), `sourceFolder`, `recordingFormat`, `fs`, `matFileVersion`, `matlabVersion`, `provenance` ([Provenance](#provenance)) |
 
 ## Behavior `.mat` (`EphysDataset.behaviorToMat`; the behavior step)
 
@@ -1226,7 +1247,7 @@ seconds to load as `-v7.3`) and as `-v7.3` only when a variable would exceed
 | --- | --- |
 | `behavior` | `EphysDataset.behaviorStruct`: `trials` (table, one row per trial), `info` (the Epsych2 `Info` snapshot), `meta`, `file`, `subject`, `startTime`, `nTrials`, `pairing` (`[]` when trials were not paired) |
 | `pairing` | a copy of `behavior.pairing` (small, so a writer can tell what the file carries without loading the trials) |
-| `conversion` | `tool`, `created`, `dataset`, `tags`, `sourceFolder`, `behaviorFile` (the Epsych2 session), `provenance` ([Provenance](#provenance)) |
+| `conversion` | `tool`, `created`, `dataset`, `tags`, `variables`, `variableInfo` (as in the extract's `conversion`), `sourceFolder`, `behaviorFile` (the Epsych2 session), `provenance` ([Provenance](#provenance)) |
 
 When trials were paired (`Behavior.PairTrials`), `behavior.trials` also has:
 
@@ -1280,7 +1301,7 @@ lists what it holds). Read it with pynwb, MatNWB or `h5read`:
 | `/intervals/trials` | `start_time`, `stop_time` (continuous clock) and the trial columns |
 | `/intervals/<line>` | each digital line's pulses, `start_time` / `stop_time` (continuous clock) |
 | `/intervals/invalid_times` | the artifact periods erased, with `reason` |
-| `/general/notes` | JSON: `tool` (`EphysDataset.exportNWB`), `dataset`, `tags` (the dataset's tags, an array; never the NWB `keywords`, which stay the config's `Export.NWB.Keywords`), `sourceFolder`, `sources`, `probeFile`, `provenance` ([Provenance](#provenance)); `DatasetOutputs` finds the file by it |
+| `/general/notes` | JSON: `tool` (`EphysDataset.exportNWB`), `dataset`, `tags` (the dataset's tags, an array; never the NWB `keywords`, which stay the config's `Export.NWB.Keywords`), `variables` (the dataset's variables as the manifest keeps them: an object with a field per variable holding `label`, `value`, `units`, `description`, `created` and `updated`; `{}` when none), `sourceFolder`, `sources`, `probeFile`, `provenance` ([Provenance](#provenance)); `DatasetOutputs` finds the file by it |
 
 Next to it, `<Name>_nwbinspector.json` holds every finding of nwbinspector
 (`file`, `created`, `versions`, `messages`: `importance`, `check`, `message`,
@@ -1370,7 +1391,7 @@ failed (not for a dry run). Schema `ephys-pipeline-run/1`:
   "error":    <identifier: message of the error that stopped a failed run, else "">,
   "started", "finished": <yyyy-MM-ddTHH:mm:ss>,  "seconds": <n>,
   "steps":    [<steps run, in order>],
-  "datasets": [ { "key", "name", "tags": [<the dataset's tags>], "folder", "outputFolder" }, ... ],
+  "datasets": [ { "key", "name", "tags": [<the dataset's tags>], "variables": {<name>: <value>, ...}, "folder", "outputFolder" }, ... ],
   "results":  [ { "Step", "Dataset", "Status", "Message", "Output", "Seconds" }, ... ],   the Results table
   "backgroundRuns": [ { "name", "resultsDir", "device" }, ... ],   Kilosort4 runs started in the background
   "script":   <the pipeline script the run saved, <Root>/pipeline_<name>.m; "" when none (Project.SaveScript)>,

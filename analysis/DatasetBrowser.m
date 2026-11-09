@@ -135,6 +135,12 @@ classdef DatasetBrowser < handle
     %                                        selected, else the clicked one; a click on a Tags cell,
     %                                        the right-click menu); OK writes them to the manifests
     %     setTags(B, KEYS, Set=, Add=, Remove=)   the same from a script (writeManifestTags)
+    %     DLG = editVariables(B, KEYS)       the variable dialog (VariableDialog: a row per dataset, a
+    %                                        column per variable) on datasets (default: the rows selected,
+    %                                        else the clicked one; a click on a Variables cell, the
+    %                                        right-click menu); OK writes them to the manifests, logged
+    %     setVariables(B, KEYS, Name=, Value=, Label=, Units=, Description=, Remove=)
+    %                                        the same from a script (writeManifestVariables)
     %     loadSettings(B, FILE)              (no FILE: a file dialog; File > Load settings)
     %     saveSettings(B, FILE)              (no FILE: SettingsFile, else a file dialog; File > Save settings)
     %     saveSettingsAs(B)                  a file dialog (File > Save settings as)
@@ -275,7 +281,7 @@ classdef DatasetBrowser < handle
         NamePattern (1,1) string = ""
         Recordings (1,1) string = "concatenate"
         Runner = []                        % the EphysAnalysisRunner of the last scan ([] before one)
-        Datasets table                     % every dataset found: key, name, subject, date, session, tags (";"-joined), tagSet, units, detected, behavior, signals, stamp (outputsStamp at the scan)
+        Datasets table                     % every dataset found: key, name, subject, date, session, tags (";"-joined), tagSet, variables (DatasetVariables.toText), varSet (its DatasetVariables set), units, detected, behavior, signals, stamp (outputsStamp at the scan)
         Results = []                       % the last compute's results, one per kind of data, by kind ([] before one):
         %   a struct whose fields are the kinds of Settings.data, in its
         %   order (B.Results.units, B.Results.LFP), each a result R as
@@ -392,7 +398,7 @@ classdef DatasetBrowser < handle
     end
 
     properties
-        OnChange = []                      % OnChange(B, what): "scan" | "filter" | "ticks" | "tags" | "settings" | "definitions" | "result" | "sessions" | "script" | "done" | "closed"
+        OnChange = []                      % OnChange(B, what): "scan" | "filter" | "ticks" | "tags" | "variables" | "settings" | "definitions" | "result" | "sessions" | "script" | "done" | "closed"
     end
 
     properties (Hidden)
@@ -406,6 +412,7 @@ classdef DatasetBrowser < handle
         RasterWindow = []                  % the Trial rasters window (showRasters), when open
         DetailsWindow = []                 % the Details window (showDetails), when open
         TagWindow = []                     % the tag dialog (editTags: TagDialog), when open
+        VariableWindow = []                % the variable dialog (editVariables: VariableDialog), when open
         LastRun table = table()          % what the last compute, forEach or load did, a row per dataset and kind: kind, key, name, status, message, seconds (runDetails)
     end
 
@@ -1144,6 +1151,122 @@ classdef DatasetBrowser < handle
                 error('DatasetBrowser:TagsNotWritten', 'Tags not written: %s', strjoin(failed, "; "));
             end
             B.setStatus(sprintf("Wrote the tags of %d %s.", numel(keys), ternary(numel(keys) == 1, "dataset", "datasets")));
+        end
+
+        function dlg = editVariables(B, keys)
+            %editVariables  Edit datasets' variables in the variable dialog (VariableDialog); OK writes them to the datasets' manifests.
+            %   DLG = B.editVariables() opens it on the rows selected in the
+            %   table (the right-click menu's Edit variables...), else on the
+            %   clicked row's dataset (else the first ticked, else the
+            %   first). B.editVariables(KEYS) opens it on those datasets
+            %   (keys, names or indices of Datasets); the menu's Edit
+            %   variables (ticked)... passes the ticked ones. A click on a
+            %   Variables cell opens it on that row's dataset alone.
+            %   The dialog has a row per dataset and a column per variable,
+            %   and offers the variables in use on the root's datasets. On
+            %   OK each changed dataset's set is written to its manifest
+            %   (writeManifestVariables, which logs every change with the
+            %   time and the user) and the status line says what was done;
+            %   Cancel writes nothing. DLG is the VariableDialog: its
+            %   methods (newVariable, setLabel, setValue, fillColumn, ok,
+            %   cancel, ...) drive it as the clicks do. With the dialog open
+            %   already, that one comes to the front and is returned.
+            %   Hidden with the browser. Refused while Busy.
+            arguments
+                B
+                keys = []
+            end
+            B.needRunner();
+            dlg = B.VariableWindow;
+            if ~isempty(dlg) && isvalid(dlg) && isvalid(dlg.Fig)
+                if dlg.Fig.Visible == "on"; figure(dlg.Fig); end
+                return
+            end
+            if B.Busy
+                error('DatasetBrowser:Busy', 'Wait for the run to end (or cancel it) before editing variables.');
+            end
+            if isempty(keys)
+                keys = B.selectedRowKeys();
+                if isempty(keys); keys = B.listKey(); end
+            end
+            keys = unique(B.keysOf(keys), 'stable');
+            keys = keys(keys ~= "");
+            if isempty(keys)
+                error('DatasetBrowser:NoDataset', 'No dataset to edit: scan the root first.');
+            end
+            D = B.Datasets;
+            [~, loc] = ismember(keys, D.key);
+            parent = [];
+            if B.uiOk(); parent = B.Fig; end
+            dlg = VariableDialog(reshape(D.varSet(loc), 1, []), DatasetVariables.vocabulary(reshape(D.varSet, 1, [])), ...
+                Labels=reshape(D.name(loc), 1, []), Parent=parent, Visible=~B.headless(), ...
+                OnDone=@(r) B.uiRun(@() B.onVariablesDone(keys, r)));
+            B.VariableWindow = dlg;
+        end
+
+        function setVariables(B, keys, opts)
+            %setVariables  Set or remove datasets' variables from a script: B.setVariables(KEYS, Name=, Value=, ...).
+            %   KEYS are keys, names or indices of Datasets. Name= and
+            %   Value= set one variable on each (a number or text), with
+            %   Label=, Units= and Description= for a new one or to change
+            %   them; Remove= takes variables off each (applied first). As
+            %   writeManifestVariables does it: every change is logged in
+            %   the manifest's variable_history, and a request that changes
+            %   nothing writes nothing. Every dataset's new set is checked
+            %   first, and nothing is written unless all are valid
+            %   (DatasetVariables:BadName, :BadValue, ...). The table and
+            %   the sources already loaded follow; OnChange gets
+            %   "variables". A dataset whose manifest cannot be written is
+            %   named in the error DatasetBrowser:VariablesNotWritten,
+            %   after the others are written.
+            %   Example
+            %     B.setVariables("subjA_260101_120000", Name="probeDepth", Value=1200, ...
+            %         Label="Probe Depth", Units="µm");
+            arguments
+                B
+                keys
+                opts.Name string = strings(0, 1)
+                opts.Value = []
+                opts.Label string = strings(0, 1)
+                opts.Units string = strings(0, 1)
+                opts.Description string = strings(0, 1)
+                opts.Remove string = strings(0, 1)
+            end
+            if isempty(opts.Name) && isempty(opts.Remove)
+                error('DatasetBrowser:BadValue', 'Give a variable to set (Name= and Value=) or to remove (Remove=).');
+            end
+            if ~isempty(opts.Name) && (~isscalar(opts.Name) || isempty(opts.Value))
+                error('DatasetBrowser:BadValue', 'Name= is one variable''s name, and Value= its value.');
+            end
+            B.needRunner();
+            keys = unique(B.keysOf(keys), 'stable');
+            D = B.Datasets;
+            sets = cell(numel(keys), 1);
+            for j = 1:numel(keys)
+                s = D.varSet{D.key == keys(j)};
+                for n = reshape(opts.Remove, 1, [])
+                    if isfield(s, n); s = rmfield(s, n); end
+                end
+                if ~isempty(opts.Name)
+                    n = opts.Name;
+                    [ok, why] = DatasetVariables.checkName(n, setdiff(DatasetVariables.names(s), n));
+                    if ~ok; error('DatasetVariables:BadName', '%s', why); end
+                    lab = DatasetVariables.suggestLabel(n); uni = ""; des = "";
+                    if isfield(s, n); lab = s.(n).label; uni = s.(n).units; des = s.(n).description; end
+                    if ~isempty(opts.Label); lab = opts.Label; end
+                    if ~isempty(opts.Units); uni = opts.Units; end
+                    if ~isempty(opts.Description); des = opts.Description; end
+                    s.(n) = DatasetVariables.entry(lab, opts.Value, Units=uni, Description=des);
+                end
+                sets{j} = s;
+            end
+            [failed, added] = B.writeVariables(keys, sets, repmat({strings(0, 2)}, numel(keys), 1));
+            if ~isempty(failed)
+                B.setStatus("Variables not written: " + strjoin(failed, "; "), true);
+                error('DatasetBrowser:VariablesNotWritten', 'Variables not written: %s', strjoin(failed, "; "));
+            end
+            [~, loc] = ismember(keys, B.Datasets.key);
+            B.setStatus(VariableDialog.describe(added, reshape(B.Datasets.name(loc), 1, [])));
         end
 
         function w = showDetails(B)
@@ -2094,8 +2217,8 @@ classdef DatasetBrowser < handle
             c.UntickAll = uibutton(r2, "Text", "Untick all", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.untickAll()));
             c.Count = uilabel(L, "Text", "", "FontColor", B.TextColor);
             c.Table = uitable(L, "RowName", {}, "ColumnSortable", true, ...
-                "ColumnName", {'Use', 'Name', 'Subject', 'Date', 'Session', 'Tags', 'Units', 'Detected', 'Behavior', 'Signals', 'Cached', 'Key', ''}, ...
-                "ColumnWidth", {42, 'auto', 100, 84, 66, 110, 52, 70, 70, 100, 100, 'auto', 1}, ...
+                "ColumnName", {'Use', 'Name', 'Subject', 'Date', 'Session', 'Tags', 'Variables', 'Units', 'Detected', 'Behavior', 'Signals', 'Cached', 'Key', ''}, ...
+                "ColumnWidth", {42, 'auto', 100, 84, 66, 110, 140, 52, 70, 70, 100, 100, 'auto', 1}, ...
                 "CellEditCallback", @(~, evt) B.uiRun(@() B.onTableEdit(evt)), ...
                 "CellSelectionCallback", @(~, evt) B.uiRun(@() B.onTableSelect(evt)), ...
                 "DisplayDataChangedFcn", @(~, evt) B.onTableSorted(evt), ...
@@ -2105,6 +2228,8 @@ classdef DatasetBrowser < handle
             uimenu(c.Table.ContextMenu, "Text", "Open manifest viewer", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.viewManifest()));
             uimenu(c.Table.ContextMenu, "Text", "Edit tags...", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.editTags()));
             uimenu(c.Table.ContextMenu, "Text", "Edit tags (ticked)...", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.onEditTagsTicked()));
+            uimenu(c.Table.ContextMenu, "Text", "Edit variables...", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.editVariables()));
+            uimenu(c.Table.ContextMenu, "Text", "Edit variables (ticked)...", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.onEditVariablesTicked()));
             uimenu(c.Table.ContextMenu, "Text", "Forget cached (ticked)", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.forgetTicked()));
             uimenu(c.Table.ContextMenu, "Text", "Details of the last run...", "Separator", "on", ...
                 "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.showDetails()));
@@ -2375,9 +2500,9 @@ classdef DatasetBrowser < handle
             Date(~isnat(D.date)) = string(D.date(~isnat(D.date)), 'yyyy-MM-dd');
             Tags = strings(n, 1);
             for k = 1:n; Tags(k) = TagSet.toText(D.tagSet{k}, TagSet.DisplayDelimiter); end
-            T = table(Use, D.name, D.subject, Date, D.session, Tags, mark(D.units), mark(D.detected), mark(D.behavior), ...
+            T = table(Use, D.name, D.subject, Date, D.session, Tags, D.variables, mark(D.units), mark(D.detected), mark(D.behavior), ...
                 D.signals, Cached, D.key, (1:n).', 'VariableNames', ...
-                {'Use', 'Name', 'Subject', 'Date', 'Session', 'Tags', 'Units', 'Detected', 'Behavior', 'Signals', 'Cached', 'Key', 'Idx'});
+                {'Use', 'Name', 'Subject', 'Date', 'Session', 'Tags', 'Vars', 'Units', 'Detected', 'Behavior', 'Signals', 'Cached', 'Key', 'Idx'});   % Vars: the Variables column (a table cannot have a variable named Variables)
             T = T(B.filterKeep(D), :);
             T = TableSort.apply(T, B.Sort);
         end
@@ -2741,7 +2866,7 @@ classdef DatasetBrowser < handle
         end
 
         function onTableClicked(B, evt)
-            %onTableClicked  A click on a Tags cell: the tag dialog on that row's dataset alone (editTags).
+            %onTableClicked  A click on a Tags or Variables cell: the tag (editTags) or variable dialog (editVariables) on that row's dataset alone.
             %   The table's ClickedFcn; InteractionInformation's Row and
             %   Column are the cell in Data, whatever a header sort shows.
             %   A right-click is the context menu's.
@@ -2749,10 +2874,91 @@ classdef DatasetBrowser < handle
             if isempty(info.Row) || isempty(info.Column); return; end
             if B.uiOk() && B.Fig.SelectionType == "alt"; return; end
             T = B.Ctl.Table.Data;
-            if ~istable(T) || info.Row > height(T) || info.Column > width(T) || T.Properties.VariableNames{info.Column} ~= "Tags"
+            if ~istable(T) || info.Row > height(T) || info.Column > width(T); return; end
+            switch string(T.Properties.VariableNames{info.Column})
+                case "Tags"
+                    B.editTags(B.Datasets.key(T.Idx(info.Row)));
+                case "Vars"   % the Variables column
+                    B.editVariables(B.Datasets.key(T.Idx(info.Row)));
+            end
+        end
+
+        function onEditVariablesTicked(B)
+            %onEditVariablesTicked  The right-click menu's Edit variables (ticked)...: the variable dialog on the ticked datasets.
+            keys = B.tickedKeys();
+            if isempty(keys)
+                error('DatasetBrowser:NoneTicked', 'Tick at least one dataset to edit its variables.');
+            end
+            B.editVariables(keys);
+        end
+
+        function onVariablesDone(B, keys, r)
+            %onVariablesDone  The variable dialog closed: write each changed dataset's new set and say what was done.
+            if ~isvalid(B); return; end
+            B.VariableWindow = [];
+            if isempty(r); return; end
+            changed = reshape(logical(r.changed), 1, []);
+            [failed, added] = B.writeVariables(keys(changed), reshape(r.sets(changed), [], 1), reshape(r.renamed(changed), [], 1));
+            if ~isempty(failed)
+                B.setStatus("Variables not written: " + strjoin(failed, "; "), true);
                 return
             end
-            B.editTags(B.Datasets.key(T.Idx(info.Row)));
+            [~, loc] = ismember(keys(changed), B.Datasets.key);
+            B.setStatus(VariableDialog.describe(added, reshape(B.Datasets.name(loc), 1, [])));
+        end
+
+        function [failed, added] = writeVariables(B, keys, sets, renamed)
+            %writeVariables  Write each dataset's new set (KEYS(j) gets SETS{j}, renames RENAMED{j}) to its manifest; Datasets, the table and loaded sources follow.
+            %   The target is the manifest in effect (DatasetOutputs.ManifestFile),
+            %   else the dataset itself when the outputs know it
+            %   (writeManifestVariables writes it a manifest). FAILED holds a
+            %   line per dataset not written, "<name>: <why>"; the others are
+            %   written. ADDED is a cell, the history rows each write added.
+            %   OnChange gets "variables" when any was.
+            failed = strings(0, 1);
+            added = cell(1, numel(keys));
+            wrote = false;
+            for j = 1:numel(keys)
+                added{j} = DatasetVariables.emptyHistory();
+                k = find(B.Datasets.key == keys(j), 1);
+                if isempty(k)
+                    failed(end+1, 1) = keys(j) + ": not in the scan"; %#ok<AGROW>
+                    continue
+                end
+                try
+                    i = B.Runner.index(keys(j));
+                    if i == 0
+                        error('DatasetBrowser:NoDataset', 'not in the scan');
+                    end
+                    out = B.Runner.Outputs(i);
+                    target = out.ManifestFile;   % string.empty when there is none
+                    if ~isempty(target) && target(1) ~= ""
+                        target = target(1);
+                    elseif ~isempty(out.Dataset)
+                        target = out.Dataset;
+                    else
+                        error('DatasetBrowser:NoManifest', 'no manifest');
+                    end
+                    [s, added{j}] = writeManifestVariables(target, Set=sets{j}, Renamed=renamed{j});
+                catch ME
+                    failed(end+1, 1) = B.Datasets.name(k) + ": " + string(ME.message); %#ok<AGROW>
+                    continue
+                end
+                if isempty(added{j}); continue; end
+                wrote = true;
+                B.Datasets.varSet{k} = s;
+                B.Datasets.variables(k) = DatasetVariables.toText(s);
+                out.clearCache();   % its manifest (CacheData) is read again
+                S = B.Runner.Sources;   % a source loaded already: its variables too
+                if ~isempty(S) && isKey(S, char(keys(j)))
+                    src = S(char(keys(j)));
+                    src.variables = DatasetVariables.values(s);
+                    src.variableInfo = DatasetVariables.info(s);
+                    S(char(keys(j))) = src;
+                end
+            end
+            B.refreshTable();
+            if wrote; B.changed("variables"); end
         end
 
         function onEditTagsTicked(B)
@@ -3428,7 +3634,7 @@ classdef DatasetBrowser < handle
         end
 
         function D = readDatasets(B, r)
-            %readDatasets  One row per dataset of the runner: which outputs it has, its subject, day, tags and outputs' stamp.
+            %readDatasets  One row per dataset of the runner: which outputs it has, its subject, day, tags, variables and outputs' stamp.
             %   Subject and day come from runnerIdentity, as epochMatrix's R.rows.
             n = numel(r.Keys);
             names = reshape(r.Names, [], 1);
@@ -3438,6 +3644,8 @@ classdef DatasetBrowser < handle
             signals = strings(n, 1);
             tagSet = cell(n, 1);
             tags = strings(n, 1);
+            varSet = cell(n, 1);
+            variables = strings(n, 1);
             stamp = strings(n, 1);
             for k = 1:n
                 B.progress(0.5 + 0.5 * (k - 1) / max(n, 1), sprintf("Reading %d/%d: %s", k, n, names(k)));
@@ -3451,10 +3659,12 @@ classdef DatasetBrowser < handle
                 signals(k) = strjoin(t(hasSig), " ");
                 tagSet{k} = outputTags(out);
                 tags(k) = TagSet.toText(tagSet{k}, TagSet.ExportDelimiter);
+                varSet{k} = outputVariables(out);
+                variables(k) = DatasetVariables.toText(varSet{k});
             end
             session = sessionNumbers(subject, date);
-            D = table(keys, names, subject, date, session, tags, tagSet, units, detected, behavior, signals, stamp, ...
-                'VariableNames', {'key', 'name', 'subject', 'date', 'session', 'tags', 'tagSet', 'units', 'detected', ...
+            D = table(keys, names, subject, date, session, tags, tagSet, variables, varSet, units, detected, behavior, signals, stamp, ...
+                'VariableNames', {'key', 'name', 'subject', 'date', 'session', 'tags', 'tagSet', 'variables', 'varSet', 'units', 'detected', ...
                 'behavior', 'signals', 'stamp'});
         end
 
@@ -3462,7 +3672,7 @@ classdef DatasetBrowser < handle
         function keep = filterKeep(B, D)
             if height(D) == 0; keep = false(0, 1); return; end
             f = B.FilterS;
-            text = D.name + " " + D.key + " " + D.subject + " " + D.tags;
+            text = D.name + " " + D.key + " " + D.subject + " " + D.tags + " " + D.variables;
             keep = datasetFilter(D.subject, reshape(D.tagSet, [], 1), Subjects=f.Subjects, ExcludeSubjects=f.ExcludeSubjects, ...
                 Tags=f.Tags, TagMode=f.TagMode, ExcludeTags=f.ExcludeTags, Search=f.Search, Text=text);
         end
@@ -3496,6 +3706,7 @@ classdef DatasetBrowser < handle
         function I = info(B, keys)
             [~, loc] = ismember(keys, B.Datasets.key);
             I = B.Datasets(loc(loc > 0), {'key', 'name', 'subject', 'date', 'tags'});
+            I = [I, DatasetVariables.columns(reshape(B.Datasets.varSet(loc(loc > 0)), 1, []))];   % a var_<name> column per variable
         end
 
         function key = listKey(B)
@@ -3718,6 +3929,9 @@ classdef DatasetBrowser < handle
             w = B.TagWindow;
             if ~isempty(w) && isvalid(w); w.cancel(); end
             B.TagWindow = [];
+            w = B.VariableWindow;
+            if ~isempty(w) && isvalid(w); w.cancel(); end
+            B.VariableWindow = [];
         end
 
         function changed(B, what)
@@ -3744,8 +3958,8 @@ classdef DatasetBrowser < handle
 
         function D = emptyDatasets()
             D = table(strings(0, 1), strings(0, 1), strings(0, 1), NaT(0, 1), zeros(0, 1), strings(0, 1), cell(0, 1), ...
-                false(0, 1), false(0, 1), false(0, 1), strings(0, 1), strings(0, 1), 'VariableNames', ...
-                {'key', 'name', 'subject', 'date', 'session', 'tags', 'tagSet', 'units', 'detected', 'behavior', ...
+                strings(0, 1), cell(0, 1), false(0, 1), false(0, 1), false(0, 1), strings(0, 1), strings(0, 1), 'VariableNames', ...
+                {'key', 'name', 'subject', 'date', 'session', 'tags', 'tagSet', 'variables', 'varSet', 'units', 'detected', 'behavior', ...
                 'signals', 'stamp'});
         end
 

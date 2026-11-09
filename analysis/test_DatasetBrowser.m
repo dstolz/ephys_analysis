@@ -135,10 +135,10 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(D.tags(k1), "ofc;pilot");
             tc.verifyEqual(sort(B.Selected), sort(tc.Keys), 'With no saved state, a scan ticks what shows.');
             T = B.Table;
-            tc.verifyEqual(string(T.Properties.VariableNames), ["Use" "Name" "Subject" "Date" "Session" "Tags" ...
+            tc.verifyEqual(string(T.Properties.VariableNames), ["Use" "Name" "Subject" "Date" "Session" "Tags" "Vars" ...
                 "Units" "Detected" "Behavior" "Signals" "Cached" "Key" "Idx"]);
             tc.verifyEqual(B.Ctl.Table.Data, T);
-            tc.verifyEqual(B.Ctl.Table.ColumnEditable, [true false(1, 12)]);
+            tc.verifyEqual(B.Ctl.Table.ColumnEditable, [true false(1, 13)]);
             tc.verifyTrue(all(T.Cached == ""));
             tc.verifyEmpty(B.Result);
             tc.verifyFalse(B.Busy);
@@ -1664,6 +1664,77 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             B.close();
             tc.verifyFalse(isvalid(dlg.Fig));
             tc.verifyEqual(fileTags(k1), ["draft" "pilot" "shared"]);
+        end
+
+        function variablesEditedAndWritten(tc)
+            B = tc.open(Settings=tc.Spike);
+            k1 = tc.Keys(1); k2 = tc.Keys(2);
+            name1 = B.Datasets.name(B.Datasets.key == k1);
+            outOf = @(k) B.Runner.Outputs(B.Runner.index(k));
+            files = [string(outOf(k1).ManifestFile); string(outOf(k2).ManifestFile)];
+            texts = [string(fileread(files(1))); string(fileread(files(2)))];
+            tc.addTeardown(@() putTexts(files, texts));   % the shared fixture's manifests as they were
+            fileVars = @(k) DatasetVariables.values(DatasetVariables.parse(EphysDataset.readManifest(string(outOf(k).ManifestFile)).variables));
+            seen = containers.Map();
+            B.OnChange = @(~, what) count(seen, what);
+            menu = B.Ctl.Table.ContextMenu.Children;
+            tc.verifyTrue(all(ismember(["Edit variables..." "Edit variables (ticked)..."], string({menu.Text}))), ...
+                'The right-click menu edits variables.');
+
+            % from a script; only variables, variable_history and updated change
+            m0 = EphysDataset.readManifest(files(2));
+            B.setVariables([k1 k2], Name="probeDepth", Value=1200, Label="Probe Depth", Units="µm");
+            tc.verifyEqual(fileVars(k2), struct('probeDepth', 1200));
+            m = EphysDataset.readManifest(files(2));
+            keep = setdiff(fieldnames(m0), {'variables', 'variable_history', 'updated'});
+            tc.verifyEqual(rmfield(m, setdiff(fieldnames(m), keep)), rmfield(m0, setdiff(fieldnames(m0), keep)), ...
+                'The manifest''s other fields stay.');
+            tc.verifyEqual(B.Datasets.variables(B.Datasets.key == k2), "probeDepth = 1200 µm");
+            tc.verifyTrue(isKey(seen, 'variables'), 'OnChange gets "variables".');
+            txt = string(fileread(files(2)));
+            B.setVariables(k2, Name="probeDepth", Value=1200);
+            tc.verifyEqual(string(fileread(files(2))), txt, 'An unchanged value is not written (its stamp stays).');
+            B.setVariables(k2, Name="probeDepth", Value=1350);
+            tc.verifyTrue(contains(string(B.Ctl.Status.Text), "probeDepth updated"), B.Ctl.Status.Text);
+            tc.verifyError(@() B.setVariables(k2, Name="bad name", Value=1), 'DatasetVariables:BadName');
+            tc.verifyError(@() B.setVariables(k2), 'DatasetBrowser:BadValue');
+
+            % a source loaded already, and the result's rows, carry the latest value
+            B.source(k2);
+            B.setVariables(k2, Name="probeDepth", Value=1400);
+            tc.verifyEqual(B.source(k2).variables, struct('probeDepth', 1400), 'A loaded source''s variables follow.');
+            R = B.compute();
+            tc.verifyEqual(unique(R.rows.var_probeDepth(R.rows.Dataset == k2)), 1400, 'Compute takes the latest value.');
+
+            % the dialog: a Variables cell is that dataset alone
+            T = B.Ctl.Table.Data;
+            col = find(string(T.Properties.VariableNames) == "Vars");
+            click = @(row, c) B.Ctl.Table.ClickedFcn(B.Ctl.Table, struct('InteractionInformation', struct('Row', row, 'Column', c)));
+            click(find(T.Key == k1), col);
+            dlg = B.VariableWindow;
+            tc.verifyClass(dlg, 'VariableDialog');
+            tc.verifyEqual(size(dlg.Cells), [1 1]);
+            tc.verifyEqual(dlg.Fig.Visible, matlab.lang.OnOffSwitchState.off, 'Hidden with the browser.');
+            tc.verifyEqual(B.editVariables(k2), dlg, 'With the dialog open, that one is returned.');
+            dlg.newVariable("Drug Dose");
+            dlg.setValue(1, "drugDose", "0.5");
+            dlg.ok();
+            tc.verifyEqual(fileVars(k1), struct('probeDepth', 1200, 'drugDose', 0.5));
+            tc.verifyTrue(contains(string(B.Ctl.Status.Text), "Variables of " + name1 + ": drugDose created."), B.Ctl.Status.Text);
+            tc.verifyEmpty(B.VariableWindow);
+            % the rows selected: a grid of both
+            B.Ctl.Table.Selection = [1 2; 2 2];
+            dlg = B.editVariables();
+            tc.verifyEqual(size(dlg.Cells, 1), 2, 'Two rows selected: a row each.');
+            dlg.select(1);
+            dlg.fillColumn("1500");
+            dlg.ok();
+            tc.verifyEqual(fileVars(k1).probeDepth, 1500);
+            tc.verifyEqual(fileVars(k2).probeDepth, 1500);
+            % closing the browser cancels an open dialog
+            dlg = B.editVariables(k1);
+            B.close();
+            tc.verifyFalse(isvalid(dlg.Fig));
         end
 
         function computeOnTheStrip(tc)

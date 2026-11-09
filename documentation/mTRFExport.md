@@ -92,8 +92,9 @@ the sound is the stimulus the toolbox was built for.
 Each package carries `respLabels` and `pos` (the channels' probe positions),
 `stimLabels`, `start`, `trialinfo` (segments: first and last sample; trials:
 the trial's row of `D.trials` and its group, or the pulse's index; epochs:
-`resultGroup` and `trial`) and `cfg` (dataset, name, data, mode, window,
-align, the stimulus described, the options; for epochs the epochs table).
+`resultGroup` and `trial`) and `cfg` (dataset, name, `variables` (the dataset's recorded variables as a
+struct of values), data, mode, window, align, the stimulus described, the
+options; for epochs the epochs table).
 
 The post-processing script
 [`S_DatasetBrowserToMTRF.m`](../analysis/browser_scripts/S_DatasetBrowserToMTRF.m)

@@ -143,11 +143,16 @@ config's selection, the refresh report, the GUI table) uses the
 **`T = gatherMetadata(Force=false)`** calls `refreshMetadata` on every dataset
 whose `Fs` is still `NaN` (or on all of them with `Force=true`). It returns one
 table row per dataset with `Name`, `Folder`, `NumFiles`, `NumChannels`, `Fs`,
-`Duration`, `AcqDate`, `Tags`, `ChannelNames`, `HasProbe` (`ProbeFile` is set and
+`Duration`, `AcqDate`, `Tags`, a `var_<name>` column per dataset variable (see below), `ChannelNames`, `HasProbe` (`ProbeFile` is set and
 exists), `BinExists`, `HasKilosort` (the dataset's tracker has a run with
 `spike_clusters.npy`). `Tags` is the dataset's [tags](EphysDataset.md#tags) as one
 string joined with `;` (`TagSet.ExportDelimiter`), `""` when it has none, so
 the table writes to CSV unquoted; `TagSet.fromText(s, ";")` gives the set back.
+The dataset's variables (`EphysDataset.Variables`) follow `Tags`, one column per
+variable named `var_<name>` (`var_probeDepth`): a number column when every
+dataset's value is a number, a string column otherwise, with the variable's label
+and units in the table's `VariableDescriptions` and `VariableUnits`
+(`DatasetVariables.columns`); no column when no dataset has a variable.
 
 **`infos = toBinAll(Name=Value...)`** calls `toBin` on every dataset, passing
 all arguments through to `EphysDataset.toBin`. An error on one dataset is caught,

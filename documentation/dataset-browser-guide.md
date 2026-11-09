@@ -122,6 +122,19 @@ script can split or check the result by tag. The browser reopens with the
 same filter, so the same group can be computed again later: press **Tick
 shown only** and **Compute** to take in the recordings tagged since.
 
+## Record values on recordings
+
+[Variables](pipeline-app-guide.md#record-values-on-your-datasets) are values
+you record on a recording: a probe depth, a dose, a cohort number. Click a
+recording's **Variables** cell, or select (or tick) rows, right-click the
+table and choose **Edit variables...** (**Edit variables (ticked)...**). The
+window has a row per recording and a column per variable: **New variable**,
+type its label (the name tables use is suggested), then each recording's
+value, and **OK**. Only the latest value is kept; the manifest viewer
+(right-click, **Open manifest viewer**) shows when each one changed. Every
+row of a result carries its recording's values, one column each
+(`var_probeDepth`), so a script can sort or split the result by them.
+
 ## Common tasks
 
 | ...do this | Do this |

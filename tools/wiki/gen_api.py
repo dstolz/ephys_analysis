@@ -1017,7 +1017,7 @@ PIPE_GROUPS = [
                         "benchmarkDetection"]),
     ("Probe maps and sites", ["probeMapProblems", "writeProbeMap", "siteNeighbors"]),
     ("Folders and network shares", ["folderReachable", "listTree", "matchFiles"]),
-    ("File I/O", ["addToManifest", "writeManifestTags", "readJsonFile", "writeJsonFile", "stringifyNonFinite", "readNPY", "writeNPY", "readNPZ",
+    ("File I/O", ["addToManifest", "writeManifestTags", "writeManifestVariables", "readJsonFile", "writeJsonFile", "stringifyNonFinite", "readNPY", "writeNPY", "readNPZ",
                   "writeNPZ", "readNewLines", "read_Intan_RHD2000_file_modified"]),
     ("Version and provenance", ["ephysVersion", "ephysProvenance", "provenanceForJson"]),
     ("Platforms", ["platformSupport", "openInSystem"]),
@@ -1026,7 +1026,7 @@ PIPE_GROUPS = [
 ]
 
 ANALYSIS_GROUPS = [
-    ("Loading", ["loadAnalysisSource", "outputTags", "outputsStamp"]),
+    ("Loading", ["loadAnalysisSource", "outputTags", "outputVariables", "outputsStamp"]),
     ("Events, trial selection and epochs", ["eventRef", "resolveEvents", "eventRefLabel", "trialSelection",
                                             "selectTrials", "epochWindow", "epochTable", "epochSpikes"]),
     ("Raster event marks", ["epochEvents", "eventMarkRef", "rasterMarkLabels", "rasterMarkLooks"]),

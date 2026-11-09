@@ -47,17 +47,17 @@ nTok = numel(shown);
 
 % Natural column layout: variable, header, editable, sortable, width.
 vars   = ["Select", "Name", tokenVars, "Key", "AcqDate", "NumChannels", "Fs", ...
-          "DurationMin", "Format", "Probe", "Exclude", "Sorting", "Behavior", "Tags", "DatasetIdx"];
+          "DurationMin", "Format", "Probe", "Exclude", "Sorting", "Behavior", "Tags", "Vars", "DatasetIdx"];
 labels = [{'Select', 'Name'}, cellstr(shown), ...
-          {'Key', 'Acq date', 'Ch', 'Fs (Hz)', 'Dur (min)', 'Format', 'Probe', 'Exclude', 'Sorting', 'Behavior', 'Tags', ''}];
-editable = [true, false(1, 13 + nTok)];
-sortable = [true(1, 13 + nTok), false];
+          {'Key', 'Acq date', 'Ch', 'Fs (Hz)', 'Dur (min)', 'Format', 'Probe', 'Exclude', 'Sorting', 'Behavior', 'Tags', 'Variables', ''}];
+editable = [true, false(1, 14 + nTok)];
+sortable = [true(1, 14 + nTok), false];
 % No '1x' column: a weighted column gets only what the others leave, which a
 % 1280 px window leaves none of (a column a few pixels wide). Every column
-% fits its contents, Tags is fixed so an empty cell is still easy to click,
+% fits its contents, Tags and Variables are fixed so an empty cell is still easy to click,
 % and the table scrolls sideways when the window is narrower than the columns.
 widths = [{64, 'fit'}, repmat({'fit'}, 1, nTok), ...
-          {'fit', 118, 44, 76, 86, 'fit', 'fit', 90, 'fit', 'fit', 140, 1}];
+          {'fit', 118, 44, 76, 86, 'fit', 'fit', 90, 'fit', 'fit', 140, 160, 1}];
 
 prev = obj.DatasetsTable.Data;
 order = displayedColumnOrder(obj, prev);
@@ -81,7 +81,7 @@ end
 
 Name = strings(n, 1); AcqDate = strings(n, 1); NumChannels = zeros(n, 1); Fs = zeros(n, 1);
 DurationMin = zeros(n, 1); Format = strings(n, 1); Probe = strings(n, 1); Exclude = strings(n, 1);
-Sorting = strings(n, 1); Behavior = strings(n, 1); Tags = strings(n, 1);
+Sorting = strings(n, 1); Behavior = strings(n, 1); Tags = strings(n, 1); Vars = strings(n, 1);
 AllTokens = repmat("-", n, numel(tokenNames));   % every pattern token (the filters use all)
 nMatched = 0;
 
@@ -98,6 +98,7 @@ for i = 1:n
     Name(i) = c.Name; AcqDate(i) = c.AcqDate; NumChannels(i) = c.NumChannels; Fs(i) = c.Fs;
     DurationMin(i) = c.DurationMin; Format(i) = c.Format; Probe(i) = c.Probe;
     Exclude(i) = c.Exclude; Sorting(i) = c.Sorting; Behavior(i) = c.Behavior; Tags(i) = c.Tags;
+    Vars(i) = c.Vars;
 end
 
 % Token filters: rebuild the dropdowns when the tokens change, refresh their
@@ -126,7 +127,7 @@ nActive = nActive + tagActive;
 DatasetIdx = (1:n)';
 T = [table(Select, Name), array2table(AllTokens(:, loc), 'VariableNames', cellstr(tokenVars)), ...
     table(Key, AcqDate, NumChannels, Fs, DurationMin, Format, ...
-    Probe, Exclude, Sorting, Behavior, Tags, DatasetIdx)];
+    Probe, Exclude, Sorting, Behavior, Tags, Vars, DatasetIdx)];
 T.Properties.VariableNames = cellstr(vars);
 obj.HiddenSelectedKeys = reshape(Key(~keep & Select), 1, []);
 T = T(keep, :);
@@ -202,10 +203,11 @@ end
 
 function c = datasetCells(obj, d)
 %datasetCells  The cells of dataset D's row that come from its metadata,
-%   probe, exclusions, sorted output, Epsych2 session and tags.
+%   probe, exclusions, sorted output, Epsych2 session, tags and variables.
 c = struct('Name', d.Name, 'AcqDate', "", 'NumChannels', d.NumChannels, 'Fs', d.Fs, ...
     'DurationMin', 0, 'Format', d.RecordingFormat, 'Probe', "-", 'Exclude', "-", ...
-    'Sorting', "-", 'Behavior', "-", 'Tags', TagSet.toText(d.Tags, TagSet.DisplayDelimiter));
+    'Sorting', "-", 'Behavior', "-", 'Tags', TagSet.toText(d.Tags, TagSet.DisplayDelimiter), ...
+    'Vars', DatasetVariables.toText(d.Variables));   % "Vars": a table cannot have a variable named Variables
 if ~isnat(d.AcqDate)
     c.AcqDate = string(datetime(d.AcqDate, 'Format', 'yyyy-MM-dd HH:mm'));
 end

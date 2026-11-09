@@ -938,6 +938,34 @@ every row. It is the [dataset browser](DatasetBrowser.md)'s filter
 use, and follow every edit. The label counts the tag filter as one filter (`showing k of n (m ticked
 hidden)`).
 
+### Dataset variables
+
+**Variables...** (under **Tags...**, and **Dataset → Variables...**) records
+values on the datasets of the rows **selected** in the table, ticked or not,
+or on the active dataset when none is selected; a click on a **Variables**
+cell edits that dataset's alone. The window (`VariableDialog`) has a row per
+dataset and a column per variable:
+
+- **New variable** adds a column; type its **Label** (`Probe Depth`) and the
+  **Name** follows it (`probeDepth`, the name data structures use) until you
+  type one of your own (clear it to get the suggestion back). **Units** and
+  **Description** are optional; **Type** is *Automatic* (a number when every
+  value reads as one), *Number* or *Text*.
+- Type each dataset's value in its cell; an empty cell means the dataset
+  does not have the variable. **Same value for all** + **Fill column** fills
+  every row, **Clear column** empties it, **Remove variable** takes the
+  column out (the variable is removed from every dataset on OK).
+- **Use a variable from other datasets...** adds a variable in use on the
+  project's other datasets, with its name, label, units and description.
+
+**OK** saves each changed dataset's set (`EphysDataset.setVariables`) and
+writes its manifest; the status bar says what changed (*Variables of recA:
+probeDepth updated.*). Only the latest values are kept; the manifest notes
+when each variable changed. The **Variables** column shows them in one line
+(`probeDepth = 1200 µm; cohort = 3`). Variables are not part of the config
+and cannot be edited while a run is going. See
+[EphysDataset: Variables](EphysDataset.md#variables).
+
 #### Tags for new datasets
 
 **Tag new datasets** (under **Scan**) tags every recording as it arrives,

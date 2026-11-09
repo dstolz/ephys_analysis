@@ -199,6 +199,40 @@ by them.
 - Tag while you still remember what each recording was: right after the
   scan, or let **Tag new datasets** do it for you.
 
+## Record values on your datasets
+
+A *variable* is a value you record on a recording: the probe's depth, a
+drug dose, a cohort number, a weight. Where a tag says *which group* a
+recording is in, a variable says *how much*. Each variable has
+
+- a **label**, the name you read: `Probe Depth`;
+- a **name**, the one tables and scripts use: `probeDepth`. The window
+  suggests it from the label as you type; type your own to keep it;
+- a **value**: a number (`1200`) or text (`saline`);
+- optional **units** (`µm`) and a **description**.
+
+**How to record them.**
+
+| To | Do this |
+| --- | --- |
+| one recording | click its **Variables** cell in the Project table |
+| several at once | select their rows (Shift / Ctrl+click), then press **Variables...** (or **Dataset > Variables...**) |
+
+The window shows a row per recording and a column per variable. Press
+**New variable**, type the label, then type each recording's value in its
+cell. **Same value for all** and **Fill column** put one value in every
+row; a variable already used on other recordings is under **Use a variable
+from other datasets...**, so it keeps the same name and units everywhere.
+Leave a cell empty for a recording without that value. Press **OK** to save.
+
+You can change a value at any time. Only the latest value is kept; the
+recording's manifest notes when each variable was created, changed or
+removed, and the [manifest viewer](ManifestViewerApp.md)'s **Variables**
+tab shows it. Variables travel with the data: they are in the output
+files, the analysis tables (a `var_probeDepth` column) and the reports. They
+never change any processing. The analysis app and the dataset browser edit
+them the same way.
+
 ## Common tasks
 
 | ...do this | Do this |

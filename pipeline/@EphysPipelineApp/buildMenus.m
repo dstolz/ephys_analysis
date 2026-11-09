@@ -12,7 +12,8 @@ function buildMenus(obj)
 %   datasets ticked in the Project table, with every dataset in an "All
 %   datasets" submenu, and View manifest opens the active dataset's
 %   manifest in a ManifestViewerApp (onViewManifest); Tags edits the tags
-%   of the selected rows' datasets, or the active one's (onEditTags). Run mirrors the Run
+%   of the selected rows' datasets, or the active one's (onEditTags);
+%   Variables... their variables (onEditVariables). Run mirrors the Run
 %   tab's buttons (Show plan, Rehearse (no files)) and has the check item Ask before
 %   running (the preference ConfirmRun: confirmRun). Help opens pages of the GitHub wiki: the one for the tab
 %   that is shown, the home page, the keyboard shortcuts and right-click menus (a
@@ -70,6 +71,9 @@ obj.DatasetManifestItem = uimenu(obj.DatasetMenu, "Text", "View manifest...", "S
 obj.DatasetTagsItem = uimenu(obj.DatasetMenu, "Text", "Tags...", ...
     "Tooltip", "Tag the datasets on the rows selected in the Project table, ticked or not (the active one when no row is selected).", ...
     "MenuSelectedFcn", @(~,~) obj.onEditTags());
+obj.DatasetVariablesItem = uimenu(obj.DatasetMenu, "Text", "Variables...", ...
+    "Tooltip", "Record values (probe depth, dose, cohort...) on the datasets of the rows selected in the Project table (the active one when no row is selected).", ...
+    "MenuSelectedFcn", @(~,~) obj.onEditVariables());
 obj.refreshDatasetMenu();
 
 % --- Run ---------------------------------------------------------------------

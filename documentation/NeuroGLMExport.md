@@ -111,7 +111,8 @@ span touches an erased period (`D.artifacts`) unless `DropArtifacts=false`
 `spans`, `units` (the rows of `D.units` plus `variable`), `lines` (`line`,
 `on`, `off`), `values` (`column`, `variable`), `signal`, `response` and
 `responseTime` (the variables' names, `""` without them); `expt.param` holds
-the same tables with `key`, `name`, `fs`, `binMs`, `window`, `align`,
+the same tables with `key`, `name`, `variables` (the dataset's recorded
+variables as a struct of values), `fs`, `binMs`, `window`, `align`,
 `trialLine` and `groups`.
 
 ## From the DatasetBrowser

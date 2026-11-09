@@ -48,7 +48,8 @@ The builders then give, per profile, `pots` `[nChan x nTime x nGroups]` in V
 (the result's unit, uV as a rule, scaled), channels top down, the group's
 epochs averaged as `R.data` is (`signal.statistic`); `epochs`
 `[nChan x nTime x nEpochs]` for single trials; `t`, `fs`, `groupLabels`,
-`nEpochs` and a `cfg`. The whole-session builder also keeps `signal`
+`nEpochs` and a `cfg` (with the dataset's recorded `variables`, a struct of
+values: `cfg.variables.probeDepth`). The whole-session builder also keeps `signal`
 `[nChan x nSamples]`, the `artifacts` and the `events`, and cuts the kept
 trials with `mTRFExport.trials` (a trial off the signal or touching an erased
 period is dropped) around `Align` (`TrialOnset` by default, a column of the

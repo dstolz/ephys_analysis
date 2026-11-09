@@ -2,7 +2,8 @@ function buildProjectTab(obj)
 %buildProjectTab  Config name, project root / output root, the tags for
 %   new datasets (under Scan: onAutoTags), name pattern,
 %   dataset table, selection helpers, the dataset tags (Tags..., a click on
-%   a Tags cell: onEditTags; the tag filter), the Tools panel beside the table (the
+%   a Tags cell: onEditTags; the tag filter), the dataset variables
+%   (Variables..., a click on a Variables cell: onEditVariables), the Tools panel beside the table (the
 %   datasets in the manifest viewer, the analysis app, phy or the file
 %   browser), the Source settings panel under it (the reader options of the
 %   active dataset's recording system: Open Ephys, TDT; see
@@ -111,7 +112,7 @@ obj.NameTokenGrid.Padding   = [0 0 0 0];
 tb = uigridlayout(g, [2 7]);
 tb.Layout.Row = 2;
 tb.RowHeight   = {30, 30};
-tb.ColumnWidth = {'fit', 60, 150, 80, 'fit', '3x', '2x'};
+tb.ColumnWidth = {'fit', 60, 150, 96, 'fit', '3x', '2x'};
 tb.Padding     = [0 0 0 0];
 tb.RowSpacing  = 6;
 lbl = uilabel(tb, "Text", "Datasets", "FontWeight", "bold");
@@ -128,6 +129,11 @@ obj.TagsButton = uibutton(tb, "Text", "Tags...", ...
     "Tooltip", "Tag the datasets on the selected rows, ticked or not (Shift / Ctrl+click selects several; the active one when no row is selected). A click on a Tags cell tags that dataset.", ...
     "ButtonPushedFcn", @(~,~) obj.onEditTags());
 obj.TagsButton.Layout.Row = 1; obj.TagsButton.Layout.Column = 4;
+% Variables...: the selected rows' variables in a grid (one row per dataset), else the active one's.
+obj.VariablesButton = uibutton(tb, "Text", "Variables...", ...
+    "Tooltip", "Record values on the datasets of the selected rows (probe depth, dose, cohort...): a row per dataset, a column per variable; every change is kept in the manifest. A click on a Variables cell edits that dataset's.", ...
+    "ButtonPushedFcn", @(~,~) obj.onEditVariables());
+obj.VariablesButton.Layout.Row = 2; obj.VariablesButton.Layout.Column = 4;
 % One filter dropdown per name-pattern token (see syncTokenFilters).
 obj.NameTokenFilterGrid = uigridlayout(tb, [1 1]);
 obj.NameTokenFilterGrid.Layout.Row = 1; obj.NameTokenFilterGrid.Layout.Column = [5 7];

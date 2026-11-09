@@ -515,6 +515,28 @@ says how to cut a release.
 
 ### Added
 
+- Dataset variables: values recorded on a dataset (a probe depth, a dose, a cohort number), each with a name the data
+  structures use (`probeDepth`, a valid MATLAB name), a label people read (`Probe Depth`), a value (one number or text),
+  optional units and a description. Kept in the manifest's new `variables` object; only the latest value is kept, and
+  `variable_history` notes when each variable was created, updated (which part), renamed or removed, and by whom.
+  Every rule is the new `DatasetVariables`; `EphysDataset.Variables` and `setVariables`; `writeManifestVariables`
+  (a dataset, its folder or its manifest file; only `variables`, `variable_history` and `updated` change) for
+  scripts; `EphysDataset.writeManifest` merges another session's changes variable by variable.
+- `VariableDialog`: a grid with a row per dataset and a column per variable. The name follows the label as it is typed
+  (`Drug dose (mg/kg)` -> `drugDoseMgKg`) until one is typed by hand; Type Automatic / Number / Text; Fill column; Use a
+  variable from other datasets (one name, label and units across datasets); rename and remove. In the pipeline app
+  (**Variables...** under **Tags...**, **Dataset > Variables...**, a click on the new **Variables** column), the
+  analysis app's Data tab (a **Variables** column; right-click **Variables...** and **View manifest...**) and the
+  dataset browser (a **Variables** column; right-click **Edit variables...** / **(ticked)...**; `editVariables`,
+  `setVariables`).
+- Manifest viewer: a **Variables** tab (the variables now, and when each was created, updated, renamed or removed: never
+  an earlier value), a Variables section on the Summary, and the variables on the Flow chart's recording box.
+- The variables in the outputs: `variables` (the values) and `variableInfo` (their definitions) beside the tags in the
+  `.mat` files' `conversion`, `loadAnalysisSource`'s `src` and `sessionData`'s `D`; the values in the NWB notes, the
+  pipeline run record and the toolbox structs' `cfg`; a `var_<name>` column per variable (label and units in the
+  table's descriptions and units) in the analysis tables (`epochMatrix`'s rows and datasets, `populationAnalysis`,
+  session tables, `EphysProject.gatherMetadata`); a row each in the reports. New `outputVariables` reads them from a
+  manifest without loading a source.
 - Dataset browser, Measure tab: **Unit classes** in the Spikes block, a box each for `su`, `mua`, `uns` and `noise`
   (`units.classes`; the new `EphysAnalysisConfig.UnitClasses`). Tick `su` alone to keep only single units; none
   ticked, or all, keeps every class, as before. On only with Data `units` (detected channels have no classes). A class

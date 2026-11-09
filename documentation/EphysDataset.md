@@ -494,6 +494,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `DatasetKey` | `""` | folder relative to the project root, saved with every unit (`""` = the absolute folder). Pushed by `EphysProject` and the pipeline |
 | `TrialPairing` | `struct([])` | the recorded pairing (manifest `behavior.pairing`): `status` (`"unreviewed"` / `"approved"`), `auto_approved` (approved by `autoApproveTrialPairing`, not by a review), `cut_trials` and `cut_intervals` (`[start end]` counts dropped before the in-order pairing), `drop_intervals` (indices of single trial-line intervals dropped from the middle of the list, e.g. a glitch pulse; none by default), `fingerprint`, `trial_line`, `summary`, `updated` |
 | `Custom` | `struct()` | the manifest's `custom` block, the fields a script added with `addToManifest` ([Dataset manifest](#dataset-manifest)); `applyManifest` reads it and `writeManifest` writes it |
+| `Variables` | `struct()` | (read-only) the user's variables on the dataset, a field per name (label, value, units, description, created, updated); see [Variables](#variables). Set with `setVariables` or `writeManifestVariables`. Saved to and restored from the manifest's `variables` object |
 | `Processing` | `emptyProcessing()` | every detail of how each output was made, as its writer recorded it when it wrote it: `artifacts` (`artifactIntervals`), `bin` (`toBin`), `sorting` (`runKilosort`, `runSpikeInterface`), `signals` (`toMat`), `spikes` (`spikesToMat`), `behavior` (`behaviorToMat`), `nwb` (`exportNWB`), each `[]` until written. Saved to and restored from the manifest's `processing` block ([Dataset manifest](#dataset-manifest)) |
 
 ### Dependent
@@ -2713,6 +2714,51 @@ recording). Other places the tags appear:
 the manifest viewer's Summary (a `Tags` row), the pipeline run record's
 `datasets`, and the `.mat` and NWB outputs
 ([file-formats.md](file-formats.md#dataset-manifest) lists each field).
+
+### Variables
+
+`ds.Variables` holds values the user records on the dataset: the probe's
+depth, a dose, a cohort number. Each has a **name** the data structures use
+(`probeDepth`, a valid MATLAB name), a **label** people read
+(`"Probe Depth"`), a **value** (one finite number or text), optional
+**units** and **description**, and when it was created and last updated.
+Like tags they are metadata only: no step reads them; they are written
+beside the other per-dataset metadata in the outputs (`variables`, a struct
+of the values, and `variableInfo`, a table of the definitions; a
+`var_<name>` column in tables, [file-formats.md](file-formats.md)).
+
+Every rule lives in [`DatasetVariables`](../pipeline/DatasetVariables.m), a
+class of static methods (`suggestName`, `parseValue`, `entry`, `update`,
+`values`, `info`, `columns`, `vocabulary`, ...). Change the set with
+`setVariables`, which logs each change:
+
+```matlab
+s = ds.Variables;
+s.probeDepth = DatasetVariables.entry("Probe Depth", 1200, Units="µm");
+ds.setVariables(s);                  % created; ds.writeManifest() saves it
+s.probeDepth.value = 1250;
+ds.setVariables(s);                  % updated
+ds.setVariables(struct('depth', s.probeDepth), Renamed=["probeDepth" "depth"]);
+```
+
+or, to change one variable and write the manifest in one call (an
+`EphysDataset`, its folder or its manifest file):
+
+```matlab
+writeManifestVariables(ds, Name="probeDepth", Value=1200, Label="Probe Depth", Units="µm");
+writeManifestVariables("S:\outputs\subjA_260101_120000", Name="probeDepth", Value=1250);
+writeManifestVariables(ds, Remove="probeDepth");
+```
+
+Only the latest value is kept. The manifest's `variable_history` notes when
+each variable was created, updated (and which part changed), renamed or
+removed, and by whom, never what it held; the manifest viewer's
+**Variables** tab shows it. `writeManifest` merges another writer's changes
+variable by variable (a session that changed one variable keeps another
+session's change to another), and the history keeps the rows of both. The
+apps edit variables in [`VariableDialog`](../pipeline/VariableDialog.m), a
+grid with a row per dataset and a column per variable: the pipeline app's
+**Variables...**, the analysis app's Data tab and the dataset browser.
 
 ### Processed files (`DatasetOutputs`)
 

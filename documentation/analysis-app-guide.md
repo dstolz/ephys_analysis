@@ -211,6 +211,20 @@ tables, so a figure is never far from what the recording was. Tag your
 recordings in the pipeline app's Project tab; it takes seconds, and it is
 the quickest way to draw the same figures for one group of recordings.
 
+## Record values on your recordings
+
+[Variables](pipeline-app-guide.md#record-values-on-your-datasets) are values
+you record on a recording: a probe depth, a dose, a cohort number. Click a
+recording's **Variables** cell on the Data tab, or select rows and
+right-click the table, **Variables...**: a window shows a row per
+recording and a column per variable. **New variable**, type its label (the
+name tables use is suggested for you), then each recording's value; **OK**
+saves them in the recordings' manifests. Change a value whenever you like:
+only the latest is kept, and **View manifest...** (same right-click menu)
+shows when each one changed. The values come with the data into the tables
+the app writes (a `var_probeDepth` column) and the reports. They do not
+change any figure yet.
+
 ## Words you will see
 
 | Word | Means |

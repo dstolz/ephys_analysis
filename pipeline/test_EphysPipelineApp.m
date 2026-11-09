@@ -888,12 +888,12 @@ if S.sec("3", "scan, selection, plan")
         && contains(T.Sorting(1), "manual"), 'scan fills the table with keys and the sorting association');
     check(~T.Select(1) && app.Config.Project.Selection == "all", 'no ticks = every dataset');
     check(numel(app.DatasetTickedItems) == 1 && string(app.DatasetTickedItems.Text) == "(no datasets ticked)" ...
-        && numel(app.DatasetMenuItems) == 1 && isequal(app.DatasetMenu.Children(1:3), [app.DatasetTagsItem; app.DatasetManifestItem; app.DatasetAllMenu]), ...
+        && numel(app.DatasetMenuItems) == 1 && isequal(app.DatasetMenu.Children(1:4), [app.DatasetVariablesItem; app.DatasetTagsItem; app.DatasetManifestItem; app.DatasetAllMenu]), ...
         'the Dataset menu lists no datasets while none is ticked; All datasets lists every one; View manifest and Tags at the bottom');
     app.onSelectDatasets("all");
     check(app.Config.Project.Selection == "list" && isequal(app.Config.Project.Datasets, "recA_260101_120000"), 'ticking rows selects by key');
     check(numel(app.DatasetTickedItems) == 1 && isequal(app.DatasetTickedItems.UserData, 1) && app.DatasetTickedItems.Checked ...
-        && isequal(app.DatasetMenu.Children(1:3), [app.DatasetTagsItem; app.DatasetManifestItem; app.DatasetAllMenu]), ...
+        && isequal(app.DatasetMenu.Children(1:4), [app.DatasetVariablesItem; app.DatasetTagsItem; app.DatasetManifestItem; app.DatasetAllMenu]), ...
         'a ticked dataset is listed above All datasets, checked when active');
     check(all(arrayfun(@(dd) isequal(dd.ItemsData, {1}) && isequal(dd.Value, 1), app.DatasetPickers)), ...
         'every tab''s Dataset box lists the ticked datasets');
@@ -913,6 +913,7 @@ if S.sec("3", "scan, selection, plan")
     app.onViewManifest();
     mv = findall(groot, 'Type', 'figure', 'Name', "Manifest - recA_260101_120000_manifest.json");
     mvT = findall(mv, 'Type', 'uitable');
+    mvT = mvT(arrayfun(@(t) any(strcmp(t.ColumnName, 'Section')), mvT));   % the Summary (the Variables tab has two more)
     check(isscalar(mv) && isscalar(mvT) && any(mvT.Data.Field == "Periods" & mvT.Data.Value == "1") ...
         && contains(app.StatusBar.Text, "Opened the manifest of recA_260101_120000"), ...
         'Dataset > View manifest opens the active dataset''s manifest in a viewer');
@@ -1826,9 +1827,9 @@ if S.sec("3e", "Project tab: Tags column, dialog, filter")
     T = app.DatasetsTable.Data;
     tagsCol = find(strcmp(T.Properties.VariableNames, 'Tags'));
     check(app.Project.NumDatasets == 2 && isscalar(tagsCol) && string(app.DatasetsTable.ColumnName{tagsCol}) == "Tags" ...
-        && tagsCol == width(T) - 1 && app.DatasetsTable.ColumnSortable(tagsCol) && ~app.DatasetsTable.ColumnEditable(tagsCol) ...
+        && tagsCol == width(T) - 2 && app.DatasetsTable.ColumnSortable(tagsCol) && ~app.DatasetsTable.ColumnEditable(tagsCol) ...
         && all(T.Tags == "") && isempty(tagsOf(nameA)) && isempty(app.TagDialog), ...
-        'the Project table has a read-only, sortable Tags column before DatasetIdx, empty before any tag');
+        'the Project table has a read-only, sortable Tags column before Variables and DatasetIdx, empty before any tag');
     check(isequal(app.TagsButton.BackgroundColor, app.ScanButton.BackgroundColor) && app.TagsButton.Text == "Tags..." ...
         && isequal(app.TagFilterDropDown.Items, {'(any)'}), 'Tags... is a primary (colored) button; the tag filter lists no tags yet');
 
@@ -1962,6 +1963,54 @@ if S.sec("3e", "Project tab: Tags column, dialog, filter")
     app.onScan();
     app.selectDataset(1);
     check(app.Project.NumDatasets == 1 && all(app.DatasetsTable.Data.Tags == ""), 'the second recording removed again');
+end
+
+if S.sec("3e2", "Project tab: Variables column and dialog")
+    nameA = "recA_260101_120000";
+    dA = app.Project.Datasets([app.Project.Datasets.Name] == nameA);
+    dA.writeManifest();
+    mf = dA.manifestFile();
+    txt0 = fileread(mf);   % the fixture's manifest, put back at the end
+    T = app.DatasetsTable.Data;
+    vCol = find(strcmp(T.Properties.VariableNames, 'Vars'));
+    check(isscalar(vCol) && vCol == width(T) - 1 && string(app.DatasetsTable.ColumnName{vCol}) == "Variables" ...
+        && ~app.DatasetsTable.ColumnEditable(vCol) && all(T.Vars == "") && isempty(app.VariableDialog), ...
+        'the Project table has a read-only Variables column before DatasetIdx, empty before any variable');
+    check(isequal(app.VariablesButton.BackgroundColor, app.ScanButton.BackgroundColor) && app.VariablesButton.Text == "Variables..." ...
+        && app.DatasetVariablesItem.Text == "Variables...", 'Variables... is a primary button and a Dataset menu item');
+    click = @(row, col) app.DatasetsTable.ClickedFcn(app.DatasetsTable, ...
+        struct('InteractionInformation', struct('Row', row, 'Column', col)));
+    click(find(T.Name == nameA), vCol);
+    dlg = app.VariableDialog;
+    check(isa(dlg, 'VariableDialog') && isequal(size(dlg.Cells), [1 0]) && dlg.Ctl.Grid.Data{1, 1} == nameA, ...
+        'a click on a Variables cell opens the dialog on that dataset');
+    dlg.newVariable("Probe Depth");
+    dlg.setUnits("µm");
+    dlg.setValue(1, "probeDepth", "1200");
+    dlg.ok();
+    m = EphysDataset.readManifest(mf);
+    check(dA.Variables.probeDepth.value == 1200 && m.variables.probeDepth.value == 1200 ...
+        && string(m.variable_history.action) == "created" && string(m.variable_history.time) ~= "" ...
+        && app.DatasetsTable.Data.Vars(app.DatasetsTable.Data.Name == nameA) == "probeDepth = 1200 µm" ...
+        && contains(app.StatusBar.Text, "Variables of " + nameA + ": probeDepth created."), ...
+        'OK: the dataset, its manifest (with the time of the change) and the table hold the variable');
+    app.onEditVariables();
+    dlg = app.VariableDialog;
+    dlg.setValue(1, 1, "1350");
+    dlg.cancel();
+    check(dA.Variables.probeDepth.value == 1200, 'Cancel changes nothing');
+    app.onEditVariables();
+    app.VariableDialog.setValue(1, 1, "1350");
+    app.VariableDialog.ok();
+    app.onScan();
+    dA = app.Project.Datasets([app.Project.Datasets.Name] == nameA);
+    m = EphysDataset.readManifest(mf);
+    check(dA.Variables.probeDepth.value == 1350 && numel(m.variable_history) == 2 ...
+        && ~contains(extractAfter(string(fileread(mf)), '"variable_history"'), '"value":'), ...
+        'a rescan keeps the latest value; the history says it was updated, not what it held');
+    writeJsonFile(mf, txt0, Text=true);
+    app.onScan();
+    check(all(app.DatasetsTable.Data.Vars == ""), 'the fixture''s manifest put back');
 end
 
 if S.sec("3e1", "Project tab: tags for new datasets")

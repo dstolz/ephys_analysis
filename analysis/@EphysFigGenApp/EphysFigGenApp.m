@@ -10,9 +10,12 @@ classdef EphysFigGenApp < handle
     %     Data       where the datasets are: a pipeline project (root + output
     %                root) or a list of output folders; Scan; a table of what
     %                each dataset holds (signals, units, detections, behavior,
-    %                trials, pairing), filtered by subject and tags, with Tick
-    %                shown only / Untick all; for the active dataset its files, digital
-    %                lines, behavior and units
+    %                trials, pairing, tags, variables), filtered by subject
+    %                and tags, with Tick shown only / Untick all; for the
+    %                active dataset its files, digital lines, behavior and
+    %                units. Right-click the table for Variables... (a grid of
+    %                datasets x variables: values recorded on the datasets,
+    %                every change logged in the manifest) and View manifest...
     %     Alignment  the config's Defaults: the event reference (any digital
     %                line or "Trial", onset / offset, first / last / all / nth,
     %                trial or recording scope, and a sequence of events that
@@ -384,6 +387,7 @@ classdef EphysFigGenApp < handle
         FavoriteEntries = []                % the Favorites drop-downs' entries: table dataset, level, id, label (refreshFavorites)
         Notes = []                          % the scanned datasets' notes: a DatasetNotes each, in Runner order (read on Scan)
         NotePadWindow = []                  % the notepad (NotePad), while open (openNotePad)
+        VariableDialog = []                 % the variable dialog (VariableDialog), while open (onEditVariables)
         NotePadFollows (1,1) string = ""    % what the notepad follows: "dataset" (the active one), "observation" (the one picked), "" (the note it was opened on)
         NoteSearchWindow = []               % the Search notes window (NoteSearch), while open (onSearchNotes)
         DatasetUnits = []                   % sorted units per dataset, read when it is opened: containers.Map, "<key>|<sort folder>" -> table unitId, class, channel, depth (refreshDatasetLabels; labels the Favorites)
@@ -571,6 +575,8 @@ classdef EphysFigGenApp < handle
         onTickDatasets(obj, mode)
         onDatasetCellSelection(obj, evt)
         onDatasetNoteClicked(obj, evt)
+        dlg = onEditVariables(obj, idx)
+        v = onViewManifest(obj, idx)
         onDatasetsSorted(obj, evt)
         clearDatasetsSort(obj)
         selectDataset(obj, idx)

@@ -158,6 +158,7 @@ copies them.
 | **Name**, **Key** | the dataset's name and key (the root-relative folder, or the output folder in folders mode) |
 | **Subject**, **Date** | the dataset's `SubjectID` from the name pattern, and the day it was recorded (a project's recording start, else the date in the name) |
 | **Tags** | the dataset's [tags](EphysDataset.md#tags), `, `-joined (read only: tags are edited in the pipeline app's Project tab). From the manifest beside the data, read once per dataset, not the whole source. They also appear in the report (after the dataset's name, and the *Recording* table's **Tags** row) and in the sessions and population exports ([Tags](EphysAnalysis.md#tags)) |
+| **Variables** | the dataset's [variables](EphysDataset.md#variables) in one line (`probeDepth = 1200 µm; cohort = 3`). Click the cell to edit them (`VariableDialog`, a row per dataset and a column per variable); right-click the table, **Variables...**, for the selected rows' (else the active dataset's). OK writes them to the manifests and the sources loaded take the new values (`src.variables`, `src.variableInfo`). **View manifest...** (same menu) opens the dataset's manifest in the manifest viewer, where its Variables tab says when each changed |
 | **LFP**, **MUA**, **Spike band**, **AUX** | ✓ when that signal's extract exists (**Spike band** is the `SPIKE` signal) |
 | **Units**, **Detected** | the sorting folder holds sorted units; the spikes file holds threshold detections |
 | **Behavior** | `<Name>_behavior.mat` exists |

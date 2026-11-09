@@ -46,21 +46,6 @@ obj.TagDialog = TagDialog(arrayfun(@(d) d.Tags, targets, 'UniformOutput', false)
 end
 
 
-function idx = selectedRowDatasets(obj)
-%selectedRowDatasets  Datasets on the rows selected in the Project table.
-%   Its Selection is [row column] per selected cell, rows of Data (not of
-%   a header sort's order), mapped to datasets through DatasetIdx; the
-%   Select ticks play no part. Ascending; empty when nothing is selected.
-idx = zeros(1, 0);
-T = obj.DatasetsTable.Data;
-sel = obj.DatasetsTable.Selection;
-if isempty(sel) || ~istable(T) || ~any(strcmp('DatasetIdx', T.Properties.VariableNames)); return; end
-rows = unique(sel(:, 1));
-rows = rows(rows >= 1 & rows <= height(T));
-idx = reshape(unique(T.DatasetIdx(rows)), 1, []);
-end
-
-
 function applyTags(obj, idx, targets, r)
 %applyTags  The dialog closed: store, save and show the new tag sets.
 %   R is [] (canceled, or nothing changed) or TagDialog's result: each

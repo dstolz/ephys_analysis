@@ -184,6 +184,36 @@ after it their parts read `old` and **Compute** works them out again, as after
 a tag edit in the pipeline app. **Compute** takes the new tags into `R.rows`
 and `R.name` at once.
 
+#### Editing variables
+
+A dataset's [variables](EphysDataset.md#variables) (a probe depth, a dose)
+show in the **Variables** column. A click on a cell opens the variable
+window (`VariableDialog`) on that dataset; right-click the table, **Edit
+variables...** for the rows selected (else the clicked one) or **Edit
+variables (ticked)...**. The window has a row per dataset and a column per
+variable (see the [pipeline app](EphysPipelineApp.md#dataset-variables));
+**OK** writes each changed dataset's set to its manifest
+(`writeManifestVariables`), the table and the sources loaded follow, and the
+status line says what changed. Only the latest values are kept; the
+manifest notes when each variable changed. Every row of `R.rows` carries its
+dataset's values, a `var_<name>` column each.
+
+`B.editVariables(KEYS)` opens the window and returns it; its methods
+(`newVariable`, `setLabel`, `setValue`, `fillColumn`, `ok`, `cancel`, ...)
+drive it as the clicks do. From a script:
+
+```matlab
+B.setVariables(B.Shown, Name="probeDepth", Value=1200, Label="Probe Depth", Units="µm");
+B.setVariables("SUBJ-ID-1255_260101", Name="probeDepth", Value=1350);   % by key or name
+B.setVariables(B.Selected, Remove="probeDepth");
+```
+
+A request that changes nothing writes nothing; a bad name or value errors
+before anything is written (`DatasetVariables:BadName`, `:BadValue`); a
+manifest that cannot be written is named in
+`DatasetBrowser:VariablesNotWritten`. `OnChange` gets `"variables"`. As a
+tag edit, a variable edit changes the manifest and so each dataset's stamp.
+
 ### The settings form
 
 The right panel holds the settings of `epochMatrix`: **Data** above three
@@ -671,6 +701,7 @@ R = B.compute();
 | `[VALUES, T] = forEach(B, FN, ...)` | [your own per-dataset code, cached](#foreach) |
 | `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
 | `DLG = editTags(B, KEYS)`, `setTags(B, KEYS, Set=, Add=, Remove=)` | the tag window on datasets (no `KEYS`: the rows selected, else the clicked one); the same edit from a script, written to the manifests ([Editing tags](#editing-tags)) |
+| `DLG = editVariables(B, KEYS)`, `setVariables(B, KEYS, Name=, Value=, Label=, Units=, Description=, Remove=)` | the variable window on datasets (a row per dataset, a column per variable); the same edit from a script, written to the manifests ([Editing variables](#editing-variables)) |
 | `loadSettings(B, FILE)` | read a [settings file](#settings) (no `FILE`: a file dialog) |
 | `saveSettings(B, FILE)`, `saveSettingsAs(B)` | write one (no `FILE`: `B.SettingsFile`, else a file dialog; `saveSettingsAs`: always a dialog) |
 | `TXT = exportScript(B, FILE)` | [a script](#export-a-script) that computes `B.Settings` on the ticked datasets without the browser (no `FILE`: a file dialog; `""`: the text only) |
@@ -810,13 +841,13 @@ R.data(:, :, 1))` draws the first group of every row, and `R.labels`
 | Field | Type | Holds |
 | --- | --- | --- |
 | `R.data` | double [nRows x nTime x nGroups] | The values: data(row, time, group). It holds the measure (rate, count or auROC) for spikes, and the group mean or median for signals. Wherever a row's dataset has no epochs in a group, the value is NaN. With `settings.normalize.method` other than `"none"` the values are normalized ([Normalization](#normalization)). |
-| `R.rows` | table, nRows rows | One row per unit (spikes) or channel (signals), in data's first-dimension order. Columns for every kind: label, Dataset (key), Subject, Date (day), Session, Tags (";"-joined). Units add unitId, class ("su", "mua", "det", ...), channel, channelName, shank, x, y, nSpikes, and nSites/sites when merged. Channels add channel, shank, x, y, units. A column that some datasets lack is missing (missing/NaN) in their rows. |
+| `R.rows` | table, nRows rows | One row per unit (spikes) or channel (signals), in data's first-dimension order. Columns for every kind: label, Dataset (key), Subject, Date (day), Session, Tags (";"-joined), then a `var_<name>` column per [variable](#editing-variables) (its label and units in `VariableDescriptions` and `VariableUnits`; NaN or missing where a dataset lacks it). Units add unitId, class ("su", "mua", "det", ...), channel, channelName, shank, x, y, nSpikes, and nSites/sites when merged. Channels add channel, shank, x, y, units. A column that some datasets lack is missing (missing/NaN) in their rows. |
 | `R.t` | double column, nTime | Times along data's second dimension, in s from the event. For spikes these are bin centers (auROC window centers for auroc); for signals, sample times. |
 | `R.groupLabels` | column, nGroups | Labels along data's third dimension, in settings.selection.groupOrder. Numeric when grouped by one parameter that is numeric in every dataset (e.g. Depth), otherwise string: the value's text for one parameter, "Depth = 3, Level = 2" for several. |
 | `R.rowKind` | string | "unit" or "channel". |
 | `R.valueUnits` | string | The unit of data: "spikes/s", "spikes/bin", "auROC", "uV" or "V"; normalized: "z", "%", "x baseline" or "0-1" ("subtract" keeps the unit). Use it for axis labels. |
 | `R.settings` | struct | The settings that made R (see [Settings](#settings)), e.g. R.settings.measure, R.settings.data, R.settings.window.pre. |
-| `R.datasets` | table, one row per ticked dataset | key, name, subject, date, status ("done", "cached", "skipped" or "error"), message, nRows, nEpochs, nGroups, seconds. This table answers "why is dataset X missing". |
+| `R.datasets` | table, one row per ticked dataset | key, name, subject, date, tags, the `var_<name>` columns, status ("done", "cached", "skipped" or "error"), message, nRows, nEpochs, nGroups, seconds. This table answers "why is dataset X missing". |
 | `R.keys` | string column | The datasets whose rows are in R, in row order. |
 | `R.created` | datetime | When the result was assembled. |
 | `R.name` | string | A default name for the result (`B.ResultName`), one identifier made by Compute and kept in the result file: the filter's tags (joined by `_`, by `_or_` with tag mode "any"; without filter tags, the tags every dataset of `R.keys` holds), the event the epochs are aligned to, the responses kept (`AllTrials` without any) and the measure, e.g. `ofc_perceptual_training_StimOnset_Hit_FiringRate`. |
@@ -1274,4 +1305,4 @@ out).
 | [`test_DatasetFilter.m`](../pipeline/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, `noteInManifest` (the `custom.browser_<tool>` field written, replaced and left off other datasets, a bad key warning), tags (`setTags`: Add, Remove and Set written to the manifests with nothing else changed, the table and the tag filter following, the refusals writing nothing, a loaded source's tags and `R.rows`; the tag window from a Tags cell, the selected rows and the ticked ones, OK, Cancel and closing the browser), the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, `noteInManifest` (the `custom.browser_<tool>` field written, replaced and left off other datasets, a bad key warning), tags (`setTags`: Add, Remove and Set written to the manifests with nothing else changed, the table and the tag filter following, the refusals writing nothing, a loaded source's tags and `R.rows`; the tag window from a Tags cell, the selected rows and the ticked ones, OK, Cancel and closing the browser), variables (`setVariables` written with nothing else changed, an unchanged value not written, a loaded source and `R.rows`' `var_` column following; the window from a Variables cell and the selected rows, closing the browser), the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |

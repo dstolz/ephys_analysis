@@ -27,6 +27,9 @@ classdef EphysPipelineApp < handle
     %     Project    config name, project root / output root, dataset table
     %                (the Select column is the config's dataset selection),
     %                dataset tags (a Tags column, Tags..., a tag filter),
+    %                dataset variables (a Variables column, Variables...:
+    %                a grid of datasets x variables, every change logged
+    %                in the manifest),
     %                a Tools panel that opens the active or the ticked
     %                datasets in the manifest viewer, the analysis app, phy
     %                or the file browser, Epsych2 behavior associations
@@ -177,6 +180,7 @@ classdef EphysPipelineApp < handle
         DatasetMenuItems   matlab.ui.container.Menu   % its items, one per dataset (index = dataset index)
         DatasetManifestItem matlab.ui.container.Menu  % bottom of the menu: View manifest (onViewManifest)
         DatasetTagsItem    matlab.ui.container.Menu   % under it: Tags... (onEditTags)
+        DatasetVariablesItem matlab.ui.container.Menu % under it: Variables... (onEditVariables)
         RunMenu            matlab.ui.container.Menu
         HelpMenu           matlab.ui.container.Menu   % wiki pages (helpURL, onHelp) + the issue items (onReportIssue)
 
@@ -292,6 +296,9 @@ classdef EphysPipelineApp < handle
         DatasetSearchField    matlab.ui.control.EditField  % words that must all appear in a shown dataset's name, key or tags
         TagDialog = []                                     % the open TagDialog ([] when none)
         TagPolicy (1,1) string = "all"                     % the bulk policy last chosen this session ("all" | "skip")
+        % Dataset variables (DatasetVariables): the grid dialog (onEditVariables)
+        VariablesButton       matlab.ui.control.Button     % Variables...: the selected rows' datasets, the active one when none is selected
+        VariableDialog = []                                % the open VariableDialog ([] when none)
         % Tags for new datasets, beside Scan: a scan tags each dataset it finds for the first time
         AutoTagCheckBox       matlab.ui.control.CheckBox   % Project.AutoTag
         AutoTagField          matlab.ui.control.EditField  % Project.NewDatasetTags, comma-separated (onAutoTags)
@@ -1208,6 +1215,7 @@ classdef EphysPipelineApp < handle
         onDatasetCellSelection(obj, evt)
         onDatasetsTableClicked(obj, evt)
         onEditTags(obj, idx)
+        onEditVariables(obj, idx)
         onAutoTags(obj, action, evt)
         onRefreshMetadata(obj)
         onSelectDatasets(obj, mode)

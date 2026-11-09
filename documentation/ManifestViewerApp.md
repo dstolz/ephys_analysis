@@ -47,8 +47,9 @@ in the status line.
 
 | Tab | Shows |
 | --- | --- |
-| **Summary** | every field, grouped by section (General, Recording, Probe, Channels, Manual artifacts, Artifacts, Binary, Kilosort run, Sorting, Processing, Behavior, Other). Fields the viewer does not know are listed under Other, one row per leaf. The **Check** column is worked out when the file is loaded (see below) |
-| **Flow chart** | how the outputs were made, as a flow chart ([below](#flow-chart)), with buttons for four levels of detail, from the major steps to each parameter's value |
+| **Summary** | every field, grouped by section (General, Variables, Recording, Probe, Channels, Manual artifacts, Artifacts, Binary, Kilosort run, Sorting, Processing, Behavior, Other). Fields the viewer does not know are listed under Other, one row per leaf. The **Check** column is worked out when the file is loaded (see below) |
+| **Variables** | the dataset's [variables](pipeline-app-guide.md#record-values-on-your-datasets) as they are now (label, name, value, units, description, when created and last changed), then the history: when each variable was created, updated (and which part: value, label, units, description), renamed or removed, and by whom. Only the latest values are kept, so the history never shows an earlier value. Read-only: the apps' **Variables...** windows and `writeManifestVariables` change them |
+| **Flow chart** | how the outputs were made, as a flow chart ([below](#flow-chart)), with buttons for four levels of detail, from the major steps to each parameter's value. The recording's box lists its variables |
 | **Timeline & probe** | the recording span with the manual artifact periods in red. A marker above each period keeps short ones visible. The behavior session start is drawn as a line when it falls inside the recording, and given in the title otherwise. Below it is the probe geometry from `probe.file`, else the default probe. The excluded channels (`chanMap + 1`) are marked ✕ and the channels left out of the common reference are circled |
 | **Tree** | the decoded JSON as an expandable tree |
 | **JSON** | the file's text |
@@ -87,10 +88,15 @@ for a warning:
   ignores, is a warning;
 - tags that are not valid, or past the limit of 12, which
   `EphysDataset.applyManifest` drops (see `TagSet`);
+- variables that are not valid (no label, a value that is neither one
+  number nor text), which the apps leave out (see `DatasetVariables`);
 - the schema is not one that `EphysDataset.applyManifest` reads.
 
 The General section gives how long ago the manifest was `updated` and its
 **Tags** (`draft, pilot`, or *(none)* when the manifest has no `tags`). The
+Variables section has a row per variable (*Probe Depth (µm)* | *1200*,
+with its name and when it was last changed) and one for the history (how
+many changes, the last one). The
 Behavior section gives the session start relative to `metadata.acq_date`.
 
 ## Flow chart
@@ -165,7 +171,8 @@ with two manifests and from an `EphysDataset` of a synthetic recording, the
 timeline and probe plots, the tree, a schema `/1` manifest without a probe
 (with and without a default probe), a file that is not JSON, Rewrite, a
 Rewrite that `writeManifest` refuses, that closing the window deletes the
-viewer, and the Flow chart: what each level shows, that no box overlaps another
+viewer, the Variables rows and tab (the latest values, the history without
+values, an invalid entry), and the Flow chart: what each level shows, that no box overlaps another
 and no arrow runs through one at any level in either direction, hiding the steps not run, the tab
 drawn when shown and the level kept. [`test_EphysPipelineApp.m`](../pipeline/test_EphysPipelineApp.m)
 opens it from **Dataset → View manifest...**.

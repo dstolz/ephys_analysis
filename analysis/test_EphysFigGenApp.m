@@ -241,7 +241,7 @@ needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d
     "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.multi" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
     "5d.quick" "5d.layers"; "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
     "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.trialmeasure" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; ...
-    "5d.saveprefs" "5d.remove"];
+    "5d.saveprefs" "5d.remove"; "1e" "1"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
 timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a failure on the way
 
@@ -732,6 +732,62 @@ if S.sec("1d", "messages: what stops an action is an alert that says what to do;
     app.onTickDatasets("shown");
     app.selectDataset(kF1);   % the plan row's double click made the second dataset active: the sections after start on the first
     app.selectTab(app.TabData);
+end
+
+if S.sec("1e", "Data tab: Variables (a column, the dialog on a cell and on the selected rows, the loaded source, the manifest viewer)")
+    r = app.Runner;
+    mf = arrayfun(@(o) string(o.ManifestFile), r.Outputs);
+    txt0 = arrayfun(@(f) string(fileread(f)), mf);   % the fixture's manifests, put back at the end
+    T = app.DatasetsTable.Data;
+    vCol = find(string(T.Properties.VariableNames) == "Vars");
+    check(isscalar(vCol) && app.DatasetsTable.ColumnName{vCol} == "Variables" && numel(app.DatasetsTable.ColumnName) == width(T) ...
+        && vCol == find(string(T.Properties.VariableNames) == "Tags") + 1 && all(T.Vars == ""), ...
+        'the datasets table has a read-only Variables column after Tags, empty before any variable');
+    menu = app.DatasetsTable.ContextMenu.Children;
+    check(all(ismember(["Variables..." "View manifest..."], string({menu.Text}))), ...
+        'the right-click menu edits variables and opens the manifest viewer');
+    k = 1;
+    app.selectDataset(k);   % its source loaded
+    click = @(row, col) app.DatasetsTable.ClickedFcn(app.DatasetsTable, ...
+        struct('InteractionInformation', struct('Row', row, 'Column', col)));
+    click(find(app.DatasetsTable.Data.Idx == k), vCol);
+    dlg = app.VariableDialog;
+    check(isa(dlg, 'VariableDialog') && size(dlg.Cells, 1) == 1 && string(dlg.Ctl.Grid.Data{1, 1}) == r.Names(k), ...
+        'a click on a Variables cell opens the dialog on that dataset');
+    dlg.newVariable("Probe Depth");
+    dlg.setUnits("µm");
+    dlg.setValue(1, "probeDepth", "1200");
+    dlg.ok();
+    src = r.Sources(char(r.Keys(k)));
+    check(isequal(src.variables, struct('probeDepth', 1200)) && src.variableInfo.Units == "µm" ...
+        && app.DatasetsTable.Data.Vars(app.DatasetsTable.Data.Idx == k) == "probeDepth = 1200 µm" ...
+        && isequal(DatasetVariables.values(outputVariables(r.Outputs(k))), struct('probeDepth', 1200)) ...
+        && contains(app.StatusBar.Text, "probeDepth created") && isempty(app.VariableDialog), ...
+        'OK: the manifest, the loaded source and the table hold the variable; the status bar says so');
+    app.DatasetsTable.Selection = [1 4; 2 4];
+    dlg = app.onEditVariables();
+    check(size(dlg.Cells, 1) == 2, 'two rows selected: a grid of both');
+    dlg.select(1);
+    dlg.fillColumn("1500");
+    dlg.ok();
+    check(all(arrayfun(@(o) DatasetVariables.values(outputVariables(o)).probeDepth, r.Outputs) == 1500), ...
+        'Fill column: the same value on both, written to both manifests');
+    v = app.onViewManifest(k);
+    check(isa(v, 'ManifestViewerApp') && height(v.VariablesTable.Data) == 1 && v.VariablesTable.Data.Value == "1500" ...
+        && height(v.VariableHistoryTable.Data) == 2, 'View manifest: the variable''s latest value and when it changed');
+    delete(v);
+    for j = 1:numel(mf)
+        writeJsonFile(mf(j), txt0(j), Text=true);
+        r.Outputs(j).clearCache();
+    end
+    S2 = r.Sources;
+    for key = string(keys(S2))
+        s = S2(char(key));
+        s.variables = struct(); s.variableInfo = DatasetVariables.info(struct());
+        S2(char(key)) = s;
+    end
+    app.refreshDatasetsTable();
+    check(all(app.DatasetsTable.Data.Vars == ""), 'the fixture''s manifests put back');
 end
 
 if S.sec("2", "Alignment: group by Depth")

@@ -10,6 +10,10 @@ function refreshDatasetsTable(obj)
 %   opens the notepad (onDatasetNoteClicked). Tags (after Key, read only)
 %   are the dataset's tags, ", "-joined: its source's once loaded, else the
 %   manifest's (outputTags, read once per dataset, not a whole source).
+%   Variables (after Tags, read only) are the dataset's variables in one
+%   line ("probeDepth = 1200 µm; cohort = 3"), from the same places
+%   (src.variableInfo, outputVariables); a click on the cell opens the
+%   variable dialog on that dataset (onEditVariables).
 %
 %   The rows are in the order of the last header click (DatasetsSort), put
 %   there each time the table is filled, so the sort survives a tick or a
@@ -57,6 +61,7 @@ end
 [Subject, Date] = subjectAndDate(Name, string(r.Config.Source.NamePattern), acq);
 [LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing] = deal(strings(n, 1));
 Tags = strings(n, 1);
+Vars = strings(n, 1);   % the Variables column (a table cannot have a variable named Variables)
 sets = cell(1, n);   % each dataset's tag set, for the filter
 Duration = NaN(n, 1);
 for k = 1:n
@@ -78,16 +83,20 @@ for k = 1:n
         end
         Duration(k) = round(src.durationSec, 1);
         sets{k} = src.tags;
+        vs = struct();
+        if isfield(src, 'variableInfo'); vs = DatasetVariables.fromInfo(src.variableInfo); end
     else
         Units(k) = mark(out.has("sorting"));   % the spikes file holds detections only
         Detected(k) = mark(out.has("spikes"));
         sets{k} = outputTags(out);   % the manifest, read once (CacheData)
+        vs = outputVariables(out);
     end
     Tags(k) = TagSet.toText(sets{k}, TagSet.DisplayDelimiter);
+    Vars(k) = DatasetVariables.toText(vs);
 end
 Idx = (1:n).';
-T = table(Run, Star, Note, Name, Subject, Date, Key, Tags, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration, Idx);
-keep = applyFilter(obj, Subject, sets, Name + " " + Key + " " + Subject + " " + Tags);
+T = table(Run, Star, Note, Name, Subject, Date, Key, Tags, Vars, LFP, MUA, SPIKE, AUX, Units, Detected, Behavior, Trials, Pairing, Duration, Idx);
+keep = applyFilter(obj, Subject, sets, Name + " " + Key + " " + Subject + " " + Tags + " " + Vars);
 T = T(keep, :);
 T = TableSort.apply(T, obj.DatasetsSort);
 obj.DatasetsTable.Data = T;

@@ -94,5 +94,8 @@ end
 if ~isempty(obj.TagDialog) && isvalid(obj.TagDialog)
     delete(obj.TagDialog);
 end
+if ~isempty(obj.VariableDialog) && isvalid(obj.VariableDialog)
+    delete(obj.VariableDialog);
+end
 delete(obj.Fig);
 end

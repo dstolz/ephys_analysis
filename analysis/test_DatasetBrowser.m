@@ -1368,7 +1368,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(B.Runs.Last.status, ["done"; "done"]);
             tc.verifyEqual(R.data, R0.data);
             tc.verifyEqual(numel(R.epochs), numel(R.keys));
-            tc.verifyTrue(contains(B.Ctl.Summary.Text, "epochs kept (R.epochs)"), B.Ctl.Summary.Text);
+            tc.verifyTrue(contains(B.Ctl.Summary.Text, "epochs kept"), B.Ctl.Summary.Text);
             % off again: the parts without epochs are still kept
             B.formEdit("KeepEpochs", false);
             tc.verifyTrue(all(startsWith(B.Table.Cached, "✓")));

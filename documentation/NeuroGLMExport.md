@@ -167,10 +167,25 @@ kernels do:
 Each trial's word is `glm{k}.expt.trial(j).response`, to sort the predictions
 by response.
 
-The fields of `opts` at the top of the script (`binMs`, `window`, `kernelMs`,
+You choose the covariates in the GLM with these settings:
+
+| Covariate | Setting |
+| --- | --- |
+| event kernels | `opts.events`: the events given a kernel, named as the kernels are, `"<line>_on"`, `"<line>_off"` and `"response_time"`, e.g. `["Stim_on" "RespWindow_on" "response_time"]`. Empty (the default) gives every line edge and `response_time` a kernel. An event a dataset lacks is left out of that dataset's fit, with a line printed that lists the events it has |
+| kernels per trial group | `opts.groupKernels`, on the browser's event line's onset, only when that event is in `opts.events` |
+| kernels per response word | `opts.responses` on `opts.responseEvents`, only those in `opts.events` |
+| spike history | `opts.history` |
+| coupling | `opts.coupling` |
+| a signal | `opts.withSignal` (`"LFP"`, `"MUA"`, `"AUX"`, or `""` for none); for `"AUX"`, `opts.auxParts` picks the columns, each z-scored: `"magnitude"` (the vector magnitude of the axes less their 2-s running mean), `"axes"` (those axes, signed) and `"slow"` (the 2-s running means) |
+
+Every line stays in `glm{k}.expt` whatever `opts.events` holds, so the plots
+can still mark it. Decoding in a plot script needs the response kernels it
+swaps, e.g. `response_time` split by `Hit` and `Miss`.
+
+The fields of `opts` at the top of the script (`binMs`, `window`, `events`, `kernelMs`,
 `acausal`, `acausalMs`, `groupKernels`, `responses`, `responseEvents`, `responseTime`,
 `responseLine`, `responseEdge`, `responseAfter`, `history`, `coupling`, `withSignal`,
-`fitMethod`, `ridge`, `workers`, `outDir`) are the knobs; `opts.workers` (4; 0 =
+`auxParts`, `fitMethod`, `ridge`, `workers`, `outDir`) are the knobs; `opts.workers` (4; 0 =
 one unit after the other in MATLAB itself) fits the units on process workers
 (`fitUnits`), fewer when memory is short, so the per-unit lines print as the fits
 finish while `fits` stays in unit order. The browser's progress strip follows

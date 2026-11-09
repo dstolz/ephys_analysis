@@ -8,6 +8,11 @@ says how to cut a release.
 
 ## [Unreleased]
 
+### Added
+
+- `S_DatasetBrowserToNeuroGLM.m`: `opts.events` names the events given a kernel (every line edge and `response_time`
+  by default), and `opts.auxParts` the AUX columns used as covariates (`magnitude`, `axes`, `slow`).
+
 ### Changed
 
 - `sessionDataNeuroGLM`: `response_time` comes from the digital lines alone, the first `ResponseLine` `ResponseEdge`

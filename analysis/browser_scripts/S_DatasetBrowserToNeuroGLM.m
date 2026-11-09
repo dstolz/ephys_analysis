@@ -10,6 +10,11 @@
 % for the browser's event line (the paper's coherence-dependent kernels), a
 % spike-history filter, and optionally the LFP as a continuous covariate.
 %
+% The covariates: opts.events names the events given a kernel (every line edge
+% and response_time when empty), opts.history the spike history, opts.coupling
+% the other units, opts.withSignal the signal and, for AUX, opts.auxParts its
+% columns. Every line stays in g.expt whatever opts.events holds.
+%
 % The trial's response enters as the paper's choice-dependent saccade kernels:
 % opts.responseEvents get one kernel per response word (opts.responses;
 % F.kernels.response_time__Hit, ...). One of them is the moment of the response,
@@ -50,6 +55,7 @@ opts.neuroGLMPath = 'c:\src\neuroGLM';   % added when neuroGLM is not on the pat
 opts.outDir = "";                        % a folder to save <dataset>_neuroglm.mat in (in a subfolder named after the browser's tags); "" keeps them in the workspace only
 opts.binMs = 5;                          % neuroGLM's bin (1 ms, as the paper); 5-10 ms fits much faster on long sessions
 opts.window = [-0.5 1];                % s around TrialOnset; Inf = up to the next trial's start
+opts.events = string.empty;              % the events given a kernel, named as the kernels are: "<line>_on", "<line>_off", "response_time", e.g. ["Stim_on" "RespWindow_on" "response_time"]; string.empty = every line edge and response_time. One a dataset lacks is left out, with a line printed
 opts.kernelMs = 500;                     % each event kernel's reach after the event
 opts.nBases = 8;                         % raised cosines per kernel
 opts.acausal = string.empty;             % event variables whose kernel also precedes the event, e.g. "Resp_on" for the animal's response
@@ -63,11 +69,16 @@ opts.responseAfter = "RespWindow";       % ...the first one after this line's on
 opts.history = true; opts.historyMs = 500;    % the spike-history filter
 opts.coupling = false;                   % a coupling filter from every other unit of the dataset (slow with many units)
 opts.withSignal = "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
+opts.auxParts = ["magnitude" "axes" "slow"];   % withSignal "AUX": the columns, each z-scored: "magnitude" (of the axes less their 2 s running mean), "axes" (those, signed), "slow" (the 2 s running means)
 opts.fitMethod = "matRegress";           % "matRegress": neuroGLM's route (fminunc, ridge prior; the paper's) | "glmfit": maximum likelihood
 opts.ridge = "evidence";                 % matRegress: the ridge prior's precision, or "evidence" to pick it by the marginal likelihood (the paper)
 opts.trainFraction = 0.8;                % trials fitted; the last block of consecutive trials (about 1 - this) is held out for the prediction (NeuroGLMExport.split); 1 = test on the fit
 opts.workers = 4;                        % process workers fitting units at once (Parallel Computing Toolbox), fewer when memory is short; 0 = one unit after the other here
 
+auxKnown = ["magnitude" "axes" "slow"];
+if opts.withSignal == "AUX" && (isempty(opts.auxParts) || ~all(ismember(opts.auxParts, auxKnown)))
+    error('opts.auxParts takes one or more of %s (opts.withSignal = "" for no signal).', strjoin(auxKnown, ", "));
+end
 if opts.outDir ~= "" && ~isempty(B.Filter.Tags)
     opts.outDir = fullfile(opts.outDir, join(B.Filter.Tags, "_"));   % a subfolder per set of tags
 end
@@ -111,12 +122,13 @@ try
             L = loaded([loaded.key] == D.key & [loaded.data] == opts.withSignal);
             if isempty(L), L = sessionData(B.source(D.key), epochMatrixSettings(B.Settings, data=opts.withSignal)); end
             if opts.withSignal == "AUX"
-                % the axes as one: each less its 2 s running mean (offset and gravity), then the vector magnitude
+                % each axis less its 2 s running mean (offset and gravity); the parts in opts.auxParts' order
                 x = double(L.signal);
                 w = 2 * floor(2 * L.signalFs / 2) + 1;
-                mmxw = movmean(x, w, 1);
-                hp = x - mmxw;
-                L.signal = zscore([sqrt(sum(hp .^ 2, 2)), hp, mmxw]);   % magnitude, then the three signed axes, then the slow modulations along the three axes
+                slow = movmean(x, w, 1);
+                hp = x - slow;
+                parts = struct('magnitude', sqrt(sum(hp .^ 2, 2)), 'axes', hp, 'slow', slow);
+                L.signal = zscore(cell2mat(arrayfun(@(p) parts.(p), reshape(opts.auxParts, 1, []), 'UniformOutput', false)));
             end
             args = {'Signal', L};
         end
@@ -133,9 +145,20 @@ try
         end
         [expt, info] = sessionDataNeuroGLM(D, 'Window', opts.window, 'BinMs', opts.binMs, args{:});
 
+        % the events given a kernel: opts.events, those of this dataset (all of them in the order registered)
+        events = [reshape([info.lines.on, info.lines.off].', 1, []), info.responseTime(info.responseTime ~= "")];
+        if ~isempty(opts.events)
+            for ev = setdiff(reshape(opts.events, 1, []), events, 'stable')
+                fprintf('%s: no kernel on %s (no such event; it has %s)\n', name, ev, strjoin(events, ", "));
+            end
+            events = intersect(reshape(opts.events, 1, []), events, 'stable');
+            if isempty(events)
+                error('%s has none of opts.events (%s).', name, strjoin(opts.events, ", "));
+            end
+        end
         acausal = reshape(opts.acausal, 1, []);
         if info.responseTime ~= "", acausal = [acausal, info.responseTime]; end %#ok<AGROW>
-        dsArgs = {'KernelMs', opts.kernelMs, 'NBases', opts.nBases, 'Acausal', acausal, 'AcausalMs', opts.acausalMs, ...
+        dsArgs = {'Events', events, 'KernelMs', opts.kernelMs, 'NBases', opts.nBases, 'Acausal', acausal, 'AcausalMs', opts.acausalMs, ...
             'History', opts.history, 'HistoryMs', opts.historyMs, 'Coupling', opts.coupling};
         groupBy = string.empty(1, 0);
         groupEvents = {};
@@ -145,14 +168,18 @@ try
             if refLine == "Trial", refLine = D.trialLine; end
             refOn = info.lines.on(info.lines.line == refLine);
             if isempty(refOn), refOn = info.lines.on(1); end
-            groupBy(end + 1) = "group"; %#ok<AGROW>
-            groupEvents{end + 1} = refOn.'; %#ok<AGROW>
+            if ismember(refOn, events)
+                groupBy(end + 1) = "group"; %#ok<AGROW>
+                groupEvents{end + 1} = refOn.';
+            else
+                fprintf('%s: no kernels per trial group (%s is not in opts.events)\n', name, refOn);
+            end
         end
         if ~isempty(opts.responses) && info.response ~= ""
             % the paper's choice-dependent kernels: these events, split by the trial's response word
-            have = intersect(reshape(opts.responseEvents, 1, []), [info.lines.on.', info.lines.off.', info.responseTime], 'stable');
-            for ev = setdiff(reshape(opts.responseEvents, 1, []), have)
-                fprintf('%s: no response kernels on %s (no such event)\n', name, ev);
+            have = intersect(reshape(opts.responseEvents, 1, []), events, 'stable');
+            for ev = setdiff(reshape(opts.responseEvents, 1, []), have, 'stable')
+                fprintf('%s: no response kernels on %s (no such event, or not in opts.events)\n', name, ev);
             end
             if ~isempty(have)
                 groupBy(end + 1) = info.response; %#ok<AGROW>

@@ -10,6 +10,15 @@ says how to cut a release.
 
 ### Added
 
+- Pipeline app, Review tab: **Plot in new figure**, under the units table, draws the selected units (Ctrl+click or
+  Shift+click for more; else the focused one) each on every channel of its shank, side by side in a new figure, with
+  the shank plot's Spikes, count, Mean and band. The shank plot and the figure share `drawUnitOnShank`.
+- Dataset browser: **Downsample...**, beside the **Data** boxes, opens a window that sets a rate for each signal (LFP,
+  MUA, SPIKE, AUX; blank keeps the rate on file), showing each one's rate on file and the band that passes unchanged.
+  **Compute** and **Raw Data** bring the signal to its rate first, anti-aliased. Settings: `signal.downsample` (a field
+  per signal), in a signal's cache identity only when set, so a new MUA rate keeps the cached LFP parts.
+  `sessionData`'s `signalFsFile` is the rate on file. New `resampleSignal` (the body of `mTRFExport.resample`, now
+  keeping single and working a block of columns at a time).
 - `S_DatasetBrowserToNeuroGLM.m`: `opts.events` names the events given a kernel (every line edge and `response_time`
   by default), and `opts.auxParts` the AUX columns used as covariates (`magnitude`, `axes`, `slow`).
 

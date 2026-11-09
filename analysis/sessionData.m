@@ -43,8 +43,14 @@ function D = sessionData(src, S, opts)
 %                       table() for a signal)
 %     signal            [nSamples x nChannels] single, uV (AUX: V), row k
 %                       at (k-1)/signalFs ([] for spike data). Whole: a MUA
-%                       at 2 kHz x 64 channels x 1 h is ~1.8 GB
+%                       at 2 kHz x 64 channels x 1 h is ~1.8 GB. With a
+%                       rate in S.signal.downsample.(data) below the one
+%                       on file, it is brought to that rate first
+%                       (resampleSignal: anti-aliased, flat to 0.38 x
+%                       the new rate, t = 0 kept on row 1)
 %     signalFs          its rate, Hz (NaN for spike data)
+%     signalFsFile      the signal's rate on file, Hz: signalFs unless
+%                       downsampled (NaN for spike data)
 %     channels          table, one row per column of signal
 %                       (selectChannels' META; table() for spike data)
 %     events            struct: line -> [k x 2] [t_on t_off] s, digital
@@ -96,6 +102,7 @@ D.spikes = {};
 D.units = table();
 D.signal = [];
 D.signalFs = NaN;
+D.signalFsFile = NaN;
 D.channels = table();
 
 toContinuous = @(t) (round(t * fs) - 1) / fs;
@@ -159,7 +166,16 @@ else
             src.name, S.data, mat2str(sig.channels), mat2str(sig.shanks));
     end
 end
-if isequal(cols, 1:size(Y, 2))
+D.signalFsFile = D.signalFs;
+rate = sig.downsample.(S.data);
+whole = isequal(cols, 1:size(Y, 2));
+if ~isempty(rate) && rate < D.signalFs   % anti-aliased; the cached signal is read a block of columns at a time
+    if whole
+        [D.signal, D.signalFs] = resampleSignal(Y, D.signalFs, rate);
+    else
+        [D.signal, D.signalFs] = resampleSignal(Y(:, cols), D.signalFs, rate);
+    end
+elseif whole
     D.signal = Y;
 else
     D.signal = Y(:, cols);

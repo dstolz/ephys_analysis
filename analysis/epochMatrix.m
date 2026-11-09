@@ -21,6 +21,9 @@ function [R, T] = epochMatrix(source, S, opts)
 %   Baseline= is passed to epochTable, as in the script. For signals
 %   (S.data "LFP", "MUA", "SPIKE" or "AUX"):
 %     [Y, fs, meta] = selectChannels(src, S.data)   (AUX: Channels=S.signal.channels)
+%     [Y, fs] = resampleSignal(Y(:, <the columns below>), fs, S.signal.downsample.(S.data))
+%           (only when that rate is set and below fs: anti-aliased, then
+%           every step below works at the new rate; R.t is its sample times)
 %     [E, G] = epochTable(src, S.ref, Window=S.window, Selection=S.selection)
 %     P = evokedPotential(Y, fs, E, Window=[pre post], Channels=<the columns
 %           whose meta.recordingChannel is in S.signal.channels and whose
@@ -352,6 +355,16 @@ else
         error('epochMatrix:NoChannels', '%s: no %s channel is among recording channel(s) %s on shank(s) %s.', ...
             src.name, S.data, listText(sig.channels), listText(sig.shanks));
     end
+end
+rate = sig.downsample.(S.data);
+if ~isempty(rate) && rate < fs   % the channels used, anti-aliased, before anything else
+    if isequal(cols, 1:size(Y, 2))
+        [Y, fs] = resampleSignal(Y, fs, rate);
+    else
+        [Y, fs] = resampleSignal(Y(:, cols), fs, rate);
+    end
+    meta = meta(cols, :);
+    cols = 1:height(meta);
 end
 units = "uV";
 if height(meta) > 0; units = string(meta.units(1)); end

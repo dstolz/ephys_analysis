@@ -59,7 +59,8 @@ ticks, settings and result.
 - **Right:** the settings, in tabs:
   - **Data**: what to measure: sorted `units`, `detected` spikes, or a
     signal (`LFP`, `MUA`, `SPIKE`, `AUX`). Tick several to get one result
-    for each.
+    for each. **Downsample...**, at the end of the row, sets a lower rate
+    for each signal. The button turns amber while a rate is set.
   - **Event**: the event to align to and the window around it, as in the
     analysis app's Alignment tab. **Epoch Diagram** draws how the epochs are
     cut on one recording.
@@ -143,6 +144,7 @@ row of a result carries its recording's values, one column each
 | keep only single units, not multiunits | tick **units** in **Data**, then on **Measure** tick **su** under **Unit classes** (and leave **mua** unticked) before **Compute** |
 | look at single trials, not just the averages | tick **Keep single trials, not just averages** before **Compute** |
 | get the whole recording, not cut around events (for a model or a toolbox) | **Raw Data** (or **Trials Only** for the behavior alone) |
+| use less memory, or work at a lower rate (an LFP at 250 Hz, say) | **Downsample...** beside **Data**: type a rate for each signal (blank keeps the rate on file), **OK**. The signal is filtered first, so nothing aliases. The window shows the band that passes unchanged (up to 0.38 × the new rate) |
 | hand the data to FieldTrip, Chronux, neuroGLM, the mTRF toolbox or a CSD estimate | pick that script in the **Post-processing script** list and **Run now** |
 | run the same computation without the window | **File → Export compute script...** |
 | compute faster | set **Workers** to compute several recordings at once (needs the Parallel Computing Toolbox and memory for one recording per worker) |

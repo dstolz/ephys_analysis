@@ -47,7 +47,10 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   listed first and not removable, a script added and picked, Compute runs it in the base workspace (B there)
     %   only with the box ticked, Run now, a failing script's name and line,
     %   removing keeps the file, the bundled script runs on a result, the
-    %   preferences (only the scripts added).
+    %   preferences (only the scripts added). Downsample...: the button
+    %   right of the Data boxes opens the dialog (rates on file, the kinds
+    %   ticked, a bad rate refused, Cancel, Rates on file); OK's rates
+    %   reach Compute and Raw Data, and a new MUA rate keeps the LFP parts.
     %
     %   Usage:  runtests("test_DatasetBrowser")
 
@@ -1733,6 +1736,78 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(fileVars(k2).probeDepth, 1500);
             % closing the browser cancels an open dialog
             dlg = B.editVariables(k1);
+            B.close();
+            tc.verifyFalse(isvalid(dlg.Fig));
+        end
+
+        function downsampleDialog(tc)
+            S = epochMatrixSettings(tc.Spike, data=["LFP" "MUA"], signal=struct('channels', 1:4));
+            B = tc.open(Settings=S);
+            c = B.Ctl;
+            none = struct('LFP', [], 'MUA', [], 'SPIKE', [], 'AUX', []);
+            % the button: in the Data row, right of the boxes
+            tc.verifyEqual(c.Downsample.Parent, c.Data(end).Parent);
+            tc.verifyGreaterThan(c.Downsample.Layout.Column, c.Data(end).Layout.Column);
+            tc.verifyEqual(string(c.Downsample.Text), "Downsample...");
+            tc.verifySubstring(string(c.Downsample.Tooltip), "every signal keeps its rate on file");
+            % it opens the dialog on the settings' rates, with the rates on file of the list's dataset
+            c.Downsample.ButtonPushedFcn(c.Downsample, []);
+            dlg = B.DownsampleWindow;
+            tc.verifyClass(dlg, 'DownsampleDialog');
+            tc.verifyEqual(dlg.Fig.Visible, matlab.lang.OnOffSwitchState.off, 'Hidden with the browser.');
+            tc.verifyEqual(B.editDownsample(), dlg, 'With the dialog open, that one is returned.');
+            src = B.source(B.Selected(1));
+            k = find(dlg.Signals == "LFP");
+            tc.verifyEqual(string(dlg.Ctl.FileRate(k).Text), src.signalFs.LFP + " Hz");
+            tc.verifyEqual(string(dlg.Ctl.Name(k).FontWeight), "bold", 'LFP is ticked.');
+            tc.verifySubstring(string(dlg.Ctl.Name(dlg.Signals == "AUX").Text), "not ticked");
+            % a bad rate keeps the window open, saying why; the settings stay
+            dlg.setRate("LFP", "fast");
+            dlg.ok();
+            tc.verifyTrue(dlg.isOpen());
+            tc.verifySubstring(dlg.ErrorText, "LFP");
+            tc.verifyEqual(B.Settings.signal.downsample, none);
+            % OK: the rates into the settings, the button amber with them in its tooltip
+            dlg.setRate("LFP", 250);
+            dlg.setRate("MUA", "500 Hz");
+            tc.verifyEqual(string(dlg.Ctl.Note(k).Text), "0–95 Hz", 'The band that passes unchanged: 0.38 x 250 Hz.');
+            dlg.ok();
+            tc.verifyFalse(isvalid(dlg.Fig));
+            tc.verifyEmpty(B.DownsampleWindow);
+            tc.verifyEqual(B.Settings.signal.downsample, struct('LFP', 250, 'MUA', 500, 'SPIKE', [], 'AUX', []));
+            tc.verifyEqual(c.Downsample.BackgroundColor, [1 0.8 0.3]);
+            tc.verifySubstring(string(c.Downsample.Tooltip), "LFP 250 Hz, MUA 500 Hz");
+            tc.verifySubstring(string(c.Status.Text), "LFP 250 Hz, MUA 500 Hz");
+            % Compute and Raw Data at the new rates
+            [~, Rs] = B.compute();
+            tc.verifyEqual(1 / mean(diff(Rs.LFP.t)), 250, 'RelTol', 1e-9);
+            tc.verifyEqual(1 / mean(diff(Rs.MUA.t)), 500, 'RelTol', 1e-9);
+            tc.verifySubstring(string(c.Summary.Text), "samples (250 Hz)");
+            R0 = epochMatrix(B.Runner, epochMatrixSettings(B.Settings, Kind="LFP"), Datasets=B.Selected, LogFcn=[]);
+            tc.verifyEqual(Rs.LFP.data, R0.data);
+            D = B.loadSessions();
+            tc.verifyEqual(unique([D.signalFs]), [250 500]);
+            tc.verifyEqual(unique([D([D.data] == "LFP").signalFsFile]), src.signalFs.LFP);
+            % Cancel changes nothing; a new MUA rate keeps the LFP parts
+            dlg = B.editDownsample();
+            dlg.setRate("MUA", "");
+            dlg.cancel();
+            tc.verifyEqual(B.Settings.signal.downsample.MUA, 500, 'Cancel changes nothing.');
+            dlg = B.editDownsample();
+            dlg.setRate("MUA", 1000);
+            dlg.ok();
+            B.compute();
+            L = B.LastRun;
+            tc.verifyEqual(L.status(L.kind == "LFP"), repmat("cached", numel(B.Selected), 1), 'The LFP parts reused.');
+            tc.verifyEqual(L.status(L.kind == "MUA"), repmat("done", numel(B.Selected), 1));
+            % Rates on file: every signal back to its rate on file
+            dlg = B.editDownsample();
+            dlg.clearRates();
+            dlg.ok();
+            tc.verifyEqual(B.Settings.signal.downsample, none);
+            tc.verifySubstring(string(c.Downsample.Tooltip), "every signal keeps its rate on file");
+            % closing the browser cancels an open dialog
+            dlg = B.editDownsample();
             B.close();
             tc.verifyFalse(isvalid(dlg.Fig));
         end

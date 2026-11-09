@@ -352,7 +352,10 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   two signals at different rates, e.g. AUX and LFP, `computeCoherencePanel`,
   and for a continuous covariate brought to the neuroGLM bin rate,
   `NeuroGLMExport.experiment`; `resample`, `envelope` and `hilbert` in the
-  mTRF-Toolbox packaging, `mTRFExport.resample` and `mTRFExport.envelope`).
+  mTRF-Toolbox packaging, `mTRFExport.resample` and `mTRFExport.envelope`;
+  `resample` with its anti-aliasing filter in `resampleSignal`, which
+  downsamples a signal for the dataset browser's **Downsample...**
+  (`epochMatrix`, `sessionData`)).
 - Statistics and Machine Learning Toolbox (`mad` in automatic
   derived-signal bad-channel detection, a robust z of each channel's RMS,
   made before the common reference so the channels it flags are left out of

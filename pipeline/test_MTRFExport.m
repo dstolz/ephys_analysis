@@ -1,7 +1,8 @@
 function test_MTRFExport()
 %test_MTRFExport  Verification suite for the mTRF-Toolbox packaging.
 %   Checks mTRFExport's builders on known signals: resample (the rate
-%   reached, t = 0 kept), envelope (an AM tone's modulator), pulses and
+%   reached, t = 0 kept; resampleSignal under it keeps single, passes
+%   0.36 x the new rate and removes what would alias), envelope (an AM tone's modulator), pulses and
 %   lines (impulses on the onset's sample, boxcars, values, heights, pulses
 %   off the signal), trials (the same samples FieldTripExport.epochs gives
 %   an onset; NaN, off-signal and artifact-touching trials dropped),
@@ -69,6 +70,18 @@ check(f1 == Fs && isa(Y1, 'double') && isequal(Y1, double(X)), 'the same rate re
 check(f0 == 128 && isequal(size(Y0), [0 3]), 'an empty signal stays empty');
 [~, f3] = mTRFExport.resample(X, 30000, 1000);
 check(f3 == 1000, '30000 -> 1000 is exact too');
+% resampleSignal, which mTRFExport.resample is on double: the class kept, the anti-aliasing measured
+[Ys, fs4] = resampleSignal(X, Fs, 128);
+check(fs4 == 128 && isa(Ys, 'single') && isequal(Ys, single(mTRFExport.resample(X, Fs, 128))), ...
+    'resampleSignal keeps single (done in double): mTRFExport.resample''s values');
+N = 8000; t = (0:N-1).' / Fs;
+Ya = resampleSignal([sin(2 * pi * 90 * t), sin(2 * pi * 200 * t)], Fs, 250);   % 0.36 and 0.8 x the new rate
+mid = 30:size(Ya, 1) - 30;
+tY = (mid - 1).' / 250;
+check(max(abs(Ya(mid, 1) - sin(2 * pi * 90 * tY))) < 2e-3, '2000 -> 250 Hz: 90 Hz (0.36 x the new rate) passes within 0.2%');
+check(max(abs(Ya(mid, 2))) < 1e-3, '200 Hz (above the new Nyquist, would alias to 50 Hz) is filtered out: 60 dB down');
+check(isequal(resampleSignal(X, Fs, Fs), X) && isequal(size(resampleSignal(zeros(0, 2, 'single'), Fs, 250)), [0 2]), ...
+    'resampleSignal: the same rate returns X as it is; empty stays empty');
 
 fprintf('\n== 2. envelope ==\n');
 Fs = 20000; T = 4;

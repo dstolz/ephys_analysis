@@ -28,6 +28,11 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
     %   own name; the kept spike times, binned per epoch, average to the
     %   counts, and the kept LFP epochs to the means; normalization leaves
     %   them alone; a part without epochs assembles with empty ones.
+    %   Downsampling (signal.downsample): a rate per signal, checked, kept
+    %   for its own kind alone (Kind=) and in the id only when set; an LFP
+    %   at 250 Hz equals evokedPotential on resampleSignal's LFP by hand, a
+    %   rate at the one on file changes nothing, and sessionData gives the
+    %   whole signal at the new rate with the rate on file beside it.
     %
     %   Usage:  runtests("test_EpochMatrix")
 
@@ -77,7 +82,8 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             tc.verifyEqual(S.binSec, 0.01);
             tc.verifyEqual(S.window.mode, "fixed");
             tc.verifyEqual(S.signal, struct('channels', [], 'shanks', [], 'baseline', [], 'detrend', false, ...
-                'rectify', false, 'magnitude', false, 'statistic', "mean"));
+                'rectify', false, 'magnitude', false, 'statistic', "mean", ...
+                'downsample', struct('LFP', [], 'MUA', [], 'SPIKE', [], 'AUX', [])));
             tc.verifyEqual(string(fieldnames(ID)).', ["data" "ref" "window" "selection" "units" "measure" "binSec" ...
                 "baseline" "auroc" "version"]);
             [~, IDs] = epochMatrixSettings([], data="lfp");
@@ -244,6 +250,45 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             tc.verifyEqual(epochMatrixSettings(f), S);
         end
 
+        function settingsDownsample(tc)
+            bad = 'epochMatrixSettings:BadValue';
+            S = epochMatrixSettings();
+            tc.verifyEqual(S.signal.downsample, struct('LFP', [], 'MUA', [], 'SPIKE', [], 'AUX', []), 'Every signal at its rate on file.');
+            S = epochMatrixSettings([], data=["units" "LFP" "MUA"], signal=struct('downsample', struct('LFP', 250)));
+            tc.verifyEqual(S.signal.downsample, struct('LFP', 250, 'MUA', [], 'SPIKE', [], 'AUX', []), 'Fields left out are [].');
+            tc.verifyEqual(epochMatrixSettings([], signal=struct('downsample', struct('AUX', "100"))).signal.downsample.AUX, 100);
+            for v = {0, -5, Inf, NaN, [100 200], "fast"}
+                tc.verifyError(@() epochMatrixSettings([], signal=struct('downsample', struct('LFP', v{1}))), bad, ...
+                    sprintf('signal.downsample.LFP = %s is refused.', strtrim(formattedDisplayText(v{1}))));
+            end
+            tc.verifyError(@() epochMatrixSettings([], signal=struct('downsample', 250)), bad, 'A rate per signal, not one number.');
+            tc.verifyError(@() epochMatrixSettings([], signal=struct('downsample', struct('lfp', 250))), ...
+                'epochMatrixSettings:UnknownField');
+            % Kind keeps that signal's rate alone; the id holds it only when set
+            S = epochMatrixSettings([], data=["units" "LFP" "MUA"], signal=struct('downsample', struct('LFP', 250, 'AUX', 100)));
+            [L, IL] = epochMatrixSettings(S, Kind="LFP");
+            tc.verifyEqual(L.signal.downsample, struct('LFP', 250, 'MUA', [], 'SPIKE', [], 'AUX', []));
+            tc.verifyEqual(IL.signal.downsample, 250);
+            [M, IM] = epochMatrixSettings(S, Kind="MUA");
+            tc.verifyEqual(M.signal.downsample, struct('LFP', [], 'MUA', [], 'SPIKE', [], 'AUX', []));
+            tc.verifyFalse(isfield(IM.signal, 'downsample'), 'No rate: the id the code had before downsample.');
+            [~, IM0] = epochMatrixSettings([], data="MUA");
+            tc.verifyEqual(DatasetRuns.idText(IM), DatasetRuns.idText(IM0));
+            S2 = epochMatrixSettings(S, signal=struct('downsample', struct('LFP', 250, 'MUA', 500)));
+            [~, IL2] = epochMatrixSettings(S2, Kind="LFP");
+            [~, IM2] = epochMatrixSettings(S2, Kind="MUA");
+            tc.verifyEqual(DatasetRuns.idText(IL2), DatasetRuns.idText(IL), 'A new MUA rate keeps the LFP id.');
+            tc.verifyNotEqual(DatasetRuns.idText(IM2), DatasetRuns.idText(IM));
+            [~, IU] = epochMatrixSettings(S, Kind="units");
+            [~, IU0] = epochMatrixSettings([], data="units");
+            tc.verifyEqual(DatasetRuns.idText(IU), DatasetRuns.idText(IU0), 'Rates leave the spike id.');
+            % a settings file keeps the rates
+            tmp = tc.applyFixture(matlab.unittest.fixtures.TemporaryFolderFixture);
+            f = string(fullfile(tmp.Folder, 'rates.json'));
+            epochMatrixSettings(S, SaveAs=f);
+            tc.verifyEqual(epochMatrixSettings(f), S);
+        end
+
         % --- spikes ---------------------------------------------------------------------------
         function spikesEqualScriptLoop(tc)
             r = tc.Runner;
@@ -400,6 +445,56 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
                 row = row + n;
             end
             tc.verifyEqual(row, height(R.rows));
+        end
+
+        function lfpDownsampledEqualsByHand(tc)
+            % the LFP brought to 250 Hz (resampleSignal) before the epochs: evokedPotential on it by hand
+            r = tc.Runner;
+            S = tc.spikeSettings(data="LFP", signal=struct('channels', [1 3], 'baseline', [-0.2 0], ...
+                'downsample', struct('LFP', 250)));
+            [R, T] = epochMatrix(r, S, LogFcn=[]);
+            tc.verifyEqual(T.status, repmat("done", numel(r.Keys), 1));
+            tc.verifyEqual(R.t, (round(-0.2 * 250):round(0.5 * 250)).' / 250, 'R.t is on the new rate''s samples.');
+            row = 0;
+            for k = 1:numel(r.Keys)
+                src = r.source(k);
+                [Y, fs, meta] = selectChannels(src, "LFP");
+                tc.assumeGreaterThan(fs, 250, 'The fixture''s LFP is at 250 Hz or less.');
+                cols = find(ismember(meta.recordingChannel, [1 3])).';
+                [Yd, fd] = resampleSignal(Y(:, cols), fs, 250);
+                tc.verifyEqual(fd, 250);
+                tc.verifyClass(Yd, 'single');
+                [E, G] = epochTable(src, S.ref, Window=S.window, Selection=S.selection);
+                P = evokedPotential(Yd, fd, E, Window=[-0.2 0.5], Groups=G, Meta=meta(cols, :), Baseline=[-0.2 0]);
+                [~, col] = ismember(G.Depth, R.groupLabels);
+                n = numel(cols);
+                tc.verifyEqual(R.data(row + (1:n), :, col), permute(P.mean, [2 1 3]), r.Names(k));
+                tc.verifyEqual(R.rows.recordingChannel(row + (1:n)), [1; 3]);
+                row = row + n;
+            end
+            tc.verifyEqual(row, height(R.rows));
+            % a rate at or above the one on file leaves the signal alone (and is its own cache identity)
+            [~, fsL] = selectChannels(r.source(1), "LFP");
+            R0 = epochMatrix(r, tc.spikeSettings(data="LFP", signal=struct('channels', [1 3], 'baseline', [-0.2 0])), LogFcn=[]);
+            Rh = epochMatrix(r, epochMatrixSettings(S, signal=struct('channels', [1 3], 'baseline', [-0.2 0], ...
+                'downsample', struct('LFP', fsL))), LogFcn=[]);
+            tc.verifyEqual(Rh.data, R0.data);
+            tc.verifyEqual(Rh.t, R0.t);
+            % sessionData: the whole signal at the new rate, the rate on file beside it
+            src = r.source(1);
+            D = sessionData(src, S);
+            [Y, fs, meta] = selectChannels(src, "LFP");
+            cols = find(ismember(meta.recordingChannel, [1 3])).';
+            tc.verifyEqual(D.signalFs, 250);
+            tc.verifyEqual(D.signalFsFile, fs);
+            tc.verifyEqual(D.signal, resampleSignal(Y(:, cols), fs, 250));
+            tc.verifyEqual(size(D.signal, 1), ceil(size(Y, 1) * 250 / fs));
+            tc.verifyEqual(D.channels.recordingChannel, [1; 3]);
+            D0 = sessionData(src, epochMatrixSettings(S, signal=struct('downsample', [])));
+            tc.verifyEqual(D0.signalFs, fs);
+            tc.verifyEqual(D0.signalFsFile, fs);
+            Du = sessionData(src, tc.spikeSettings());
+            tc.verifyTrue(isnan(Du.signalFsFile), 'Spike data: no signal rate.');
         end
 
         % --- keepEpochs -------------------------------------------------------------------------

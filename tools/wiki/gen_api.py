@@ -1012,6 +1012,7 @@ PIPE_GROUPS = [
     ("Dataset subjects, dates and filters", ["subjectAndDate", "datasetFilter"]),
     ("Derived signals and conversion", ["intan2matlab", "matrix2kilosort", "extract_trials", "recordingChannels"]),
     ("Signal cleaning", ["removeLineNoise", "weightedCAR"]),
+    ("Resampling", ["resampleSignal"]),
     ("Synthetic data", ["makeSyntheticProject", "makeSyntheticRecording", "makeSyntheticProbe",
                         "syntheticModel", "syntheticTaskSchedule",
                         "benchmarkDetection"]),

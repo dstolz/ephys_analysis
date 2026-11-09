@@ -110,6 +110,10 @@ classdef DatasetBrowser < handle
     %     sortBy(B, COLUMN, DIRECTION); clearSort(B); setListSource(B, KEY)
     %     formEdit(B, CONTROL, VALUE)        a form control edited (Ctl.<CONTROL>, or Ctl.Align.<CONTROL>)
     %     fillLists(B)                       fill the line / parameter lists
+    %     DLG = editDownsample(B)            the Downsample signals dialog (DownsampleDialog): the rate
+    %                                        each signal (LFP, MUA, SPIKE, AUX) is brought to, anti-
+    %                                        aliased, before Compute or Raw Data (Settings.signal.downsample;
+    %                                        the Downsample... button beside the Data boxes)
     %     showEpochs(B)                      the Epoch Diagram window (EpochDiagram) of one dataset
     %     showGroupCounts(B)                 the Epochs per group window (EpochGroupCounts) of one dataset:
     %                                        a bar per group (Group by) with its epochs, its trials
@@ -413,6 +417,7 @@ classdef DatasetBrowser < handle
         DetailsWindow = []                 % the Details window (showDetails), when open
         TagWindow = []                     % the tag dialog (editTags: TagDialog), when open
         VariableWindow = []                % the variable dialog (editVariables: VariableDialog), when open
+        DownsampleWindow = []              % the Downsample signals dialog (editDownsample: DownsampleDialog), when open
         LastRun table = table()          % what the last compute, forEach or load did, a row per dataset and kind: kind, key, name, status, message, seconds (runDetails)
     end
 
@@ -484,7 +489,7 @@ classdef DatasetBrowser < handle
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
             "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
             "Shanks" "Channels" "ProbeAll" "Probe" "Merge" "Classes" "Measure" "Bin" "Baseline" ...
-            "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "KeepEpochs" "Compute" "LoadSessions" "LoadTrials" "Workers" ...
+            "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "Downsample" "KeepEpochs" "Compute" "LoadSessions" "LoadTrials" "Workers" ...
             "GroupCounts" "Details" "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun" "DefList" "DefAdd" "DefRemove"]
         MaxRecent = 10                     % RecentSettings' length
         ErrorColor = [0.75 0.1 0.1]
@@ -1202,6 +1207,53 @@ classdef DatasetBrowser < handle
                 Labels=reshape(D.name(loc), 1, []), Parent=parent, Visible=~B.headless(), ...
                 OnDone=@(r) B.uiRun(@() B.onVariablesDone(keys, r)));
             B.VariableWindow = dlg;
+        end
+
+        function dlg = editDownsample(B)
+            %editDownsample  The Downsample signals dialog (DownsampleDialog): the rate each signal is brought to before Compute or Raw Data.
+            %   DLG = B.editDownsample() opens it (the Downsample... button
+            %   beside the Data boxes) on the settings' signal.downsample: a
+            %   rate per signal (LFP, MUA, SPIKE, AUX; blank = the rate on
+            %   file), with each signal's rate on file in the dataset the
+            %   lists come from (the clicked row's, else the first ticked)
+            %   once the root is scanned. On OK the rates go into Settings
+            %   (the form, the Cached column and the summary follow; OnChange
+            %   gets "settings"), and Compute and Raw Data bring each signal
+            %   to its rate (resampleSignal: low-pass filtered first, zero
+            %   phase, flat to 0.38 x the new rate) before anything else. A
+            %   new rate for one signal keeps the cached parts of the
+            %   others. Cancel changes nothing. DLG is the DownsampleDialog:
+            %   setRate, clearRates, ok and cancel drive it as the clicks
+            %   do. With the dialog open already, that one comes to the
+            %   front and is returned. Refused while Busy. In a script, set
+            %   the rates directly (signals left out keep their rate on file):
+            %     B.Settings = epochMatrixSettings(B.Settings, signal=struct('downsample', struct('LFP', 250)));
+            dlg = B.DownsampleWindow;
+            if ~isempty(dlg) && isvalid(dlg) && dlg.isOpen()
+                if dlg.Fig.Visible == "on"; figure(dlg.Fig); end
+                return
+            end
+            if B.Busy
+                error('DatasetBrowser:Busy', 'Wait for the run to end (or cancel it) before changing the rates.');
+            end
+            fileRates = struct();
+            name = "";
+            key = B.listKey();
+            if key ~= ""
+                try
+                    src = B.source(key);
+                    fileRates = src.signalFs;
+                    name = src.name;
+                catch
+                    % the rates on file stay unknown: the dialog says so
+                end
+            end
+            parent = [];
+            if B.uiOk(); parent = B.Fig; end
+            dlg = DownsampleDialog(B.SettingsS.signal.downsample, FileRates=fileRates, Dataset=name, ...
+                Ticked=B.SettingsS.data, Parent=parent, Visible=~B.headless(), ...
+                OnDone=@(r) B.uiRun(@() B.onDownsampleDone(r)));
+            B.DownsampleWindow = dlg;
         end
 
         function setVariables(B, keys, opts)
@@ -2245,7 +2297,8 @@ classdef DatasetBrowser < handle
             r = row(R, {'1x', 'fit'});
             c.SettingsFile = uilabel(r, "Text", "", "FontColor", B.TextColor);
             c.DataNote = uilabel(r, "Text", "", "FontColor", B.TextColor, "HorizontalAlignment", "right");
-            r = row(R, [{'fit'}, repmat({'fit'}, 1, numel(B.DataItems))]);
+            r = row(R, [{'fit'}, repmat({'fit'}, 1, numel(B.DataItems)), {'fit', '1x'}]);
+            r.ColumnSpacing = 4;   % the boxes and the button fill the panel's width
             both = " Tick several: Compute gives a result per kind (B.Results.<kind>; B.Result is the first), " + ...
                 "Raw Data an entry per dataset and kind (B.Sessions).";
             uilabel(r, "Text", "Data", "Tooltip", "What is computed or loaded." + both);
@@ -2255,6 +2308,8 @@ classdef DatasetBrowser < handle
                 c.Data(k) = uicheckbox(r, "Text", B.DataItems(k), "ValueChangedFcn", edit("Data"), ...
                     "Tooltip", B.DataItems(k) + ": " + what(k) + both);
             end
+            c.Downsample = place(uibutton(r, "Text", "Downsample...", ...
+                "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.editDownsample())), 1, numel(B.DataItems) + 2);
             % the event, its sequence, the window and the trial selection: the analysis app's controls (AlignControls)
             tg = uitabgroup(R);
             te = uitab(tg, "Title", "Event", "Scrollable", "on");
@@ -2428,7 +2483,7 @@ classdef DatasetBrowser < handle
             c.Status = uilabel(g, "Text", "", "FontColor", B.TextColor);
 
             styleButton([c.Browse c.TickShown c.UntickAll c.ProbeAll c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun c.DefAdd c.DefRemove ...
-                c.GroupCounts c.Details]);
+                c.GroupCounts c.Details c.Downsample]);
             styleButton([c.Scan c.Compute], "primary");
             styleButton([c.LoadSessions c.LoadTrials], "confirm");
             styleButton(c.Cancel, "danger");
@@ -2658,8 +2713,29 @@ classdef DatasetBrowser < handle
             c.Rectify.Value = S.signal.rectify;
             c.Magnitude.Value = S.signal.magnitude;
             c.KeepEpochs.Value = S.keepEpochs;
+            B.refreshDownsample();
             B.applyEnable();
             B.refreshDataNote();
+        end
+
+        function refreshDownsample(B)
+            %refreshDownsample  The Downsample... button: amber, with the rates in its tooltip, while any signal has a rate.
+            %   The text stays at one size and weight (not styleButton's bold
+            %   "active"): the Data row has no room to spare.
+            if ~B.uiOk(); return; end
+            b = B.Ctl.Downsample;
+            rates = DownsampleDialog.describe(B.SettingsS.signal.downsample);
+            tip = "The rate each signal (LFP, MUA, SPIKE, AUX) is brought to before Compute or Raw Data uses it, " + ...
+                "low-pass filtered first so nothing aliases. ";
+            styleButton(b);
+            b.FontSize = 12;
+            if rates == ""
+                tip = tip + "Now every signal keeps its rate on file.";
+            else
+                tip = tip + "Now: " + rates + " (the others at their rate on file).";
+                b.BackgroundColor = [1.00 0.80 0.30];   % styleButton's "active" amber
+            end
+            b.Tooltip = tip + newline + "Script name: signal.downsample";
         end
 
         function applyEnable(B)
@@ -2742,6 +2818,9 @@ classdef DatasetBrowser < handle
                 R = Rs.(kind);
                 noun = ternary(R.rowKind == "unit", "units", "channels");
                 tnoun = ternary(R.rowKind == "unit", "bins", "samples");
+                if R.rowKind ~= "unit" && numel(R.t) > 1   % the signal's rate: shows a downsample took effect
+                    tnoun = tnoun + " (" + string(round(1 / mean(diff(R.t)), 4, 'significant')) + " Hz)";
+                end
                 st = R.datasets.status;
                 t = sprintf("%d %s × %d %s × %d groups from %d of %d datasets; %d computed, %d reused", ...
                     height(R.rows), noun, numel(R.t), tnoun, numel(R.groupLabels), numel(R.keys), height(R.datasets), ...
@@ -2890,6 +2969,19 @@ classdef DatasetBrowser < handle
                 error('DatasetBrowser:NoneTicked', 'Tick at least one dataset to edit its variables.');
             end
             B.editVariables(keys);
+        end
+
+        function onDownsampleDone(B, r)
+            %onDownsampleDone  The Downsample signals dialog closed: OK's rates into the settings (R = [], Cancel: nothing changes).
+            if ~isvalid(B); return; end
+            B.DownsampleWindow = [];
+            if isempty(r); return; end
+            S = B.SettingsS;
+            S.signal.downsample = r;
+            B.setSettings(S, true);
+            d = DownsampleDialog.describe(r);
+            B.setStatus(ternary(d == "", "Every signal at its rate on file: nothing downsampled.", ...
+                "Downsampled before Compute and Raw Data: " + d + " (the others at their rate on file)."));
         end
 
         function onVariablesDone(B, keys, r)
@@ -3932,6 +4024,9 @@ classdef DatasetBrowser < handle
             w = B.VariableWindow;
             if ~isempty(w) && isvalid(w); w.cancel(); end
             B.VariableWindow = [];
+            w = B.DownsampleWindow;
+            if ~isempty(w) && isvalid(w); w.cancel(); end
+            B.DownsampleWindow = [];
         end
 
         function changed(B, what)

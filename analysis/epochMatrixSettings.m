@@ -19,7 +19,8 @@ function [S, ID, name] = epochMatrixSettings(S0, opts)
 %   (no probe) takes all its columns: signal.channels and signal.shanks
 %   are the probe's pick then, so K = "AUX" clears them; and
 %   signal.magnitude is AUX's, so a probe signal K clears it when AUX is
-%   in data.
+%   in data. A signal K keeps only its own signal.downsample rate (the
+%   others become []).
 %
 %   Fields of S, in this order
 %     data       what is computed, one kind or several (a string row, each
@@ -59,6 +60,17 @@ function [S, ID, name] = epochMatrixSettings(S0, opts)
 %                  magnitude  the channels' vector magnitude, one row
 %                             (AUX's accelerometer; false)
 %                  statistic  "mean" (default) | "median" over the epochs
+%                  downsample struct, one field per signal (LFP, MUA,
+%                             SPIKE, AUX): the rate, Hz, that signal is
+%                             brought to before anything else is done
+%                             with it ([] = the rate on file, the
+%                             default for each). Anti-aliased
+%                             (resampleSignal: flat and free of aliases
+%                             up to 0.38 x the new rate, so pick a rate
+%                             at least 2.6 x the highest frequency
+%                             studied); a rate at or above the one on
+%                             file leaves the signal as it is. Fields
+%                             left out are []: struct('LFP', 250)
 %   Every kind
 %     normalize  struct, applied to the assembled matrix (epochMatrixNormalize),
 %                each row's trace in each group against its own values:
@@ -88,7 +100,10 @@ function [S, ID, name] = epochMatrixSettings(S0, opts)
 %
 %   ID is the cache identity of the results S gives: a struct holding data,
 %   ref, window, selection, the fields that apply to data (spikes: units,
-%   measure, binSec, baseline, auroc; signals: signal), keepEpochs (only
+%   measure, binSec, baseline, auroc; signals: signal, with downsample
+%   only the rate of data, and only when it is set, so a new MUA rate
+%   keeps the cached LFP parts and no rate keeps the identity the code
+%   had before downsample existed), keepEpochs (only
 %   when true, so the identity without it is unchanged) and version,
 %   epochMatrixSettings' version of the part builders (see below).
 %   DatasetRuns.idText(ID) is its text, which is the same after a JSON
@@ -106,7 +121,7 @@ function [S, ID, name] = epochMatrixSettings(S0, opts)
 %     SaveAs     a .json file: write the checked settings returned there
 %
 %   Errors: epochMatrixSettings:UnknownField (a field S has no place for, at
-%   the top or inside units, signal, auroc or normalize; ref, window and
+%   the top or inside units, signal, signal.downsample, auroc or normalize; ref, window and
 %   selection raise theirs as this too), epochMatrixSettings:BadValue (any
 %   value that does not fit, a Kind not in data, or a file that is not a
 %   settings file), epochMatrixSettings:SeveralData (ID or NAME asked for
@@ -226,6 +241,11 @@ if opts.Kind ~= ""
     elseif ~isSpikes(k) && ismember("AUX", S.data)
         S.signal.magnitude = false;   % AUX's (the accelerometer's), not the probe signal's
     end
+    if ~isSpikes(k)
+        rate = S.signal.downsample.(k);
+        S.signal.downsample = downsampleDefaults();   % this signal's rate alone
+        S.signal.downsample.(k) = rate;
+    end
     S.data = k;
     if isSpikes(k); S.units.source = k; end
 end
@@ -242,7 +262,9 @@ if nargout > 1
             ID.(f) = S.(f);
         end
     else
-        ID.signal = S.signal;
+        ID.signal = rmfield(S.signal, 'downsample');
+        rate = S.signal.downsample.(S.data);   % in the identity only when set: no rate, the identity of before
+        if ~isempty(rate); ID.signal.downsample = rate; end
     end
     if S.keepEpochs; ID.keepEpochs = true; end
     ID.version = PartVersion;
@@ -269,10 +291,24 @@ S = struct( ...
     'binSec',    0.01, ...
     'baseline',  [-0.5 0], ...
     'auroc',     EphysAnalysisConfig.normalizeSection("Auroc", struct('cutoff', "none")), ...
-    'signal',    struct('channels', [], 'shanks', [], 'baseline', [], 'detrend', false, 'rectify', false, ...
-                        'magnitude', false, 'statistic', "mean"), ...
+    'signal',    signalDefaults(), ...
     'normalize', normalizeDefaults(), ...
     'keepEpochs', false);
+end
+
+
+function s = signalDefaults()
+s = struct('channels', [], 'shanks', [], 'baseline', [], 'detrend', false, 'rectify', false, ...
+    'magnitude', false, 'statistic', "mean", 'downsample', downsampleDefaults());
+end
+
+
+function d = downsampleDefaults()
+%downsampleDefaults  A field per signal type, each [] (the rate on file).
+d = struct();
+for t = DatasetOutputs.SignalTypes
+    d.(t) = [];
+end
 end
 
 
@@ -456,8 +492,7 @@ end
 
 function s = checkSignal(s)
 %checkSignal  The signal struct: known fields, each in its form.
-def = struct('channels', [], 'shanks', [], 'baseline', [], 'detrend', false, 'rectify', false, ...
-    'magnitude', false, 'statistic', "mean");
+def = signalDefaults();
 if isempty(s); s = struct(); end
 if ~(isstruct(s) && isscalar(s))
     error('epochMatrixSettings:BadValue', 'signal must be a struct.');
@@ -484,6 +519,33 @@ for f = ["detrend" "rectify" "magnitude"]
     s.(f) = toLogical(s.(f), "signal." + f);
 end
 s.statistic = checkWord(s.statistic, ["mean" "median"], "signal.statistic");
+s.downsample = checkDownsample(s.downsample);
+end
+
+
+function d = checkDownsample(d)
+%checkDownsample  signal.downsample: a field per signal type, each [] or a rate in Hz above 0; missing fields [].
+def = downsampleDefaults();
+if isempty(d); d = struct(); end
+if ~(isstruct(d) && isscalar(d))
+    error('epochMatrixSettings:BadValue', ['signal.downsample must be a struct with a rate (Hz) per signal, ' ...
+        'e.g. struct(''LFP'', 250); [] keeps the rate on file.']);
+end
+unknown = setdiff(string(fieldnames(d)).', string(fieldnames(def)).', 'stable');
+if ~isempty(unknown)
+    error('epochMatrixSettings:UnknownField', 'Unknown signal.downsample field(s): %s (the signals are %s).', ...
+        strjoin("signal.downsample." + unknown, ", "), strjoin(DatasetOutputs.SignalTypes, ", "));
+end
+in = d;
+d = def;
+for f = string(fieldnames(in)).'
+    v = toNumber(in.(f), "signal.downsample." + f);
+    if ~(isempty(v) || (isscalar(v) && isfinite(v) && v > 0))
+        error('epochMatrixSettings:BadValue', ...
+            'signal.downsample.%s must be [] (the rate on file) or one rate in Hz above 0.', f);
+    end
+    d.(f) = v;
+end
 end
 
 

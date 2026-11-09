@@ -234,6 +234,7 @@ mode and its stop event.
 | Control | Sets |
 | --- | --- |
 | **Data** | `data`: a box per kind, `units`, `detected`, `LFP`, `MUA`, `SPIKE` and `AUX`; tick one or more ([Several kinds of data](#several-kinds-of-data)). Only the blocks of the **Measure** tab that apply are on |
+| **Data**: **Downsample...** | `signal.downsample`: a rate per signal in the *Downsample signals* window (also `B.editDownsample()`); see [Downsampling the signals](#downsampling-the-signals). Amber while any signal has a rate |
 | **Event** tab: **Event reference** | `ref`: **Line**, **Edge**, **Which** and **n**, **Scope**, **Offset (s)**, **Length (s)**, **Time range (s)**, **Shift by** and its unit, and **Sequence** |
 | **Event** tab: **Sequence** **Edit...** | `ref.sequence` and `ref.alignStep` in the *Event sequence* window: any number of steps, each *followed by* or *not followed by* a line's onset or offset (its **n**, **Within (s)**, **Min / Max length (s)**), and **Align to** the start or any *followed by* step (aligned to the start, the steps are conditions only). For example *Trial offset then Trough onset*: the first Trough onset after each trial ends. **Apply** checks the steps |
 | **Event** tab: **Epoch window** | `window`: **Pre (s)**, **Post (s)**, seconds from the event (a negative **Pre** is before it; a hint under the two says so) |
@@ -317,6 +318,53 @@ them together, with one event, window, trial selection and normalization:
 - The [Channels tab](#shanks-and-channels) is one pick for every probe kind.
   `AUX`, which has no probe, keeps all its columns, and **Magnitude (AUX)**
   applies to `AUX` only.
+
+### Downsampling the signals
+
+**Downsample...**, at the end of the **Data** row, opens the *Downsample
+signals* window ([`DownsampleDialog.m`](../analysis/DownsampleDialog.m)). It
+has a row per signal, `LFP`, `MUA`, `SPIKE` and `AUX`, each with its own rate:
+
+| Column | Shows |
+| --- | --- |
+| **Signal** | the signal; bold when its **Data** box is ticked, *(not ticked)* otherwise |
+| **On file** | its rate on file in the dataset the lists come from (the clicked row's, else the first ticked); *—* when that dataset lacks it or the root is not scanned |
+| **Downsample to (Hz)** | the rate to bring it to; blank keeps the rate on file. A rate at or above the one on file changes nothing |
+| **Passes unchanged** | the band that comes through: 0 to 0.38 × the new rate. When the rates on file and the one typed have no small ratio, the rate actually reached is named too |
+
+**OK** puts the rates in the settings (`signal.downsample`, a field per
+signal, `[]` = the rate on file) and turns the button amber; its tooltip and
+the status line list them (*LFP 250 Hz, MUA 500 Hz*). **Rates on file** blanks
+every field, **Cancel** changes nothing, and a field that is not a rate keeps
+the window open with the reason. From a script, set the rates in the
+settings; signals left out keep their rate on file:
+
+```matlab
+B.Settings = epochMatrixSettings(B.Settings, signal=struct('downsample', struct('LFP', 250, 'AUX', 100)));
+```
+
+**Compute** and **Raw Data** bring each signal to its rate before anything
+else is done with it (the baseline, detrend, rectify, magnitude, the epochs):
+`resampleSignal` ([source](../pipeline/resampleSignal.m)) resamples the
+channels used with the Signal Processing Toolbox's `resample`. Its
+anti-aliasing filter is a linear-phase FIR low-pass (a Kaiser window, n = 10,
+β = 8) with its delay taken out, so nothing shifts in time, and the signal
+is mirrored past both ends so the first and last samples are not pulled
+toward zero. Against the new rate *f*: content up to 0.38 *f* passes within
+0.1%, the response is −3 dB at 0.475 *f* and −6 dB at the new Nyquist
+frequency *f*/2, and everything above 0.62 *f* is at least 60 dB down. So the
+band from 0 to 0.38 *f* is flat and free of aliases: pick a rate at least 2.6
+times the highest frequency you study (an LFP studied up to 100 Hz: 260 Hz or
+more). Mind a band-passed signal: a `SPIKE` signal of 300–5000 Hz needs
+13 kHz or more.
+
+The rate is part of that signal's cache identity, and only that signal's: a
+new `MUA` rate keeps the cached `LFP` parts, and a signal with no rate keeps
+the parts computed before. The summary names a signal result's rate (*LFP: 16
+channels × 176 samples (250 Hz) × 3 groups ...*), and every dataset's parts
+are at the same rate when their rates on file are the same (datasets at
+different rates on file stop the assembly with `epochMatrix:TimeBase`, as
+they would without downsampling).
 
 ### Shanks and channels
 
@@ -415,8 +463,10 @@ kind ticked:
 - **units**, **detected**: the spike times of the units **Compute** would use
   (classes, shanks, channels, merge, quality and response filters).
 - **LFP**, **MUA**, **SPIKE**, **AUX**: the whole signal, of the channels the
-  [Channels tab](#shanks-and-channels) keeps. A MUA at 2 kHz × 64 channels ×
-  1 h is about 1.8 GB, and every ticked dataset is held at once.
+  [Channels tab](#shanks-and-channels) keeps, at the rate
+  [Downsample...](#downsampling-the-signals) sets for it (else its rate on
+  file). A MUA at 2 kHz × 64 channels × 1 h is about 1.8 GB (0.45 GB at
+  500 Hz), and every ticked dataset is held at once.
 
 Every dataset also brings every trial and every digital line. The **Trials**
 tab's selection marks the trials (`kept`, `group`, `groups`) but drops none.
@@ -441,7 +491,8 @@ dataset.
 | `fs`, `durationSec` | the recording's rate and length |
 | `data` | the entry's kind of **Data**; `"trials"` from **Trials Only** |
 | `spikes`, `units` | `{nUnits x 1}` spike times, s, on the continuous clock, and one row per unit (`selectUnits`' table); `{}` and `table()` for a signal |
-| `signal`, `signalFs`, `channels` | `[nSamples x nChannels]` single (µV; AUX: V), row `k` at `(k-1)/signalFs`, its rate and one row per column (`selectChannels`' table); `[]`, `NaN` and `table()` for spikes |
+| `signal`, `signalFs`, `channels` | `[nSamples x nChannels]` single (µV; AUX: V), row `k` at `(k-1)/signalFs`, its rate (the **Downsample...** rate when one is set below the rate on file) and one row per column (`selectChannels`' table); `[]`, `NaN` and `table()` for spikes |
+| `signalFsFile` | the signal's rate on file: `signalFs` unless downsampled; `NaN` for spikes |
 | `events` | line → `[k x 2]` `[t_on t_off]` s on the digital clock (polarity applied, derived events included) |
 | `eventsContinuous` | the same on the continuous clock |
 | `toContinuous` | a function moving any digital-clock time (a trial column) to the continuous clock |
@@ -702,6 +753,7 @@ R = B.compute();
 | `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
 | `DLG = editTags(B, KEYS)`, `setTags(B, KEYS, Set=, Add=, Remove=)` | the tag window on datasets (no `KEYS`: the rows selected, else the clicked one); the same edit from a script, written to the manifests ([Editing tags](#editing-tags)) |
 | `DLG = editVariables(B, KEYS)`, `setVariables(B, KEYS, Name=, Value=, Label=, Units=, Description=, Remove=)` | the variable window on datasets (a row per dataset, a column per variable); the same edit from a script, written to the manifests ([Editing variables](#editing-variables)) |
+| `DLG = editDownsample(B)` | the *Downsample signals* window (**Downsample...**): a rate per signal into `Settings.signal.downsample`; its methods `setRate`, `clearRates`, `ok` and `cancel` drive it ([Downsampling the signals](#downsampling-the-signals)) |
 | `loadSettings(B, FILE)` | read a [settings file](#settings) (no `FILE`: a file dialog) |
 | `saveSettings(B, FILE)`, `saveSettingsAs(B)` | write one (no `FILE`: `B.SettingsFile`, else a file dialog; `saveSettingsAs`: always a dialog) |
 | `TXT = exportScript(B, FILE)` | [a script](#export-a-script) that computes `B.Settings` on the ticked datasets without the browser (no `FILE`: a file dialog; `""`: the text only) |
@@ -1074,7 +1126,7 @@ unit fields; any other option replaces its field.
 | `auroc` | spikes: the Auroc section (`aurocCurves`' settings), with `cutoff` `"none"` by default |
 | `normalize` | every kind: a struct of `method` (`"none"` default, `"subtract"`, `"ratio"`, `"percent"`, `"zscore"` or `"minmax"`), `baseline` ([b0 b1] s, b0 < b1; default [-0.5 0]; must overlap the window for a method that uses it) and `scope` (`"row"` default, or `"group"`). Applied after assembly, so not in the cache identity; see [Normalization](#normalization) |
 | `keepEpochs` | every kind: `false` (default) or `true`, keep every epoch in `R.epochs` ([Each epoch](#each-epoch-repochs)). In the cache identity only when `true`, with parts kept under `"epochMatrix/<data>/epochs"` |
-| `signal` | signals: a struct of `channels` (recording channels kept, 1-based: the probe map's `chanMap` + 1, as `units.channels`; for AUX its 1-based columns; `[]` = all), `shanks` (probe shanks kept; `[]` = all; not used for AUX), `baseline` ([b0 b1] s: each epoch's mean over it is subtracted per channel; `[]` = none), `detrend` (remove each epoch's linear trend; false), `rectify` (the absolute value before the average; false), `magnitude` (the channels' vector magnitude, one row, e.g. AUX's accelerometer; false) and `statistic` (`"mean"` default, or `"median"`) |
+| `signal` | signals: a struct of `channels` (recording channels kept, 1-based: the probe map's `chanMap` + 1, as `units.channels`; for AUX its 1-based columns; `[]` = all), `shanks` (probe shanks kept; `[]` = all; not used for AUX), `baseline` ([b0 b1] s: each epoch's mean over it is subtracted per channel; `[]` = none), `detrend` (remove each epoch's linear trend; false), `rectify` (the absolute value before the average; false), `magnitude` (the channels' vector magnitude, one row, e.g. AUX's accelerometer; false), `statistic` (`"mean"` default, or `"median"`) and `downsample` (a struct with a field per signal, `LFP`, `MUA`, `SPIKE` and `AUX`: the rate in Hz that signal is brought to first, anti-aliased, or `[]` for the rate on file, the default; fields left out are `[]`; see [Downsampling the signals](#downsampling-the-signals)) |
 
 Fields that do not apply to `data` are kept in `S`, unchecked beyond their
 form, and left out of the cache identity, so a change to an LFP option keeps
@@ -1086,7 +1138,9 @@ that kind of `S.data` alone (`data` = the kind; `units.source` = the kind for
 spikes), with its cache identity and parts' name. Among other kinds, `AUX`
 takes all its columns (its `signal.channels` and `signal.shanks` are cleared:
 they are the probe's pick), and `signal.magnitude` is `AUX`'s (cleared for a
-probe signal when `AUX` is in `data`). Asking for `ID` or `NAME` with several
+probe signal when `AUX` is in `data`). A signal keeps only its own
+`signal.downsample` rate (the others become `[]`), and its cache identity
+holds that rate only when it is set. Asking for `ID` or `NAME` with several
 kinds and no `Kind` raises `epochMatrixSettings:SeveralData`.
 
 **Settings files** are JSON: `{"schema": "epoch-matrix-settings", "version":
@@ -1286,6 +1340,7 @@ out).
 | the compute and its result | [`epochMatrix.m`](../analysis/epochMatrix.m) |
 | one dataset on its own clock (**Raw Data**) | [`sessionData.m`](../analysis/sessionData.m) |
 | the settings, their checks and cache identity | [`epochMatrixSettings.m`](../analysis/epochMatrixSettings.m) |
+| the *Downsample signals* window; the anti-aliased resampling | [`DownsampleDialog.m`](../analysis/DownsampleDialog.m); [`resampleSignal.m`](../pipeline/resampleSignal.m) |
 | the result's labels and description in words | [`epochMatrixLabels.m`](../analysis/epochMatrixLabels.m) |
 | the normalization of a result | [`epochMatrixNormalize.m`](../analysis/epochMatrixNormalize.m) |
 | one row of a result trial by trial; its window | [`epochMatrixRaster.m`](../analysis/epochMatrixRaster.m), [`TrialRaster.m`](../analysis/TrialRaster.m) |
@@ -1304,5 +1359,6 @@ out).
 | --- | --- |
 | [`test_DatasetFilter.m`](../pipeline/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
 | [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
-| [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`) |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, `noteInManifest` (the `custom.browser_<tool>` field written, replaced and left off other datasets, a bad key warning), tags (`setTags`: Add, Remove and Set written to the manifests with nothing else changed, the table and the tag filter following, the refusals writing nothing, a loaded source's tags and `R.rows`; the tag window from a Tags cell, the selected rows and the ticked ones, OK, Cancel and closing the browser), variables (`setVariables` written with nothing else changed, an unchanged value not written, a loaded source and `R.rows`' `var_` column following; the window from a Variables cell and the selected rows, closing the browser), the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |
+| [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`), `signal.downsample` (its checks and cache identity, a downsampled LFP against `resampleSignal` and `evokedPotential` by hand, `sessionData` at the new rate) |
+| [`test_MTRFExport.m`](../pipeline/test_MTRFExport.m) | `resampleSignal` under `mTRFExport.resample`: the rate reached, t = 0 kept, single kept, the passband and an alias removed |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, `noteInManifest` (the `custom.browser_<tool>` field written, replaced and left off other datasets, a bad key warning), tags (`setTags`: Add, Remove and Set written to the manifests with nothing else changed, the table and the tag filter following, the refusals writing nothing, a loaded source's tags and `R.rows`; the tag window from a Tags cell, the selected rows and the ticked ones, OK, Cancel and closing the browser), variables (`setVariables` written with nothing else changed, an unchanged value not written, a loaded source and `R.rows`' `var_` column following; the window from a Variables cell and the selected rows, closing the browser), **Downsample...** (`DownsampleDialog`: the rates on file, a bad rate refused, OK, Cancel, **Rates on file**; the rates reaching **Compute** and **Raw Data**, a new MUA rate keeping the LFP parts), the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |

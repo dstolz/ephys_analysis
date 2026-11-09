@@ -59,33 +59,13 @@ classdef mTRFExport
             %   sample) and the extra output cut away, so a constant stays
             %   constant to its ends. Y is double, row j at (j-1)/FS,
             %   ceil(nSamples*p/q) rows. FsOut = FsIn returns X as double.
+            %   It is resampleSignal on double(X).
             arguments
                 X (:,:) {mustBeNumeric}
                 FsIn (1,1) double {mustBePositive}
                 FsOut (1,1) double {mustBePositive}
             end
-            X = double(X);
-            if FsOut == FsIn
-                Y = X;
-                return
-            end
-            [p, q] = rat(FsOut / FsIn, 1e-9);
-            reached = FsIn * p / q;
-            if abs(reached - FsOut) > 1e-9 * FsOut; FsOut = reached; end   % else the rate asked for, exactly
-            if isempty(X)
-                Y = zeros(0, size(X, 2));
-                return
-            end
-            if size(X, 1) == 1
-                Y = X;      % resample needs more than one sample
-                return
-            end
-            % the filter reaches 10 samples of the lower rate past each end: n*max(p,q)/p input
-            % samples; m is a multiple of q (so the output grid keeps t = 0) at least that long
-            m = q * ceil(10 / min(p, q));
-            nOut = ceil(size(X, 1) * p / q);
-            Y = resample(padarray(X, [m 0], 'symmetric'), p, q, 10, 8);
-            Y = Y(m / q * p + (1:nOut), :);
+            [Y, FsOut] = resampleSignal(double(X), FsIn, FsOut);
         end
 
         function [y, FsOut] = envelope(x, FsIn, FsOut, opts)

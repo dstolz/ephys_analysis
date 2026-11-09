@@ -69,7 +69,7 @@ S = B.Sessions;
 csdSessions = struct([]);
 win = B.Settings.window;
 if ~isempty(S)
-    S = S(arrayfun(@(D) ~isempty(D.signal), S));   % spikes or "Load trials only" bring no signal
+    S = S(arrayfun(@(D) ~isempty(D.signal), S));   % spikes or "Trials Only" bring no signal
 end
 if ~isempty(S)
     P = sessionDataCSD(S, Window=[win.pre win.post], Align=opts.sessionAlign, Columns=opts.columns, Shanks=opts.shanks, ...

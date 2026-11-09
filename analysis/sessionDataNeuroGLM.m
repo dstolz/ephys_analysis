@@ -8,9 +8,9 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %     timing         every digital line's pulses, "<line>_on" and
 %                    "<line>_off" (D.eventsContinuous: the pulses are on the
 %                    spikes' clock)
-%                    with ResponseLine=, "response_time": that line's onset
-%                    plus the trial's ResponseLatency on Hit and FA trials,
-%                    TrialOffset on Miss and CR trials (when each is coded)
+%                    with ResponseLine=, "response_time": the first
+%                    ResponseLine ResponseEdge after each ResponseAfter
+%                    onset, from the digital lines alone
 %     values        trialIndex (the row of D.trials), group (the trial's
 %                    row of D.groups), the response code (D.respField),
 %                    every trial parameter (D.paramNames) and, with a
@@ -40,11 +40,14 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %     Responses   the response words (respCodeBits) a trial's "response" can
 %                 be, the first that matches wins; "" on a trial with none
 %                 (["Hit" "Miss" "CR" "FA" "Abort"])
-%     ResponseLine     the digital line whose onset the response latency
-%                 counts from, e.g. "RespWindow" ("": no response_time)
-%     ResponseLatency  the trial column holding the latency, ms
-%                 ("RespLatency"); a Hit or FA without a finite value has
-%                 no response_time
+%     ResponseLine     the digital line whose edge is the response, e.g.
+%                 "Platform" ("": no response_time)
+%     ResponseEdge     that line's "onset" (default) or "offset"
+%     ResponseAfter    the digital line whose onsets the search starts
+%                 from, e.g. "RespWindow" ("Trial", the default: each
+%                 trial's onset). The search stops at the next trial's
+%                 onset: a trial without the edge before then has no
+%                 response_time. No trial column is read
 %
 %   INFO fields: trialIndex (the row of D.trials of each expt.trial), spans
 %   ([start stop] s on the continuous clock), units (D.units' rows kept,
@@ -54,7 +57,7 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %   nDroppedArtifact. expt.param holds key, name, fs, binMs, window, align,
 %   trialLine, groups (D.groups) and the same tables and names.
 %
-%   Errors: sessionDataNeuroGLM:NoSpikes, :NoTrials, :NoColumn,
+%   Errors: sessionDataNeuroGLM:NoSpikes, :NoTrials, :NoColumn, :NoLine,
 %   :SignalMismatch, :BadResponse, those of resolveEvents and
 %   NeuroGLMExport's.
 %
@@ -72,7 +75,8 @@ arguments
     opts.DropArtifacts (1,1) logical = true
     opts.Responses string = ["Hit" "Miss" "CR" "FA" "Abort"]
     opts.ResponseLine (1,1) string = ""
-    opts.ResponseLatency (1,1) string = "RespLatency"
+    opts.ResponseEdge (1,1) string {mustBeMember(opts.ResponseEdge, ["onset" "offset"])} = "onset"
+    opts.ResponseAfter (1,1) string = "Trial"
 end
 
 if isempty(D.spikes)
@@ -142,23 +146,24 @@ if hasResp
 end
 valueCols = string(V.Properties.VariableNames).';
 
-% the response time: a Hit's or FA's response, a Miss's or CR's trial offset
+% the response time: the first ResponseLine edge after each ResponseAfter onset, before the
+% next trial's onset (resolveEvents' sequence), from the digital lines alone
 timeVar = "";
 tResponse = zeros(0, 1);
 if opts.ResponseLine ~= ""
     timeVar = "response_time";
-    mask = [];
-    if hasResp; mask = responseWords(D.trials.(D.respField), ["Hit" "FA"]) ~= ""; end
-    ref = eventRef(line=opts.ResponseLine, which="all", scope="recording", offsetParam=opts.ResponseLatency);
-    try
-        tResponse = D.toContinuous(resolveEvents(D, ref, mask));
-    catch ME
-        if ME.identifier ~= "resolveEvents:NoEvents"; rethrow(ME); end   % no trial has a response: a kernel with no events
+    need = [opts.ResponseLine opts.ResponseAfter];
+    need(need == "Trial") = D.trialLine;
+    missing = setdiff(need, string(fieldnames(D.eventsContinuous)));
+    if ~isempty(missing)
+        error('sessionDataNeuroGLM:NoLine', '%s has no digital line %s for the response time.', D.name, strjoin(missing, ', '));
     end
-    if hasResp
-        atOffset = responseWords(D.trials.(D.respField), ["Miss" "CR"]) ~= "";
-        tOffset = D.toContinuous(double(D.trials.TrialOffset(atOffset)));
-        tResponse = sort([tResponse(:); tOffset(isfinite(tOffset))]);
+    respRef = eventRef(line=opts.ResponseAfter, which="all", scope="recording", ...
+        sequence=struct('line', opts.ResponseLine, 'edge', opts.ResponseEdge));
+    try
+        tResponse = D.toContinuous(resolveEvents(D, respRef));
+    catch ME
+        if ME.identifier ~= "resolveEvents:NoEvents"; rethrow(ME); end   % no response at all: a kernel with no events
     end
 end
 
@@ -217,7 +222,7 @@ for k = 1:nL
 end
 if timeVar ~= ""
     E.(timeVar) = tResponse;
-    Dsc.(timeVar) = "Response (" + opts.ResponseLine + " onset + " + opts.ResponseLatency + ")";
+    Dsc.(timeVar) = "Response (" + eventRefLabel(respRef) + ")";
 end
 Sp = struct();
 for k = 1:nU

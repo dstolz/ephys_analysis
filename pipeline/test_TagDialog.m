@@ -190,8 +190,21 @@ classdef test_TagDialog < matlab.unittest.TestCase
             tc.verifyEqual(dlg.Pending, {}, 'nothing to add yet');
             tc.verifyEqual(string(dlg.Ctl.Title.Text), "Tags of 3 ticked datasets");
             tc.verifyEqual(string(dlg.Ctl.Summary.Text), ["On all: a"; "On some: b (1 of 3), c (1 of 3)"]);
-            tc.verifyEqual(dlg.Ctl.Available.ItemsData, {'a', 'b', 'c', 'z'});
+            tc.verifyEqual(dlg.Ctl.Available.ItemsData, {'b', 'c', 'z'}, 'a tag on all is no choice');
+            tc.verifyEqual(string(dlg.Ctl.Available.Items), ["b (1 of 3)" "c (1 of 3)" "z"]);
             tc.verifyEqual(string(dlg.Ctl.Policy.Visible), "on");
+        end
+
+        function bulkAddRefusesATagOnAll(tc)
+            dlg = tc.open({{'a', 'b'}, {'a'}}, {}, Labels=["d1" "d2"]);
+            dlg.addTyped("a");
+            tc.verifySubstring(dlg.ErrorText, "All 2 datasets already have a");
+            tc.verifyEqual(dlg.Pending, {});
+            dlg.addTyped("a, b");
+            tc.verifyEqual(dlg.ErrorText, "");
+            tc.verifyEqual(dlg.Pending, {'b'}, 'the tag on all is dropped');
+            dlg.setMode("remove");
+            tc.verifyEqual(dlg.Ctl.Available.ItemsData, {'a', 'b'}, 'Remove mode still offers it');
         end
 
         function bulkAddReachesEveryTarget(tc)

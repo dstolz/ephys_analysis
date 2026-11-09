@@ -82,7 +82,7 @@ others.
 ## `sessionDataNeuroGLM`
 
 ```matlab
-D = B.Sessions;                                   % Load whole recordings, Data = units or detected
+D = B.Sessions;                                   % Raw Data, Data = units or detected
 [expt, info] = sessionDataNeuroGLM(D(1));          % trials from TrialOnset - 0.5 s to the next trial
 [expt, info] = sessionDataNeuroGLM(D(1), Window=[-0.2 1.5], Trials="all", BinMs=5);
 L = sessionData(B.source(D(1).key), epochMatrixSettings(B.Settings, data="LFP"));
@@ -102,7 +102,7 @@ span touches an erased period (`D.artifacts`) unless `DropArtifacts=false`
 | --- | --- | --- |
 | spike trains | every element of `D.spikes` (`Units=` a subset) | `sp_<unit label>` |
 | timing | every digital line's pulses (`Lines=` a subset), onsets and offsets apart | `<line>_on`, `<line>_off` |
-| timing | with `ResponseLine=`, the moment of the response: on Hit and FA trials that line's onset + the trial's `ResponseLatency` (`"RespLatency"`, ms), on Miss and CR trials the trial's offset | `response_time` |
+| timing | with `ResponseLine=`, the moment of the response, from the digital lines alone: the first `ResponseEdge` (`"onset"` or `"offset"`) of that line after each onset of `ResponseAfter=` (`"Trial"`: the trial's onset; e.g. `"RespWindow"`), before the next trial's onset. A trial without one has none; no trial column is read | `response_time` |
 | values | the trial's row of `D.trials`, its group (its row of `D.groups`, 0 when not kept), the response code (`D.respField`), every trial parameter (`D.paramNames`) | `trialIndex`, `group`, the column names |
 | values | with a response code, the trial's response word: the first of `Responses=` (`["Hit" "Miss" "CR" "FA" "Abort"]`) that it is, `""` when none | `response` |
 | continuous | `Signal=`, a `sessionData` struct of the **same dataset** holding a signal, every channel | the signal's name (`LFP`, `MUA`, `AUX`) |
@@ -118,7 +118,7 @@ the same tables with `key`, `name`, `fs`, `binMs`, `window`, `align`,
 
 [`S_DatasetBrowserToNeuroGLM.m`](../analysis/browser_scripts/S_DatasetBrowserToNeuroGLM.m)
 is in the browser's post-processing script list. Tick datasets, set **Data**
-to *units* or *detected*, **Load whole recordings**, pick the script and **Run
+to *units* or *detected*, **Raw Data**, pick the script and **Run
 now** (or tick *Run it after each Compute or Load*). For each dataset it
 builds the experiment and, for every unit with spikes, fits the GLM on the
 same first 80% of the trials (`opts.trainFraction`; the last block of consecutive
@@ -147,25 +147,28 @@ kernels do:
   the trials with that word: `F.kernels.response_time__Hit`, and so on. A trial
   with another word (an abort) has no kernel on that event. Avoid splitting an
   event a fixed time from the response on some word's trials, such as
-  `RespWindow_on` (a Miss's or CR's trial offset follows it by the window's length): the
+  `RespWindow_on` (`RespWindow_off` follows it by the window's length): the
   fit cannot tell the two kernels apart, and predicting a trial under another
   word then gives wrong rates. An event takes one split, so an event in `opts.responseEvents` cannot also be
   the browser's event line while `opts.groupKernels` is on; the script stops with
   `NeuroGLMExport:BadGroupEvents` when it is. Set `opts.responses = string.empty`
   for none.
 - **The moment of the response.** With `opts.responseTime`, the event
-  `response_time` is `opts.responseLine`'s onset + `opts.responseLatency`
-  (`RespWindow`, `RespLatency`, ms) on Hit and FA trials, and the trial's offset
-  on Miss and CR trials, when the trial is coded as one. Its
-  kernels reach `opts.acausalMs` (1000) before it and `opts.kernelMs` after it. A
-  dataset without that line or column is fitted without it, with a line printed.
+  `response_time` is the first `opts.responseEdge` of `opts.responseLine` after
+  each onset of `opts.responseAfter`, before the next trial: the first Platform
+  offset after the response window opens (`"Platform"`, `"offset"`,
+  `"RespWindow"`). It is read from the digital lines alone, on every trial
+  whatever its response word, so a Miss or CR has it where the animal leaves the
+  platform. Its kernels reach `opts.acausalMs` (500) before it and
+  `opts.kernelMs` after it. A dataset without those lines is fitted without it,
+  with a line printed.
 
 Each trial's word is `glm{k}.expt.trial(j).response`, to sort the predictions
 by response.
 
 The fields of `opts` at the top of the script (`binMs`, `window`, `kernelMs`,
 `acausal`, `acausalMs`, `groupKernels`, `responses`, `responseEvents`, `responseTime`,
-`responseLine`, `responseLatency`, `history`, `coupling`, `withSignal`,
+`responseLine`, `responseEdge`, `responseAfter`, `history`, `coupling`, `withSignal`,
 `fitMethod`, `ridge`, `workers`, `outDir`) are the knobs; `opts.workers` (4; 0 =
 one unit after the other in MATLAB itself) fits the units on process workers
 (`fitUnits`), fewer when memory is short, so the per-unit lines print as the fits

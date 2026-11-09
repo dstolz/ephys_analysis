@@ -125,8 +125,8 @@ classdef DatasetBrowser < handle
     %                  ScriptAfterCompute)
     %     [D, T] = loadSessions(B, RunScript=false, TrialsOnly=false)   the ticked datasets on their own
     %                  clock, not cut into epochs, in B.Sessions (sessionData; one per dataset and kind
-    %                  of data; the Load whole recordings button); TrialsOnly: trials and digital lines,
-    %                  no spikes or signal (Load trials only)
+    %                  of data; the Raw Data button); TrialsOnly: trials and digital lines,
+    %                  no spikes or signal (Trials Only)
     %     [VALUES, T] = forEach(B, FN, Name=, Id=, Datasets=, Recompute=, SkipIds=)
     %                  FN(SRC) or FN(SRC, INFO) per dataset, kept in Runs
     %                  (DatasetRuns.run); Name defaults to "forEach/" + func2str(FN)
@@ -161,7 +161,7 @@ classdef DatasetBrowser < handle
     %   Post-processing scripts: the "Post-processing script" box under
     %   Compute lists scripts (Scripts; + adds one, − takes the one shown
     %   off the list, Edit opens it). With "Run it after each Compute or
-    %   Load" (ScriptAfterCompute) ticked, Compute and Load whole recordings
+    %   Load" (ScriptAfterCompute) ticked, Compute and Raw Data
     %   run the picked one (Script) in the base workspace once the data are
     %   in, with this browser put there as B (the script reads R = B.Result
     %   or S = B.Sessions); "Run now" runs it on them as they are. Its
@@ -198,7 +198,7 @@ classdef DatasetBrowser < handle
     %   (and Magnitude is AUX's) when other kinds are ticked. Load whole
     %   recordings gives an entry per dataset and kind.
     %
-    %   Whole recordings: Load whole recordings (loadSessions) is the browser
+    %   Whole recordings: Raw Data (loadSessions) is the browser
     %   as a way in to the data, not a compute. Each ticked dataset's
     %   spike trains (Data units or detected: the units Compute uses) or
     %   its whole signal (LFP, MUA, SPIKE, AUX: the channels the Channels
@@ -210,7 +210,7 @@ classdef DatasetBrowser < handle
     %   D.key). A dataset that lacks one of the kinds has no entry for it.
     %   The event window, the measure and normalization are not
     %   used. Nothing is cached or saved in the result file; signals are
-    %   whole (GBs per dataset). Load trials only (TrialsOnly=true) brings
+    %   whole (GBs per dataset). Trials Only (TrialsOnly=true) brings
     %   the same without the spikes or signal: only the trials and the
     %   digital lines (D.data "trials"), one per dataset.
     %
@@ -1326,7 +1326,8 @@ classdef DatasetBrowser < handle
             %   (runScript); the Load sessions button passes
             %   ScriptAfterCompute. TrialsOnly=true reads no spikes or
             %   signal: only the trials and digital lines (the Load trials
-            %   only button).
+            %   only button). A dataset whose behavior file names no
+            %   subject gets the table's Subject (from the name pattern).
             arguments
                 B
                 opts.RunScript (1,1) logical = false
@@ -1361,6 +1362,12 @@ classdef DatasetBrowser < handle
             end
             done = T.status == "done";
             D = vertcat(values{done});
+            if ~isempty(D)   % no subject in the behavior file: the table's, from the name pattern
+                [~, loc] = ismember([D.key], B.Datasets.key);
+                for j = reshape(find([D.subject] == "" & loc > 0), 1, [])
+                    D(j).subject = B.Datasets.subject(loc(j));
+                end
+            end
             B.Sessions = D;
             if numel(kinds) > 1   % how many of each kind: a dataset may lack some
                 got = strings(0, 1);
@@ -2115,7 +2122,7 @@ classdef DatasetBrowser < handle
             c.DataNote = uilabel(r, "Text", "", "FontColor", B.TextColor, "HorizontalAlignment", "right");
             r = row(R, [{'fit'}, repmat({'fit'}, 1, numel(B.DataItems))]);
             both = " Tick several: Compute gives a result per kind (B.Results.<kind>; B.Result is the first), " + ...
-                "Load whole recordings an entry per dataset and kind (B.Sessions).";
+                "Raw Data an entry per dataset and kind (B.Sessions).";
             uilabel(r, "Text", "Data", "Tooltip", "What is computed or loaded." + both);
             what = ["the sorted units (the sorting folder)." "the Spikes step's detections, one train per channel." ...
                 repmat("a derived signal.", 1, 4)];
@@ -2243,14 +2250,14 @@ classdef DatasetBrowser < handle
                 "Tooltip", "Compute the ticked datasets (those already computed with these settings are reused), " + ...
                 "a result per kind of Data ticked (B.Results; B.Result is the first); " + ...
                 "then the post-processing script, when ticked below.");
-            c.LoadSessions = uibutton(r, "Text", "Load whole recordings", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onLoadSessions()), ...
+            c.LoadSessions = uibutton(r, "Text", "Raw Data", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onLoadSessions()), ...
                 "Tooltip", "No epochs, nothing computed: the ticked datasets on their own clock, in B.Sessions for a script. " + ...
                 "Each one's spike times (units, detected) or whole signal (LFP, MUA, SPIKE, AUX: GBs each), " + ...
                 "one entry per dataset and kind of Data ticked, " + ...
                 "every trial (those the Trials tab keeps marked) and every digital line. " + ...
                 "Then the post-processing script, when ticked below.");
-            c.LoadTrials = uibutton(r, "Text", "Load trials only", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onLoadSessions(true)), ...
-                "Tooltip", "Like Load whole recordings, without spikes or signal: each ticked dataset's trials " + ...
+            c.LoadTrials = uibutton(r, "Text", "Trials Only", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.onLoadSessions(true)), ...
+                "Tooltip", "Like Raw Data, without spikes or signal: each ticked dataset's trials " + ...
                 "(those the Trials tab keeps marked) and digital lines, in B.Sessions. " + ...
                 "Then the post-processing script, when ticked below.");
             c.Details = uibutton(r, "Text", "Details...", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.showDetails()), ...
@@ -2271,7 +2278,7 @@ classdef DatasetBrowser < handle
                 "Tooltip", "Open the script in the MATLAB editor."), 1, 4);
             c.ScriptAfter = place(uicheckbox(sg, "Text", "Run it after each Compute or Load", ...
                 "ValueChangedFcn", @(src, ~) B.uiRun(@() B.setAfterFrom(src.Value)), ...
-                "Tooltip", "After Compute or Load whole recordings, run the script in the base workspace (B is this browser there, " + ...
+                "Tooltip", "After Compute or Raw Data, run the script in the base workspace (B is this browser there, " + ...
                 "R = B.Result or S = B.Sessions in the script); its variables stay in the workspace."), 2, [1 3]);
             c.ScriptRun = place(uibutton(sg, "Text", "Run now", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.runScript()), ...
                 "Tooltip", "Run the script now on the result (or the sessions loaded), in the base workspace."), 2, 4);
@@ -2667,7 +2674,7 @@ classdef DatasetBrowser < handle
         end
 
         function onLoadSessions(B, trialsOnly)
-            %onLoadSessions  The Load whole recordings (Load trials only) button: load (and run the script), then let wait return; the window stays.
+            %onLoadSessions  The Raw Data (Trials Only) button: load (and run the script), then let wait return; the window stays.
             arguments
                 B
                 trialsOnly (1,1) logical = false

@@ -280,8 +280,8 @@ them together, with one event, window, trial selection and normalization:
   that no ticked dataset has stops the compute with `epochMatrix:NoData`, its
   kind named (*SPIKE: ...*), and leaves `B.Results` as it was; the kinds
   computed before it stay cached.
-- **Load whole recordings** gives an entry per dataset and kind (see
-  [Load whole recordings](#load-whole-recordings)).
+- **Raw Data** gives an entry per dataset and kind (see
+  [Raw Data](#raw-data)).
 - The **Measure** tab's **Spikes** block applies to `units` and `detected`,
   its **Signals** block to the signals.
 - The [Channels tab](#shanks-and-channels) is one pick for every probe kind.
@@ -374,9 +374,9 @@ each starting with its kind, when several are ticked). When the settings or
 ticks changed since the result, it begins *Out of date:* and says what
 differs.
 
-### Load whole recordings
+### Raw Data
 
-**Load whole recordings**, beside **Compute**, computes nothing: it uses the
+**Raw Data**, beside **Compute**, computes nothing: it uses the
 browser as a way in to the data. Each ticked dataset comes on its own clock,
 not cut into epochs, into `B.Sessions` for your script to use as it likes
 (`B.loadSessions()` from a script). What comes depends on **Data**, each
@@ -392,7 +392,7 @@ Every dataset also brings every trial and every digital line. The **Trials**
 tab's selection marks the trials (`kept`, `group`, `groups`) but drops none.
 The event, the window, the measure and normalization are not used.
 
-**Load trials only**, beside it, brings the same without the spikes or the
+**Trials Only**, beside it, brings the same without the spikes or the
 signal: only the trials and the digital lines, whatever **Data** is (`data` is
 `"trials"`; `spikes`, `units`, `signal` and `channels` are empty). From a
 script: `B.loadSessions(TrialsOnly=true)`.
@@ -402,14 +402,14 @@ script: `B.loadSessions(TrialsOnly=true)`.
 kinds by `key`), made by [`sessionData.m`](../analysis/sessionData.m). A
 dataset that lacks one of the kinds ticked (no sort, no such signal) has no
 entry for it; the strip's message counts each kind (*12 session(s) loaded in
-B.Sessions (units 12, LFP 11), ...*). **Load trials only** gives one entry per
+B.Sessions (units 12, LFP 11), ...*). **Trials Only** gives one entry per
 dataset.
 
 | Field | Holds |
 | --- | --- |
-| `key`, `name`, `folder`, `subject`, `startTime`, `tags` | which dataset |
+| `key`, `name`, `folder`, `subject`, `startTime`, `tags` | which dataset. `subject` is the behavior file's, else the table's Subject (from the name pattern) |
 | `fs`, `durationSec` | the recording's rate and length |
-| `data` | the entry's kind of **Data**; `"trials"` from **Load trials only** |
+| `data` | the entry's kind of **Data**; `"trials"` from **Trials Only** |
 | `spikes`, `units` | `{nUnits x 1}` spike times, s, on the continuous clock, and one row per unit (`selectUnits`' table); `{}` and `table()` for a signal |
 | `signal`, `signalFs`, `channels` | `[nSamples x nChannels]` single (µV; AUX: V), row `k` at `(k-1)/signalFs`, its rate and one row per column (`selectChannels`' table); `[]`, `NaN` and `table()` for spikes |
 | `events` | line → `[k x 2]` `[t_on t_off]` s on the digital clock (polarity applied, derived events included) |
@@ -431,7 +431,7 @@ raw trial times.
 
 ```matlab
 B = DatasetBrowser.open(root);
-B.wait();                       % tick, then Load whole recordings
+B.wait();                       % tick, then Raw Data
 for D = B.Sessions.'
     on = D.toContinuous(D.trials.TrialOnset(D.kept));
     % ... D.spikes{u} against on, D.events.Lick, ...
@@ -467,7 +467,7 @@ plots) are in the workspace as soon as a compute finishes:
 | **+** | adds a `.m` file picked in a dialog to the list and picks it (`B.addScript()`, or `B.addScript(file)`) |
 | **−** | takes the script shown off the list; the file stays (`B.removeScript()`) |
 | **Edit** | opens the script in the MATLAB editor (`B.editScript()`) |
-| **Run it after each Compute or Load** | **Compute** and **Load whole recordings** run the script once the data are in (`B.ScriptAfterCompute`) |
+| **Run it after each Compute or Load** | **Compute** and **Raw Data** run the script once the data are in (`B.ScriptAfterCompute`) |
 | **Run now** | runs the script on the result or the sessions as they are (`B.runScript()`); off before either |
 
 The script runs in the base workspace, as `run` runs it, with the browser put
@@ -563,11 +563,11 @@ places:
 
 - its **Cached** cell reads `skipped: no sorted units` (nothing to compute) or
   `error` (the computation failed), in red;
-- when a **Compute**, `forEach` or **Load whole recordings** ends, the status
+- when a **Compute**, `forEach` or **Raw Data** ends, the status
   line names them: *"2 not computed: recA (no sorted units), recB (error: ...)."*
   (the first three, then *and N more*; red when one failed). The summary adds
   *", 2 not computed (Details...)"*;
-- **Details...** (beside **Load trials only**, and **Details of the last run...**
+- **Details...** (beside **Trials Only**, and **Details of the last run...**
   in the table's right-click menu) opens a window with a row per dataset and
   kind of **Data** the last run covered: **Dataset**, **Data**, **Status**
   (`error`, `skipped`, `no rows`, `done`, `cached`), **Reason** (the whole
@@ -613,7 +613,7 @@ B.wait();          % tick, adjust, Compute
 R = B.Result;
 ```
 
-`wait` blocks until a **Compute** or **Load whole recordings** from the window finishes (and the
+`wait` blocks until a **Compute** or **Raw Data** from the window finishes (and the
 post-processing script, when ticked, has run), `B.done()` is called, or the
 window is closed (it returns at once when the window is hidden or closed;
 `Timeout=` limits the wait). The window stays open after Compute.
@@ -667,7 +667,7 @@ R = B.compute();
 | `showProbe(B)`, `pickProbe(B, KIND, VALUE)` | the **Channels** tab with the lists' dataset's probe; a click on it: `KIND` `"site"` (a recording channel) or `"shank"`, toggled and applied ([Shanks and channels](#shanks-and-channels)) |
 | `showRasters(B, ROW)`, `X = raster(B, ROW, Order=)` | the **Trial rasters** window on row `ROW` of the result; that row trial by trial ([Trial rasters](#trial-rasters)) |
 | `[R, Rs] = compute(B, Recompute=false)` | `epochMatrix` over the ticked datasets with `B.Settings`, once per kind of data: `R` is `B.Result`, `Rs` is `B.Results` ([Several kinds of data](#several-kinds-of-data)) |
-| `[D, T] = loadSessions(B, TrialsOnly=false)` | the ticked datasets whole, in `B.Sessions` ([Load whole recordings](#load-whole-recordings)) |
+| `[D, T] = loadSessions(B, TrialsOnly=false)` | the ticked datasets whole, in `B.Sessions` ([Raw Data](#raw-data)) |
 | `[VALUES, T] = forEach(B, FN, ...)` | [your own per-dataset code, cached](#foreach) |
 | `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
 | `DLG = editTags(B, KEYS)`, `setTags(B, KEYS, Set=, Add=, Remove=)` | the tag window on datasets (no `KEYS`: the rows selected, else the clicked one); the same edit from a script, written to the manifests ([Editing tags](#editing-tags)) |
@@ -1253,7 +1253,7 @@ out).
 | --- | --- |
 | the window and the handle | [`DatasetBrowser.m`](../analysis/DatasetBrowser.m) |
 | the compute and its result | [`epochMatrix.m`](../analysis/epochMatrix.m) |
-| one dataset on its own clock (**Load whole recordings**) | [`sessionData.m`](../analysis/sessionData.m) |
+| one dataset on its own clock (**Raw Data**) | [`sessionData.m`](../analysis/sessionData.m) |
 | the settings, their checks and cache identity | [`epochMatrixSettings.m`](../analysis/epochMatrixSettings.m) |
 | the result's labels and description in words | [`epochMatrixLabels.m`](../analysis/epochMatrixLabels.m) |
 | the normalization of a result | [`epochMatrixNormalize.m`](../analysis/epochMatrixNormalize.m) |

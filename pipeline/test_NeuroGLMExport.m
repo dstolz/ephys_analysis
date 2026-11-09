@@ -287,46 +287,44 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             D = tc.D;
             word = D.trials.RespCode;
             [expt, info] = sessionDataNeuroGLM(D, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, ...
-                ResponseLine="Stim");
+                ResponseLine="Resp", ResponseAfter="Stim");
             tc.verifyEqual(string({expt.trial.response}).', word, 'The words, as text.');
             tc.verifyEqual(info.responseTime, "response_time");
             tc.verifyEqual(expt.type.response_time, 'timing');
-            hit = word == "Hit";
+            tc.verifyEqual(expt.desc.response_time, 'Response (Stim onset then Resp onset)');
+            resp = mod((1:height(D.trials)).', 2) == 1;   % the trials with a Resp pulse
             T = expt.trial;
-            tc.verifyEqual([T(hit).response_time] - [T(hit).Stim_on], repmat(100, 1, nnz(hit)), 'AbsTol', 1e-6, ...
-                'The line''s onset + the latency, in ms.');
-            tc.verifyTrue(all(arrayfun(@(t) isempty(t.response_time), T(~hit))), 'A miss''s trial offset is past this window.');
-            exptLong = sessionDataNeuroGLM(D, Window=[-0.2 2.0], Trials="all", DropArtifacts=false, ResponseLine="Stim");
+            tc.verifyEqual([T(resp).response_time], [T(resp).Resp_on], 'AbsTol', 1e-6, ...
+                'The first Resp onset after the Stim onset.');
+            tc.verifyTrue(all(arrayfun(@(t) isempty(t.response_time), T(~resp))), ...
+                'No Resp pulse before the next trial''s onset: no response time.');
+            eOff = sessionDataNeuroGLM(D, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, ...
+                ResponseLine="Resp", ResponseEdge="offset", ResponseAfter="Stim");
+            tc.verifyEqual([eOff.trial(resp).response_time], [eOff.trial(resp).Resp_off], 'AbsTol', 1e-6, 'ResponseEdge "offset".');
+            % from the digital lines alone: the trial's words and columns play no part
+            D3 = D; D3.trials.RespCode(:) = "Miss"; D3.trials.RespLatency(:) = NaN;
+            e3 = sessionDataNeuroGLM(D3, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, ...
+                ResponseLine="Resp", ResponseAfter="Stim");
+            tc.verifyEqual({e3.trial.response_time}, {T.response_time}, 'The same response times, whatever the trial table holds.');
+            % the default ResponseAfter, the trial's onset; a line edge on every trial
+            exptLong = sessionDataNeuroGLM(D, Window=[-0.2 2.0], Trials="all", DropArtifacts=false, ...
+                ResponseLine="Stim", ResponseEdge="offset");
             TL = exptLong.trial;
-            tc.verifyEqual([TL(~hit).response_time], [TL(~hit).Trial_off], 'AbsTol', 1e-6, 'A miss responds at its trial offset.');
-            tc.verifyEqual([TL(hit).response_time] - [TL(hit).Stim_on], repmat(100, 1, nnz(hit)), 'AbsTol', 1e-6, ...
-                'A hit keeps its latency, one event per trial.');
-            % the bit mask: the first listed word that matches, "" with none; the latency only on Hit and FA
+            tc.verifyEqual([TL.response_time], [TL.Stim_off], 'AbsTol', 1e-6, 'The first Stim offset after each trial onset.');
+            % the bit mask: the first listed word that matches, "" with none
             D2 = D;
             D2.trials.RespCode = repmat([1 + 32 + 256 + 1024; 2 + 128 + 1024; 8 + 64 + 256 + 2048; 4 + 128 + 2048], 3, 1);
-            D2.trials.RespLatency(:) = 50;
-            expt2 = sessionDataNeuroGLM(D2, Window=[-0.2 2.0], Trials="all", DropArtifacts=false, ResponseLine="Stim", ...
-                Responses=["Hit" "Miss" "FA"]);
-            T2 = expt2.trial;
-            tc.verifyEqual(string({T2(1:4).response}), ["Hit" "Miss" "FA" ""]);
-            tc.verifyEqual(arrayfun(@(t) numel(t.response_time), T2(1:4)), [1; 1; 1; 1], ...
-                'A hit, a miss, a false alarm and a correct rejection each have one response time, whatever the latency column holds.');
-            tc.verifyEqual(T2(2).response_time, T2(2).Trial_off, 'AbsTol', 1e-6, 'The miss, at its trial offset.');
-            tc.verifyEqual(T2(4).response_time, T2(4).Trial_off, 'AbsTol', 1e-6, 'The correct rejection, at its trial offset, even with no kernel word of its own.');
-            % no response at all: an empty event (a miss's offset is past this window); no response code: no word; errors
-            D3 = D; D3.trials.RespLatency(:) = NaN;
-            [e3, i3] = sessionDataNeuroGLM(D3, Window=[-0.2 1.0], ResponseLine="Stim");
-            tc.verifyEqual(i3.responseTime, "response_time");
-            tc.verifyTrue(all(arrayfun(@(t) isempty(t.response_time), e3.trial)));
+            expt2 = sessionDataNeuroGLM(D2, Window=[-0.2 2.0], Trials="all", DropArtifacts=false, Responses=["Hit" "Miss" "FA"]);
+            tc.verifyEqual(string({expt2.trial(1:4).response}), ["Hit" "Miss" "FA" ""]);
             D4 = D; D4.respField = "";
             [~, i4] = sessionDataNeuroGLM(D4, Window=[-0.2 1.0]);
             tc.verifyEqual(i4.response, "");
             tc.verifyFalse(ismember("response", i4.values.variable));
             tc.verifyError(@() sessionDataNeuroGLM(D, Responses="Nope"), 'sessionDataNeuroGLM:BadResponse');
-            tc.verifyError(@() sessionDataNeuroGLM(D, ResponseLine="Nope"), 'resolveEvents:NoLine');
-            tc.verifyError(@() sessionDataNeuroGLM(D, ResponseLine="Stim", ResponseLatency="Nope"), 'resolveEvents:NoParam');
+            tc.verifyError(@() sessionDataNeuroGLM(D, ResponseLine="Nope"), 'sessionDataNeuroGLM:NoLine');
+            tc.verifyError(@() sessionDataNeuroGLM(D, ResponseLine="Resp", ResponseAfter="Nope"), 'sessionDataNeuroGLM:NoLine');
             % two splits on different events, the response time acausal
-            expt = sessionDataNeuroGLM(D, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, ResponseLine="Stim");
+            expt = sessionDataNeuroGLM(D, Window=[-0.2 1.0], Trials="all", DropArtifacts=false, ResponseLine="Resp", ResponseAfter="Stim");
             dspec = NeuroGLMExport.designSpec(expt, Response=1, Events=["Stim_on" "Resp_on" "response_time"], ...
                 GroupBy=["group" "response"], GroupEvents={"Stim_on", "Resp_on"}, Acausal="response_time", ...
                 KernelMs=100, NBases=4, History=false);

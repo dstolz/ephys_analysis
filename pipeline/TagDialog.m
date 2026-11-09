@@ -385,6 +385,14 @@ classdef TagDialog < handle
                     end
                     obj.Pending = TagSet.union(obj.Pending, tags);   % a removal list has no limit
                 case "add"
+                    common = TagSet.summarize(obj.Sets);
+                    if isempty(TagSet.remove(tags, common))
+                        m = numel(obj.Sets);
+                        obj.showMessage(sprintf("All %d %s already have %s.", m, plural(obj.Noun, m), ...
+                            TagSet.toText(tags, TagSet.DisplayDelimiter)));
+                        return
+                    end
+                    tags = TagSet.remove(tags, common);
                     next = TagSet.union(obj.Pending, tags);
                     if ~TagSet.checkCount(next)
                         obj.showMessage(sprintf("Cannot add %s: a %s holds at most %d.", ...
@@ -424,17 +432,25 @@ classdef TagDialog < handle
                     c.CurrentLabel.Text = "To remove from all:";
                     c.AddSelected.Text = "Mark selected";
                     c.RemoveSelected.Text = "Unmark selected";
+                case "add"
+                    % A tag every target already has is no choice; one some
+                    % have shows how many.
+                    avail = TagSet.remove(TagSet.union(obj.Vocabulary, held), [obj.Pending common]);
+                    shown = string(avail);
+                    part = ismember(avail, some);
+                    shown(part) = withCount(avail(part));
+                    setList(c.Available, avail, shown);
+                    setList(c.Current, obj.Pending, string(obj.Pending));
+                    c.AddSelected.Text = "Add selected";
+                    c.RemoveSelected.Text = "Remove selected";
+                    c.CurrentLabel.Text = "To add to all:";
                 otherwise
                     avail = TagSet.remove(TagSet.union(obj.Vocabulary, held), obj.Pending);
                     setList(c.Available, avail, string(avail));
                     setList(c.Current, obj.Pending, string(obj.Pending));
                     c.AddSelected.Text = "Add selected";
                     c.RemoveSelected.Text = "Remove selected";
-                    if obj.Mode == "add"
-                        c.CurrentLabel.Text = "To add to all:";
-                    else
-                        c.CurrentLabel.Text = "Current:";
-                    end
+                    c.CurrentLabel.Text = "Current:";
             end
             if obj.Mode == "set"; return; end
             % The policy only matters when adding: a removal cannot exceed the limit.

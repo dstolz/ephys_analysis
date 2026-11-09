@@ -129,7 +129,7 @@ shown only** and **Compute** to take in the recordings tagged since.
 | compare the same measure across two definitions of the event or trials | keep each as an **Event & trial definition** (**+**), then switch between them in one click |
 | keep only single units, not multiunits | tick **units** in **Data**, then on **Measure** tick **su** under **Unit classes** (and leave **mua** unticked) before **Compute** |
 | look at single trials, not just the averages | tick **Keep single trials, not just averages** before **Compute** |
-| get the whole recording, not cut around events (for a model or a toolbox) | **Load whole recordings** (or **Load trials only** for the behavior alone) |
+| get the whole recording, not cut around events (for a model or a toolbox) | **Raw Data** (or **Trials Only** for the behavior alone) |
 | hand the data to FieldTrip, Chronux, neuroGLM, the mTRF toolbox or a CSD estimate | pick that script in the **Post-processing script** list and **Run now** |
 | run the same computation without the window | **File → Export compute script...** |
 | compute faster | set **Workers** to compute several recordings at once (needs the Parallel Computing Toolbox and memory for one recording per worker) |

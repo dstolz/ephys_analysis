@@ -39,7 +39,7 @@ function P = sessionDataCSD(D, opts)
 %     p = P(1); i = 1:round(2 * p.fs);
 %     [csd, G] = kcsdEstimate(p.pos_mm, p.signal(:, i));
 %
-%   Errors: sessionDataCSD:NoSignal (spike data or "Load trials only"),
+%   Errors: sessionDataCSD:NoSignal (spike data or "Trials Only"),
 %   sessionDataCSD:NoPositions, sessionDataCSD:NoColumn,
 %   sessionDataCSD:NoTrials (Window given, no trials with an Align column),
 %   sessionDataCSD:Units.

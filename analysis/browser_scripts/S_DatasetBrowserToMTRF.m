@@ -64,7 +64,7 @@ S = B.Sessions;
 mtSessions = {};
 mtTrials = {};
 if ~isempty(S)
-    S = S(arrayfun(@(D) ~isempty(D.signal) || ~isempty(D.spikes), S));   % "Load trials only" brings no data
+    S = S(arrayfun(@(D) ~isempty(D.signal) || ~isempty(D.spikes), S));   % "Trials Only" brings no data
 end
 if ~isempty(S)
     stim = opts.stimulus;

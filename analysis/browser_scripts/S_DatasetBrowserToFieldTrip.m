@@ -52,7 +52,7 @@ S = B.Sessions;
 ftSessions = {};
 win = B.Settings.window;
 if ~isempty(S)
-    S = S([S.data] ~= "trials");   % "Load trials only" brings no spikes or signal
+    S = S([S.data] ~= "trials");   % "Trials Only" brings no spikes or signal
     ftSessions = sessionDataFieldTrip(S, Window=[win.pre win.post]);
     fprintf('ftSessions: %d datasets\n', numel(ftSessions));
 end

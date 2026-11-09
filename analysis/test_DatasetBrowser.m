@@ -811,6 +811,12 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(D(1).trials, src.trials);
             tc.verifyEqual(D(1).events, src.events);
             tc.verifyEqual(D(1).kept, selectTrials(src, B.Settings.selection));
+            for k = 1:numel(D)   % the behavior file's subject, else the table's
+                want = B.source(D(k).key).subject;
+                if want == ""; want = B.Datasets.subject(B.Datasets.key == D(k).key); end
+                tc.verifyEqual(D(k).subject, want);
+                tc.verifyNotEqual(D(k).subject, "");
+            end
             tc.verifyTrue(contains(B.Ctl.ProgMsg.Text, "2 session(s) loaded in B.Sessions (trials)"), B.Ctl.ProgMsg.Text);
             B.untickAll();
             tc.verifyError(@() B.loadSessions(), 'DatasetBrowser:NoneTicked');
@@ -891,7 +897,7 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual([B.Settings.units.channels; B.Settings.signal.channels], [2 3; 2 3]);
             B.formEdit("Channels", "");
             tc.verifyEmpty([B.Settings.units.channels B.Settings.signal.channels]);
-            % Load whole recordings: an entry per dataset and kind; a kind no dataset has, none
+            % Raw Data: an entry per dataset and kind; a kind no dataset has, none
             B.formEdit("Data", ["units" "LFP" "SPIKE"]);
             tc.verifyTrue(contains(string(c.DataNote.Text), "lack SPIKE"), c.DataNote.Text);
             [D, T] = B.loadSessions();

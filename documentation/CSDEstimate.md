@@ -17,7 +17,7 @@ shared builders that arrange the browser's data along the probe:
 | Builder | Input | Gives |
 | --- | --- | --- |
 | [`epochMatrixCSD`](../analysis/epochMatrixCSD.m) | `B.Result` of a signal with *Keep single trials* | the evoked potential of each group per shank profile, plus every epoch |
-| [`sessionDataCSD`](../analysis/sessionDataCSD.m) | `B.Sessions` of a signal (*Load whole recordings*) | the whole signal per shank profile and, with `Window=`, the kept trials cut and averaged per group |
+| [`sessionDataCSD`](../analysis/sessionDataCSD.m) | `B.Sessions` of a signal (*Raw Data*) | the whole signal per shank profile and, with `Window=`, the kept trials cut and averaged per group |
 
 Underneath, [`laminarColumns`](../analysis/laminarColumns.m) turns a channel
 table (`R.rows`, `D.channels`, `selectChannels`' META) into the profiles.

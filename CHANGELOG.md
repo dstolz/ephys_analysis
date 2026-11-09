@@ -10,6 +10,10 @@ says how to cut a release.
 
 ### Changed
 
+- `sessionDataNeuroGLM`: `response_time` comes from the digital lines alone, the first `ResponseLine` `ResponseEdge`
+  after each `ResponseAfter` onset (before the next trial's onset), on every trial whatever its response word;
+  `ResponseLatency` and the trial-offset fallback on Miss and CR trials are gone. `S_DatasetBrowserToNeuroGLM.m` uses
+  the first Platform offset after the RespWindow onset (`opts.responseLine`, `opts.responseEdge`, `opts.responseAfter`).
 - Analysis app, Figures tab: the settings editor is regrouped by what each section writes, in sixteen sections under the
   three supersections (17 before). FIGURE (the whole figure): **Observations**, **Alignment** (the event reference, the
   epoch window and the trial selection, one section with a sub-heading each and its **Use default** box at the right),

@@ -909,7 +909,9 @@ The tag window opens two ways:
   and with none it edits the active dataset. With two or more selected it
   is a bulk edit: **Add to all** or **Remove from all**, the tags on every
   selected dataset and on some of them shown above the list
-  (`On some: draft (2 of 5)`). Remove from all takes the tags you pick off
+  (`On some: draft (2 of 5)`). In Add to all, **Available** leaves out the
+  tags every selected dataset already has and shows how many have each
+  of the others (`draft (2 of 5)`). Remove from all takes the tags you pick off
   every dataset that has them.
 
 When adding would take a dataset over 12 tags, **If a dataset would exceed

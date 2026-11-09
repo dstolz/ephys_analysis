@@ -13,8 +13,9 @@
 % The trial's response enters as the paper's choice-dependent saccade kernels:
 % opts.responseEvents get one kernel per response word (opts.responses;
 % F.kernels.response_time__Hit, ...). One of them is the moment of the response,
-% response_time (opts.responseLine's onset + opts.responseLatency on Hit and FA trials,
-% the trial's offset on Miss and CR trials), whose kernels also reach opts.acausalMs before it.
+% response_time (the first opts.responseLine opts.responseEdge after each opts.responseAfter
+% onset, on every trial whatever its word, from the digital lines alone), whose kernels also
+% reach opts.acausalMs before it.
 % Each trial's word is g.expt.trial(j).response, for sorting the predictions by response.
 %
 % Data: "Load whole sessions" with Data = units or detected (B.Sessions holds
@@ -48,16 +49,17 @@ opts = struct();                    % the settings, noted whole in each dataset'
 opts.neuroGLMPath = 'c:\src\neuroGLM';   % added when neuroGLM is not on the path (the folder holding +buildGLM)
 opts.outDir = "";                        % a folder to save <dataset>_neuroglm.mat in (in a subfolder named after the browser's tags); "" keeps them in the workspace only
 opts.binMs = 5;                          % neuroGLM's bin (1 ms, as the paper); 5-10 ms fits much faster on long sessions
-opts.window = [-0.5 Inf];                % s around TrialOnset; Inf = up to the next trial's start
+opts.window = [-0.5 1];                % s around TrialOnset; Inf = up to the next trial's start
 opts.kernelMs = 500;                     % each event kernel's reach after the event
 opts.nBases = 8;                         % raised cosines per kernel
 opts.acausal = string.empty;             % event variables whose kernel also precedes the event, e.g. "Resp_on" for the animal's response
-opts.acausalMs = 1000;                   % how far those kernels and response_time's reach before the event; after it, opts.kernelMs
+opts.acausalMs = 500;                   % how far those kernels and response_time's reach before the event; after it, opts.kernelMs
 opts.groupKernels = true;                % one kernel per trial group (B's groupBy) for the browser's event line's onset (B.Settings.ref.line)
-opts.responses = ["Hit" "Miss" "CR" "FA"];    % the response words given their own kernels; string.empty = none (a trial with another word gets none on opts.responseEvents)
-opts.responseEvents = "response_time";   % the events split by response word; not one groupKernels also splits (B.Settings.ref.line's onset). One a fixed time from the response on some word's trials (RespWindow_on, on a Miss) cannot be told from its kernel, and swapping words to decode then fails
+opts.responses = "Hit";%["Hit" "Miss" "CR" "FA"];    % the response words given their own kernels; string.empty = none (a trial with another word gets none on opts.responseEvents)
+opts.responseEvents = "response_time";   % the events split by response word; not one groupKernels also splits (B.Settings.ref.line's onset). One a fixed time from another event (RespWindow_on, RespWindow_off) cannot be told from its kernel, and swapping words to decode then fails
 opts.responseTime = true;                % the event response_time: the moment of the response, with kernels before and after it
-opts.responseLine = "RespWindow"; opts.responseLatency = "RespLatency";   % that moment: the line's onset + the trial column, ms
+opts.responseLine = "Platform"; opts.responseEdge = "offset";   % that moment: this line's edge (leaving the platform)...
+opts.responseAfter = "RespWindow";       % ...the first one after this line's onset, before the next trial (digital lines only)
 opts.history = true; opts.historyMs = 500;    % the spike-history filter
 opts.coupling = false;                   % a coupling filter from every other unit of the dataset (slow with many units)
 opts.withSignal = "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
@@ -120,10 +122,13 @@ try
         end
         if ~isempty(opts.responses), args = [args, {'Responses', opts.responses}]; end %#ok<AGROW>
         if opts.responseTime
-            if isfield(D.eventsContinuous, opts.responseLine) && ismember(opts.responseLatency, string(D.trials.Properties.VariableNames))
-                args = [args, {'ResponseLine', opts.responseLine, 'ResponseLatency', opts.responseLatency}]; %#ok<AGROW>
+            after = opts.responseAfter;
+            if after == "Trial", after = D.trialLine; end
+            if isfield(D.eventsContinuous, opts.responseLine) && isfield(D.eventsContinuous, after)
+                args = [args, {'ResponseLine', opts.responseLine, 'ResponseEdge', opts.responseEdge, ...
+                    'ResponseAfter', opts.responseAfter}]; %#ok<AGROW>
             else
-                fprintf('%s: no response-time kernel (no line %s or trial column %s)\n', name, opts.responseLine, opts.responseLatency);
+                fprintf('%s: no response-time kernel (no line %s or %s)\n', name, opts.responseLine, opts.responseAfter);
             end
         end
         [expt, info] = sessionDataNeuroGLM(D, 'Window', opts.window, 'BinMs', opts.binMs, args{:});

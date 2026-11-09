@@ -28,7 +28,12 @@ Copies. See [the sort](#sorting) and [formats](file-formats.md#nwb-export).
 
 ## Sorting
 
-Sorts. Back to [copy](#copy). [Elsewhere](EphysDataset.md#reading). [Old](#old-details).
+Sorts. Back to [copy](#copy). [Elsewhere](EphysDataset.md#reading). [Old](#old-details). See the [NWB
+format](file-formats.md#nwb-export).
+
+Not [a link.
+
+Over a blank line](file-formats.md#nwb-export).
 
 <!-- wiki: ![The Sorting tab](images/app-sorting-tab.png) -->
 
@@ -77,6 +82,8 @@ class GenPages(unittest.TestCase):
         s = self.page("Sorting-Tab")
         self.assertIn("[copy](Copy-Tab#copy)", s)
         self.assertIn("[Old](Copy-Tab#old-details)", s, "an <a name> target goes with the section it sits in")
+        self.assertIn("[NWB\nformat](File-Formats#nwb-export)", s, "a label wrapped onto the next line")
+        self.assertIn("Over a blank line](file-formats.md#nwb-export)", s, "a label never spans a blank line")
         self.assertIn("[Elsewhere](" + g.BLOB + "documentation/EphysDataset.md#reading)", s,
                       "a file no page is made from: GitHub")
         f = self.page("File-Formats")

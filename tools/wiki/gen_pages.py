@@ -210,13 +210,22 @@ def rewrite_links(body, src, idx, texts, own):
                 return f"[{label}]({page}" + (f"#{anchor}" if anchor else "") + ")"
         return f"[{label}]({BLOB}{rel}" + (f"#{anchor}" if anchor else "") + ")"
 
-    out, fence = [], False
+    # the runs of lines outside code blocks, each rewritten whole, so that a label wrapped onto the next
+    # line ("[file\nformats](file-formats.md#...)") is a link too; a label never spans a blank line
+    link = re.compile(r'(?<!!)\[((?:[^\]\n]|\n(?![ \t]*\n))*)\]\(([^)\s]+)\)')
+    out, fence, run = [], False, []
     for line in body.split("\n"):
         if line.startswith("```"):
             fence = not fence
-        if not fence:
-            line = re.sub(r'(?<!!)\[([^\]]*)\]\(([^)\s]+)\)', fix, line)
-        out.append(line)
+        if fence:
+            if run:
+                out.append(link.sub(fix, "\n".join(run)))
+                run = []
+            out.append(line)
+        else:
+            run.append(line)
+    if run:
+        out.append(link.sub(fix, "\n".join(run)))
     return "\n".join(out)
 
 

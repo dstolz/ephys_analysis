@@ -1101,6 +1101,8 @@ def main(do_splice=True):
         "ManifestText": pdir("pipeline", "ManifestText.m"),
         "TagSet": pdir("pipeline", "TagSet.m"),
         "TagDialog": pdir("pipeline", "TagDialog.m"),
+        "DatasetVariables": pdir("pipeline", "DatasetVariables.m"),
+        "VariableDialog": pdir("pipeline", "VariableDialog.m"),
         "SyntheticDesign": pdir("pipeline", "SyntheticDesign.m"),
         "EphysAnalysisConfig": pdir("analysis", "@EphysAnalysisConfig"),
         "EphysAnalysisRunner": pdir("analysis", "@EphysAnalysisRunner"),

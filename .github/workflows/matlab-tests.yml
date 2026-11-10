@@ -84,6 +84,7 @@ jobs:
             Signal_Processing_Toolbox
             Statistics_and_Machine_Learning_Toolbox
             Parallel_Computing_Toolbox
+            Image_Processing_Toolbox
           cache: true
 
       # The hosted Windows runner's screen is 1024x768, smaller than the apps' windows (the pipeline

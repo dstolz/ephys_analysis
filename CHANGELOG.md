@@ -10,6 +10,25 @@ says how to cut a release.
 
 ### Added
 
+- Spectrograms: a logarithmic frequency axis. A spectrogram panel's `freqScale` (`"linear"`, the default, or `"log"`;
+  **Frequency axis** in the figure editor's Axes section) spreads out the low frequencies: each frequency bin takes its
+  share of a log axis, ticks at 2, 5, 10, 20, 50 ... Hz, the 0 Hz bin left out, a stack's rows too, the data tips
+  naming each row's frequency. It is the drawing's alone (`figureDataSpec`): changing it computes nothing again.
+  MATLAB spreads an image's rows evenly over a log axis, so the map is drawn on rows evenly spaced in log10 Hz (each
+  bin repeated, nothing interpolated) and the axis labeled in Hz: new private `logFrequencyRows` and
+  `logFrequencyTicks`. Scripts: `chronuxSettings`' `display.freqScale`, which `renderChronux` draws. `validate`
+  refuses another value.
+- Analysis app: **Downsample...** on the Data tab sets a lower rate for each signal (LFP, MUA, SPIKE, AUX) that every
+  figure reads it at: faster previews and runs, lighter figure files. The signal is low-pass filtered first, so nothing
+  above the new Nyquist frequency folds back into it (`resampleSignal`: zero phase, flat to 0.38 × the new rate, what
+  could alias at least 60 dB down). The window is the dataset browser's (`DownsampleDialog`, with new `UsedBy`,
+  `ScriptName` and `UnusedNote` options), showing the active dataset's rates on file and the signals the figures read;
+  the Signals row says the rates and the active dataset's line each extract's rate. Config: `Source.Downsample` (a field
+  per signal, `[]` = the rate on file); `figureFor` gives each signal layer its rate (`downsample`), which
+  `figureSignalLayer` and `figureChronuxLayer` read, so a cached preview at another rate computes again. New
+  `selectChannels` option `Rate` and `DatasetOutputs.resampled` (each resampled column kept with `CacheData`); a
+  layer's `R.fsFile` is the rate on file. `validate` refuses a bad rate and warns when a spectral panel's `fpass` runs
+  past the band a downsampled signal keeps; the preview script reads a channel figure's signal at its rate.
 - Analysis app: special characters in a figure's text. A figure's title, a panel's title, X and Y axis labels and text
   note (drawn as typed), a layer's name (the legend) and a trial measure's label print TeX character names as the
   characters they name: *Amplitude (\muV)* draws *Amplitude (µV)*, `\pm` ±, `\Delta` Δ, `^\circ` °, any of MATLAB's

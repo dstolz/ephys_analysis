@@ -450,6 +450,7 @@ if isfield(op, 'err')
     E.spErrP.Value = min(1 - eps, max(eps, op.errP));
 end
 if isfield(op, 'scale'); E.spScale.Value = char(pickFrom(op.scale, string(E.spScale.ItemsData), "db")); end
+if isfield(op, 'freqScale'); E.spFreqScale.Value = char(pickFrom(op.freqScale, ["linear" "log"], "linear")); end
 if isfield(op, 'spikeFs'); E.spSpikeFs.Value = max(eps, op.spikeFs); end
 if isfield(op, 'movingwin')
     E.spWin.Value = max(eps, op.movingwin(1));

@@ -9,7 +9,11 @@ function test_EphysFigGenApp(opts)
 %   Figures, Export, Log); the toolbar (its tools, icons and
 %   shortcut tooltips; Preview and Plan from another tab; its run and
 %   results tools following the Export tab's buttons); Scan filling the
-%   datasets table; the active dataset's lines and parameters; grouping by
+%   datasets table; the active dataset's lines and parameters; the Data
+%   tab's Downsample... (1f: the Signals row, the dialog on the config's
+%   rates with the active dataset's rates on file, OK into
+%   Source.Downsample and the runner without a scan, Cancel, Rates on
+%   file, a config opened with a rate); grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
 %   the toolbar's Preview drawing the selected figure on the Figures tab;
 %   the header's column of buttons and the rows right of them;
@@ -241,7 +245,7 @@ needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d
     "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.multi" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
     "5d.quick" "5d.layers"; "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
     "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.trialmeasure" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; ...
-    "5d.saveprefs" "5d.remove"; "1e" "1"];
+    "5d.saveprefs" "5d.remove"; "1e" "1"; "1f" "1"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
 timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a failure on the way
 
@@ -806,6 +810,59 @@ if S.sec("1e", "Data tab: Variables (a column, the dialog on a cell and on the s
     end
     app.refreshDatasetsTable();
     check(all(app.DatasetsTable.Data.Vars == ""), 'the fixture''s manifests put back');
+end
+
+if S.sec("1f", "Data tab: Downsample... (the Signals row, the dialog on the config's rates, OK into Source.Downsample and the runner, Cancel, Rates on file, a config opened with a rate)")
+    app.selectTab(app.TabData);
+    app.selectDataset(1);
+    src = app.Runner.source(1);
+    none = struct('LFP', [], 'MUA', [], 'SPIKE', [], 'AUX', []);
+    amber = [1 0.8 0.3];
+    b = app.DownsampleButton;
+    cfg0 = app.Config;
+    cfg0.Source.Downsample = none;
+    app.applyConfig(cfg0);   % whatever an earlier section left: no rate
+    check(string(b.Text) == "Downsample..." && app.DownsampleLabel.Text == "every signal at its rate on file" ...
+        && contains(string(b.Tooltip), "every signal keeps its rate on file") && contains(string(b.Tooltip), "Source.Downsample") ...
+        && ~isequal(b.BackgroundColor, amber) ...
+        && contains(app.MemoryLabel.Text, sprintf("at %g Hz", src.signalFs.LFP)) && ~contains(app.MemoryLabel.Text, "figures read"), ...
+        'the Data tab''s Signals row: Downsample..., every signal at its rate on file; the active dataset names each extract''s rate');
+    b.ButtonPushedFcn(b, []);
+    dlg = app.DownsampleWindow;
+    kL = find(dlg.Signals == "LFP");
+    check(isa(dlg, 'DownsampleDialog') && app.onDownsample() == dlg && string(dlg.Ctl.FileRate(kL).Text) == src.signalFs.LFP + " Hz" ...
+        && contains(string(dlg.Ctl.Intro.Text), "before the figures read it") && contains(string(dlg.Ctl.Rate(kL).Tooltip), "Source.Downsample.LFP") ...
+        && contains(string(dlg.Ctl.Source.Text), src.name) && ~any(contains(string({dlg.Ctl.Name.Text}), "not ticked")), ...
+        'the button opens the dialog on the config''s rates, with the active dataset''s rates on file, in the figures'' words; the same one while open');
+    dlg.setRate("LFP", 200);
+    dlg.setRate("AUX", "100 Hz");
+    dlg.ok();
+    want = none; want.LFP = 200; want.AUX = 100;
+    check(~isvalid(dlg.Fig) && isempty(app.DownsampleWindow) && isequal(app.Config.Source.Downsample, want) ...
+        && isequal(app.Runner.Config.Source.Downsample, want) && isequal(app.gatherConfig().Source.Downsample, want) ...
+        && isequal(b.BackgroundColor, amber) && contains(app.DownsampleLabel.Text, "LFP 200 Hz, AUX 100 Hz") ...
+        && contains(string(b.Tooltip), "LFP 200 Hz, AUX 100 Hz") && contains(app.StatusBar.Text, "LFP 200 Hz, AUX 100 Hz") ...
+        && contains(app.MemoryLabel.Text, "figures read 200 Hz") && ~contains(app.ScanLabel.Text, "source changed") ...
+        && ~isequal(app.Config.toStruct(), app.SavedConfigStruct), ...
+        ['OK: the rates into the config (unsaved), its gather and the runner; the button amber with them, the Signals row, the ' ...
+        'status bar and the active dataset say them; no scan asked for']);
+    dlg = app.onDownsample();
+    dlg.setRate("LFP", "");
+    dlg.cancel();
+    check(isequal(app.Config.Source.Downsample, want) && isempty(app.DownsampleWindow), 'Cancel changes nothing');
+    dlg = app.onDownsample();
+    dlg.clearRates();
+    dlg.ok();
+    check(isequal(app.Config.Source.Downsample, none) && app.DownsampleLabel.Text == "every signal at its rate on file" ...
+        && ~isequal(b.BackgroundColor, amber) && ~contains(app.MemoryLabel.Text, "figures read"), ...
+        'Rates on file: every signal back to its rate on file, the button and the active dataset''s line as before');
+    c2 = app.Config;
+    c2.Source.Downsample.MUA = 500;
+    app.applyConfig(c2);
+    check(contains(app.DownsampleLabel.Text, "MUA 500 Hz") && isequal(b.BackgroundColor, amber) ...
+        && isequal(app.gatherConfig().Source.Downsample.MUA, 500) && ~contains(app.ScanLabel.Text, "source changed"), ...
+        'a config holding a rate shows it in the Signals row and keeps it through a gather; no scan asked for');
+    app.applyConfig(cfg0);
 end
 
 if S.sec("2", "Alignment: group by Depth")
@@ -3186,6 +3243,7 @@ end
 if S.sec("5d.spectrum", "a spectrum panel and a spectrogram panel (Chronux: the bundled copy, on the path for these checks only)")
     savedConfig();
     noFigures();
+    app.selectTab(app.TabFigures);   % (run alone: the editor's rows are shown on the Figures tab only)
     app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     spPath = "";
     if ~ChronuxDataset.hasChronux() && isfolder(fullfile(repo, 'toolboxes', 'chronux'))
@@ -3223,9 +3281,10 @@ if S.sec("5d.spectrum", "a spectrum panel and a spectrogram panel (Chronux: the 
         app.onFigureSubheadingToggled("analysis", "tapers", false);
         check(tapFolded && shown(FE.spTaperMode) && shown(FE.spTW) && shown(FE.spErr) && shown(FE.spScale) && shown(FE.spTimeBase) && shown(FE.spSpikeFs) ...
             && ~shown(FE.spRangeFrom) && ~shown(FE.spWin) && ~shown(FE.spShowPhase) && ~shown(FE.binMs) && ~shown(FE.baselineMode) ...
-            && shown(FE.yLim) && FE.spTW.Enable == "on" && FE.spW.Enable == "off" ...
+            && shown(FE.yLim) && FE.spTW.Enable == "on" && FE.spW.Enable == "off" && ~shown(FE.spFreqScale) ...
             && secOf("analysis").Title == "Analysis — Power spectrum" && secOf("display").Title == "Display — Power spectrum", ...
-            'its options show the Chronux rows: tapers, error, scale, time base, spike rate (no range on epochs, no moving window)');
+            ['its options show the Chronux rows: tapers, error, scale, time base, spike rate (no range on epochs, no moving window, ' ...
+            'no spectrogram frequency axis)']);
         FE.spTW.Value = 2;
         FE.spK.Value = 3;
         FE.spFmax.Value = 80;
@@ -3277,6 +3336,19 @@ if S.sec("5d.spectrum", "a spectrum panel and a spectrogram panel (Chronux: the 
             && shown(FE.spSpikeFs) && shown(FE.spWin), ...
             sprintf(['a Spectrogram panel offers sorted units and detected spikes after the signals; switched to units, it previews ' ...
             'the observed unit''s spike spectrogram, with the spike rate row (%s, %s)'], app.FigurePreviewState, sgKind));
+        fsShown = shown(FE.spFreqScale) && FE.spFreqScale.Value == "linear";
+        K0 = app.Runner.FigureCache;
+        FE.spFreqScale.Value = "log";
+        app.onConfigChanged("figure", FE.spFreqScale);
+        app.refreshFigurePreview(Force=true);
+        K1 = app.Runner.FigureCache;
+        isNew = arrayfun(@(e) ~any(arrayfun(@(o) o.kind == e.kind && isequaln(o.key, e.key), K0)), K1);
+        axSg = findPanelAxes(app.FigurePreviewPanel, ps(k2).id);
+        sgTicks = string(axSg.YTickLabel);
+        check(fsShown && app.Config.Figures(1).panels(k2).options.freqScale == "log" && app.FigurePreviewState == "drawn" ...
+            && ~any(isNew) && any(sgTicks == "10") && all(ismember(sgTicks, ["1" "2" "5" "10" "20" "50" "100"])), ...
+            sprintf(['the spectrogram''s Frequency axis (Axes) set to logarithmic reaches the config and redraws the preview ' ...
+            'with its ticks in Hz (%s), computing nothing again (%d new in the cache)'], strjoin(sgTicks, ", "), nnz(isNew)));
         app.onRemoveFigure();
         app.onSaveConfig();
     end

@@ -11,7 +11,12 @@ function lay = figureSignalLayer(src, L, lay, E, G, ctx, opts)
 %     R = evokedPotential(Y, fs, E, Window=, Channels=cols, Baseline=,
 %         Groups=G, Meta=metaAll(cols,:), Units=, Check=CTX.check,
 %         Rectify=, Magnitude=, Statistic=, ErrorType=CTX.errorType, ErrorResamples=)
-%   reads only those columns' epochs. aggregate "mean" adds R.layerMean
+%   reads only those columns' epochs. A layer with a downsample rate
+%   (figureFor: Source.Downsample of its signal) below the rate on file
+%   reads those columns at that rate instead, anti-aliased
+%   (selectChannels(src, L.source, Channels=cols, Rate=L.downsample):
+%   kept once made with the outputs' CacheData), R.fs the rate reached,
+%   R.fsFile the rate on file. aggregate "mean" adds R.layerMean
 %   (figureLayerMean: the mean over the channels, a band across them). R
 %   also gets epochs (E) and dataset. A missing extract, a channel it
 %   lacks or a baseline with no sample in the window skips the layer with
@@ -63,6 +68,18 @@ if any(cols < 1 | cols > nCh | cols ~= round(cols))
 end
 metaC = metaAll(cols, :);
 ctx.checkpoint();
+fsFile = fs;
+rate = figureLayerRate(L);
+if ~isempty(rate) && rate < fs   % the layer's columns at the lower rate, anti-aliased (each kept once made)
+    try
+        [Y, fs] = selectChannels(src, L.source, Channels=cols, Rate=rate);
+    catch ME
+        lay.skip = figureLayerError(ME);
+        return
+    end
+    cols = 1:numel(cols);   % Y holds those columns alone, in order
+    ctx.checkpoint();
+end
 try
     R = evokedPotential(Y, fs, E, Window=opts.Window, Channels=cols, Baseline=opts.Baseline, Groups=G, Meta=metaC, ...
         Units=metaC.units(1), Check=ctx.check, Rectify=opts.Rectify, Magnitude=opts.Magnitude, Statistic=opts.Statistic, ...
@@ -82,6 +99,7 @@ if opts.KeepEpochs   % the epochs' traces: at most MaxTrials of them, picked eve
     R.trialEpochs = reshape(R.keptEpochs(pick), [], 1);
     R.trialGroup = reshape(E.groupIndex(rowOf(pick)), [], 1);
 end
+R.fsFile = fsFile;   % the rate on file (R.fs the rate read at: lower when downsampled)
 R.epochs = E;
 R.dataset = src.name;
 if L.aggregate == "mean"

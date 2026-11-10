@@ -71,6 +71,10 @@ check(S1.analysis == "specgram" && S1.display.layout == "overlay" && S1.display.
     'a struct overlays the defaults (display fields one by one)');
 check(strcmp(errorId(@() chronuxSettings(struct('nope', 1))), 'chronuxSettings:UnknownField'), 'an unknown setting is refused');
 check(strcmp(errorId(@() chronuxSettings(struct('err', "maybe"))), 'chronuxSettings:BadValue'), 'a value not allowed is refused');
+Slog = chronuxSettings(struct('display', struct('freqScale', "log")));
+check(S0.display.freqScale == "linear" && Slog.display.freqScale == "log" ...
+    && strcmp(errorId(@() chronuxSettings(struct('display', struct('freqScale', "ln")))), 'chronuxSettings:BadValue'), ...
+    'a spectrogram''s frequency axis (display.freqScale) is linear by default, else "log"; another value is refused');
 check(strcmp(errorId(@() chronuxSettings(struct('analysis', "specgram", 'baseline', "db", 'baselineWindow', [-2 0]))), ...
     'chronuxSettings:Baseline'), 'a baseline outside the window is refused');
 check(strcmp(errorId(@() chronuxSettings(struct('analysis', "specgram", 'baseline', "db", 'baselineWindow', [-0.5 -0.1], ...
@@ -383,6 +387,22 @@ else
     h = renderChronux(Rg, p, Editable=false);
     check(~isempty(h.layout) && isa(findobj(h.axes(1), 'Type', 'image'), 'matlab.graphics.primitive.Image'), ...
         'a spectrogram draws into a uifigure''s panel');
+    d = Rg.settings.display; d.freqScale = "log";
+    h = renderChronux(Rg, fig, Display=d, Editable=false);
+    ax = h.axes(1);
+    im = findobj(ax, 'Type', 'image');
+    fp = Rg.f(Rg.f > 0);
+    yc = linspace(im.YData(1), im.YData(end), size(im.CData, 1));   % the rows' centers, log10 Hz
+    [~, r30] = min(abs(yc - log10(30)));
+    [~, b30] = min(abs(Rg.f - 10 ^ yc(r30)));   % the bin that row lies in (the bins are even: the nearest)
+    yl = ylim(ax);
+    tk = reshape(str2double(string(ax.YTickLabel)), 1, []);
+    check(isscalar(im) && size(im.CData, 1) > numel(fp) && yl(1) < log10(fp(1)) && yl(2) > log10(fp(end)) ...
+        && max(abs(im.CData(1, :) - Rg.S(:, find(Rg.f > 0, 1)).')) < 1e-9 && max(abs(im.CData(r30, :) - Rg.S(:, b30).')) < 1e-9 ...
+        && abs(Rg.f(b30) - 30) <= mean(diff(Rg.f)) / 2 + 1e-9 && numel(tk) >= 3 && all(ismember(tk, [1 2 5 10 20 50 100])) ...
+        && max(abs(10 .^ ax.YTick - tk)) < 1e-9 && strcmp(ax.YScale, 'linear'), ...
+        ['a spectrogram with display.freqScale "log": rows evenly spaced in log10 Hz on the y axis, the lowest the first bin ' ...
+        'above 0 Hz (0 Hz left out), the row at 30 Hz the 30 Hz bin''s values, ticks at 2, 5, 10, 20, 50 ... labeled in Hz']);
 end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);

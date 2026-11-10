@@ -134,6 +134,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | draw a small figure at every unit's place on the probe | in the figure's Observations section, set **Pages** to *On the probe*; its settings are in the Probe layout section that appears |
 | keep only the units that respond to the event | in the figure's Observations section, tick **Responsive only**. Its settings (windows, correction, auROC) are in the **Response test** group under it: click **▸ Response test** to open it. The section colors tell the scope: blue sections are about the whole figure, green about the selected panel, violet about the look of every panel. Can't find a setting? Type its name in the search field above the editor |
 | check one unit's figures before a long run | Export tab: **Test report** |
+| make previews faster and figure files smaller by lowering a signal's sampling rate (an AUX recorded at 30 kHz, say) | Data tab: press **Downsample...** and type a rate for that signal, such as *250* for the LFP or *100* for the AUX; leave a field blank to keep the rate on file. Press **OK**: every figure now reads that signal at the lower rate, and the button turns amber. The signal is filtered first, so no false low frequencies appear. The window shows the band each rate keeps unchanged: choose a rate at least 2.6 times the highest frequency you look at (see [Downsampling signals](EphysFigGenApp.md#downsampling-signals)) |
 | choose when the preview redraws after a change | drag the **Auto** slider left of the preview. Left end: never, press **Preview**. Right end: after every change, however slow. In between, the further right, the slower a redraw it starts on its own (the middle: under 2 s; point at the slider to see its limit). A change of colors, fonts or labels only redraws, so it is quick even when computing the figure is slow. **Ctrl+T** turns Auto off and on |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
 | move or resize a panel | press **Arrange** above the preview and drag the panel's box (a corner or an edge resizes it); after a click on the preview the arrow keys nudge it. Or pick it (Ctrl+Click it in the preview) and type its **Position** and **Size** in the Panel section; **Units** (in Layout) picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [Arranging panels on the preview](EphysFigGenApp.md#arranging-panels-on-the-preview)) |
@@ -143,6 +144,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | put the legend where you want it | with **Arrange** on, drag the legend's dashed box where you want it: it becomes a legend panel there. Or **New panel...** → *Legend*: a panel of its own that holds the figure's legend; place and size it as any panel. Style → **Legend** picks *Auto*, *Inside* or *None*; the legend never makes a plot smaller |
 | keep labels from running into the next panel, or make a rect mean the whole panel with its labels | in the **Layout** section (under **Page**), **Padding** is the clear space kept around labels, and **Boxes mean** says whether a rect is the plot area (labels kept clear) or the outer box (labels inside it) |
 | hide a panel's axis label or tick numbers (say, on the inner panels of a grid) | select the panel, and in **Axes** set **Show (x, y)** to *ticks, no label*, *label, no ticks* or *neither* for that axis |
+| see the low frequencies of a spectrogram better (a logarithmic frequency axis) | select the spectrogram, and in **Axes** set **Frequency axis** to *logarithmic*. The low frequencies get more room, the ticks read 2, 5, 10, 20, 50 ... Hz, and the 0 Hz row is left out. Nothing is computed again, so the preview redraws quickly |
 | copy a change to the other figures | **Edit → Apply last change to figures...** |
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysFigGenApp.md#notes)) |
@@ -276,6 +278,11 @@ change any figure yet.
   again: **Auto** is off, or the redraw would take longer than Auto allows
   (the line under the preview says *slow*). Press **Preview**, or drag the
   **Auto** slider to the right.
+- **A spectrum drops off at its top end, or Validate warns about *fpass*.**
+  The signal was downsampled (Data tab, **Downsample...**), and the filter
+  that keeps the lower rate clean also lowers the highest frequencies. Lower
+  the panel's top frequency (**fpass**) to the value the warning names, or
+  give that signal a higher rate.
 - **The Export tab's Plan** lists every recording and figure that would run,
   and why any would be skipped, with a *What to do* column, before you run
   anything. Double-click a row to see that figure.

@@ -355,7 +355,9 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   mTRF-Toolbox packaging, `mTRFExport.resample` and `mTRFExport.envelope`;
   `resample` with its anti-aliasing filter in `resampleSignal`, which
   downsamples a signal for the dataset browser's **Downsample...**
-  (`epochMatrix`, `sessionData`)).
+  (`epochMatrix`, `sessionData`) and the analysis app's figures
+  (**Downsample...** on its Data tab, the config's `Source.Downsample`:
+  `selectChannels`' `Rate`, `DatasetOutputs.resampled`)).
 - Statistics and Machine Learning Toolbox (`mad` in automatic
   derived-signal bad-channel detection, a robust z of each channel's RMS,
   made before the common reference so the channels it flags are left out of

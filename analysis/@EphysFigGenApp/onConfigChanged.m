@@ -1,7 +1,9 @@
 function onConfigChanged(obj, what, src)
 %onConfigChanged  A control changed: re-gather the config and refresh what depends on it.
 %   WHAT says which part changed: "name", "source", "ticks", "filter"
-%   (the Data tab's filter: Source.Filter, its table already filtered), "defaults"
+%   (the Data tab's filter: Source.Filter, its table already filtered),
+%   "downsample" (Source.Downsample, set by onDownsample: the Signals row
+%   says it and the preview follows; no scan needed), "defaults"
 %   (the Alignment tab), "figure" (the Figures tab's editor), "figuresize"
 %   (its Size rows: a "figure" edit that changes how the figure is drawn,
 %   not what it is computed from) or "export" (the Layout section's
@@ -70,10 +72,13 @@ end
 switch what
     case "source"
         obj.syncSourceEnable();
-        if ~isempty(obj.Runner) && ~isempty(fieldnames(obj.ScannedSource)) && ~isequaln(rmfield(cfg.Source, {'Selection', 'Datasets', 'Filter'}), ...
-                rmfield(obj.ScannedSource, {'Selection', 'Datasets', 'Filter'}))
+        if ~isempty(obj.Runner) && ~isempty(fieldnames(obj.ScannedSource)) && ~isequaln(scanned(cfg.Source), scanned(obj.ScannedSource))
             obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
         end
+    case "downsample"
+        obj.showDownsample();
+        obj.refreshDatasetInfo();   % the active dataset's signals: the rate the figures read each at
+        obj.autoFigurePreview();   % the figures that read a signal whose rate changed compute again (figureFor's layer rates)
     case "defaults"
         AlignControls.syncEnable(obj.AlignControls);
         obj.refreshAlignPreview();
@@ -110,4 +115,10 @@ switch what
         end
 end
 obj.updateTitle();
+end
+
+
+function S = scanned(S)
+%scanned  What of Source a scan reads: without the ticks (Selection, Datasets), the filter and the signals' rates.
+S = rmfield(S, intersect({'Selection', 'Datasets', 'Filter', 'Downsample'}, fieldnames(S)));
 end

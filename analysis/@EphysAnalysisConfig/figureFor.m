@@ -18,8 +18,12 @@ function spec = figureFor(obj, id)
 %     epochs and groups (figureCompute)
 %   - each panel's options completed against its type's DefaultOptions
 %   - each layer's category added (categoryOf: "point", "continuous",
-%     "unit", or "" where the type does not draw the source) and
-%     its units.source set to its source (a complete UnitSelection)
+%     "unit", or "" where the type does not draw the source),
+%     its units.source set to its source (a complete UnitSelection) and
+%     its downsample added: Source.Downsample's rate (Hz) for its signal
+%     (LFP / MUA / SPIKE / AUX), [] for the rate on file and for any
+%     other source (figureSignalLayer and figureChronuxLayer read the
+%     signal at it: selectChannels' Rate)
 %   A panel of an unknown type keeps its empty options, with aligned and
 %   sharesTime false. Error: EphysAnalysisConfig:NoFigure.
 %
@@ -50,7 +54,9 @@ o.units = orderfields(u, unitDef);
 spec.observe = o;
 
 T = EphysAnalysisConfig.panelTypes();
-layer0 = resolvedLayer(EphysAnalysisConfig.defaults("Layer"), "psth", unitDef);
+rates = struct();   % none: a config made before Source.Downsample existed in this session (until clear classes)
+if isfield(obj.Source, 'Downsample'); rates = obj.Source.Downsample; end
+layer0 = resolvedLayer(EphysAnalysisConfig.defaults("Layer"), "psth", unitDef, rates);
 panel0 = EphysAnalysisConfig.defaults("Panel");
 panel0.layers = repmat(layer0, 1, 0);
 panel0.aligned = false;
@@ -74,7 +80,7 @@ for j = 1:numel(fig.panels)
     end
     L = repmat(layer0, 1, 0);
     for i = 1:numel(p.layers)
-        L(1, i) = resolvedLayer(p.layers(i), p.type, unitDef);
+        L(1, i) = resolvedLayer(p.layers(i), p.type, unitDef, rates);
     end
     p.layers = L;
     panels(1, j) = p;
@@ -83,10 +89,14 @@ spec.panels = panels;
 end
 
 
-function L = resolvedLayer(L, type, unitDef)
-%resolvedLayer  A layer with its category and a complete UnitSelection (units.source = its source).
+function L = resolvedLayer(L, type, unitDef, rates)
+%resolvedLayer  A layer with its category, a complete UnitSelection (units.source = its source) and its signal's rate.
+%   RATES is Source.Downsample: a signal layer's downsample is its signal's rate ([] = the rate on file); any other
+%   layer's is [].
 u = L.units;
 u.source = L.source;
 L.units = orderfields(u, unitDef);
 L.category = EphysAnalysisConfig.categoryOf(L.source, type);
+L.downsample = [];
+if isfield(rates, L.source); L.downsample = rates.(L.source); end
 end

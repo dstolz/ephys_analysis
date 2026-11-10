@@ -1622,11 +1622,11 @@ E.waveColor = uicheckbox(Sd.Body, "Text", "Color waveforms by value", "ValueChan
 place(E.waveColor, r, [1 2]);
 sec(end+1) = Sd;
 
-% Axes: the axes' box, labels and sides, what each shows, the trial panels' scales and x limits, the y limits and the color
-% scale
+% Axes: the axes' box, labels and sides, what each shows, the trial panels' scales and x limits, a spectrogram's frequency
+% axis, the y limits and the color scale
 Sx = formSection(eg, 21, "axes", "Axes", Color=tint("axes"));
 E.axesApplyAll = applyAllButton(obj, Sx, "axes", "Copy this panel's X axis and Y axis sides to every other panel (not their " + ...
-    "label texts), and its Y limits mode, Y limits, Colormap and Color limits to the panels that have them.");
+    "label texts), and its Y limits mode, Y limits, Colormap, Color limits and Frequency axis to the panels that have them.");
 [Sx, r] = formRow(Sx, "panelBox", "Axes box:");
 E.panelBox = uidropdown(Sx.Body, "Items", ["auto (the design's)" "on" "off"], "ItemsData", ["auto" "on" "off"], ...
     "ValueChangedFcn", changed, "Tooltip", "The frame around the panel's axes. auto: the design's (and the looks remembered for " + ...
@@ -1669,6 +1669,11 @@ E.trYScale = uidropdown(tsc, "Items", ["y linear" "y logarithmic"], "ItemsData",
 E.trXLim = uieditfield(Sx.Body, "text", "Placeholder", "automatic, or lo hi", "ValueChangedFcn", changed, ...
     "Tooltip", "The x axis: two ascending values, in the measure's unit. Blank: automatic.");
 place(E.trXLim, r, 2);
+[Sx, r] = formRow(Sx, "spFreqScale", "Frequency axis:");
+E.spFreqScale = uidropdown(Sx.Body, "Items", ["linear" "logarithmic"], "ItemsData", ["linear" "log"], ...
+    "ValueChangedFcn", changed, "Tooltip", "The spectrogram's frequency (y) axis. Logarithmic spreads out the low " + ...
+    "frequencies (ticks at 2, 5, 10, 20, 50 ... Hz) and leaves out the 0 Hz row. Nothing is computed again.");
+place(E.spFreqScale, r, 2);
 [Sx, r] = formRow(Sx, ["yLim" "yLimMode"], "Y limits:");
 yg = subgrid(Sx.Body, r, {'1x', '1x'});
 E.yLimMode = uidropdown(yg, "Items", ["Auto" "Shared by rows" "Shared by batch" "Fixed"], ...
@@ -2443,7 +2448,7 @@ T = {
                  "marginalSize"]   % trial panels
     "display"   ["orientation" "columns" "align" "valign" "unitLabels" "waveColor" "waveform"]
     "axes"      ["xSide" "ySide"]
-    "axes"      ["yLim" "yLimMode" "cLim" "colormap" "xLim" "xScale" "yScale"]
+    "axes"      ["yLim" "yLimMode" "cLim" "colormap" "xLim" "xScale" "yScale" "freqScale"]
     };
 f = unique([T{[T{:, 1}] == section, 2}], 'stable');
 end

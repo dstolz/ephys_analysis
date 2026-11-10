@@ -158,6 +158,7 @@ property to set.
 | `analysisFiles(Signals=, Spikes=, Sorting=, SortedData=, Probe=)` | `[T, notes]`: the files [`EphysFigGenApp`](EphysFigGenApp.md) reads (see [below](#files-for-the-analysis-app)) |
 | `probeFile()` | the probe `.json` of the manifest's `probe.file`; when no file is at that path (outputs copied to another machine), a file of the same name in the dataset's folder; `""` for none |
 | `inventory()` | table per kind: `Property`, `Path`, `Source`, `Exists`, `Bytes`, `Modified`, `NumCandidates` |
+| `resampled(signal, rate, cols)` | `[Y, fs]`: columns `cols` (`[]` = all) of a signal brought to `rate` Hz by `resampleSignal` (low-pass filtered first, zero phase: flat to 0.38 × `fs`, what could fold into that band at least 60 dB down); `fs` the rate reached. A rate at or above the one on file returns the columns as they are. With `CacheData` each column is kept once made, so a column read again is not filtered again (`selectChannels`' `Rate`, the analysis figures' `Source.Downsample`). `DatasetOutputs:BadSignal`, `DatasetOutputs:BadColumns` |
 | `refresh()`, `clearCache()` | re-scan; free cached data |
 
 Displaying the object shows the paths only. It never loads data.

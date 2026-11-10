@@ -61,6 +61,7 @@ switch section
             'OutputRoot',  "", ...                  % "" = outputs next to each recording
             'NamePattern', EphysDataset.DefaultNamePattern, ...
             'Recordings',  "concatenate", ...       % Open Ephys sessions with several recordings: "concatenate" | "separate" | "single" (the pipeline config's Acquisition.OpenEphys.Recordings)
+            'Downsample',  downsampleDefaults(), ... % the rate (Hz) each signal is brought to before any figure reads it; [] = the rate on file (selectChannels' Rate: anti-aliased, resampleSignal)
             'Selection',   "all", ...               % "all" | "list"
             'Datasets',    string.empty(1,0), ...   % root-relative keys when "list"
             'Folders',     string.empty(1,0), ...   % output folders (Mode "folders")
@@ -488,6 +489,15 @@ switch section
 
     otherwise
         error('EphysAnalysisConfig:BadSection', 'Unknown section "%s".', section);
+end
+end
+
+
+function d = downsampleDefaults()
+%downsampleDefaults  Source.Downsample: a field per signal (DatasetOutputs.SignalTypes), each [] (the rate on file).
+d = struct();
+for s = DatasetOutputs.SignalTypes
+    d.(s) = [];
 end
 end
 

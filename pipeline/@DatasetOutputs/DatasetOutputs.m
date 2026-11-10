@@ -80,9 +80,12 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %     Manifest, Artifacts   the decoded JSON
     %   Reading a property whose file is missing raises DatasetOutputs:Missing;
     %   has(kind) checks first. load(kind, vars...) loads selected variables
-    %   only, readUnits(Name=Value) forwards unit-reading options, and
-    %   readWaveforms(unitId) cuts a sorted unit's spikes from the sorted data.
-    %   Set CacheData=true to keep loaded data in memory (clearCache frees it).
+    %   only, readUnits(Name=Value) forwards unit-reading options,
+    %   readWaveforms(unitId) cuts a sorted unit's spikes from the sorted
+    %   data, and resampled(signal, rate, cols) brings a signal's columns to
+    %   a lower rate, anti-aliased (resampleSignal).
+    %   Set CacheData=true to keep loaded data in memory, resampled columns
+    %   too (clearCache frees it).
     %
     %   See also EphysDataset.outputs, EphysPipeline.outputsFor, DatasetTracker,
     %   EphysDataset.toMat, EphysDataset.spikesToMat, EphysDataset.behaviorToMat,
@@ -421,6 +424,81 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             if obj.CacheData
                 obj.Cache(key) = struct('W', W, 'info', info);
             end
+        end
+
+        function [Y, fs] = resampled(obj, kind, rate, cols)
+            %resampled  Columns of a signal at a lower rate, anti-aliased; with CacheData each column is kept once made.
+            %   [Y, FS] = out.resampled(SIGNAL, RATE, COLS) is columns COLS
+            %   (1-based, [] = all) of SIGNAL ("LFP" | "MUA" | "SPIKE" |
+            %   "AUX") brought to RATE Hz by resampleSignal: low-pass
+            %   filtered first (a linear-phase FIR, its delay taken out, so
+            %   nothing shifts in time), flat to 0.38 x FS, everything that
+            %   could fold into that band at least 60 dB down. Y is
+            %   [nSamples x numel(COLS)] in the signal's class, row k at
+            %   (k-1)/FS; FS is the rate reached (FsIn*p/q: RATE for the
+            %   usual pairs). RATE at or above the rate on file returns the
+            %   columns as they are, at that rate.
+            %   With CacheData each column is kept once resampled (by the
+            %   signal's files, RATE and the column), so a column read
+            %   again (another panel, another redraw) is not filtered
+            %   again; clearCache frees them with the rest.
+            %   Errors: DatasetOutputs:BadSignal, DatasetOutputs:BadColumns.
+            arguments
+                obj (1,1) DatasetOutputs
+                kind (1,1) string
+                rate (1,1) double {mustBePositive}
+                cols (1,:) double = []
+            end
+            kind = upper(kind);
+            if ~ismember(kind, DatasetOutputs.SignalTypes)
+                error('DatasetOutputs:BadSignal', 'Signals must be among %s.', strjoin(DatasetOutputs.SignalTypes, ", "));
+            end
+            S = obj.load(kind);
+            X = S.Y.(kind);
+            fsIn = double(S.info.(kind).Fs);
+            nCol = size(X, 2);
+            if isempty(cols); cols = 1:nCol; end
+            if any(cols < 1 | cols > nCol | cols ~= round(cols))
+                error('DatasetOutputs:BadColumns', '%s %s has %d column(s); asked for %s.', obj.Name, kind, nCol, mat2str(cols));
+            end
+            whole = isequal(cols, 1:nCol);
+            if rate >= fsIn   % no lower rate: the columns as they are
+                fs = fsIn;
+                Y = X;
+                if ~whole; Y = X(:, cols); end
+                return
+            end
+            base = strjoin(["resampled" kind obj.signalFile(kind) string(rate)], "|") + "|";
+            parts = cell(1, numel(cols));
+            fs = NaN;
+            if obj.CacheData
+                for i = 1:numel(cols)
+                    key = char(base + cols(i));
+                    if isKey(obj.Cache, key)
+                        c = obj.Cache(key);
+                        parts{i} = c.y;
+                        fs = c.fs;
+                    end
+                end
+            end
+            todo = cellfun(@isempty, parts);
+            if any(todo)
+                need = unique(cols(todo), 'stable');
+                if isequal(need, 1:nCol)
+                    [Z, fs] = resampleSignal(X, fsIn, rate);   % the cached signal itself: no copy of it
+                else
+                    [Z, fs] = resampleSignal(X(:, need), fsIn, rate);
+                end
+                [~, at] = ismember(cols(todo), need);
+                parts(todo) = num2cell(Z(:, at), 1);
+                if obj.CacheData
+                    for j = 1:numel(need)
+                        obj.Cache(char(base + need(j))) = struct('y', Z(:, j), 'fs', fs);
+                    end
+                end
+            end
+            Y = [parts{:}];
+            if isempty(parts); Y = zeros(0, 0, class(X)); end
         end
 
         function f = probeFile(obj)

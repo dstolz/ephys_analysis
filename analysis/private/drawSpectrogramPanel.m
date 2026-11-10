@@ -26,6 +26,13 @@ function hk = drawSpectrogramPanel(ax, P, look)
 %   with one color bar, the groups offered to the legend, every group's
 %   latency lines; options.group is not used then, and the y label is
 %   "<groups' parameters> (<f1>-<f2> Hz per row)".
+%   options.freqScale "log" draws the frequency axis logarithmic: the map
+%   on rows evenly spaced in log10 Hz (logFrequencyRows: each bin's values
+%   repeated, nothing interpolated; the 0 Hz bin left out) on a y axis of
+%   log10 Hz labeled in Hz (logFrequencyTicks: 2, 5, 10, 20 ...), the
+%   data tips naming each row's frequency (its 'RowLabels'). A stack's
+%   rows are log too (its y label then ends "per row, log scale"). The
+%   automatic color limits take each bin drawn once, whatever the scale.
 %   Skipped layers are noted (figLayerNotes). HK.yName "Frequency (Hz)".
 %
 %   See also renderFigure, renderChronux, computeSpectrogramPanel, figurePanelRegistry.
@@ -66,27 +73,36 @@ else
     cmap = designColormap(style, "heat", "parula");
 end
 Z = permute(Z, [2 1 4 3]);   % [nF x nT x groups drawn]
+f = reshape(double(R.f), [], 1);   % where the rows go on the y axis
+Zc = Z;   % what the automatic color limits take: each bin drawn, once
+logF = isfield(o, 'freqScale') && o.freqScale == "log" && any(f > 0);
+if logF   % rows evenly spaced in log10 Hz, on a y axis of log10 Hz
+    Zc = Z(f > 0, :, :);
+    fIn = f(f > 0);   % the bins drawn
+    [f, Z, fRow] = logFrequencyRows(f, Z);
+end
 name = P.layers(j).name;
 if stacked
     colors = look.colors;
     if size(colors, 1) ~= nG; colors = groupPalette(R.groups, style); end
     [rowNames, gName] = rowLabels(R);
     rowNames = reshape(string(rowNames), 1, []);
-    [~, hLeg] = drawImageStack(ax, R.t, R.f, Z, rowNames(1:nG), colors, o.stackSpacing);
+    [~, hLeg] = drawImageStack(ax, R.t, f, Z, rowNames(1:nG), colors, o.stackSpacing);
     for q = 1:nG
         hk.legendHandles(end+1) = hLeg(q);
         hk.legendLabels(end+1) = string(R.groups.label(q));
         hk.legendGroup(end+1) = true;
     end
 else
-    tagPart(imagesc(ax, R.t, R.f, Z, 'AlphaData', double(isfinite(Z))), "image", name);
+    hIm = tagPart(imagesc(ax, R.t, f, Z, 'AlphaData', double(isfinite(Z))), "image", name);
+    if logF; setappdata(hIm, 'RowLabels', compose("%.3g Hz", fRow)); end   % (the data tips: a row's frequency)
 end
 tagPart(ax, "axes", "", look.panelId);   % after imagesc, which resets a replaced axes' properties
 set(ax, 'YDir', 'normal', 'Layer', 'top');
 colormap(ax, cmap);
 cl = o.cLim;
 if ~(numel(cl) == 2 && cl(2) > cl(1))
-    v = Z(isfinite(Z));
+    v = Zc(isfinite(Zc));
     cl = chronuxAutoLimits(v, signed);
 end
 clim(ax, cl);
@@ -107,7 +123,12 @@ if numel(W) == 2 && W(2) > W(1)
 elseif numel(R.t) > 1
     xlim(ax, double(R.t([1 end]).'));
 end
-if numel(R.f) > 1 && ~stacked; ylim(ax, double(R.f([1 end]).')); end
+if ~stacked && logF
+    if numel(fIn) > 1; ylim(ax, log10(reshape(fIn([1 end]), 1, 2))); end
+    logFrequencyTicks(ax);
+elseif numel(R.f) > 1 && ~stacked
+    ylim(ax, double(R.f([1 end]).'));
+end
 cb = tagPart(colorbar(ax), "colorbar");
 cb.Label.String = units;
 if look.panel.sharesTime && inTimeColumn(look)
@@ -124,5 +145,9 @@ for m = 1:numel(hm)
 end
 figLayerNotes(ax, P, look, true);
 hk.yName = "Frequency (Hz)";
-if stacked; hk.yName = sprintf("%s (%.3g-%.3g Hz per row)", gName, R.f(1), R.f(end)); end
+if stacked && logF
+    hk.yName = sprintf("%s (%.3g-%.3g Hz per row, log scale)", gName, fIn(1), fIn(end));
+elseif stacked
+    hk.yName = sprintf("%s (%.3g-%.3g Hz per row)", gName, R.f(1), R.f(end));
+end
 end

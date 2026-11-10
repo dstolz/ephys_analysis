@@ -150,8 +150,11 @@ function test_EphysAnalysisFigures(opts)
 %   seed with its axes, its spectrum against one computed here), a
 %   spectrogram of the unit and spike coherograms (computed, drawn), the range
 %   time base, the drawing (dB, a spectrogram on the raster's time axis,
-%   the phase axes, every role known, a coherence in one axes) and the
-%   skip reason with Chronux off the path.
+%   the phase axes, every role known, a coherence in one axes), a
+%   spectrogram's freqScale "log" (the same compute, each bin at its
+%   frequency on rows of log10 Hz, ticks in Hz, the rows' frequencies for
+%   the data tips; validate refusing another value) and the skip reason
+%   with Chronux off the path.
 %   Session figures (10), on makeAnalysisFixture's two datasets ("clean",
 %   "late-start"): figureSessionObservations by site (each session's units
 %   on the channel, minSessions) and by a mapping file (writeUnitMapping);
@@ -172,7 +175,8 @@ function test_EphysAnalysisFigures(opts)
 %   spectrogram, coherence and coherogram): a row per group, the first on
 %   top, named on the y axis, the groups in the legend, every part a known
 %   role, line rows on a yyaxis with a StackMap'd row line each, image
-%   rows an image each with its color strip and one color bar; a
+%   rows an image each with its color strip and one color bar (a stacked
+%   spectrogram with freqScale "log": each block its bins on log10 Hz); a
 %   continuous stack's traces read back through their StackMap. Y limits:
 %   yLimMode on every type with yLim (YLimModes, validate, Apply to all
 %   panels keeping a "fixed" mode from a panel without limits), the modes
@@ -241,9 +245,17 @@ function test_EphysAnalysisFigures(opts)
 %   in-place label edit; {Group} in a per-group title; a TeX note's values
 %   escaped; validate's warnings for names that are no variable; the
 %   report's heading and caption.
+%   Downsampled signals (18), on the "clean" fixture: Source.Downsample's
+%   defaults and save / load; validate (a bad rate; a spectrum's fpass
+%   past the band a downsampled LFP keeps flat warns); figureFor's layer
+%   rates; selectChannels' Rate against resampleSignal (the columns kept,
+%   a rate above the one on file, refusals); a continuous LFP layer at
+%   200 Hz against evokedPotential on the resampled column, its panel at
+%   the rate on file not reused; a spectrum at 200 Hz against the one at
+%   the rate on file (5-50 Hz); the preview script's Rate.
 %
 %   The sections run on their own after the setup (TestSections): 1-6, 12 and 13 need
-%   no data, 7, 9, 11, 14, 15, 16 and 17 build the "clean" fixture once (fixtureA), 8 needs
+%   no data, 7, 9, 11, 14, 15, 16, 17 and 18 build the "clean" fixture once (fixtureA), 8 needs
 %   7's results (declared), 10 builds its own two-dataset fixture.
 %
 %   Usage:  test_EphysAnalysisFigures
@@ -5316,6 +5328,34 @@ if S.sec("9", "spectral panels (Chronux)")
         check(isscalar(hu.axes) && isempty(hu.panels.extraAxes) && ~isempty(findobj(hu.axes, 'Tag', 'trace')), ...
             'a coherence panel drawn into one axes: the magnitude, no phase axes');
 
+        % a logarithmic frequency axis: the drawing's alone (nothing computed again), each bin at its frequency
+        specL = specS;
+        kgL = find([specL.panels.id] == "sgram");
+        specL.panels(kgL).options.freqScale = "log";
+        hL = renderFigure(Fs, specL, fig);
+        drawnow;
+        aL = hL.panels([hL.panels.id] == "sgram").axes;
+        imL = findobj(aL, 'Tag', 'image');
+        gL = min(max(1, round(specL.panels(kgL).options.group)), nG);
+        fpL = Rg.f(Rg.f > 0);
+        ycL = linspace(imL.YData(1), imL.YData(end), size(imL.CData, 1));   % the rows' centers, log10 Hz
+        [~, r20] = min(abs(ycL - log10(20)));
+        [~, b20] = min(abs(Rg.f - 10 ^ ycL(r20)));   % the bin that row lies in
+        rlL = string(getappdata(imL, 'RowLabels'));
+        tkL = reshape(str2double(string(aL.YTickLabel)), 1, []);
+        check(isscalar(imL) && isequaln(figureDataSpec(specL), figureDataSpec(specS)) ...
+            && max(abs(imL.CData(r20, :) - 10 * log10(Rg.S(:, b20, 1, gL)).')) < 1e-9 && abs(Rg.f(b20) - 20) <= mean(diff(Rg.f)) / 2 + 1e-9 ...
+            && max(abs(ylim(aL) - log10(reshape(fpL([1 end]), 1, 2)))) < 1e-9 && numel(tkL) >= 3 && all(ismember(tkL, [1 2 5 10 20 50 100])) ...
+            && numel(rlL) == size(imL.CData, 1) && rlL(r20) == sprintf("%.3g Hz", Rg.f(b20)) && string(aL.YLabel.String) == "Frequency (Hz)", ...
+            ['a spectrogram with freqScale "log": the same compute (figureDataSpec), rows evenly spaced in log10 Hz from the first ' ...
+            'bin above 0 Hz, the row at 20 Hz the 20 Hz bin''s dB, ticks at 2, 5, 10, 20 ... labeled in Hz, each row''s frequency for the data tips']);
+        kfL = find([cs.Figures.id] == "spectral", 1);
+        cBad = cs;
+        cBad.Figures(kfL).panels([cBad.Figures(kfL).panels.id] == "sgram").options.freqScale = "ln";
+        Ibad = figIssues(cBad);
+        check(any(Ibad.Field == "spectral.sgram.options.freqScale" & Ibad.Severity == "error") ...
+            && ~any(figIssues(cs).Field == "spectral.sgram.options.freqScale"), 'validate: a spectrogram''s freqScale is "linear" or "log"');
+
         % without Chronux on the path: the spectral panels say so, the others are drawn
         if cxAdded ~= ""
             rmpath(cxAdded);
@@ -5808,6 +5848,24 @@ if S.sec("11", "stacks and y limits: every panel type that stacks, one vocabular
         'on top, named on the y axis, its groups in the legend, every part a known role: line rows a yyaxis with a row line each ' ...
         '(StackMap), image rows an image each with its color strip and one color bar (%s)%s'], strjoin(kIds, ", "), ...
         failTxt));
+    if ismember("k_spectrogram", kIds)   % a stack of spectrograms on a log frequency axis: each block log10 Hz
+        spG = ck.figureFor("k_spectrogram");
+        spG.panels(1).options.freqScale = "log";
+        TkG = figureObservations(srcK, spG);
+        FkG = rk.computeFigure(srcK, spG, Observation=TkG(1, :));
+        hG = renderFigure(FkG, spG, fig);
+        axG = hG.panels(1).axes;
+        RG = FkG.panels(1).layers(find([FkG.panels(1).layers.skip] == "", 1)).R;
+        imG = findall(axG, 'Tag', 'image');
+        fpG = RG.f(RG.f > 0);
+        dfG = median(diff(RG.f));
+        blockG = arrayfun(@(x) diff(x.YData([1 end])) * size(x.CData, 1) / (size(x.CData, 1) - 1), imG);   % each block's height
+        wantG = log10(fpG(end) + dfG / 2) - log10(fpG(1) - dfG / 2);   % its bins' edges, log10 Hz
+        check(numel(imG) == height(RG.groups) && all(abs(blockG - wantG) < 1e-9) && all(arrayfun(@(x) size(x.CData, 1), imG) > numel(fpG)) ...
+            && contains(string(axG.YLabel.String), sprintf("%.3g-%.3g Hz per row, log scale", fpG(1), fpG(end))), ...
+            sprintf(['a stack of spectrograms with freqScale "log": an image block per group, each its bins above 0 Hz on rows ' ...
+            'evenly spaced in log10 Hz (%.3g log10 Hz high), the y label "... (%.3g-%.3g Hz per row, log scale)"'], wantG, fpG(1), fpG(end)));
+    end
     % the order and labels of a stack of groups: the first group's row on top, its value the top tick label
     spP = ck.figureFor("k_psth");
     TkP = figureObservations(srcK, spP);
@@ -6944,6 +7002,141 @@ if S.sec("17", "label variables: the list, their values, filled in by renderFigu
     rep = addReportFigure(rep, sc, F);
     check(contains(cap, "(Δ Stim)") && rep.datasets(1).entries(end).title == "Δ Stim", ...
         'the report''s heading and caption print the title''s special characters (\Delta: Δ), as the figure does');
+end
+
+%% ============================================================================ downsampled signals
+if S.sec("18", "downsampled signals: Source.Downsample, figureFor's layer rates, selectChannels' Rate, a continuous and a spectral layer at the lower rate, validate, JSON, the preview script")
+    fixtureA();
+    % the config: a rate per signal, [] (the rate on file) by default; save / load keeps it
+    d0 = EphysAnalysisConfig().Source.Downsample;
+    check(isequal(string(fieldnames(d0)).', DatasetOutputs.SignalTypes) && all(structfun(@isempty, d0)), ...
+        'Source.Downsample: a field per signal (LFP, MUA, SPIKE, AUX), each [] (the rate on file) by default');
+    cfg = EphysAnalysisConfig();
+    cfg.Source.Root = FX.proj;
+    cfg.Defaults.EventRef.line = "Stim";
+    cfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+    cfg = cfg.addFigure("continuous", Id="ct");
+    cfg = cfg.addFigure("rasterPsth", Id="rp");
+    cfg = cfg.addFigure("spectrum", Id="sp");
+    lfpSp = layerOf("continuous");   % the template's spectrum is of the unit's spikes: a fixed LFP column instead
+    lfpSp.binding = "fixed";
+    lfpSp.channels = 1;
+    cfg.Figures(cfg.figureIndex("sp")).panels(1).layers = lfpSp;
+    cD = cfg;
+    cD.Source.Downsample.LFP = 200;
+    cD.Source.Downsample.AUX = 100;
+    fj = fullfile(root, 'downsample.json');
+    cD.save(fj);
+    cJ = EphysAnalysisConfig.load(fj);
+    check(cD.isequalConfig(cJ) && isequal(cJ.Source.Downsample.LFP, 200) && isequal(cJ.Source.Downsample.AUX, 100) ...
+        && isempty(cJ.Source.Downsample.MUA) && isempty(cJ.LoadWarnings), ...
+        'the rates survive save / load; a signal without one stays [] (the rate on file)');
+
+    % validate: a bad rate; a spectrum past the band a downsampled signal keeps flat
+    cB = cfg;
+    cB.Source.Downsample.LFP = -5;
+    cB.Source.Downsample.MUA = [250 500];
+    IB = cB.validate(CheckPaths=false);
+    I0 = cfg.validate(CheckPaths=false);
+    check(any(IB.Section == "Source" & IB.Field == "Downsample.LFP" & IB.Severity == "error") ...
+        && any(IB.Section == "Source" & IB.Field == "Downsample.MUA" & IB.Severity == "error") ...
+        && ~any(I0.Section == "Source" & startsWith(I0.Field, "Downsample")), ...
+        'validate: a rate below 0, or two rates, is an error at Source.Downsample.<signal>; no rate set, no issue');
+    kSp = cD.figureIndex("sp");
+    pSp = cD.Figures(kSp).panels(1);
+    fpF = "sp." + pSp.id + ".options.fpass";
+    c300 = cD; c300.Source.Downsample.LFP = 300;   % flat to 114 Hz
+    c60 = cD; c60.Figures(kSp).panels(1).options.fpass = [0 60];
+    mW = issueMessages(cD, fpF);
+    check(pSp.layers(1).source == "LFP" && isequal(pSp.options.fpass, [0 100]) && isscalar(mW) && has(cD, fpF, "warning") ...
+        && contains(mW, "0-76 Hz") && contains(mW, "Source.Downsample.LFP") && contains(mW, "at least 264 Hz") ...
+        && isempty(issueMessages(c300, fpF)) && isempty(issueMessages(c60, fpF)) && isempty(issueMessages(cfg, fpF)), ...
+        ['validate: a spectrum to 100 Hz of an LFP read at 200 Hz (flat to 76 Hz) warns, naming the band and the rate that would ' ...
+        'keep 100 Hz; none at 300 Hz, with fmax 60 Hz, or without a rate']);
+
+    % figureFor: each signal layer takes its signal's rate
+    sCt = cD.figureFor("ct");
+    sRp = cD.figureFor("rp");
+    kC = find([sCt.panels.type] == "continuous", 1);
+    lCt = sCt.panels(kC).layers(1);
+    noRate = @(spec) all(arrayfun(@(p) all(arrayfun(@(L) isempty(L.downsample), p.layers)), spec.panels));
+    check(lCt.source == "LFP" && isequal(lCt.downsample, 200) && noRate(sRp) && noRate(cfg.figureFor("ct")), ...
+        'figureFor: a signal layer takes its signal''s rate (LFP 200 Hz); spike layers, and a config without rates, take none');
+
+    % selectChannels' Rate: the columns asked for, anti-aliased (resampleSignal), each kept once made
+    rn = EphysAnalysisRunner(cD, LogFcn=[]);
+    src = rn.source(1);
+    fsL = src.signalFs.LFP;
+    [YL, fsY, mAll] = selectChannels(src, "LFP");
+    [Y2, fs2, m2] = selectChannels(src, "LFP", Channels=[2 1], Rate=200);
+    [Yw, fsw] = resampleSignal(YL(:, [2 1]), fsY, 200);
+    [Y3, fs3] = selectChannels(src, "LFP", Channels=[2 1], Rate=200);   % again: the columns kept (CacheData)
+    [Y4, fs4] = src.outputs.resampled("LFP", 200, 1);
+    [Yh, fsh] = selectChannels(src, "LFP", Channels=2, Rate=2 * fsL);
+    check(fsL > 200 && fs2 == 200 && fsw == 200 && isequal(Y2, Yw) && isa(Y2, 'single') && isequal(Y3, Y2) && fs3 == 200 ...
+        && isequal(Y4, Y2(:, 2)) && fs4 == 200 && isequal(m2, mAll([2 1], :)) && fsh == fsL && isequal(Yh, YL(:, 2)) ...
+        && ~isempty(errorId(@() selectChannels(src, "LFP", Rate=-1))) ...
+        && strcmp(errorId(@() src.outputs.resampled("LFP", 200, 99)), 'DatasetOutputs:BadColumns'), ...
+        sprintf(['selectChannels Rate=200: the columns asked for at 200 Hz, as resampleSignal brings them (%g Hz on file), ' ...
+        'the same when read again; a rate above the one on file changes nothing; a bad rate or column is refused'], fsL));
+
+    % a continuous layer at the lower rate; its panel at the rate on file is not taken from the cache
+    sCt0 = cfg.figureFor("ct");
+    Tc = figureObservations(src, sCt);
+    obsC = Tc(1, :);
+    [F0, K0] = figureCompute(src, sCt0, Observation=obsC);
+    [FD, KD] = figureCompute(src, sCt, Observation=obsC, Reuse=K0);
+    R0 = F0.panels(kC).layers(1).R;
+    RD = FD.panels(kC).layers(1).R;
+    oC = sCt.panels(kC).options;
+    wC = sCt.panels(kC).window;
+    bC = [];
+    if oC.baseline.Mode ~= "none"; bC = oC.baseline.Window; end
+    Yd = selectChannels(src, "LFP", Channels=obsC.column, Rate=200);
+    RO = evokedPotential(Yd, 200, FD.epochs, Window=[wC.pre wC.post], Channels=1, Baseline=bC, Groups=FD.groups, ...
+        Rectify=oC.transform == "rectify", Magnitude=oC.transform == "magnitude", Statistic=oC.statistic);
+    made = KD([KD.kind] == "panel");
+    check(R0.fs == fsL && R0.fsFile == fsL && RD.fs == 200 && RD.fsFile == fsL && all(abs(diff(RD.t) - 1 / 200) < 1e-9) ...
+        && numel(RD.t) < numel(R0.t) && isequal(size(RD.mean), size(RO.mean)) ...
+        && max(abs(RD.mean(:) - RO.mean(:))) <= 1e-6 * max(abs(RO.mean(:))) ...
+        && ~isempty(made) && all([made.from] == 0) && FD.panels(kC).layers(1).name == F0.panels(kC).layers(1).name, ...
+        sprintf(['a continuous LFP layer at 200 Hz: its epochs'' mean (%d samples; %d at %g Hz on file) as evokedPotential ' ...
+        'gives on the resampled column, R.fsFile the rate on file; the panel cached at the rate on file computed again'], ...
+        numel(RD.t), numel(R0.t), fsL));
+
+    % a spectrum at the lower rate (Chronux: the bundled copy, on the path for these checks only)
+    cxAdded = "";
+    if ~ChronuxDataset.hasChronux() && isfolder(fullfile(repo, 'toolboxes', 'chronux'))
+        cxAdded = string(genpath(fullfile(repo, 'toolboxes', 'chronux')));
+        addpath(cxAdded);
+    end
+    cxBack = onCleanup(@() rmpathQuiet(cxAdded));
+    if ChronuxDataset.hasChronux()
+        c60.Source.Downsample.LFP = 200;
+        c60f = cfg; c60f.Figures(kSp).panels(1).options.fpass = [0 60];
+        sSpD = c60.figureFor("sp");
+        Tsp = figureObservations(src, sSpD);
+        FSD = figureCompute(src, sSpD, Observation=Tsp(1, :));
+        FS0 = figureCompute(src, c60f.figureFor("sp"), Observation=Tsp(1, :));
+        LSD = FSD.panels(1).layers(1);
+        LS0 = FS0.panels(1).layers(1);
+        band = @(R) R.f >= 5 & R.f <= 50;
+        pD = mean(LSD.R.S(band(LSD.R), :), 'all');
+        p0 = mean(LS0.R.S(band(LS0.R), :), 'all');
+        check(LSD.skip == "" && LS0.skip == "" && LSD.R.fs == 200 && LS0.R.fs == fsL && all(LSD.R.f <= 60) ...
+            && abs(pD / p0 - 1) < 0.1, ...
+            sprintf(['a spectrum of the LFP read at 200 Hz: computed at 200 Hz, its power from 5 to 50 Hz within 10%% of the ' ...
+            'spectrum at %g Hz on file (ratio %.3f): the anti-aliasing filter keeps the band below 0.38 x the rate'], fsL, pD / p0));
+    else
+        fprintf('  (Chronux not found: the spectrum at the lower rate is not checked)\n');
+    end
+    clear cxBack
+
+    % the preview script reads the figure's signal at the rate its layers read it
+    pv = EphysAnalysisScript.preview(cD, "ct", Datasets=rn.Keys(1));
+    pv0 = EphysAnalysisScript.preview(cfg, "ct", Datasets=rn.Keys(1));
+    check(contains(pv, "selectChannels(src, ""LFP"", Channels=spec.observe.channels, Rate=200)") && ~contains(pv0, "Rate="), ...
+        'the preview script reads the channel figure''s LFP at 200 Hz, as its layers do; without a rate, at the rate on file');
 end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);

@@ -7,7 +7,8 @@ function issues = validate(obj, opts)
 %   Checked
 %     Source    Mode; Root exists (project) or every folder does (folders);
 %               NamePattern parses; a "list" selection names datasets;
-%               Filter.TagMode is "any" or "all"
+%               Filter.TagMode is "any" or "all"; each Downsample rate is
+%               empty or one rate above 0 (Field "Downsample.<signal>")
 %     Defaults  the event reference, window and selection are valid (a
 %               filter that does not parse is a warning: it is checked
 %               against each dataset's trials when it runs)
@@ -113,9 +114,12 @@ function issues = validate(obj, opts)
 %               fpass, err, errP, detrend, scale, spikeFs, the moving
 %               window, the range time base's range and segment, a
 %               spectrogram's baseline Mode and its window inside the
-%               panel's), a coherence panel's two enabled layers (seed,
+%               panel's; a warning at "<...>.options.fpass" when fmax
+%               runs past the 0.38 x rate a downsampled signal layer
+%               keeps unchanged, Source.Downsample), a coherence panel's two enabled layers (seed,
 %               partner; a warning for a fixed seed of several items), a
-%               spectrogram's signal or spike layer; an event-trace
+%               spectrogram's signal or spike layer and its freqScale
+%               ("linear" or "log"); an event-trace
 %               panel's display, trials, colorBy,
 %               height, alpha, line styles and positive widths and
 %               rowSpacing, with warnings for an edge or baseline color
@@ -245,6 +249,14 @@ else
 end
 if ~ismember(S.Filter.TagMode, ["any" "all"])
     add("Source", "Filter.TagMode", "error", "Filter.TagMode must be ""any"" or ""all"".");
+end
+ds = struct();   % none: a config made before Source.Downsample existed in this session (until clear classes)
+if isfield(S, 'Downsample'); ds = S.Downsample; end
+for sig = reshape(string(fieldnames(ds)), 1, [])
+    v = ds.(sig);
+    if ~isempty(v) && ~(isscalar(v) && isfinite(v) && v > 0)
+        add("Source", "Downsample." + sig, "error", "Downsample." + sig + " must be empty (the rate on file) or one rate in Hz above 0.");
+    end
 end
 
 % --- Defaults ------------------------------------------------------------------------
@@ -1183,11 +1195,19 @@ issues = table(Section, Field, Severity, Message);
         if isfield(hOp, 'group'); checkFigGroup(hOp.group, hO0); end
         hSrc = strings(1, 0);
         if ~isempty(hL); hSrc = [hL.source]; end
+        checkSpectralRate(hOp, hSrc, hO0);
         switch hP.type
             case "spectrogram"
                 if ~isempty(hL) && ~any(ismember(hSrc, [EphysAnalysisConfig.SignalSources EphysAnalysisConfig.SpikeSources]))
                     add("Figures", hP0 + ".layers", "error", "A spectrogram draws a signal or spike layer (LFP, MUA, SPIKE, " + ...
                         "AUX, units or detected).");
+                end
+                if isfield(hOp, 'freqScale')
+                    hFs = string(hOp.freqScale);
+                    if ~(isscalar(hFs) && ismember(hFs, ["linear" "log"]))
+                        add("Figures", hO0 + ".freqScale", "error", "A spectrogram's freqScale (its frequency axis) is " + ...
+                            """linear"" or ""log"", not """ + strjoin(hFs, " ") + """.");
+                    end
                 end
             case "coherence"
                 if numel(hL) ~= 2
@@ -1203,6 +1223,31 @@ issues = table(Section, Field, Severity, Message);
                     add("Figures", hP0 + ".layers(" + hIdx(1) + ")", "warning", "The seed is its layer's first channel " + ...
                         "or unit only: fix the seed layer to one.");
                 end
+        end
+    end
+
+    function checkSpectralRate(hOp, hSrc, hO0)
+        %checkSpectralRate  A warning when a spectral panel's fpass reaches past the band a downsampled signal keeps flat.
+        %   A signal layer read at a lower rate (Source.Downsample) is unchanged up to PassFraction (0.38) x that rate;
+        %   above it the anti-aliasing filter lowers the power, which a spectrum would show as the signal's own.
+        if ~isfield(hOp, 'fpass') || numel(hOp.fpass) ~= 2 || ~isfield(obj.Source, 'Downsample'); return; end
+        hTop = hOp.fpass(2);
+        hDs = obj.Source.Downsample;
+        for hSig = reshape(unique(hSrc(ismember(hSrc, EphysAnalysisConfig.SignalSources))), 1, [])
+            hR = hDs.(hSig);
+            if ~(isscalar(hR) && isfinite(hR) && hR > 0); continue; end
+            hPass = DownsampleDialog.PassFraction * hR;
+            if hTop <= hPass; continue; end
+            if isinf(hTop)
+                hWhat = "up to Nyquist";
+                hFix = "or leave " + hSig + " at its rate on file";
+            else
+                hWhat = "up to " + hTop + " Hz";
+                hFix = "or downsample " + hSig + " to at least " + ceil(hTop / DownsampleDialog.PassFraction) + " Hz";
+            end
+            add("Figures", hO0 + ".fpass", "warning", "fpass runs " + hWhat + ", past the 0-" + round(hPass, 3, "significant") + ...
+                " Hz that " + hSig + " keeps unchanged at " + hR + " Hz (Source.Downsample." + hSig + "): above that the " + ...
+                "anti-aliasing filter lowers the power. Set fmax to " + round(hPass, 3, "significant") + " Hz or less, " + hFix + ".");
         end
     end
 

@@ -151,6 +151,7 @@ has plots is version 1: [below](#loading-a-version-1-config)).
 | `OutputRoot` | `""` | the project's output root; `""` = outputs next to each recording |
 | `NamePattern` | `EphysDataset.DefaultNamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`) | [dataset-name tokens](EphysPipeline.md#dataset-name-tokens), as in the pipeline config |
 | `Recordings` | `"concatenate"` | what an Open Ephys session with several recordings is (`"concatenate"`, `"separate"`, `"single"`), as in the pipeline config's `Acquisition.OpenEphys.Recordings`: with `"separate"` the datasets are the part folders |
+| `Downsample` | every field `[]` | the rate, Hz, each signal is brought to before any figure reads it: a field per signal (`LFP`, `MUA`, `SPIKE`, `AUX`), `[]` = the rate on file. Low-pass filtered first, so nothing aliases ([Downsampled signals](#downsampled-signals)) |
 | `Selection` | `"all"` | project mode: `"all"` datasets under the root, or the `"list"` in `Datasets` |
 | `Datasets` | none | root-relative [dataset keys](EphysPipeline.md#dataset-keys) for `"list"`. A key not found is warned about (`EphysAnalysisRunner:UnknownDataset`) and skipped |
 | `Folders` | none | dataset output folders (`"folders"` mode) |
@@ -165,6 +166,45 @@ processed files: each folder holds one dataset's files, named after the
 folder (`<Name>_*`, `<Name>` the folder's last part).
 
 <!-- wiki: More on finding a dataset's files: [Loading outputs](Loading-Outputs). -->
+
+### Downsampled signals
+
+`Source.Downsample` gives a signal a lower rate for every figure: less
+memory, faster previews and runs, and lighter figure files (a vector PDF of
+a 30 kHz AUX trace holds every sample). Each signal has its own rate; a
+signal left at `[]`, or given a rate at or above its rate on file, is read
+as it is.
+
+```matlab
+cfg.Source.Downsample.LFP = 250;   % flat to 95 Hz
+cfg.Source.Downsample.AUX = 100;   % an accelerometer: flat to 38 Hz
+```
+
+The signal is low-pass filtered before it is downsampled, so nothing above
+the new Nyquist frequency folds back into it
+([`resampleSignal`](../pipeline/resampleSignal.m): the Signal Processing
+Toolbox's `resample`, a linear-phase FIR from a Kaiser window, its delay
+taken out so nothing shifts in time, the ends mirrored so the first and last
+samples stay true). Content up to 0.38 × the new rate passes within 0.1 %;
+everything that could fold into that band is at least 60 dB down; the
+response is −3 dB at 0.475 × and −6 dB at 0.5 × the new rate. **Pick a rate
+at least 2.6 × the highest frequency you study.**
+
+What reads it: every layer of a signal (continuous, heat map, spectrum,
+spectrogram, coherence panels) takes its signal's rate
+([`figureFor`](#resolving-a-figure) adds it to each layer as `downsample`), and reads
+its columns at that rate (`selectChannels(src, signal, Channels=cols,
+Rate=r)`, which resamples only the columns a layer reads, each kept once
+made while the outputs cache their data: another panel or redraw on the
+same channel filters nothing again). A layer's result keeps both rates:
+`R.fs` (the rate read at) and `R.fsFile` (the rate on file). The preview
+script reads a channel figure's signal at the same rate. The rate changes
+the figure's data, so a preview drawn at another rate computes again.
+
+A spectrum, spectrogram or coherence whose `fpass` runs past 0.38 × a
+layer's rate would show the anti-aliasing filter's roll-off as if it were
+the signal's own: `validate` warns (at `<figure>.<panel>.options.fpass`) and
+names the rate that would keep `fmax`.
 
 ## Defaults
 
@@ -1687,6 +1727,7 @@ refuses.
 | `spectrum`, `coherence` | `band` | `defaults("ErrorBand")` | the band's look, as the PSTH's ([Error bands](#error-bands)) |
 | all three | `detrend` | `"constant"` | each trial's trend removed: `"none"`, `"constant"` or `"linear"` |
 | `spectrum`, `spectrogram` | `scale` | `"db"` | `"db"` (10 log10), `"log"` (a log y axis; a spectrogram: dB too) or `"linear"` (as is; a spectrogram baseline then in its own units) |
+| `spectrogram` | `freqScale` | `"linear"` | the frequency (y) axis: `"linear"` or `"log"`, which spreads out the low frequencies: each frequency bin on its share of a log axis (the image on rows evenly spaced in log10 Hz, a bin repeated over the rows it spans, nothing interpolated), ticks at 2, 5, 10, 20, 50 ... Hz, the 0 Hz bin left out; a stack's rows too. It is the drawing's alone: changing it computes nothing again |
 | all three | `spikeFs` | 1000 | spike layers: the time grid the spike trains are analyzed on, Hz |
 | `coherence` | `overTime` | `false` | a coherogram of the first pair (signals or spike trains) |
 | `spectrogram`, `coherence` | `movingwin` | `[0.5 0.05]` | `[window step]` s (a coherence only with `overTime`) |
@@ -1702,7 +1743,8 @@ reports its message at `<figure>.<panel>.options` (the tapers, `fpass`, `err`
 and `errP`, `detrend`, `scale`, `spikeFs`, the moving window, the range and
 segment, a spectrogram's baseline `Mode` and its `Window` inside the panel's
 window, which must therefore be a fixed one unless the panel is on the range
-base), `yLim` and `cLim` `[]` or ascending, and `group` a whole number. Layers
+base), `yLim` and `cLim` `[]` or ascending, `group` a whole number, and a spectrogram's `freqScale`
+`"linear"` or `"log"` (at `<figure>.<panel>.options.freqScale`). Layers
 are errors at `<figure>.<panel>.layers`: a coherence panel without exactly two
 enabled layers, a spectrogram without a signal or spike layer (events marks
 only). A coherence panel
@@ -2418,8 +2460,10 @@ compute and the render take:
   does not matter);
 - each panel's `options` completed against its type's;
 - each layer's `category` added (`"point"`, `"continuous"`, `"unit"`, or
-  `""` where the type does not draw the source) and its `units.source` set to its
-  `source`.
+  `""` where the type does not draw the source), its `units.source` set to its
+  `source`, and its `downsample` added: the rate in
+  [`Source.Downsample`](#downsampled-signals) for its signal (`LFP`, `MUA`,
+  `SPIKE`, `AUX`), `[]` for the rate on file and for any other source.
 
 A panel of an unknown type keeps empty options, with `aligned` and `sharesTime`
 false (validate reports the type).
@@ -3735,6 +3779,8 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | --- | --- | --- |
 | Source | Mode is project / folders. Project mode: Root set and existing (CheckPaths), Selection all / list, NamePattern parses, Recordings is one of the three modes. Folders mode: at least one folder, and each exists (CheckPaths) | error |
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
+| Source | each `Downsample` rate is `[]` or one rate above 0 (Field `Downsample.<signal>`) | error |
+| Figures | a spectrum, spectrogram or coherence panel's `fpass` runs past 0.38 × the rate a signal layer is downsampled to ([Downsampled signals](#downsampled-signals)) | warning |
 | Defaults, Figures | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Figures | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
 | Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (`data`, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)), `probe` (`layout`, `overlap`, `labels` known values, `lanes` / `maxTiles` / `maxPerSite` whole >= 1, `tileWidth` / `tileHeight` in (0, 1], `tileScale` > 0, whole `shanks` and `channels`, `depthRange` `[]` or `[lo hi]`; with `probe.enabled` not a session figure too and not observing the dataset: [rules](#probe-figures)) and `layout` (`boxesMean`, `padding`) hold known values; each panel has an id of its own, a known type and a `rect` inside the page with a width and height (overlapping rects: a warning), a figure one legend panel at most, and each panel its own `ref` / `window` / `selection` only when its type is aligned; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size, a span's look; only events layers on an event-trace panel) and line style fit its panel type; a raster has rows, not marks or spans alone; each type's options; the style ([rules](#validating-figures)) | error |
@@ -3906,7 +3952,9 @@ With Chronux on the path (`toolboxes/chronux`, added for the section; skipped wi
 section computes, on section 7's fixture, a spectrum of the observed unit's LFP channel and of the unit, a
 spectrogram, coherences LFP x LFP, spike-field and unit-unit, and the range time base, draws them (dB, a
 spectrogram on the raster's time axis, the phase axes, every role known, a coherence in one axes with no
-phase strip), and checks the skip reason with Chronux off the path. Session
+phase strip), draws the spectrogram with `freqScale "log"` (the same `figureDataSpec`, each bin at its
+frequency on rows of log10 Hz, ticks in Hz, the rows' frequencies for the data tips; `validate` refusing
+another value), and checks the skip reason with Chronux off the path. Session
 figures (10), on two synthetic sessions: the figures listed apart
 (`enabledFigures` leaves them out, `sessionFigureIds`, `isSessionFigure`),
 `figureSessionObservations` by site (each session's units on the channel,

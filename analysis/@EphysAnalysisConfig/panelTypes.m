@@ -148,7 +148,9 @@ function T = panelTypes()
 %   unit's power over time and frequency (chronuxSpecgram of a signal,
 %   chronuxSpikeSpecgram of a spike train) for one trial group, on the
 %   figure's time axis; its baseline Modes are chronuxNormalize's (none,
-%   db, percent, zscore, ratio), its Window inside the panel's window. A
+%   db, percent, zscore, ratio), its Window inside the panel's window; its
+%   freqScale "log" draws the frequency axis logarithmic (the drawing's
+%   alone: changing it computes nothing again, figureDataSpec). A
 %   "coherence" panel takes exactly two layers, the seed then its partner,
 %   and pairs the seed's first item with each partner item: signal x
 %   signal (chronuxCoherence), spikes x signal or signal x spikes
@@ -369,6 +371,7 @@ opts.spectrogram = struct( ...
     'fpass',      [0 100], ...
     'detrend',    "constant", ...
     'scale',      "db", ...             % "db" and "log": the power in dB; "linear": as is (a baseline: in its own units)
+    'freqScale',  "linear", ...         % the frequency (y) axis: "linear" | "log" (the 0 Hz bin left out)
     'spikeFs',    1000, ...             % a point layer: the spike train's time grid, Hz
     'movingwin',  [0.5 0.05], ...       % [window step] s
     'baseline',   struct('Mode', "none", 'Window', [-0.5 0]), ...   % Mode "none" | "db" | "percent" | "zscore" | "ratio" against Window

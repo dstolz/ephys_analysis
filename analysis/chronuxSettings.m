@@ -51,7 +51,8 @@ function S = chronuxSettings(s)
 %                   "zscore" | "ratio" against baselineWindow
 %     baselineWindow  [b0 b1] s from the event: inside window, and at least
 %                   one moving window long
-%   How it is drawn (display): scale ("db" | "log" | "linear"), layout
+%   How it is drawn (display): scale ("db" | "log" | "linear"), freqScale
+%   (a spectrogram's frequency axis: "linear" | "log"), layout
 %   ("grid": a tile per channel, groups overlaid; "overlay": a tile per
 %   group, channels overlaid), showErr, showPhase, maxTiles, ylim, clim
 %   ([] = automatic), page.
@@ -120,7 +121,7 @@ S = struct( ...
     'detrend',      "constant", ...
     'baseline',     "none", ...
     'baselineWindow', [-0.5 0], ...
-    'display',      struct('scale', "db", 'layout', "grid", 'showErr', true, 'showPhase', true, ...
+    'display',      struct('scale', "db", 'freqScale', "linear", 'layout', "grid", 'showErr', true, 'showPhase', true, ...
                         'maxTiles', 16, 'ylim', zeros(1, 0), 'clim', zeros(1, 0), 'page', 1));
 end
 
@@ -189,6 +190,7 @@ if S.baseline ~= "none" && ismember(S.analysis, ["specgram" "spikeSpecgram"]) &&
 end
 d = S.display;
 d.scale = member(d.scale, "display.scale", ["db" "log" "linear"]);
+d.freqScale = member(d.freqScale, "display.freqScale", ["linear" "log"]);
 d.layout = member(d.layout, "display.layout", ["grid" "overlay"]);
 d.showErr = logical(d.showErr);
 d.showPhase = logical(d.showPhase);

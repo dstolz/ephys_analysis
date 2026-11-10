@@ -371,6 +371,7 @@ if isfield(op, 'err')
     op.errP = E.spErrP.Value;
 end
 if isfield(op, 'scale'); op.scale = string(E.spScale.Value); end
+if isfield(op, 'freqScale'); op.freqScale = string(E.spFreqScale.Value); end
 if isfield(op, 'spikeFs'); op.spikeFs = E.spSpikeFs.Value; end
 if isfield(op, 'movingwin'); op.movingwin = [E.spWin.Value E.spStep.Value]; end
 if isfield(op, 'overTime'); op.overTime = logical(E.spOverTime.Value); end

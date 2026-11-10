@@ -296,7 +296,9 @@ classdef EphysAnalysisScript
             %   epochSpikes), each line's onsets and offsets in each epoch
             %   (onsets, offsets: epochEvents) and, for a figure of channels,
             %   its signal cut into the epochs (signalIn, signalTime,
-            %   channels, fs), then figureCompute and renderFigure into a
+            %   channels, fs; at the rate its layers read it, when the
+            %   config's Source.Downsample brings that signal lower:
+            %   selectChannels' Rate), then figureCompute and renderFigure into a
             %   figure() window of Size= px in the design Design= ("" = the
             %   user's design when the script runs).
             %   A figure across sessions (sessions.enabled) is drawn over the
@@ -557,8 +559,14 @@ classdef EphysAnalysisScript
             keep = ["events" "lineNames" "trials" "artifacts" "spikes" "units" "E" "G" "spikesIn" "onsets" "offsets"];
             if ob.kind == "channel"
                 sig = upper(ob.data);
-                B(end+1, 1) = "[Y, fs, channels] = selectChannels(src, " + lit(sig) + ", Channels=spec.observe.channels);   % the figure's " + ...
-                    sig + " channels: Y(k, :) at (k-1)/fs s";
+                rate = signalRate(spec, sig);
+                if isempty(rate)
+                    B(end+1, 1) = "[Y, fs, channels] = selectChannels(src, " + lit(sig) + ", Channels=spec.observe.channels);   % the figure's " + ...
+                        sig + " channels: Y(k, :) at (k-1)/fs s";
+                else   % downsampled as the figure's layers read it (Source.Downsample)
+                    B(end+1, 1) = "[Y, fs, channels] = selectChannels(src, " + lit(sig) + ", Channels=spec.observe.channels, Rate=" + lit(rate) + ...
+                        ");   % the figure's " + sig + " channels at " + rate + " Hz (anti-aliased), as its layers read them: Y(k, :) at (k-1)/fs s";
+                end
                 B(end+1, 1) = "R = evokedPotential(Y, fs, E, Window=[min(E.tStart - E.t0) max(E.tStop - E.t0)], KeepEpochs=true, Incomplete=""nan"", Meta=channels);";
                 B(end+1, 1) = "signalIn = R.data;   % [time x channel x epoch], single: NaN outside the recording";
                 B(end+1, 1) = "signalTime = R.t;    % s from each epoch's event";
@@ -1078,4 +1086,18 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "if ismember(reportOpts.Format, [""pdf"" ""both""]); reportFiles(end+1) = writePdfReport(report, base + "".pdf""); end";
         end
     end
+end
+
+
+function rate = signalRate(spec, sig)
+%signalRate  The rate (Hz) the figure SPEC's layers read signal SIG at (figureFor's layer downsample: Source.Downsample), [] = the rate on file.
+rate = [];
+for p = reshape(spec.panels, 1, [])
+    for L = reshape(p.layers, 1, [])
+        if L.source == sig && isfield(L, 'downsample') && isscalar(L.downsample) && L.downsample > 0
+            rate = double(L.downsample);
+            return
+        end
+    end
+end
 end

@@ -5,7 +5,10 @@ function [X, lay] = figureChronuxLayer(src, L, lay, ctx)
 %   CTX.observation (figureLayerItems) and reads it, filling LAY
 %   (figurePanelLayers' entry: meta, name "" = automatic, skip):
 %     LFP / MUA / SPIKE / AUX   selectChannels (the extract as cached), the
-%         layer's columns copied: X.kind "signal", X.D (chronuxBlockOf: the
+%         layer's columns copied (at its downsample rate when it has one
+%         below the rate on file: figureFor's, Source.Downsample;
+%         selectChannels' Rate, anti-aliased, each column kept once
+%         made, X.D.fs and X.nRows then the lower rate's): X.kind "signal", X.D (chronuxBlockOf: the
 %         whole recording of those columns, D.channels = 1:n), X.cols (the
 %         extract's columns), X.nRows, X.names ("LFP ch 12": the recording
 %         channel, else the column's label), X.keys (what each item is,
@@ -45,6 +48,18 @@ if ismember(L.source, EphysAnalysisConfig.SignalSources)
         return
     end
     metaC = metaAll(cols, :);
+    rate = figureLayerRate(L);
+    at = cols;   % the layer's columns in Y
+    if ~isempty(rate) && rate < fs   % those columns at the lower rate, anti-aliased (each kept once made)
+        ctx.checkpoint();
+        try
+            [Y, fs] = selectChannels(src, L.source, Channels=cols, Rate=rate);
+        catch ME
+            lay.skip = figureLayerError(ME);
+            return
+        end
+        at = 1:numel(cols);
+    end
     names = strings(1, numel(cols));
     for i = 1:numel(cols)
         rc = NaN;
@@ -63,13 +78,13 @@ if ismember(L.source, EphysAnalysisConfig.SignalSources)
         name = "magnitude of " + numel(cols) + " " + L.source + " channel";
         if ~isscalar(cols); name = name + "s"; end
         ctx.checkpoint();
-        X.D = chronuxBlockOf(magnitudeOf(Y, cols, fs), fs, metaC(1, :), L.source, name);
+        X.D = chronuxBlockOf(magnitudeOf(Y, at, fs), fs, metaC(1, :), L.source, name);
         X.names = name;
         X.keys = L.source + ":|" + strjoin(string(cols), " ") + "|";
         if lay.name == ""; lay.name = name; end
         return
     end
-    X.D = chronuxBlockOf(Y(:, cols), fs, metaC, L.source, names);
+    X.D = chronuxBlockOf(Y(:, at), fs, metaC, L.source, names);
     X.names = names;
     X.keys = L.source + ":" + string(cols);
     if lay.name == ""

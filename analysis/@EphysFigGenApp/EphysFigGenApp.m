@@ -15,7 +15,11 @@ classdef EphysFigGenApp < handle
     %                active dataset its files, digital lines, behavior and
     %                units. Right-click the table for Variables... (a grid of
     %                datasets x variables: values recorded on the datasets,
-    %                every change logged in the manifest) and View manifest...
+    %                every change logged in the manifest) and View manifest...;
+    %                Downsample... (onDownsample: DownsampleDialog) sets the
+    %                rate each signal (LFP, MUA, SPIKE, AUX) is brought to,
+    %                anti-aliased, before any figure reads it
+    %                (Source.Downsample)
     %     Alignment  the config's Defaults: the event reference (any digital
     %                line or "Trial", onset / offset, first / last / all / nth,
     %                trial or recording scope, and a sequence of events that
@@ -256,6 +260,8 @@ classdef EphysFigGenApp < handle
         BrowseOutputButton matlab.ui.control.Button
         NamePatternField   matlab.ui.control.EditField
         RecordingsDropDown matlab.ui.control.DropDown   % Source.Recordings (Open Ephys recording mode)
+        DownsampleLabel    matlab.ui.control.Label      % Source.Downsample in words ("LFP 250 Hz, AUX 100 Hz"; showDownsample)
+        DownsampleButton   matlab.ui.control.Button     % Downsample... (onDownsample: DownsampleDialog); amber while a rate is set
         FoldersArea        matlab.ui.control.TextArea
         AddFolderButton    matlab.ui.control.Button
         ScanButton         matlab.ui.control.Button
@@ -388,6 +394,7 @@ classdef EphysFigGenApp < handle
         Notes = []                          % the scanned datasets' notes: a DatasetNotes each, in Runner order (read on Scan)
         NotePadWindow = []                  % the notepad (NotePad), while open (openNotePad)
         VariableDialog = []                 % the variable dialog (VariableDialog), while open (onEditVariables)
+        DownsampleWindow = []               % the Downsample signals dialog (DownsampleDialog), while open (onDownsample)
         NotePadFollows (1,1) string = ""    % what the notepad follows: "dataset" (the active one), "observation" (the one picked), "" (the note it was opened on)
         NoteSearchWindow = []               % the Search notes window (NoteSearch), while open (onSearchNotes)
         DatasetUnits = []                   % sorted units per dataset, read when it is opened: containers.Map, "<key>|<sort folder>" -> table unitId, class, channel, depth (refreshDatasetLabels; labels the Favorites)
@@ -577,6 +584,8 @@ classdef EphysFigGenApp < handle
         onDatasetNoteClicked(obj, evt)
         dlg = onEditVariables(obj, idx)
         v = onViewManifest(obj, idx)
+        dlg = onDownsample(obj)
+        showDownsample(obj, rates)
         onDatasetsSorted(obj, evt)
         clearDatasetsSort(obj)
         selectDataset(obj, idx)

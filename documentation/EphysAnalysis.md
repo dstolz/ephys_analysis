@@ -179,11 +179,13 @@ coerces the rest and checks it: `eventRef(Name=Value)` or `eventRef(s, Name=Valu
 | `n` | 1 | the interval `"nth"` takes |
 | `scope` | `"auto"` | `"trial"`: the line's intervals whose edge lies inside each selected trial, `[TrialOnset, TrialOffset]` (an interval spanning several trials counts once, for the trial holding its edge); `"recording"`: every interval (`src.events`); `"auto"`: trial when the dataset has paired trials |
 | `minDurationSec`, `maxDurationSec` | 0, `Inf` | keep intervals whose length is in range |
+| `stitchGapSec` | 0 | intervals of the line at most this far apart become one, first onset to last offset (a sensor's dropouts in one visit) |
+| `refractorySec` | 0 | an interval that starts less than this after the interval before it ends is dropped, so a brief re-entry is not a new event; after the stitching, before the length filter ([stitching and the refractory period](EphysAnalysisConfig.md#stitching-and-the-refractory-period)) |
 | `timeRange` | `[-Inf Inf]` | keep events in range: from the trial onset (trial scope) or the recording start |
 | `offsetSec` | 0 | added to every event time |
 | `offsetParam` | `""` | a numeric trial parameter, e.g. `"RespLatency"`: each event is moved by its trial's value of it, so epochs can be aligned to a per-trial time such as the response (`line "RespWindow"`, `offsetParam "RespLatency"`). Needs paired trials; an event outside the trials, or whose trial has no finite value (a miss), is dropped |
 | `offsetParamUnit` | `"ms"` | `offsetParam`'s unit: `"ms"` (as Epsych2 stores times) or `"s"` |
-| `sequence` | none | steps that must (or must not) follow each event: a struct array of `relation` (`"followedBy"` / `"notFollowedBy"`), `line`, `edge`, `n`, `maxGapSec`, `minDurationSec`, `maxDurationSec` ([event sequences](EphysAnalysisConfig.md#event-sequences)) |
+| `sequence` | none | steps that must (or must not) follow each event: a struct array of `relation` (`"followedBy"` / `"notFollowedBy"`), `line`, `edge`, `n`, `maxGapSec`, `minDurationSec`, `maxDurationSec`, `stitchGapSec`, `refractorySec` ([event sequences](EphysAnalysisConfig.md#event-sequences)) |
 | `alignStep` | `Inf` | the sequence's event each epoch is aligned to: `0` the line's own, `k` step `k`, `Inf` the last followedBy step |
 
 An event can be a sequence of events. The first Trough onset after the end

@@ -17,7 +17,7 @@ function [on, off, hit, line] = eventIntervals(src, ref, t, shift)
 %
 %   See also epochIntervals, trialMeasure, resolveEvents.
 
-[line, edge] = alignedEvent(ref);
+[line, edge, from] = alignedEvent(ref);
 name = line;
 if line == "Trial" || (src.trialLine ~= "" && line == src.trialLine)
     name = src.trialLine;
@@ -28,6 +28,9 @@ if ~isfield(src.events, name)
 end
 iv = double(src.events.(name));
 if isempty(iv); iv = zeros(0, 2); end
+if isfield(from, 'stitchGapSec')   % the intervals the events were found in: stitched, past the refractory period
+    iv = cleanIntervals(iv, from.stitchGapSec, from.refractorySec);
+end
 col = 1 + (edge == "offset");
 move = ref.offsetSec + shift(:);          % what moved each event from its recorded edge
 raw = t(:) - move;
@@ -41,14 +44,15 @@ off(hit) = iv(loc(hit), 2) + move(hit);
 end
 
 
-function [line, edge] = alignedEvent(ref)
-%alignedEvent  The line and edge of the event an event reference aligns to (epochEvents' rule).
-line = ref.line; edge = ref.edge;
+function [line, edge, from] = alignedEvent(ref)
+%alignedEvent  The line and edge of the event an event reference aligns to (epochEvents' rule), and the reference or step FROM it is.
+line = ref.line; edge = ref.edge; from = ref;
 a = ref.alignStep;
 if isinf(a)
     a = find([string.empty(1, 0) ref.sequence.relation] == "followedBy", 1, 'last');   % none without steps
 end
 if ~isempty(a) && a >= 1
-    line = ref.sequence(a).line; edge = ref.sequence(a).edge;
+    from = ref.sequence(a);
+    line = from.line; edge = from.edge;
 end
 end

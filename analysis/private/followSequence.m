@@ -11,7 +11,9 @@ function [ok, t] = followSequence(src, ref, x, prep)
 %   of the dataset SRC (loadAnalysisSource) and walks REF.sequence from
 %   each:
 %     followedBy     the step's REF.sequence(k).n-th event (its line's
-%                    intervals of the step's length, by its edge) after the
+%                    intervals, stitched and past the refractory period as
+%                    the step says (cleanIntervals: stitchGapSec,
+%                    refractorySec), of the step's length, by its edge) after the
 %                    event before it, within maxGapSec, must exist; it
 %                    becomes the event before the next step
 %     notFollowedBy  no such event may come after the event before it,
@@ -98,7 +100,10 @@ prevKey = lineName(src, ref.line) + " " + ref.edge;
 for s = 1:numel(steps)
     st = steps(s);
     name = lineName(src, st.line);
-    iv = lineIntervals(src, name, st.line);
+    iv = lineIntervals(src, st.line, "the event sequence");
+    if isfield(st, 'stitchGapSec')          % the step's stitching and refractory period, before its lengths
+        iv = cleanIntervals(iv, st.stitchGapSec, st.refractorySec);
+    end
     dur = iv(:, 2) - iv(:, 1);
     iv = iv(dur >= st.minDurationSec & dur <= st.maxDurationSec, :);
     e = iv(:, 1 + (st.edge == "offset"));
@@ -127,20 +132,4 @@ name = line;
 if line == "Trial" && src.trialLine ~= ""
     name = src.trialLine;
 end
-end
-
-
-function iv = lineIntervals(src, name, line)
-%lineIntervals  [on off] intervals of a line over the recording.
-if isfield(src.events, name)
-    iv = double(src.events.(name));
-elseif line == "Trial" && src.hasTrials
-    iv = [src.trials.TrialOnset src.trials.TrialOffset];
-elseif src.hasTrials && height(src.trials) > 0 && isfield(src.trials.TrialEvents, char(name))
-    iv = unique(double(vertcat(src.trials.TrialEvents.(name), zeros(0, 2))), 'rows');   % the trials' copies, once each
-else
-    error('resolveEvents:NoLine', '%s: no digital line "%s" for the event sequence (lines: %s).', ...
-        src.name, line, strjoin(string(fieldnames(src.events)), ", "));
-end
-if isempty(iv); iv = zeros(0, 2); end
 end

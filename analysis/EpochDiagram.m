@@ -1041,6 +1041,8 @@ elseif lo > 0
 elseif isfinite(hi)
     p = p + " (pulses at most " + num(hi) + " s long)";
 end
+if ref.stitchGapSec > 0; p = p + " (gaps up to " + num(ref.stitchGapSec) + " s stitched)"; end
+if ref.refractorySec > 0; p = p + " (refractory " + num(ref.refractorySec) + " s)"; end
 origin = "the recording start";
 if scope == "trial"; origin = "the trial onset"; end
 tr = ref.timeRange;

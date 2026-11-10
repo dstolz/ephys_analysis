@@ -22,7 +22,9 @@ classdef AlignControls
     %
     %   The controls (fields of C)
     %     Event reference: Line, Edge, Which, N, Scope, Offset, MinDur /
-    %       MaxDur (Length), TimeFrom / TimeTo (Time range), ShiftParam /
+    %       MaxDur (Length), Stitch / Refractory (Stitch gaps, Refractory:
+    %       eventRef's stitchGapSec, refractorySec), TimeFrom / TimeTo
+    %       (Time range), ShiftParam /
     %       ShiftUnit (Shift by: eventRef's offsetParam, offsetParamUnit),
     %       SeqText / SeqEdit (Sequence: the steps that must, or must not,
     %       follow the event, eventRef's sequence and alignStep, kept in
@@ -68,8 +70,8 @@ classdef AlignControls
             [~, words] = respCodeBits();
 
             % --- event reference ------------------------------------------------------------
-            rg = uigridlayout(parents(1), [7 4]);
-            rg.RowHeight = repmat({22}, 1, 7);
+            rg = uigridlayout(parents(1), [8 4]);
+            rg.RowHeight = repmat({22}, 1, 8);
             rg.ColumnWidth = {95, '1x', 70, '1x'};
             rg.RowSpacing = 4;
             C.RefGrid = rg;
@@ -101,24 +103,35 @@ classdef AlignControls
             lab(rg, "to", 4, 3);
             C.MaxDur = uieditfield(rg, "text", "Value", "Inf", "ValueChangedFcn", cbRef, "Tooltip", "... and at most this long (Inf = no limit).");
             C.MaxDur.Layout.Row = 4; C.MaxDur.Layout.Column = 4;
-            lab(rg, "Time range (s):", 5, 1);
+            stitchTip = "Intervals of the line at most this many seconds apart (the end of one to the start of the next) " + ...
+                "become one interval, from the first onset to the last offset: a sensor's dropouts within one visit. 0 = off.";
+            lab(rg, "Stitch gaps (s):", 5, 1, stitchTip);
+            C.Stitch = uieditfield(rg, "numeric", "Value", 0, "Limits", [0 Inf], "ValueChangedFcn", cbRef, "Tooltip", stitchTip);
+            C.Stitch.Layout.Row = 5; C.Stitch.Layout.Column = 2;
+            refrTip = "Refractory period, s: an interval that starts less than this long after the interval before it ends " + ...
+                "is dropped, so a brief re-entry is not a new event and the interval before keeps its offset. Applied after " + ...
+                "the stitching; the figure's event rows of this line are drawn the same way. 0 = off.";
+            lab(rg, "Refractory:", 5, 3, refrTip);
+            C.Refractory = uieditfield(rg, "numeric", "Value", 0, "Limits", [0 Inf], "ValueChangedFcn", cbRef, "Tooltip", refrTip);
+            C.Refractory.Layout.Row = 5; C.Refractory.Layout.Column = 4;
+            lab(rg, "Time range (s):", 6, 1);
             C.TimeFrom = uieditfield(rg, "text", "Value", "-Inf", "ValueChangedFcn", cbRef, ...
                 "Tooltip", "Keep events in this range: from the trial onset (trial scope) or the recording start.");
-            C.TimeFrom.Layout.Row = 5; C.TimeFrom.Layout.Column = 2;
-            lab(rg, "to", 5, 3);
+            C.TimeFrom.Layout.Row = 6; C.TimeFrom.Layout.Column = 2;
+            lab(rg, "to", 6, 3);
             C.TimeTo = uieditfield(rg, "text", "Value", "Inf", "ValueChangedFcn", cbRef);
-            C.TimeTo.Layout.Row = 5; C.TimeTo.Layout.Column = 4;
-            lab(rg, "Shift by:", 6, 1);
+            C.TimeTo.Layout.Row = 6; C.TimeTo.Layout.Column = 4;
+            lab(rg, "Shift by:", 7, 1);
             C.ShiftParam = uidropdown(rg, "Editable", "on", "Items", "(none)", "Value", "(none)", "ValueChangedFcn", cbRef, ...
                 "Tooltip", "A trial parameter whose value on each event's trial is added to the event time, e.g. RespLatency " + ...
                 "to align to the response (Line RespWindow, onset). Events whose trial has no value (misses) are left out.");
-            C.ShiftParam.Layout.Row = 6; C.ShiftParam.Layout.Column = 2;
-            lab(rg, "unit:", 6, 3);
+            C.ShiftParam.Layout.Row = 7; C.ShiftParam.Layout.Column = 2;
+            lab(rg, "unit:", 7, 3);
             C.ShiftUnit = uidropdown(rg, "Items", ["ms" "s"], "Value", "ms", "ValueChangedFcn", cbRef, ...
                 "Tooltip", "The parameter's unit (Epsych2 stores times in ms).");
-            C.ShiftUnit.Layout.Row = 6; C.ShiftUnit.Layout.Column = 4;
-            lab(rg, "Sequence:", 7, 1);
-            [C.SeqText, C.SeqEdit] = sequenceRow(rg, 7, "The events that must (or must not) follow each event above, " + ...
+            C.ShiftUnit.Layout.Row = 7; C.ShiftUnit.Layout.Column = 4;
+            lab(rg, "Sequence:", 8, 1);
+            [C.SeqText, C.SeqEdit] = sequenceRow(rg, 8, "The events that must (or must not) follow each event above, " + ...
                 "e.g. Trial offset then Trough onset: the first Trough onset after each trial's end.");
             if ~isempty(opts.EditSequence)
                 C.SeqEdit.ButtonPushedFcn = @(~,~) opts.EditSequence(C.SeqText, C.Line, C.Edge, @() changed("ref"));
@@ -269,6 +282,8 @@ classdef AlignControls
             C.Offset.Value = ref.offsetSec;
             C.MinDur.Value = num2text(ref.minDurationSec);
             C.MaxDur.Value = num2text(ref.maxDurationSec);
+            C.Stitch.Value = ref.stitchGapSec;
+            C.Refractory.Value = ref.refractorySec;
             C.TimeFrom.Value = num2text(ref.timeRange(1));
             C.TimeTo.Value = num2text(ref.timeRange(2));
             setDrop(C.ShiftParam, noneIfEmpty(ref.offsetParam));
@@ -325,6 +340,8 @@ classdef AlignControls
             ref.scope = string(C.Scope.Value);
             ref.minDurationSec = text2num(C.MinDur.Value, 0);
             ref.maxDurationSec = text2num(C.MaxDur.Value, Inf);
+            ref.stitchGapSec = C.Stitch.Value;
+            ref.refractorySec = C.Refractory.Value;
             ref.timeRange = [text2num(C.TimeFrom.Value, -Inf) text2num(C.TimeTo.Value, Inf)];
             ref.offsetSec = C.Offset.Value;
             ref.offsetParam = paramOf(C.ShiftParam);
@@ -456,7 +473,8 @@ classdef AlignControls
             %   (shown, edited in the panel). The steps are a table: Then (followed
             %   by / not followed by), Line (a drop-down of LINECTL's lines), Edge,
             %   n, Within (s) (maxGapSec, Inf = up to the next trial), Min / Max
-            %   length (s). "Align to" picks the epoch's event (alignStep). Apply
+            %   length (s), Stitch gaps (s) and Refractory (s) (the step's
+            %   stitchGapSec, refractorySec). "Align to" picks the epoch's event (alignStep). Apply
             %   checks the steps (eventRef), stores them in HOLDER and calls DONE();
             %   Cancel drops them. The window opens over HOLDER's figure. Its
             %   UserData holds HOLDER (Holder) and its controls (Line, Edge, Table,
@@ -471,7 +489,7 @@ classdef AlignControls
             r.alignStep = holder.UserData.alignStep;
             ref = r;
 
-            pos = [100 100 720 470];
+            pos = [100 100 900 500];
             owner = ancestor(holder, 'figure');
             if ~isempty(owner); pos(1:2) = owner.Position(1:2) + 120; end
             f = uifigure("Name", "Event sequence", "Position", pos);
@@ -492,8 +510,8 @@ classdef AlignControls
             set([D.Line D.Edge], "Enable", "off", "Tooltip", "Set in the panel (Line, Edge).");
 
             % --- the steps --------------------------------------------------------------------
-            D.Table = uitable(g, "ColumnName", {'Then', 'Line', 'Edge', 'n', 'Within (s)', 'Min length (s)', 'Max length (s)'}, ...
-                "ColumnEditable", true, "RowName", {}, "ColumnWidth", {120, '1x', 80, 50, 90, 100, 100}, ...
+            D.Table = uitable(g, "ColumnName", {'Then', 'Line', 'Edge', 'n', 'Within (s)', 'Min length (s)', 'Max length (s)', 'Stitch gaps (s)', 'Refractory (s)'}, ...
+                "ColumnEditable", true, "RowName", {}, "ColumnWidth", {120, '1x', 80, 50, 80, 95, 95, 100, 95}, ...
                 "CellEditCallback", @(~,~) refreshAlign(), "CellSelectionCallback", @(~, e) onSelect(e));
             D.Table.Layout.Row = 2;
             bg = uigridlayout(g, [1 7]);
@@ -514,6 +532,8 @@ classdef AlignControls
                 """followed by"": the nth such event must come (it becomes the event before the next step); ""not followed by"": " + ...
                 "none may come. Within (s) limits how long after (Inf: any time), and with paired trials no step looks past " + ...
                 "the next trial's onset. An event whose sequence does not complete is left out (and counted). " + ...
+                "Stitch gaps (s): the step's intervals at most this far apart become one. Refractory (s): an interval that " + ...
+                "starts less than this after the one before ends is dropped, so a brief re-entry is not a new event (0: off). " + ...
                 "Lines here: " + strjoin(lines, ", ") + ".");
             D.Hint.Layout.Row = 4;
             ag = uigridlayout(g, [1 3]);
@@ -671,7 +691,8 @@ choices(choices == "") = [];
 line = categorical(stepLines, choices);   % a step without a line is <undefined> (dropped by tableSteps)
 T = table(rel, line, edge, reshape([S.n], [], 1), ...
     reshape([S.maxGapSec], [], 1), reshape([S.minDurationSec], [], 1), reshape([S.maxDurationSec], [], 1), ...
-    'VariableNames', {'Then', 'Line', 'Edge', 'n', 'Within', 'MinLength', 'MaxLength'});
+    reshape([S.stitchGapSec], [], 1), reshape([S.refractorySec], [], 1), ...
+    'VariableNames', {'Then', 'Line', 'Edge', 'n', 'Within', 'MinLength', 'MaxLength', 'Stitch', 'Refractory'});
 end
 
 
@@ -690,6 +711,8 @@ for k = 1:height(T)
     s.maxGapSec = T.Within(k);
     s.minDurationSec = T.MinLength(k);
     s.maxDurationSec = T.MaxLength(k);
+    s.stitchGapSec = T.Stitch(k);
+    s.refractorySec = T.Refractory(k);
     S(end+1) = s; %#ok<AGROW>
 end
 end

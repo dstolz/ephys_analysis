@@ -84,7 +84,7 @@ sel0 = EphysAnalysisConfig.defaults("TrialSelection");
 gray = [0.35 0.35 0.35];
 kinds = EphysAnalysisConfig.TrialMeasureKinds;
 kindLabels = ["Delay from an event to another" "Duration of an interval" "Count of events after an event" "A trial parameter"];
-abHeight = 232;
+abHeight = 258;
 
 pos = obj.Fig.Position;
 d = uifigure('Name', name + ": " + pid + ", layer " + i, 'Position', [pos(1) + 100, pos(2) + 60, 1000, 600], ...

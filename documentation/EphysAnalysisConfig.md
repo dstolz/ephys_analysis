@@ -87,7 +87,8 @@ distinct as file names: `{Plot}` replaces every character outside
                           "ExcludeTags": "pilot", "Search": "" } },
   "Defaults": {
     "EventRef":  { "line": "Stim", "edge": "onset", "which": "first", "n": 1, "scope": "auto",
-                   "minDurationSec": 0, "maxDurationSec": "Inf", "timeRange": ["-Inf", "Inf"], "offsetSec": 0,
+                   "minDurationSec": 0, "maxDurationSec": "Inf", "stitchGapSec": 0, "refractorySec": 0,
+                   "timeRange": ["-Inf", "Inf"], "offsetSec": 0,
                    "offsetParam": "", "offsetParamUnit": "ms" },
     "Window":    { "mode": "fixed", "pre": -0.2, "post": 0.8, "stop": [] },
     "Selection": { "filter": "", "response": [], "pairingFlags": "ok", "trials": [],
@@ -213,6 +214,8 @@ already applied. `"Trial"` is the paired trial line: each trial's own
 | the end of the response window | `line "RespWindow"`, `edge "offset"` |
 | 50 ms before each platform entry | `line "Platform"`, `which "all"`, `scope "recording"`, `offsetSec -0.05` |
 | only long platform visits | `line "Platform"`, `which "all"`, `scope "recording"`, `minDurationSec 1` |
+| each platform exit, not the brief re-entries after it | `line "Platform"`, `edge "offset"`, `which "all"`, `scope "recording"`, `refractorySec 0.5` |
+| the end of each platform visit, the sensor's dropouts closed | `line "Platform"`, `edge "offset"`, `which "all"`, `scope "recording"`, `stitchGapSec 0.2` |
 | the response (Epsych2's `RespLatency`, ms after the response window opens) | `line "RespWindow"`, `edge "onset"`, `offsetParam "RespLatency"`, `offsetParamUnit "ms"` |
 
 An event shifted by `offsetParam` keeps its trial (the one holding the
@@ -229,6 +232,26 @@ them by another event's latency without making it the stop:
 A line whose intervals lie between trials (`Platform` in the synthetic
 project) has no event in trial scope: use recording scope for it.
 
+#### Stitching and the refractory period
+
+A beam or a touch sensor often reports one visit as several intervals: it
+drops out for a moment, or the animal touches it again on the way out. Two
+settings clean the line before anything else looks at it:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `stitchGapSec` | 0 | intervals at most this far apart (the end of one to the start of the next) become one interval, from the first onset to the last offset. The offsets inside it are gone: the visit ends at the last one |
+| `refractorySec` | 0 | an interval that starts less than this after the interval before it ends is dropped: its onset is not a new event. The interval before keeps its offset. Each gap is measured from the interval before, kept or not, so a run of blips each closer than this to the last goes whole |
+
+Use `stitchGapSec` when the line dropped out but the animal stayed (the
+event you want is the last offset), and `refractorySec` when the first
+offset is the real one and what follows is noise. With both, stitching
+comes first. The line is cleaned over the whole recording, in trial scope
+too, and the length filter (`minDurationSec`, `maxDurationSec`), `which`
+and the rest see the cleaned intervals. A [sequence step](#event-sequences)
+has the two fields for its own line, and a figure's events layers take the
+alignment's for the same line ([Event traces](#event-traces)).
+
 #### Event sequences
 
 An event can be a sequence of events: the line's event, then steps that
@@ -243,6 +266,7 @@ which event of the sequence each epoch is aligned to.
 | `n` | 1 | followedBy: the nth such event after the event before |
 | `maxGapSec` | `Inf` | within this long after the event before |
 | `minDurationSec`, `maxDurationSec` | 0, `Inf` | count only intervals of this length |
+| `stitchGapSec`, `refractorySec` | 0, 0 | the step's line stitched and past its refractory period first ([above](#stitching-and-the-refractory-period)) |
 
 - Each step looks for its event after the event before it: the line's
   own event, or the last followedBy step's. A step on the same line and
@@ -274,11 +298,13 @@ which event of the sequence each epoch is aligned to.
 | the end of the first long Trough visit after the response window | `line "RespWindow"`, `edge "offset"`, `sequence [{line "Trough", edge "offset", minDurationSec 0.5}]` |
 | stimuli that a Trough onset follows within 1 s, at the stimulus | `line "Stim"`, `sequence [{line "Trough", maxGapSec 1}]`, `alignStep 0` |
 | trial ends with no Trough onset before the next trial | `line "Trial"`, `edge "offset"`, `sequence [{relation "notFollowedBy", line "Trough"}]` |
+| the first platform exit within 7 s of the trial onset, re-entries within 0.5 s not counted as new visits | `line "Trial"`, `sequence [{line "Platform", edge "offset", maxGapSec 7, refractorySec 0.5}]` |
 
 ```json
 "ref": { "line": "Trial", "edge": "offset", "which": "first", "scope": "trial",
          "sequence": [ { "relation": "followedBy", "line": "Trough", "edge": "onset", "n": 1,
-                         "maxGapSec": "Inf", "minDurationSec": 0, "maxDurationSec": "Inf" } ],
+                         "maxGapSec": "Inf", "minDurationSec": 0, "maxDurationSec": "Inf",
+                         "stitchGapSec": 0, "refractorySec": 0 } ],
          "alignStep": "Inf" },
 "selection": { "response": ["CR"] }
 ```
@@ -1677,7 +1703,12 @@ and is skipped (`An event-trace panel draws events layers only`); the layer's
 `eventsAs` is not used. The layer's `event` picks the intervals as a span does
 ([Spans](#raster-event-marks)): with the EventMark defaults (`which "all"`,
 `scope "recording"`) every interval of the line; `which`, the durations and a
-sequence narrow them. Each interval runs from its onset to its offset and
+sequence narrow them. A layer that sets neither `stitchGapSec` nor
+`refractorySec` takes those the panel's alignment uses for its line (the
+alignment's own, or its first sequence step's on that line), so the row shows
+the line as the epochs were cut from it ([Stitching and the refractory
+period](#stitching-and-the-refractory-period)); the events layers of the other
+panels (marks, spans, trains) do the same. Each interval runs from its onset to its offset and
 belongs to every epoch whose window it overlaps; one that starts before or ends
 after the window is drawn to its edge (a `"between"` epoch: to its own end). A
 line whose intervals are all single instants is skipped with the reason; a

@@ -37,6 +37,13 @@ function [t, trial, k, shift, nNoValue, nNoSequence] = resolveEvents(src, ref, m
 %   MASK is given (a restrictive trial selection), events outside the kept
 %   trials are dropped. line "Trial" is the pairing's trial line.
 %
+%   With REF.stitchGapSec or REF.refractorySec above 0 the line is cleaned
+%   first, over the whole recording in both scopes (cleanIntervals):
+%   intervals at most stitchGapSec apart become one, then an interval that
+%   starts less than refractorySec after the one before ends is dropped.
+%   The duration filter and everything after see the cleaned intervals. A
+%   sequence step's own two settings clean that step's line the same way.
+%
 %   With REF.sequence, the line's events are found as above and each is
 %   kept only when its sequence completes: every followedBy step's event
 %   comes after the event before it (within the step's maxGapSec) and no
@@ -105,10 +112,11 @@ if scope == "trial"
         end
     else
         evs = T.TrialEvents;
+        fix = lineCleaner(src, ref);   % the line stitched and past its refractory period (as given without either)
         for j = 1:numel(rows)
             iv = double(evs(rows(j)).(ref.line));
             if isempty(iv); iv = zeros(0, 2); end
-            ivs{j} = iv;
+            ivs{j} = fix(iv);
         end
         nIv = cellfun(@(c) size(c, 1), ivs);
         allIv = vertcat(ivs{:}, zeros(0, 2));
@@ -148,6 +156,8 @@ else
     end
     iv = double(src.events.(line));
     if isempty(iv); iv = zeros(0, 2); end
+    fix = lineCleaner(src, ref);
+    iv = fix(iv);
     prep = [];
     if isfield(ref, 'sequence') && ~isempty(ref.sequence)
         prep = followSequence(src, ref);

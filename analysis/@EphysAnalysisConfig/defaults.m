@@ -87,6 +87,8 @@ switch section
             'scope',          "auto", ...      % "trial" | "recording" | "auto" (trial when paired)
             'minDurationSec', 0, ...           % keep intervals at least this long
             'maxDurationSec', Inf, ...         % ... and at most this long
+            'stitchGapSec',   0, ...           % intervals at most this far apart become one (0: none; cleanIntervals)
+            'refractorySec',  0, ...           % an interval starting less than this after the one before ends is dropped (0: none)
             'timeRange',      [-Inf Inf], ...  % s from trial onset (trial scope) or recording start
             'offsetSec',      0, ...           % added to every event time
             'offsetParam',    "", ...          % "" | a trial parameter: its value on the event's trial is added too (e.g. RespLatency)
@@ -103,7 +105,9 @@ switch section
             'n',              1, ...           % followedBy: the nth such event after the one before
             'maxGapSec',      Inf, ...         % at most this long after the event before (never past the next trial's onset)
             'minDurationSec', 0, ...           % count intervals at least this long
-            'maxDurationSec', Inf);            % ... and at most this long
+            'maxDurationSec', Inf, ...         % ... and at most this long
+            'stitchGapSec',   0, ...           % the step's intervals at most this far apart become one (0: none)
+            'refractorySec',  0);              % one starting less than this after the one before ends is dropped (0: none)
 
     case "EpochWindow"
         s = struct( ...

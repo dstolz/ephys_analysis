@@ -30,7 +30,18 @@ function ref = eventRef(s, opts)
 %                     else recording
 %     minDurationSec, maxDurationSec   keep intervals whose length lies in
 %                     this range (default 0 .. Inf)
-%     timeRange       [a b] s: keep intervals whose chosen edge lies in this
+%     stitchGapSec    intervals of the line at most this far apart (the end
+%                     of one to the start of the next) become one interval,
+%                     first onset to last offset: a sensor's dropouts in
+%                     one visit (default 0: none)
+%     refractorySec   an interval that starts less than this after the
+%                     interval before it ends is dropped: a brief re-entry
+%                     is not a new event, and the interval before keeps
+%                     its offset (default 0: none). Stitching comes first,
+%                     and both come before the length filter and
+%                     everything else, over the whole recording
+%                     (resolveEvents)
+%     timeRange      [a b] s: keep intervals whose chosen edge lies in this
 %                     range, relative to the trial onset in trial scope and to
 %                     the recording start in recording scope
 %     offsetSec       added to every resulting event time
@@ -54,6 +65,9 @@ function ref = eventRef(s, opts)
 %                                  (default Inf)
 %                       minDurationSec, maxDurationSec   count only
 %                                  intervals of this length
+%                       stitchGapSec, refractorySec   the step's line
+%                                  stitched and past its refractory period
+%                                  first, as the two fields above
 %                     Each step searches from the event before it (the line's
 %                     own, or the last followedBy step's), never past the
 %                     next trial's onset when the dataset has paired trials.
@@ -82,6 +96,8 @@ arguments
     opts.scope (1,1) string
     opts.minDurationSec (1,1) double
     opts.maxDurationSec (1,1) double
+    opts.stitchGapSec (1,1) double
+    opts.refractorySec (1,1) double
     opts.timeRange (1,2) double
     opts.offsetSec (1,1) double
     opts.offsetParam (1,1) string
@@ -117,6 +133,8 @@ end
 if ~(ref.minDurationSec >= 0 && ref.maxDurationSec >= ref.minDurationSec)
     error('eventRef:BadValue', 'Need 0 <= minDurationSec <= maxDurationSec.');
 end
+mustBeGap(ref.stitchGapSec, "stitchGapSec");
+mustBeGap(ref.refractorySec, "refractorySec");
 if ~(ref.timeRange(1) <= ref.timeRange(2))
     error('eventRef:BadValue', 'timeRange must be [a b] with a <= b.');
 end
@@ -143,6 +161,8 @@ for k = 1:numel(ref.sequence)
     if ~(st.minDurationSec >= 0 && st.maxDurationSec >= st.minDurationSec)
         error('eventRef:BadValue', '%s: need 0 <= minDurationSec <= maxDurationSec.', what);
     end
+    mustBeGap(st.stitchGapSec, what + ".stitchGapSec");
+    mustBeGap(st.refractorySec, what + ".refractorySec");
     ref.sequence(k) = st;
 end
 a = ref.alignStep;
@@ -152,6 +172,13 @@ if ~(a == 0 || a == Inf || (a >= 1 && a == round(a) && a <= numel(ref.sequence))
 end
 if a >= 1 && isfinite(a) && ref.sequence(a).relation ~= "followedBy"
     error('eventRef:BadValue', 'alignStep %d is a "notFollowedBy" step, which has no event to align to.', a);
+end
+end
+
+
+function mustBeGap(v, name)
+if ~(v >= 0 && isfinite(v))
+    error('eventRef:BadValue', '%s must be 0 (off) or a finite number of seconds above 0.', name);
 end
 end
 

@@ -459,6 +459,62 @@ check(strcmp(errorId(@() eventRef(ref, sequence=struct('relation', "before", 'li
     && strcmp(errorId(@() epochTable(sp, eventRef(ref, sequence=struct('line', "Poke", 'n', 9)))), 'resolveEvents:NoEvents'), ...
     'a bad relation, no line, a gap of 0, an alignStep past the steps or on a notFollowedBy step: eventRef:BadValue; an unknown step line: NoLine; none left: NoEvents');
 
+fprintf('\n== 5d. stitching and the refractory period ==\n');
+V = [on(3) - 0.30, on(3) + 0.10     % A: a visit that began before trial 3 and ends in it
+     on(3) + 0.14, on(3) + 0.16     % a blip 0.04 s after A
+     on(3) + 0.20, on(3) + 0.22     % another, 0.04 s after the first
+     on(3) + 0.50, on(3) + 0.55     % C: 0.28 s after the blips
+     on(7) + 0.10, on(7) + 0.20];   % D: alone in trial 7
+[c0, m0] = cleanIntervals(V, 0, 0);
+[cr, mr] = cleanIntervals(V, 0, 0.1);
+[cs, ms] = cleanIntervals(V([4 2 5 1 3], :), 0.05, 0);   % any order in
+[cb, mb] = cleanIntervals(V, 0.05, 0.3);
+check(isequal(c0, V) && isequal(m0, (1:5).') && isequal(cr, V([1 4 5], :)) && isequal(mr, [1 0 0 2 3].') ...
+    && isequal(cs, [V(1, 1) V(3, 2); V(4:5, :)]) && isequal(ms, [2 1 3 1 1].') ...
+    && isequal(cb, [V(1, 1) V(3, 2); V(5, :)]) && isequal(mb, [1 1 1 0 2].') && isempty(cleanIntervals(zeros(0, 2), 1, 1)), ...
+    ['cleanIntervals: refractory drops an interval starting sooner after the one before (a run of blips whole); ' ...
+     'stitch joins intervals at most the gap apart (first onset to last offset); stitch first, then refractory; 0 0 leaves the list']);
+sv = withLine(src, "Vis", V);
+vis = eventRef(line="Vis", edge="offset", which="all", scope="trial");
+[t0v, trv] = resolveEvents(sv, vis);
+[tr1, trr] = resolveEvents(sv, eventRef(vis, refractorySec=0.1));
+ts1 = resolveEvents(sv, eventRef(vis, stitchGapSec=0.05));
+tq = resolveEvents(sv, eventRef(vis, scope="recording", refractorySec=0.1));
+check(isequal(t0v, V(:, 2)) && isequal(trv, [3 3 3 3 7].') && isequal(tr1, V([1 4 5], 2)) && isequal(trr, [3 3 7].') ...
+    && isequal(ts1, V([3 4 5], 2)) && isequal(tq, tr1), ...
+    'an event reference''s refractorySec / stitchGapSec clean its line in trial and recording scope (the blips'' offsets go; a stitched visit ends at its last offset)');
+E = epochTable(sv, eventRef(line="Trial", sequence=struct('line', "Vis", 'edge', "offset", 'n', 2, 'refractorySec', 0.1)));
+E1 = epochTable(sv, eventRef(line="Trial", sequence=struct('line', "Vis", 'edge', "offset", 'n', 2)));
+Es = epochTable(sv, eventRef(line="Trial", sequence=struct('line', "Vis", 'edge', "offset", 'stitchGapSec', 0.05)));
+check(isequal(E.trial, 3) && E.t0 == V(4, 2) && isequal(E1.trial, 3) && E1.t0 == V(2, 2) ...
+    && isequal(Es.trial, [3; 7]) && isequal(Es.t0, V([3 5], 2)), ...
+    'a sequence step''s refractorySec / stitchGapSec clean the step''s line: the 2nd offset is C''s, not a blip''s; stitched, the first is the visit''s last');
+E = epochTable(sv, eventRef(line="Trial"), Window=epochWindow(pre=-0.2, post=8, ...
+    stop=eventRef(line="Vis", refractorySec=0.1)), Incomplete="keep");
+E1 = epochTable(sv, eventRef(line="Trial"), Window=epochWindow(pre=-0.2, post=8, stop=eventRef(line="Vis")), Incomplete="keep");
+check(E.t1(E.trial == 3) == V(4, 1) && E1.t1(E1.trial == 3) == V(2, 1) && E.t1(E.trial == 7) == V(5, 1), ...
+    'a stop event''s refractorySec: the first Vis onset after the trial''s start that is a new visit');
+Eb = epochTable(sv, eventRef(line="Trial"), Window=epochWindow(pre=-0.5, post=1), Incomplete="keep");
+k3 = find(Eb.trial == 3);
+Iv = epochIntervals(sv, Eb, eventRef(line="Vis", which="all", scope="recording", stitchGapSec=0.05));
+in3 = Iv.epoch == k3;
+check(nnz(in3) == 2 && max(abs(sort(Iv.on(in3)) - [-0.30; 0.50])) < 1e-9 && max(abs(sort(Iv.off(in3)) - [0.22; 0.55])) < 1e-9, ...
+    'epochIntervals draws the stitched intervals (eventIntervals matches the events to the cleaned line)');
+Eseq = epochTable(sv, eventRef(line="Trial", sequence=struct('line', "Vis", 'edge', "offset", 'refractorySec', 0.1)));
+row = eventRef(line="Vis", which="all", scope="recording");
+r1 = lineCleanupFrom(row, Eseq, []);
+r2 = lineCleanupFrom(eventRef(row, stitchGapSec=0.02), Eseq, []);
+r3 = lineCleanupFrom(eventRef(row, line="Stim"), Eseq, []);
+r4 = lineCleanupFrom(row, [], eventRef(line="Vis", stitchGapSec=0.05));
+Ir = epochIntervals(sv, Eb, r1);
+check(r1.refractorySec == 0.1 && r1.stitchGapSec == 0 && r2.refractorySec == 0 && r2.stitchGapSec == 0.02 ...
+    && r3.refractorySec == 0 && r4.stitchGapSec == 0.05 && nnz(Ir.epoch == k3) == 2, ...
+    'an events layer takes the alignment''s cleanup for its line (its own, or its step''s), keeps its own when set, and another line is left');
+check(strcmp(errorId(@() eventRef(vis, refractorySec=-1)), 'eventRef:BadValue') ...
+    && strcmp(errorId(@() eventRef(vis, stitchGapSec=Inf)), 'eventRef:BadValue') ...
+    && strcmp(errorId(@() eventRef(line="Trial", sequence=struct('line', "Vis", 'refractorySec', -0.1))), 'eventRef:BadValue'), ...
+    'stitchGapSec and refractorySec are 0 or a finite time above it, on the reference and on a step');
+
 fprintf('\n== 6. late-start: cut trials are not used ==\n');
 src2 = loadAnalysisSource(F.outputs(2));
 T2 = F.truth(2);

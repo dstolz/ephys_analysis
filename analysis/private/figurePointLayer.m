@@ -22,6 +22,9 @@ function lay = figurePointLayer(src, L, lay, E, G, ctx, opts)
 %         t0Continuous, with a one-row meta (selectUnits' columns; label =
 %         eventRefLabel, class "event"), then spikePSTH: an ordinary
 %         one-unit PSTH result (raster rows, rate)
+%   An events layer's reference takes the stitching and refractory period
+%   the panel's alignment uses for its line, unless it sets its own
+%   (lineCleanupFrom).
 %   Each spikePSTH result also gets epochs (E), dataset and, from Name=Value,
 %   nothing else: a raster panel adds its sort event itself.
 %   Data the dataset lacks (no unit left, no such event) skips the layer
@@ -58,7 +61,7 @@ end
 
 ctx.checkpoint();
 if L.source == "events"
-    ref = eventMarkRef(L.event);
+    ref = lineCleanupFrom(eventMarkRef(L.event), E, ctx.ref);   % the line as the panel's alignment cleans it
     label = eventRefLabel(ref);
     if lay.name == ""; lay.name = label; end
     try

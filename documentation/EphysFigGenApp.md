@@ -233,6 +233,8 @@ field; in short:
 | **Scope** | `trial`: the line's intervals whose edge lies inside a selected trial; `recording`: every interval; `auto`: trial when the dataset has paired trials, else recording |
 | **Offset (s)** | added to every event time |
 | **Length (s)** | keep the intervals whose length lies in this range (`0` to `Inf`) |
+| **Stitch gaps (s)** | intervals of the line at most this far apart become one, from the first onset to the last offset: a sensor's dropouts within one visit. `0` = off (`stitchGapSec`) |
+| **Refractory** | seconds: an interval that starts less than this after the interval before it ends is dropped, so a brief re-entry is not a new event and the interval before keeps its offset. After the stitching, before **Length (s)**. The figure's event rows and marks of the same line are drawn the same way. `0` = off (`refractorySec`: [stitching and the refractory period](EphysAnalysisConfig.md#stitching-and-the-refractory-period)) |
 | **Time range (s)** | keep the events in this range, from the trial onset (trial scope) or the recording start |
 | **Shift by**, **unit** | a trial parameter whose value on each event's trial is added to the event, in ms (default, as Epsych2 stores times) or s: *RespWindow onset* shifted by *RespLatency* is the response. The trials without a value (misses) are left out, and the count says how many (`offsetParam`, `offsetParamUnit`) |
 | **Sequence**, **Edit...** | the events that must (or must not) follow each event above, shown as e.g. *then Trough onset*; *none* by default (`sequence`, `alignStep`: [event sequences](EphysAnalysisConfig.md#event-sequences)). **Edit...** opens the *Event sequence* window (below) |
@@ -241,7 +243,11 @@ field; in short:
 and lists the steps after it in a table: **Then** (*followed by* or *not
 followed by*), **Line**, **Edge**, **n** (the nth such event), **Within
 (s)** (how long after the event before; *Inf* = any time before the next
-trial), **Min / Max length (s)** (count only intervals of this length).
+trial), **Min / Max length (s)** (count only intervals of this length),
+**Stitch gaps (s)** and **Refractory (s)** (the step's line cleaned first,
+as the panel's two fields of those names clean its own: a step *followed
+by Platform offset* with **Refractory (s)** 0.5 does not take a re-entry
+within 0.5 s of an exit as a new visit).
 **Add step**, **Remove step**, **Up** and **Down** edit the list (select a
 row first). **Align to** picks the epoch's event: the start, a *followed
 by* step, or *the last step* (default). **Apply** checks the sequence and

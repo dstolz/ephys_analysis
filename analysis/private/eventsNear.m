@@ -54,6 +54,7 @@ prep = [];
 if isfield(ref, 'sequence') && ~isempty(ref.sequence)
     prep = followSequence(src, ref);
 end
+fix = lineCleaner(src, ref);   % the line stitched and past its refractory period (as given without either)
 ok = isfinite(shift) & isfinite(tA);
 if ref.scope == "trial"
     useTrial = true(n, 1);
@@ -86,7 +87,7 @@ if ~isempty(inTrial)
         if isTrialLine
             iv = [on(r) off(r)];
         else
-            iv = double(evs(r).(ref.line));
+            iv = fix(double(evs(r).(ref.line)));
         end
         if isempty(iv); continue; end
         [e, ~, rows] = pickEvents(iv, allRef, on(r), -Inf, src, prep);   % ascending by edge, offsetSec added
@@ -111,6 +112,7 @@ if ~isempty(rec)
     end
     recIv = double(src.events.(line));
     if isempty(recIv); recIv = zeros(0, 2); end
+    recIv = fix(recIv);
     % every qualifying event once: its own edge xs (sorted) and the time it aligns to ts
     allRef.offsetSec = 0;
     [ts, ~, rows] = pickEvents(recIv, allRef, 0, -Inf, src, prep);

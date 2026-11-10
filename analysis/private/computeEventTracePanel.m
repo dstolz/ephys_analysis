@@ -4,7 +4,9 @@ function P = computeEventTracePanel(src, panel, E, G, ctx)
 %   compute for "eventTrace"; CTX from EphysAnalysisRunner.computeFigure)
 %   has P.layers, one per layer of PANEL (figurePanelLayers). Each events
 %   layer (one digital or derived line, its event an EventMark) is
-%   epochIntervals of eventMarkRef(L.event) over the panel's epochs E, with
+%   epochIntervals of eventMarkRef(L.event) (with the stitching and
+%   refractory period the panel's alignment uses for that line, unless the
+%   layer sets its own: lineCleanupFrom) over the panel's epochs E, with
 %   R.kind "eventTrace" (fields line, label, epoch, on, off, window,
 %   nEpochs: s from each epoch's event, not clipped) and what orders its
 %   epochs' sub-rows as a raster's (figEpochOrder): epochGroup (each
@@ -50,7 +52,7 @@ for j = 1:numel(P.layers)
     end
     ctx.checkpoint();
     try
-        R = epochIntervals(src, E, eventMarkRef(L.event));
+        R = epochIntervals(src, E, lineCleanupFrom(eventMarkRef(L.event), E, ctx.ref));
     catch ME
         P.layers(j).skip = figureLayerError(ME);
         continue

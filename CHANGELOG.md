@@ -10,6 +10,15 @@ says how to cut a release.
 
 ### Added
 
+- Event references and sequence steps: **Stitch gaps (s)** and **Refractory** (`stitchGapSec`, `refractorySec`; 0 =
+  off) clean a digital line before anything else reads it. Stitching joins intervals at most the gap apart into one
+  (first onset to last offset: a sensor's dropouts in one visit); the refractory period drops an interval that starts
+  sooner than that after the interval before ends, so a brief re-entry is not a new event and the interval before
+  keeps its offset. Stitching first, both before the length filter, over the whole recording in trial scope too. The
+  event reference controls (Alignment tab, figure editor, trial measures, dataset browser) have the two fields and the
+  *Event sequence* window two columns for each step; stop events take them from the config. A figure's events layers
+  (event-trace rows, marks, spans, trains) take the alignment's settings for their line unless they set their own.
+  New private `cleanIntervals`, `lineCleaner`, `lineCleanupFrom`; `lineIntervals` is `followSequence`'s, now shared.
 - Pipeline app, Review tab: **Plot in new figure**, under the units table, draws the selected units (Ctrl+click or
   Shift+click for more; else the focused one) each on every channel of its shank, side by side in a new figure, with
   the shank plot's Spikes, count, Mean and band. The shank plot and the figure share `drawUnitOnShank`.

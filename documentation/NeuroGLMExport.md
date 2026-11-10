@@ -43,9 +43,10 @@ others.
 | Call | Returns |
 | --- | --- |
 | `[expt, keep] = NeuroGLMExport.experiment(spans, ...)` | neuroGLM's experiment struct, one trial per row of `spans` (`[start stop]`, s on the continuous clock). `Spikes=` (struct: label → spike times, s) registers spike trains, `Events=` (label → event times) timing variables, `Values=` (a table, a row per span) per-trial values, `Continuous=` (label → `struct(data=[N x d], fs=)`) continuous variables resampled to the bin rate and cut. `BinMs` (1), `Id`, `Param` (kept in `expt.param`), `Describe` (label → description). `keep` marks the spans that became trials |
-| `dspec = NeuroGLMExport.designSpec(expt, ...)` | a design: a raised-cosine kernel per timing variable (`Events=`, all by default; `KernelMs` 500, `NBases` 8, `Shape`), `Acausal=` events whose kernel spans `[-AcausalMs, KernelMs]` (`AcausalMs` = `KernelMs` by default), `GroupBy=` a value variable and `GroupEvents=` the events that get one kernel per value (included only on the trials with it, the paper's coherence-dependent kernels; labels `<event>__<value>`; a value of `""` gets none; several variables split different events: `GroupBy=["group" "response"], GroupEvents={"Stim_on", "RespWindow_on"}`, and an event takes one split), `History` (true; `HistoryMs` 200, `HistoryBases` 10, log-stretched raised cosines), `Coupling` (false; a filter from every other spike train, `coupling_<label>`), `Continuous=` (all; instantaneous). `Response=` the spike train modeled (label or index, 1); kept in `dspec.response` |
-| `F = NeuroGLMExport.fit(dspec, Trials=, Response=, Method=, Ridge=, RidgeGrid=)` | the design matrix (`F.dm`, constant columns removed), the binned response `F.y` and a Poisson GLM. `Method="glmfit"` (default): maximum likelihood by `glmfit`, `stats` its stats. `Method="matRegress"`: neuroGLM's route, `glms.neglog.poisson` with its gradient and Hessian minimized by `fminunc` (trust-region) under a ridge prior of precision `Ridge` on every weight but the bias (the penalty `Ridge/2 · ‖w‖²`; 1 by default, 0 = maximum likelihood), or `Ridge="evidence"`: the precision on `RidgeGrid` (`logspace(-2, 4, 13)`) with the largest Laplace approximation of the log marginal likelihood, the paper's evidence optimization (`F.ridge` the value used, `F.evidence` the grid's log evidence); standard errors from the Hessian at the optimum, `stats.hessian` / `stats.covb`. Either way: `bias`, `w`, `se`, `kernels` (`buildGLM.combineWeights`: `kernels.<covariate>.tr` ms from the event, `.data` the log-rate change, so `exp(data)` is the gain), `kernelSE` (the same shape; covariances ignored, as neuroGLM's tutorial), `rate` (spikes/s per bin), `deviance`, `logLik`, `logLikNull` (a constant rate), `bitsPerSpike` (their difference per spike in bits, the paper's single-trial prediction measure), `nSpikes`, `nBins`, `method`, `ridge` |
-| `P = NeuroGLMExport.predict(F, trials)` | the model's rate on any trials (held-out ones give the cross-validated prediction): `t{k}` (ms from the trial's start), `rate{k}` (spikes/s), `counts{k}` (the response's spikes per bin), `logLik`, `bitsPerSpike` |
+| `dspec = NeuroGLMExport.designSpec(expt, ...)` | a design: a raised-cosine kernel per timing variable (`Events=`, all by default; `KernelMs` 500, `NBases` 8, `Shape`), `Acausal=` events whose kernel spans `[-AcausalMs, KernelMs]` (`AcausalMs` = `KernelMs` by default), `GroupBy=` a value variable and `GroupEvents=` the events that get one kernel per value (included only on the trials with it, the paper's coherence-dependent kernels; labels `<event>__<value>`; a value of `""` gets none; several variables split different events: `GroupBy=["group" "response"], GroupEvents={"Stim_on", "RespWindow_on"}`, and an event takes one split), `History` (true; `HistoryMs` 200, the filter's reach: it covers the lags from one bin to `HistoryMs` after a spike at any bin size; `HistoryBases` 10 log-stretched raised cosines, fewer with the warning `NeuroGLMExport:HistoryBases` when the lags cannot tell that many apart), `Coupling` (false; a filter from every other spike train, `coupling_<label>`), `Continuous=` (all; instantaneous). `Response=` the spike train modeled (label or index, 1); kept in `dspec.response`. `dspec.covariates` is a table with a row per covariate: `label`, `source` (the experiment's variable), `kind` (`"event"`, `"history"`, `"coupling"`, `"continuous"`), `by` and `level` (the `GroupBy` variable and its value) |
+| `F = NeuroGLMExport.fit(dspec, Trials=, Response=, Method=, Ridge=, RidgeGrid=)` | the design matrix (`F.dm`, constant columns removed), the binned response `F.y` and a Poisson GLM. `Method="glmfit"` (default): maximum likelihood by `glmfit`, `stats` its stats. `Method="matRegress"`: neuroGLM's route, `glms.neglog.poisson` with its gradient and Hessian minimized by `fminunc` (trust-region) under a ridge prior of precision `Ridge` on every weight but the bias (the penalty `Ridge/2 · ‖w‖²`; 1 by default, 0 = maximum likelihood), or `Ridge="evidence"`: the precision on `RidgeGrid` (`logspace(-2, 4, 13)`) with the largest Laplace approximation of the log marginal likelihood, the paper's evidence optimization (`F.ridge` the value used, `F.evidence` the grid's log evidence); standard errors from the Hessian at the optimum, `stats.hessian` / `stats.covb`. Either way: `bias`, `w`, `se`, `kernels` (`buildGLM.combineWeights`: `kernels.<covariate>.tr` ms from the event, `.data` the log-rate change, so `exp(data)` is the gain), `kernelSE` (the same shape: the standard error of the kernel itself, from the weights' full covariance; NaN where the data say nothing), `converged` (false when `glmfit` stopped at its iteration limit or `fminunc`'s exit flag was not positive), `rate` (spikes/s per bin), `deviance`, `logLik`, `logLikNull` (a constant rate), `bitsPerSpike` (their difference per spike in bits, the paper's single-trial prediction measure), `nSpikes`, `nBins`, `method`, `ridge` |
+| `P = NeuroGLMExport.predict(F, trials)` | the model's rate on any trials (held-out ones give the cross-validated prediction): `t{k}` (ms from the trial's start), `rate{k}` (spikes/s), `counts{k}` (the response's spikes per bin), `logLik`, `logLikNull`, `bitsPerSpike`. With a history or coupling filter the rate of a bin is the model's given the spikes observed before it |
+| `T = NeuroGLMExport.lockedEvents(expt, Events=, Trials=, WithinMs=1000, ToleranceMs=, MinFraction=0.95)` | the pairs of timing variables a fixed time apart: a table with `first`, `second`, `lagMs` (the median), `fractionFirst`, `fractionSecond` (of each one's events with its partner at that lag, give or take `ToleranceMs`, one bin by default), `nFirst`, `nSecond`. Each event is paired with the nearest event of the other variable in its trial; a pair is listed when both fractions reach `MinFraction` and the lag is shorter than `WithinMs`. See [Events a fixed time apart](#events-a-fixed-time-apart) |
 | `fits = NeuroGLMExport.fitUnits(expt, units, Design=, Trials=, Test=, Method=, Ridge=, Workers=, ProgressFcn=, LogFcn=, CheckFcn=)` | a design fitted and tested per row of `units` (`info.units`), on process workers (`Workers=`, 0 = here): `fits(j).unit`, `.dspec`, `.F`, `.P` in the rows' order. `ProgressFcn(fraction, message)` and `LogFcn(message)` report each unit as it finishes; an error from `CheckFcn` (e.g. `@() B.checkCancel()`) stops the workers and is raised |
 | `[train, test] = NeuroGLMExport.split(expt, TestFraction=0.2, Blocked=true, Seed=0)` | the trials to fit and to hold out (indices into `expt.trial`, for `fit`'s `Trials` and `fitUnits`'s `Trials` / `Test`), by [`splitTrials`](../analysis/splitTrials.m) on the trials' spans: the held-out trials are the last block of the session holding about `TestFraction` of them, not trials picked from all over it (trials next to each other share drift and spike history, so scattered held-out trials are predicted from their own neighbors), and trials whose spans overlap are never split between the two. `Blocked=false` picks whole groups at random (`Seed`). `TestFraction=0`, a single trial or spans that all overlap hold nothing out: `test` is `train` (the last two with the warning `NeuroGLMExport:NoHoldOut`) |
 | `n = NeuroGLMExport.fitWorkers(dspec, trials, maxWorkers)` | how many process workers can fit this design at once, with the pool open: at most `maxWorkers`, fewer when memory is short (a worker holds about 4 full design matrices); 0 = fit here, with the warning `NeuroGLMExport:SerialFit` when workers were asked for and cannot be had |
@@ -78,6 +79,10 @@ others.
   and nudged by 1 ns into the bin that starts on a bin edge.
 - Labels are MATLAB field names (`matlab.lang.makeValidName`, made unique);
   `sessionDataNeuroGLM` keeps the originals in `info` and `expt.param`.
+- neuroGLM builds the design matrix **one trial at a time**: a kernel stops
+  at its trial's end (an acausal one starts at its start), and the spike
+  history starts empty in every trial, also when the trials tile the
+  session.
 
 ## `sessionDataNeuroGLM`
 
@@ -136,18 +141,28 @@ trials is held out, `NeuroGLMExport.split`) with a kernel per line edge (one per
 browser's event line when `opts.groupKernels` is on), the trial's response (below), a
 spike-history filter and,
 with `opts.withSignal = "LFP"`, the LFP as a covariate, predicts the held-out
-trials and prints bits per spike for both, a line per unit. The fit is the paper's by default
+trials and prints bits per spike for both, a line per unit; the line says so when the
+fit did not converge, or when the ridge the evidence picked is at an end of its grid. The fit is the paper's by default
 (`opts.fitMethod = "matRegress"`, `opts.ridge = "evidence"`); `opts.fitMethod = "glmfit"`
 is the quick maximum-likelihood alternative. The workspace gets `glm{k}` per dataset fitted (`expt`,
-`info`, the train/test split, and `fits`, one element per unit: `unit`,
-`dspec`, `F`, `P`) and three figures:
+`info`, the train/test split, `lockedEvents`, and `fits`, one element per unit: `unit`,
+`dspec`, `F`, `P`) and, with `opts.plots`, three figures of the first dataset's unit
+with the most spikes (not the one predicted best):
 
-1. the **kernels** as gains over time from each event, with their standard
-   error, grouped kernels on one tile in the groups' colors;
-2. four **held-out trials**: the spikes, a 100-ms boxcar rate and the model's
-   rate, with each line's onsets marked (the paper's Fig. 4);
-3. the **PSTH per trial group**, data against model, aligned to the trial's
-   start (Fig. 2c).
+1. the **kernels** as gains on a logarithmic axis over time from each event, with
+   the gain a standard error either side as thin lines, grouped kernels on one
+   tile in the groups' colors; the spike-history filter, the coupling filters
+   and the signal's weights have tiles of their own;
+2. four **held-out trials**, evenly spaced through the held-out block: the
+   spikes, their rate under a 100-ms boxcar and the model's rate under the same
+   boxcar, with each line's onsets marked (the paper's Fig. 4);
+3. the **held-out PSTH per trial group**, spikes against model, aligned to the
+   trial's start (Fig. 2c).
+
+With a spike-history filter, the model's rate in figures 2 and 3 is the rate
+given the spikes observed before each bin, not a simulation from the events
+alone. For another dataset or unit, set `kPlot` and `jPlot` in the script's
+last section and run that section again.
 
 The trial's response enters the model as the paper's choice-dependent saccade
 kernels do:
@@ -185,7 +200,8 @@ You choose the covariates in the GLM with these settings:
 | kernels per response word | `opts.responses` on `opts.responseEvents`, only those in `opts.events` |
 | spike history | `opts.history` |
 | coupling | `opts.coupling` |
-| a signal | `opts.withSignal` (`"LFP"`, `"MUA"`, `"AUX"`, or `""` for none); for `"AUX"`, `opts.auxParts` picks the columns, each z-scored: `"magnitude"` (the vector magnitude of the axes less their 2-s running mean), `"axes"` (those axes, signed) and `"slow"` (the 2-s running means) |
+| spike history | `opts.historyMs` (500), its reach after a spike, and `opts.historyBases` (10) |
+| a signal | `opts.withSignal` (`"LFP"`, `"MUA"`, `"AUX"`, or `""` for none); for `"AUX"`, `opts.auxParts` picks the columns, each z-scored: `"magnitude"` (the vector magnitude of the axes less their 2-s running mean), `"axes"` (those axes, signed) and `"slow"` (the 2-s running means). `glm{k}.expt.param.channels` names the columns in the order of the covariate's weights. LFP and MUA go in as they are, in microvolts |
 
 Every line stays in `glm{k}.expt` whatever `opts.events` holds, so the plots
 can still mark it. Decoding in a plot script needs the response kernels it
@@ -193,8 +209,8 @@ swaps, e.g. `response_time` split by `Hit` and `Miss`.
 
 The fields of `opts` at the top of the script (`binMs`, `window`, `minTrials`, `minSpikes`, `events`, `kernelMs`,
 `acausal`, `acausalMs`, `groupKernels`, `responses`, `responseEvents`, `responseTime`,
-`responseLine`, `responseEdge`, `responseAfter`, `history`, `coupling`, `withSignal`,
-`auxParts`, `fitMethod`, `ridge`, `workers`, `outDir`) are the knobs; `opts.workers` (4; 0 =
+`responseLine`, `responseEdge`, `responseAfter`, `history`, `historyMs`, `historyBases`, `coupling`, `withSignal`,
+`auxParts`, `fitMethod`, `ridge`, `workers`, `plots`, `outDir`) are the knobs; `opts.workers` (4; 0 =
 one unit after the other in MATLAB itself) fits the units on process workers
 (`fitUnits`), fewer when memory is short, so the per-unit lines print as the fits
 finish while `fits` stays in unit order. The browser's progress strip follows
@@ -204,20 +220,70 @@ neuroGLM's own API applies to `glm{k}.expt` and `glm{k}.fits(j).dspec`
 (`buildGLM.addCovariate`, `addCovariateBoxcar`, ... as in its `tutorial.m`),
 and `NeuroGLMExport.fit` / `predict` take any design built on the experiment.
 
+### Events a fixed time apart
+
+The model tells two kernels apart only through the trials on which the time
+between their events differs. The paper: "if the interval between the onset
+of the choice targets and the saccade were constant, we could not
+differentiate spikes time-locked to the targets from those time-locked to
+the saccade"; neuroGLM's documentation: of two perfectly correlated timings,
+include one. A digital line's onset and offset are such a pair whenever its
+pulse has one length, and `opts.events` empty gives both a kernel.
+
+For each dataset the script prints the pairs of `opts.events` that sit a fixed
+time apart on the trials fitted, closer than their kernels reach
+(`NeuroGLMExport.lockedEvents`; `glm{k}.lockedEvents`), a line per pair that
+names the two events, the lag between them, and the share of each one's
+events that have the other at that lag.
+
+The prediction and bits per spike are unharmed. What is not determined is
+the split between the two kernels over the lags they share, which the ridge
+prior makes for you: read the two together, or name one of the pair in
+`opts.events`.
+
 ## Notes
 
+- **Against the paper.** The script's defaults are not the paper's analysis:
+  5-ms bins (`opts.binMs`; the paper 1 ms); one kernel length for every
+  event (`opts.kernelMs` 500 ms; the paper an event's own, 0.5 to 5.3 s);
+  every line an impulse at each edge (the paper's motion stimulus is a boxcar
+  of its duration, neuroGLM's `addCovariateBoxcar`); a spike-history filter
+  of `opts.historyBases` log-stretched raised cosines over `opts.historyMs`
+  (the paper ten 1-ms steps and ten such cosines over 265 ms); one split
+  with the last block of trials held out (the paper five random folds).
+  Decoding is not implemented.
 - **Bins and memory.** `fit` makes the design matrix full for the
   regression: bins × columns doubles. At 1 ms, 300 trials of 3 s and 100 columns are
   720 MB; `BinMs=5` or `10` is usually plenty for event kernels and far
-  faster. The spike-history basis keeps its 1-ms resolution only at
-  `BinMs=1`.
+  faster.
+- **The spike-history filter** covers the lags from one bin to `HistoryMs`
+  after a spike, whatever the bin: its first raised cosine peaks one bin
+  after the spike, so the refractory period and bursts are resolved only
+  down to the bin, and at 5 ms a bin can hold more than one spike. neuroGLM's
+  `makeNonlinearRaisedCos` lays its lattice out in bins but reads its end
+  points as if a bin were 1 ms; `designSpec` calls it with the end points in
+  bins, so the filter ends at `HistoryMs` at any bin size.
 - **Bits per spike** compares the fit's Poisson log-likelihood with a
   constant rate's, per spike, in bits (the paper's Fig. 5a); a held-out
   `predict` gives the cross-validated value. Above 0 the model predicts
-  better than the mean rate.
-- **Standard errors of the kernels** combine the basis weights' variances
-  without their covariances (as neuroGLM's tutorial does): a guide, not a
-  confidence band. `F.stats.covb` has the full covariance.
+  better than the mean rate. The constant rate is the mean rate of the
+  trials the value is computed on: on held-out trials the constant-rate
+  model is given their own rate and the GLM is not, so the held-out value
+  leans low when the rate drifts between the trials fitted and the block
+  held out.
+- **Standard errors of the kernels.** A kernel is its basis times its
+  weights, `B * w`, so `F.kernelSE` is `sqrt(diag(B * C * B'))` with `C` the
+  weights' covariance (`F.stats.covb`), the covariances between neighboring
+  weights included. With a ridge prior it is the posterior standard
+  deviation of the Laplace approximation. It is NaN at the lags of a basis
+  function that was left out of the fit as a constant column (an event that
+  never came up in the trials fitted): there the kernel is 0 by
+  construction and the data say nothing.
+- **Convergence.** `F.converged` is false when `glmfit` stopped at its
+  iteration limit (its warning is not shown) or `fminunc` ended with an exit
+  flag of 0 or less. Under maximum likelihood a basis function with no spike
+  under it has no optimum (its weight runs to minus infinity); the ridge
+  prior gives it one.
 - **Ridge and evidence.** With few trials, maximum likelihood (`glmfit`, or
   `Ridge=0`) leaves rarely-occurring events' kernels unconstrained (huge
   error bands, gains clamped in the script's plot). The ridge prior shrinks

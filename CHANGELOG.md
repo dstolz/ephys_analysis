@@ -25,9 +25,35 @@ says how to cut a release.
   `opts.minSpikes` (100) a unit with fewer spikes in them; each dataset prints where its trials went. The trials tile
   the session by default (`opts.window = [-0.5 Inf]`), so events between trials, such as `Trough_on`, have kernels.
   `sessionDataNeuroGLM`'s `info.nDroppedSignal` counts the trials the signal does not cover.
+- `S_DatasetBrowserToNeuroGLM.m` draws the three figures its header and the documentation describe, which it did not:
+  one unit's kernels as gains with their standard error, four held-out trials (the spikes and the model's rate under
+  one 100 ms boxcar, the lines' onsets marked) and the held-out PSTH per trial group. `opts.plots` turns them off. The
+  unit is the first dataset's with the most spikes, and the trials are evenly spaced through the held-out block.
+- `NeuroGLMExport.lockedEvents`: the pairs of events a fixed time apart on nearly every trial (a line's onset and
+  offset when its pulse has one length), whose kernels cannot be told apart where they overlap, as the paper and
+  neuroGLM's documentation warn. The script prints them per dataset and keeps them in `glm{k}.lockedEvents`.
+- `NeuroGLMExport.fit`: `F.converged` (false when `glmfit` stopped at its iteration limit or `fminunc`'s exit flag was
+  not positive). A unit's line in the script says so, and says when the ridge the evidence picked is at an end of its
+  grid. `NeuroGLMExport.designSpec`: `dspec.covariates`, a table naming each covariate's variable, kind, split and
+  level. `S_DatasetBrowserToNeuroGLM.m`: `opts.historyBases`, and the manifest notes the units not converged and the
+  locked pairs.
 
 ### Changed
 
+- `NeuroGLMExport.designSpec`: `HistoryMs` is the spike-history (and coupling) filter's reach, as documented: the
+  filter covers the lags from one bin to `HistoryMs` after a spike at any bin size. It was the peak of the last raised
+  cosine, with the filter running 3 to 4 times as long (200 ms gave 653 ms; the script's 500 ms gave 2 s), and at bins
+  other than 1 ms the cosines were stretched by the bin size and the last ones cut short (neuroGLM's
+  `makeNonlinearRaisedCos` lays its lattice out in bins but reads its end points as ms; it is now called with the end
+  points in bins). Fits with a history or coupling filter change, since the filter is shorter:
+  `opts.historyMs = 2000` in the script brings back about the old span. With too few lags for `HistoryBases` raised
+  cosines, fewer are used (`NeuroGLMExport:HistoryBases`).
+- `NeuroGLMExport.fit`: `F.kernelSE` is the standard error of the kernel itself, `sqrt(diag(B * C * B'))` from the
+  weights' full covariance, in place of the weights' variances combined without their covariances (neuroGLM's
+  tutorial); NaN, not 0, at the lags of a basis function left out as a constant column. With `Method="matRegress"` the
+  evidence and the standard errors use the objective and Hessian evaluated at the weights returned.
+- `S_DatasetBrowserToNeuroGLM.m`: the AUX covariate's columns are named in `glm{k}.expt.param.channels` (it listed the
+  AUX channels, not the columns made from them).
 - `sessionDataNeuroGLM`: `response_time` comes from the digital lines alone, the first `ResponseLine` `ResponseEdge`
   after each `ResponseAfter` onset (before the next trial's onset), on every trial whatever its response word;
   `ResponseLatency` and the trial-offset fallback on Miss and CR trials are gone. `S_DatasetBrowserToNeuroGLM.m` uses

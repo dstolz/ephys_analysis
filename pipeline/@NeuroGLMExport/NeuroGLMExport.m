@@ -26,6 +26,10 @@ classdef NeuroGLMExport
     %     split         the trials to fit and the trials to hold out: a block
     %                   of consecutive trials, never one overlapping a fitted
     %                   trial (splitTrials)
+    %     lockedEvents  the pairs of events a fixed time apart on nearly every
+    %                   trial: where their kernels overlap only the sum of the
+    %                   two is determined (the paper: variable timing is what
+    %                   tells task components apart)
     %   sessionDataNeuroGLM (analysis/) feeds experiment from a sessionData
     %   struct (DatasetBrowser's B.Sessions).
     %
@@ -62,6 +66,10 @@ classdef NeuroGLMExport
     %     snapped span is expt.trial(k).span. Without one the start is kept.
     %   - Variable labels are MATLAB field names (matlab.lang.makeValidName,
     %     made unique); the callers keep the original names in expt.param.
+    %   - neuroGLM builds the design matrix one trial at a time: a kernel
+    %     stops at its trial's end (an acausal one starts at its start), and
+    %     the spike history starts empty in every trial, also when the
+    %     trials tile the session.
     %
     %   See also sessionDataNeuroGLM, FieldTripExport, ChronuxDataset.
 
@@ -241,8 +249,16 @@ classdef NeuroGLMExport
             %                  several GroupBy, a cell of them, one per
             %                  variable. An event takes one split
             %     History      a spike-history filter on the response (true)
-            %     HistoryMs    its reach, ms (200)
-            %     HistoryBases raised cosines, log-stretched (10)
+            %     HistoryMs    its reach, ms (200): the filter covers the lags
+            %                  from one bin to HistoryMs after a spike, at any
+            %                  bin size (the paper's spans 265 ms)
+            %     HistoryBases raised cosines, log-stretched (10): neuroGLM's
+            %                  makeNonlinearRaisedCos laid out on the bins,
+            %                  the first peak one bin after the spike, the
+            %                  last one back at zero at HistoryMs. Fewer are
+            %                  used, with the warning
+            %                  NeuroGLMExport:HistoryBases, when the lags
+            %                  (HistoryMs / BinMs) cannot tell that many apart
             %     Coupling     a coupling filter from every other spike train
             %                  (false), with the history basis
             %     Continuous   the continuous variables as instantaneous
@@ -252,6 +268,14 @@ classdef NeuroGLMExport
             %   dspec.groupLevels their values, a cell with one per variable.
             %   Kernels: covariate label = the event label; grouped kernels
             %   "<event>__<value>"; history "hist"; coupling "coupling_<label>".
+            %   dspec.covariates is a table with a row per covariate: label,
+            %   source (the experiment's variable it is built on), kind
+            %   ("event" | "history" | "coupling" | "continuous"), by and
+            %   level (the GroupBy variable and its value; "" without).
+            %   Errors: NeuroGLMExport:NoSpikeTrain, :BadResponse, :BadEvent,
+            %   :BadContinuous, :BadGroupBy, :BadGroupEvents, :BadHistory
+            %   (HistoryMs shorter than two bins, or fewer than two
+            %   HistoryBases), :EmptyDesign.
             arguments
                 expt (1,1) struct
                 opts.Response = 1
@@ -337,6 +361,7 @@ classdef NeuroGLMExport
             binfun = expt.binfun;
             preMs = opts.AcausalMs;
             if isempty(preMs); preMs = opts.KernelMs; end
+            rows = strings(0, 5);      % dspec.covariates: label, source, kind, by, level
             for lab = events
                 if ismember(lab, opts.Acausal)
                     spanMs = preMs + opts.KernelMs;
@@ -360,25 +385,30 @@ classdef NeuroGLMExport
                         covLabel = char(lab + "__" + tag);
                         dspec = buildGLM.addCovariateTiming(dspec, covLabel, char(lab), ...
                             sprintf('%s (%s = %s)', expt.desc.(lab), by, string(L)), bs, offset, cond);
+                        rows(end + 1, :) = [string(covLabel), lab, "event", by, string(L)]; %#ok<AGROW>
                     end
                 else
                     dspec = buildGLM.addCovariateTiming(dspec, char(lab), char(lab), expt.desc.(lab), bs, offset);
+                    rows(end + 1, :) = [lab, lab, "event", "", ""]; %#ok<AGROW>
                 end
             end
             if opts.History || opts.Coupling
-                hb = basisFactory.makeNonlinearRaisedCos(opts.HistoryBases, expt.binSize, [0 opts.HistoryMs], 1);
+                hb = NeuroGLMExport.historyBasis(opts.HistoryBases, expt.binSize, opts.HistoryMs);
             end
             if opts.History
                 dspec = buildGLM.addCovariateSpiketrain(dspec, 'hist', char(resp), 'Spike history', hb);
+                rows(end + 1, :) = ["hist", resp, "history", "", ""];
             end
             if opts.Coupling
                 for lab = setdiff(spikeLabels, resp, 'stable')
                     dspec = buildGLM.addCovariateSpiketrain(dspec, char("coupling_" + lab), char(lab), ...
                         char("Coupling from " + lab), hb);
+                    rows(end + 1, :) = ["coupling_" + lab, lab, "coupling", "", ""]; %#ok<AGROW>
                 end
             end
             for lab = conts
                 dspec = buildGLM.addCovariateRaw(dspec, char(lab), expt.desc.(lab));
+                rows(end + 1, :) = [lab, lab, "continuous", "", ""]; %#ok<AGROW>
             end
             if ~isfield(dspec, 'covar') || isempty(fieldnames(dspec.covar))
                 error('NeuroGLMExport:EmptyDesign', 'The design has no covariate: give Events, History, Coupling or Continuous.');
@@ -386,6 +416,7 @@ classdef NeuroGLMExport
             dspec.response = resp;
             dspec.groupBy = groupBy;
             dspec.groupLevels = levels;
+            dspec.covariates = array2table(rows, 'VariableNames', {'label', 'source', 'kind', 'by', 'level'});
             dspec.options = opts;
         end
 
@@ -416,9 +447,14 @@ classdef NeuroGLMExport
             %   by the largest Laplace approximation of the log marginal
             %   likelihood, the paper's evidence optimization. F.ridge is the
             %   value used, F.evidence the grid's log evidence (NaN when
-            %   the Hessian was not positive definite).
+            %   the Hessian was not positive definite). A value at either
+            %   end of RidgeGrid means the largest evidence may lie
+            %   beyond the grid.
             %   F fields
             %     expt, dspec, trials, response, binMs, method, ridge, ridgeGrid, evidence
+            %     converged   false when the optimizer stopped short: glmfit
+            %                 at its iteration limit (its warning is not
+            %                 shown), fminunc with an exit flag of 0 or less
             %     dm, y       the design matrix struct (dm.X sparse, dm.constCols)
             %                 and the binned response (counts per bin, sparse)
             %     bias        the constant term (log spikes per bin at rest)
@@ -427,15 +463,23 @@ classdef NeuroGLMExport
             %     kernels     buildGLM.combineWeights: kernels.<covariate>.tr
             %                 (ms from the event) and .data (the log-rate
             %                 change, the gain is exp(data))
-            %     kernelSE    the same shape for sqrt of the variance
-            %                 combined as the weights are (neuroGLM's
-            %                 tutorial: covariances ignored)
+            %     kernelSE    the same shape: the standard error of each
+            %                 kernel itself, sqrt(diag(B * C * B')) for its
+            %                 basis B and its weights' covariance C
+            %                 (stats.covb), covariances between the weights
+            %                 included; with a ridge prior, the posterior
+            %                 standard deviation of the Laplace
+            %                 approximation. NaN at the lags of a basis
+            %                 function that was left out as a constant
+            %                 column (its event never came up), where the
+            %                 data say nothing
             %     rate        the fitted rate per bin, spikes per s
             %     deviance    2 (saturated log-likelihood - logLik)
             %     stats       glmfit's stats, or hessian / covb (the
             %                 weights' covariance, bias first) from matRegress
             %     logLik, logLikNull   Poisson log-likelihood of the fit and
-            %                 of a constant rate
+            %                 of a constant rate (the mean rate of these
+            %                 trials)
             %     bitsPerSpike   (logLik - logLikNull) / nSpikes / log(2),
             %                 the paper's single-trial prediction measure
             %     nSpikes, nBins
@@ -476,14 +520,18 @@ classdef NeuroGLMExport
             F.ridge = 0;
             F.ridgeGrid = [];
             F.evidence = [];
+            F.converged = true;
             F.dm = dm;
             F.y = y;
             switch opts.Method
                 case "glmfit"
                     ws = warning('off', 'stats:glmfit:IterationLimit');
                     cleanup = onCleanup(@() warning(ws)); %#ok<NASGU>
+                    lastwarn('', '');
                     [b, ~, stats] = glmfit(X, yf, 'poisson');
+                    [~, lastId] = lastwarn;     % set whether or not the warning is shown
                     clear cleanup
+                    F.converged = ~strcmp(lastId, 'stats:glmfit:IterationLimit');
                     F.bias = b(1);
                     F.w = b(2:end);
                     F.se = stats.se(2:end);
@@ -502,7 +550,7 @@ classdef NeuroGLMExport
                         end
                         grid = double(ridge);
                     end
-                    [b, se, H, ev] = NeuroGLMExport.fitRidge(X, yf, grid);
+                    [b, se, H, ev, F.converged] = NeuroGLMExport.fitRidge(X, yf, grid);
                     F.bias = b(1);
                     F.w = b(2:end);
                     F.se = se(2:end);
@@ -514,11 +562,7 @@ classdef NeuroGLMExport
                     F.stats = struct('hessian', H, 'covb', inv(H));
             end
             F.kernels = buildGLM.combineWeights(dm, F.w);
-            v = buildGLM.combineWeights(dm, F.se .^ 2);
-            for f = string(fieldnames(v)).'
-                if isstruct(v.(f)); v.(f).data = sqrt(max(v.(f).data, 0, 'includenan')); end   % an unknown SE stays NaN, not 0
-            end
-            F.kernelSE = v;
+            F.kernelSE = NeuroGLMExport.kernelSE(dm, F.kernels, F.stats.covb(2:end, 2:end));
             eta = F.bias + X * F.w;
             lambda = exp(eta);                                    % spikes per bin
             F.rate = lambda * 1000 / F.binMs;
@@ -540,9 +584,17 @@ classdef NeuroGLMExport
             %     P.t{k}     bin starts, ms from the trial's start
             %     P.rate{k}  the model's rate, spikes per s, per bin
             %     P.counts{k}   the response's spike counts per bin
-            %     P.logLik, P.bitsPerSpike   as fit, over these trials
+            %     P.logLik, P.logLikNull, P.bitsPerSpike   as fit, over these
+            %                trials. The constant rate of logLikNull is the
+            %                mean rate of these trials themselves, not of
+            %                the trials fitted: the constant-rate model is
+            %                given the rate of the trials it is tested on,
+            %                the GLM is not, so held-out bits per spike lean
+            %                low when the rate drifts between the two
             %   Held-out trials (not in F.trials) give the cross-validated
-            %   prediction.
+            %   prediction. With a spike-history or coupling filter the rate
+            %   of a bin is the model's given the spikes observed before
+            %   it (one step ahead), not a simulation from the events alone.
             arguments
                 F (1,1) struct
                 trials double = []
@@ -606,6 +658,97 @@ classdef NeuroGLMExport
             end
             train = reshape(find(S.fold == 1), 1, []);
             test = reshape(find(S.fold == 2), 1, []);
+        end
+
+        function T = lockedEvents(expt, opts)
+            %lockedEvents  The pairs of events a fixed time apart, whose kernels cannot be told apart where they overlap.
+            %   T = NeuroGLMExport.lockedEvents(expt, Events=, Trials=, WithinMs=, ToleranceMs=, MinFraction=)
+            %   The model tells two kernels apart only through trials on
+            %   which the time between their events differs (the paper:
+            %   "if the interval between the onset of the choice targets and
+            %   the saccade were constant, we could not differentiate spikes
+            %   time-locked to the targets from those time-locked to the
+            %   saccade"; neuroGLM's documentation: of two perfectly
+            %   correlated timings, include one). A line's onset and offset
+            %   are such a pair when its pulse has one length. Where the
+            %   kernels of a locked pair overlap, only their sum is
+            %   determined: the prediction is unharmed, the split between
+            %   the two is the prior's.
+            %   Each event is paired with the nearest event of the other
+            %   variable in its trial. A pair is locked when at least
+            %   MinFraction of the events of each variable have their
+            %   partner at the pair's median lag, give or take ToleranceMs,
+            %   and that lag is shorter than WithinMs.
+            %   Options
+            %     Events       the timing variables compared (all)
+            %     Trials       the trials looked at (all); the trials fitted
+            %     WithinMs     the longest lag reported, ms (1000): the reach
+            %                  of the kernels, beyond which they do not overlap
+            %     ToleranceMs  how far from the median lag still counts (one bin)
+            %     MinFraction  of each variable's events (0.95)
+            %   T is a table with a row per locked pair: first, second (the
+            %   variables, second following first), lagMs (the median),
+            %   fractionFirst, fractionSecond (of each one's events with its
+            %   partner at that lag), nFirst, nSecond (their events).
+            arguments
+                expt (1,1) struct
+                opts.Events string = string.empty
+                opts.Trials double = []
+                opts.WithinMs (1,1) double {mustBePositive} = 1000
+                opts.ToleranceMs double = []
+                opts.MinFraction (1,1) double {mustBePositive, mustBeLessThanOrEqual(opts.MinFraction, 1)} = 0.95
+            end
+            labels = string(fieldnames(expt.type)).';
+            timing = labels(cellfun(@(l) strcmp(expt.type.(l), 'timing'), cellstr(labels)));
+            events = reshape(opts.Events, 1, []);
+            if isempty(events); events = timing; end
+            missing = setdiff(events, timing);
+            if ~isempty(missing)
+                error('NeuroGLMExport:BadEvent', 'Not a registered timing variable: %s.', strjoin(missing, ', '));
+            end
+            trials = reshape(opts.Trials, 1, []);
+            if isempty(trials); trials = 1:numel(expt.trial); end
+            tol = opts.ToleranceMs;
+            if isempty(tol); tol = expt.binSize; end
+            first = strings(0, 1); second = strings(0, 1);
+            lagMs = zeros(0, 1); fractionFirst = zeros(0, 1); fractionSecond = zeros(0, 1);
+            nFirst = zeros(0, 1); nSecond = zeros(0, 1);
+            for i = 1:numel(events) - 1
+                for j = i + 1:numel(events)
+                    % lags second - first, once from each side: every event with the nearest one of the other variable
+                    fromA = cell(numel(trials), 1); fromB = fromA;
+                    nA = 0; nB = 0;
+                    for k = 1:numel(trials)
+                        tr = expt.trial(trials(k));
+                        ta = reshape(tr.(events(i)), [], 1);
+                        tb = reshape(tr.(events(j)), [], 1);
+                        nA = nA + numel(ta); nB = nB + numel(tb);
+                        if isempty(ta) || isempty(tb); continue; end
+                        D = tb.' - ta;                               % [nA x nB]: row a, column b
+                        [~, ib] = min(abs(D), [], 2);                % each a's nearest b
+                        fromA{k} = reshape(D(sub2ind(size(D), (1:numel(ta)).', ib)), [], 1);
+                        [~, ia] = min(abs(D), [], 1);                % each b's nearest a
+                        fromB{k} = reshape(D(sub2ind(size(D), ia(:), (1:numel(tb)).')), [], 1);
+                    end
+                    fromA = vertcat(fromA{:}); fromB = vertcat(fromB{:});
+                    if isempty(fromA); continue; end
+                    lag = median([fromA; fromB]);
+                    fA = nnz(abs(fromA - lag) <= tol) / nA;
+                    fB = nnz(abs(fromB - lag) <= tol) / nB;
+                    if fA < opts.MinFraction || fB < opts.MinFraction || abs(lag) >= opts.WithinMs; continue; end
+                    if lag >= 0
+                        first(end + 1, 1) = events(i); second(end + 1, 1) = events(j); %#ok<AGROW>
+                        fractionFirst(end + 1, 1) = fA; fractionSecond(end + 1, 1) = fB; %#ok<AGROW>
+                        nFirst(end + 1, 1) = nA; nSecond(end + 1, 1) = nB; %#ok<AGROW>
+                    else
+                        first(end + 1, 1) = events(j); second(end + 1, 1) = events(i); %#ok<AGROW>
+                        fractionFirst(end + 1, 1) = fB; fractionSecond(end + 1, 1) = fA; %#ok<AGROW>
+                        nFirst(end + 1, 1) = nB; nSecond(end + 1, 1) = nA; %#ok<AGROW>
+                    end
+                    lagMs(end + 1, 1) = abs(lag); %#ok<AGROW>
+                end
+            end
+            T = table(first, second, lagMs, fractionFirst, fractionSecond, nFirst, nSecond);
         end
 
         function fits = fitUnits(expt, units, opts)
@@ -803,6 +946,81 @@ classdef NeuroGLMExport
     end
 
     methods (Static, Access = private)
+        function hb = historyBasis(nBases, binMs, reachMs)
+            %historyBasis  neuroGLM's log-stretched raised cosines for a spike-history or coupling filter that ends reachMs after a spike.
+            %   hb = historyBasis(nBases, binMs, reachMs) is
+            %   basisFactory.makeNonlinearRaisedCos' basis with a row per lag
+            %   of 1 .. round(reachMs / binMs) bins (addCovariateSpiketrain
+            %   shifts it by its nlOffset, one bin, so a spike never acts
+            %   on its own bin): the first cosine peaks one bin after the
+            %   spike, the last one is back at zero at reachMs.
+            %   makeNonlinearRaisedCos lays its lattice out in bins but
+            %   reads its end points and offset as if a bin were 1 ms, so it
+            %   is called here with a bin of 1 and the end points in bins;
+            %   handed the bin size and ms it stretches the cosines binMs
+            %   times too far and cuts the last ones short. The last peak
+            %   that ends the lattice at n lags is (n + 0.5)^((nBases - 1) /
+            %   (nBases + 1)) - 1 bins (two peak spacings before the end, on
+            %   the log axis).
+            %   Close to the spike the cosines are narrower than a bin, so
+            %   too few lags cannot tell nBases of them apart: the most that
+            %   are independent are used, with the warning
+            %   NeuroGLMExport:HistoryBases.
+            nLags = round(reachMs / binMs);
+            if nLags < 2 || nBases < 2
+                error('NeuroGLMExport:BadHistory', ...
+                    'The history filter needs a reach of two bins or more and two or more bases (HistoryMs %g at %g ms bins is %d bin(s), HistoryBases %d).', ...
+                    reachMs, binMs, nLags, nBases);
+            end
+            n = min(nBases, nLags);
+            while true
+                lastPeak = (nLags + 0.5) ^ ((n - 1) / (n + 1)) - 1;
+                hb = basisFactory.makeNonlinearRaisedCos(n, 1, [0 lastPeak], 1);
+                if n == 2 || rank(hb.B) == n; break; end
+                n = n - 1;
+            end
+            if n < nBases
+                warning('NeuroGLMExport:HistoryBases', ...
+                    'The history filter has %d raised cosines, not %d: its %d lags (%g ms at %g ms bins) cannot tell more apart.', ...
+                    n, nBases, nLags, reachMs, binMs);
+            end
+        end
+
+        function S = kernelSE(dm, kernels, C)
+            %kernelSE  The standard error of each kernel, from the covariance C of the weights (the columns of dm.X, no bias).
+            %   A kernel is B * w, its basis times its weights, so its
+            %   variance at each lag is diag(B * C * B'), the covariances
+            %   between the weights included (neuroGLM's tutorial combines
+            %   the variances alone, as it combines the weights). S has
+            %   kernels' fields: S.<covariate>.tr and .data, data NaN at the
+            %   lags of a basis function whose column was removed as
+            %   constant (removeConstantCols), where the data say nothing.
+            dspec = dm.dspec;
+            kept = full(~dm.constCols(:)).';
+            Cfull = zeros(dspec.edim);
+            Cfull(kept, kept) = C;
+            cols = buildGLM.getGroupIndicesFromDesignSpec(dspec);
+            S = kernels;
+            for k = 1:numel(dspec.covar)
+                covar = dspec.covar(k);
+                idx = cols{k};
+                if isempty(covar.basis)
+                    v = diag(Cfull(idx, idx));
+                    v(~kept(idx)) = NaN;
+                else
+                    B = covar.basis.B;
+                    m = covar.basis.edim;
+                    v = zeros(size(B, 1), covar.edim / m);
+                    for s = 1:size(v, 2)
+                        ii = idx((1:m) + m * (s - 1));
+                        v(:, s) = sum((B * Cfull(ii, ii)) .* B, 2);
+                        v(any(B(:, ~kept(ii)) ~= 0, 2), s) = NaN;
+                    end
+                end
+                S.(covar.label).data = sqrt(max(v, 0, 'includenan'));    % an unknown SE stays NaN, not 0
+            end
+        end
+
         function w = windowRows(times, t0, tEnd)
             %windowRows  A time vector sorted, and for each window [t0, tEnd) the rows that hold it.
             %   W = NeuroGLMExport.windowRows(TIMES, T0, TEND): W.times the
@@ -825,22 +1043,31 @@ classdef NeuroGLMExport
         function reportFit(opts, nDone, nU, part)
             %reportFit  fitUnits' ProgressFcn and, with a finished unit PART, LogFcn.
             if ~isempty(part) && ~isempty(opts.LogFcn)
-                opts.LogFcn(sprintf('unit %s: %d trials fitted (%s, ridge %g), %d held out; %.3f bits/spike (fit), %.3f (held out)', ...
-                    part.unit.label, numel(part.F.trials), part.F.method, part.F.ridge, numel(part.P.trials), part.F.bitsPerSpike, part.P.bitsPerSpike));
+                note = "";
+                if ~part.F.converged; note = note + "; the fit did not converge"; end
+                if numel(part.F.ridgeGrid) > 1 && any(part.F.ridge == part.F.ridgeGrid([1 end]))
+                    note = note + "; the ridge is at an end of its grid";
+                end
+                opts.LogFcn(sprintf('unit %s: %d trials fitted (%s, ridge %g), %d held out; %.3f bits/spike (fit), %.3f (held out)%s', ...
+                    part.unit.label, numel(part.F.trials), part.F.method, part.F.ridge, numel(part.P.trials), part.F.bitsPerSpike, part.P.bitsPerSpike, note));
             end
             if ~isempty(opts.ProgressFcn)
                 opts.ProgressFcn(nDone / max(nU, 1), sprintf('%d/%d units', nDone, nU));
             end
         end
 
-        function [b, se, H, ev] = fitRidge(X, y, grid)
+        function [b, se, H, ev, converged] = fitRidge(X, y, grid)
             %fitRidge  Poisson GLM with a ridge prior by fminunc, over a grid of precisions.
-            %   [b, se, H, ev] = fitRidge(X, y, grid): b = [bias; w] at the
-            %   grid value with the largest Laplace log evidence ev (one per
-            %   grid value, ascending; NaN when the Hessian is not positive
-            %   definite), se its standard errors sqrt(diag(inv(H))). The bias
-            %   carries no prior. Fits along the grid start from the previous
-            %   optimum.
+            %   [b, se, H, ev, converged] = fitRidge(X, y, grid): b = [bias; w]
+            %   at the grid value with the largest Laplace log evidence ev
+            %   (one per grid value, ascending; NaN when the Hessian is not
+            %   positive definite), se its standard errors
+            %   sqrt(diag(inv(H))), converged whether fminunc's exit flag
+            %   there was positive. The bias carries no prior. Fits along the
+            %   grid start from the previous optimum. The objective and its
+            %   Hessian are evaluated once more at each optimum, so the
+            %   evidence and the standard errors are those of the weights
+            %   returned.
             Xb = [ones(size(X, 1), 1), X];
             p = size(Xb, 2);
             pen = [0; ones(p - 1, 1)];
@@ -852,14 +1079,16 @@ classdef NeuroGLMExport
             ev = NaN(1, n);
             W = zeros(p, n);
             Hs = cell(1, n);
+            flag = zeros(1, n);
             for i = 1:n
                 lam = grid(i);
                 obj = @(w) NeuroGLMExport.ridgeObjective(w, Xb, y, lam, pen);
-                [wi, Li, ~, ~, ~, Hi] = fminunc(obj, w0, fopts);
+                [wi, ~, flag(i)] = fminunc(obj, w0, fopts);
+                [Li, ~, Hi] = obj(wi);
                 W(:, i) = wi;
                 Hs{i} = Hi;
-                [R, flag] = chol(Hi);
-                if flag == 0
+                [R, notPD] = chol(Hi);
+                if notPD == 0
                     logdet = 2 * sum(log(diag(R)));
                     if lam > 0
                         ev(i) = -Li + 0.5 * (p - 1) * log(lam) - 0.5 * logdet;   % + constants
@@ -873,8 +1102,9 @@ classdef NeuroGLMExport
             if isempty(best) || isnan(ev(best)); best = n; end
             b = W(:, best);
             H = Hs{best};
-            [R, flag] = chol(H);
-            if flag == 0
+            converged = flag(best) > 0;
+            [R, notPD] = chol(H);
+            if notPD == 0
                 Rinv = R \ eye(p);
                 se = sqrt(sum(Rinv .^ 2, 2));
             else

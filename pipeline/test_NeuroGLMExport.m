@@ -13,7 +13,9 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
     %   response (a gain after the event, bits per spike > 0, predict's
     %   shapes); the matRegress route (fminunc) against glmfit, its ridge
     %   and evidence optimization (skipped without matRegress or the
-    %   Optimization Toolbox); fitWorkers' zero cases.
+    %   Optimization Toolbox); the spike-history filter's reach at two bin
+    %   sizes; the kernels' standard errors against the weights' covariance;
+    %   lockedEvents on events a fixed time apart; fitWorkers' zero cases.
     %
     %   Usage:  runtests("test_NeuroGLMExport")
 
@@ -383,6 +385,8 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyTrue(all(isfinite(F3.evidence)));
             [~, best] = max(F3.evidence);
             tc.verifyEqual(F3.ridge, grid(best));
+            tc.verifyTrue(F2.converged, 'fminunc reached the optimum under the ridge.');
+            tc.verifyTrue(islogical(F3.converged) && isscalar(F3.converged));
             P = NeuroGLMExport.predict(F3, 1:2);
             tc.verifyNumElements(P.rate{1}, 700);
             tc.verifyError(@() NeuroGLMExport.fit(dspec, Method="matRegress", Ridge=-1), 'NeuroGLMExport:BadRidge');
@@ -423,6 +427,11 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             labels = string({d2.covar.label});
             tc.verifyEqual(labels, ["Stim_on__1" "Stim_on__2" "Resp_on" "coupling_sp_su002_2"]);
             tc.verifyEqual(d2.groupLevels, {[1; 2]});
+            tc.verifyEqual(d2.covariates.label.', labels, 'A row of covariates per kernel.');
+            tc.verifyEqual(d2.covariates.source.', ["Stim_on" "Stim_on" "Resp_on" "sp_su002_2"]);
+            tc.verifyEqual(d2.covariates.kind.', ["event" "event" "event" "coupling"]);
+            tc.verifyEqual(d2.covariates.by.', ["group" "group" "" ""]);
+            tc.verifyEqual(d2.covariates.level.', ["1" "2" "" ""]);
             F2 = NeuroGLMExport.fit(d2, Trials=1:6);
             tc.verifyEqual(F2.kernels.Resp_on.tr(1), -100, 'An acausal kernel starts KernelMs before the event.');
             tc.verifyEqual(numel(F2.kernels.Resp_on.tr), 200);
@@ -439,6 +448,85 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyError(@() NeuroGLMExport.designSpec(expt, GroupBy="nope"), 'NeuroGLMExport:BadGroupBy');
             bare = NeuroGLMExport.experiment([0 1; 1 2], Spikes=struct('a', [0.5; 1.5]));
             tc.verifyError(@() NeuroGLMExport.designSpec(bare, History=false), 'NeuroGLMExport:EmptyDesign');
+        end
+
+        function historyFilterEndsAtItsReach(tc)
+            % the spike-history filter covers the lags from one bin to HistoryMs after a spike, at any bin size
+            for binMs = [1 5]
+                expt = sessionDataNeuroGLM(tc.D, Window=[-0.2 1.2], BinMs=binMs);
+                d = NeuroGLMExport.designSpec(expt, Response=1, Events="Stim_on", KernelMs=100, NBases=4, HistoryMs=200);
+                tc.verifyEqual(d.covariates.kind.', ["event" "history"]);
+                hist = d.covar(string({d.covar.label}) == "hist");
+                msg = sprintf('%g ms bins', binMs);
+                tc.verifySize(hist.basis.B, [200 / binMs, 10], msg);
+                tc.verifyEqual(hist.offset, 1, 'A spike acts from the next bin on.');
+                tc.verifyEqual((hist.basis.tr([1 end]).' + hist.offset) * binMs, [binMs 200], msg);
+                tc.verifyEqual(rank(hist.basis.B), 10, msg);
+                [~, peak] = max(hist.basis.B(:, 1));
+                tc.verifyEqual(peak, 1, 'The first raised cosine peaks one bin after the spike.');
+                tc.verifyLessThan(hist.basis.B(end, end), 0.01, 'The last one is back at zero at HistoryMs.');
+            end
+            F = NeuroGLMExport.fit(d);
+            tc.verifyEqual(F.kernels.hist.tr([1 end]).', [5 200], 'The history kernel''s lags, ms.');
+            % too few lags for that many raised cosines: fewer are used, and said
+            expt10 = sessionDataNeuroGLM(tc.D, Window=[-0.2 1.2], BinMs=10);
+            few = @() NeuroGLMExport.designSpec(expt10, Response=1, Events="Stim_on", HistoryMs=200);
+            d10 = tc.verifyWarning(few, 'NeuroGLMExport:HistoryBases');
+            B10 = d10.covar(string({d10.covar.label}) == "hist").basis.B;
+            tc.verifySize(B10, [20, size(B10, 2)]);
+            tc.verifyLessThan(size(B10, 2), 10);
+            tc.verifyEqual(rank(B10), size(B10, 2), 'The raised cosines kept are independent.');
+            tc.verifyError(@() NeuroGLMExport.designSpec(expt, Events="Stim_on", HistoryMs=5), 'NeuroGLMExport:BadHistory');
+            tc.verifyError(@() NeuroGLMExport.designSpec(expt, Events="Stim_on", HistoryBases=1), 'NeuroGLMExport:BadHistory');
+        end
+
+        function kernelStandardErrors(tc)
+            % a kernel is B * w, so its variance is diag(B * C * B'), C the covariance of its weights
+            expt = sessionDataNeuroGLM(tc.D, Window=[-0.2 1.2], BinMs=5, Trials="all", DropArtifacts=false);
+            d1 = NeuroGLMExport.designSpec(expt, Response="sp_su002_2", Events="Stim_on", KernelMs=600, NBases=3, History=false);
+            F = NeuroGLMExport.fit(d1);
+            tc.assertFalse(any(F.dm.constCols), 'Every column is fitted.');
+            tc.verifyTrue(F.converged);
+            C = F.stats.covb(2:end, 2:end);
+            B = d1.covar(1).basis.B;
+            tc.verifySize(B, [120 3]);
+            tc.verifyEqual(F.kernelSE.Stim_on.data, sqrt(diag(B * C * B.')), 'RelTol', 1e-8, 'AbsTol', 1e-12);
+            tc.verifyEqual(F.kernelSE.Stim_on.tr, F.kernels.Stim_on.tr);
+            tc.verifyTrue(all(isfinite(F.kernelSE.Stim_on.data)));
+            % an event that never comes up in the trials fitted: its kernel is 0 and its error unknown, not 0
+            d2 = NeuroGLMExport.designSpec(expt, Response="sp_su002_2", Events=["Stim_on" "Resp_on"], ...
+                KernelMs=600, NBases=3, History=false);
+            noResp = find(arrayfun(@(t) isempty(t.Resp_on), expt.trial)).';
+            tc.assertNumElements(noResp, 6, 'Resp is on the odd trials only.');
+            F2 = NeuroGLMExport.fit(d2, Trials=noResp);
+            tc.verifyEqual(nnz(F2.dm.constCols), 3, 'The Resp_on columns are constant.');
+            tc.verifyEqual(F2.kernels.Resp_on.data, zeros(120, 1));
+            tc.verifyTrue(all(isnan(F2.kernelSE.Resp_on.data)));
+            tc.verifySize(F2.kernelSE.Resp_on.data, [120 1]);
+            tc.verifyFalse(any(isnan(F2.kernelSE.Stim_on.data)));
+        end
+
+        function lockedEventsFindsFixedLags(tc)
+            % every trial has Stim 300 ms after Trial and 200 ms long; Resp, 50 ms long, is on the odd trials only
+            expt = sessionDataNeuroGLM(tc.D, Window=[-0.2 1.2], Trials="all", DropArtifacts=false);
+            T = NeuroGLMExport.lockedEvents(expt);
+            tc.verifyEqual(T.first, ["Trial_on"; "Trial_on"; "Stim_on"; "Resp_on"]);
+            tc.verifyEqual(T.second, ["Stim_on"; "Stim_off"; "Stim_off"; "Resp_off"]);
+            tc.verifyEqual(T.lagMs, [300; 500; 200; 50], 'AbsTol', 0.1);
+            tc.verifyEqual(T.fractionFirst, ones(4, 1));
+            tc.verifyEqual(T.fractionSecond, ones(4, 1));
+            tc.verifyEqual(T.nFirst, [12; 12; 12; 6]);
+            tc.verifyEqual(T.nSecond, [12; 12; 12; 6]);
+            % Resp follows Stim at one lag, but on half of the Stim pulses: the other half tell the kernels apart
+            tc.verifyFalse(any(T.first == "Stim_on" & T.second == "Resp_on"));
+            T2 = NeuroGLMExport.lockedEvents(expt, WithinMs=250, Trials=1:6);
+            tc.verifyEqual(T2.second, ["Stim_off"; "Resp_off"], 'Only the lags the kernels reach across.');
+            tc.verifyEqual(T2.nFirst, [6; 3]);
+            T3 = NeuroGLMExport.lockedEvents(expt, Events=["Stim_on" "Resp_on"]);
+            tc.verifyEqual(height(T3), 0);
+            tc.verifyEqual(string(T3.Properties.VariableNames), ...
+                ["first" "second" "lagMs" "fractionFirst" "fractionSecond" "nFirst" "nSecond"]);
+            tc.verifyError(@() NeuroGLMExport.lockedEvents(expt, Events="Nope"), 'NeuroGLMExport:BadEvent');
         end
 
         function fitWorkersCap(tc)

@@ -11,6 +11,11 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %                    with ResponseLine=, "response_time": the first
 %                    ResponseLine ResponseEdge after each ResponseAfter
 %                    onset, from the digital lines alone
+%     periods        every digital line's pulses whole, "<line>_box": the
+%                    [m x 2] [start stop] ms, from the trial's start, of
+%                    the periods the line is on inside the trial, cut at
+%                    its edges (NeuroGLMExport.designSpec's Boxcars: a
+%                    kernel on the line's boxcar, not on its edges)
 %     values        trialIndex (the row of D.trials), group (the trial's
 %                    row of D.groups), the response code (D.respField),
 %                    every trial parameter (D.paramNames) and, with a
@@ -51,7 +56,7 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %
 %   INFO fields: trialIndex (the row of D.trials of each expt.trial), spans
 %   ([start stop] s on the continuous clock), units (D.units' rows kept,
-%   plus variable), lines (table: line, on, off: the variable names), values
+%   plus variable), lines (table: line, on, off, box: the variable names), values
 %   (table: column, variable), signal (the continuous variable's name, ""),
 %   response, responseTime (those variables' names, ""), nDroppedEdge,
 %   nDroppedArtifact, nDroppedSignal (trials the signal does not cover, or
@@ -198,29 +203,33 @@ if ~isempty(opts.Signal)
 end
 
 % valid, unique variable names, in one pass
-names = [valueCols; lines + "_on"; lines + "_off"; "sp_" + string(units.label); sigName(sigName ~= ""); timeVar(timeVar ~= "")];
+names = [valueCols; lines + "_on"; lines + "_off"; "sp_" + string(units.label); sigName(sigName ~= ""); timeVar(timeVar ~= ""); lines + "_box"];
 valid = matlab.lang.makeUniqueStrings(matlab.lang.makeValidName(cellstr(names)));
 valid = string(valid(:));
-nV = numel(valueCols); nL = numel(lines); nU = height(units); nS = nnz(sigName ~= "");
+nV = numel(valueCols); nL = numel(lines); nU = height(units); nS = nnz(sigName ~= ""); nT = nnz(timeVar ~= "");
 vValues = valid(1:nV);
 vOn  = valid(nV + (1:nL));
 vOff = valid(nV + nL + (1:nL));
 vSp  = valid(nV + 2 * nL + (1:nU));
 vSig = valid(nV + 2 * nL + nU + (1:nS));
-vTime = valid(nV + 2 * nL + nU + nS + 1:end);
+vTime = valid(nV + 2 * nL + nU + nS + (1:nT));
+vBox = valid(nV + 2 * nL + nU + nS + nT + (1:nL));
 V.Properties.VariableNames = cellstr(vValues);
 respVar = "";
 if hasResp; respVar = vValues(valueCols == respCol); end
 if timeVar ~= ""; timeVar = vTime; end
 
 E = struct();
+Iv = struct();
 Dsc = struct();
 for k = 1:nL
     iv = D.eventsContinuous.(lines(k));
     E.(vOn(k)) = iv(:, 1);
     E.(vOff(k)) = iv(:, 2);
+    Iv.(vBox(k)) = iv;
     Dsc.(vOn(k)) = lines(k) + " onset";
     Dsc.(vOff(k)) = lines(k) + " offset";
+    Dsc.(vBox(k)) = lines(k) + " on";
 end
 if timeVar ~= ""
     E.(timeVar) = tResponse;
@@ -242,7 +251,7 @@ end
 
 info = struct();
 info.units = addvars(units, vSp, 'NewVariableNames', 'variable');
-info.lines = table(lines, vOn, vOff, 'VariableNames', {'line', 'on', 'off'});
+info.lines = table(lines, vOn, vOff, vBox, 'VariableNames', {'line', 'on', 'off', 'box'});
 info.values = table(valueCols, vValues, 'VariableNames', {'column', 'variable'});
 info.signal = sigName;
 info.response = respVar;
@@ -256,7 +265,7 @@ param = struct('key', D.key, 'name', D.name, 'variables', D.variables, 'fs', D.f
     'response', respVar, 'responseTime', timeVar);
 if sigName ~= ""; param.channels = opts.Signal.channels; end
 
-[expt, keep] = NeuroGLMExport.experiment(spans, BinMs=opts.BinMs, Spikes=Sp, Events=E, Values=V, ...
+[expt, keep] = NeuroGLMExport.experiment(spans, BinMs=opts.BinMs, Spikes=Sp, Events=E, Values=V, Intervals=Iv, ...
     Continuous=C, Id=D.key + "/neuroGLM", Param=param, Describe=Dsc);
 info.trialIndex = idx(keep);
 info.spans = spans(keep, :);

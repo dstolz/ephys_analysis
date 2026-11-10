@@ -259,6 +259,7 @@ repo = fileparts(here);
 addpath(here);
 addpath(fullfile(repo, 'pipeline'));
 addpath(repo);
+addpath(genpath(fullfile(repo, 'vendor')));   % ternary, which EphysAnalysisScript calls: on the path whatever suite ran before this one
 
 root = fullfile(tempdir, sprintf('AnaFigures_test_%s', datestr(now, 'yyyymmdd_HHMMSSFFF'))); %#ok<TNOW1,DATST>
 mkdir(root);

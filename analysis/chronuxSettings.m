@@ -49,13 +49,16 @@ function S = chronuxSettings(s)
 %                   removed) | "linear" trend removed before the spectra
 %     baseline      aligned spectrograms: "none" | "db" | "percent" |
 %                   "zscore" | "ratio" against baselineWindow
-%     baselineWindow  [b0 b1] s from the event
+%     baselineWindow  [b0 b1] s from the event: inside window, and at least
+%                   one moving window long
 %   How it is drawn (display): scale ("db" | "log" | "linear"), layout
 %   ("grid": a tile per channel, groups overlaid; "overlay": a tile per
 %   group, channels overlaid), showErr, showPhase, maxTiles, ylim, clim
 %   ([] = automatic), page.
 %
-%   Errors: chronuxSettings:BadValue, chronuxSettings:UnknownField.
+%   Errors: chronuxSettings:BadValue, chronuxSettings:UnknownField,
+%   chronuxSettings:Baseline (an aligned spectrogram's baseline outside
+%   the window, or shorter than the moving window).
 %
 %   See also chronuxTimeBase, chronuxSpectrum, chronuxSpecgram, renderChronux.
 
@@ -177,6 +180,11 @@ if S.baseline ~= "none" && ismember(S.analysis, ["specgram" "spikeSpecgram"]) &&
     if S.baselineWindow(1) < S.window(1) - 1e-9 || S.baselineWindow(2) > S.window(2) + 1e-9
         error('chronuxSettings:Baseline', 'The baseline window [%g %g] s must lie inside the window [%g %g] s.', ...
             S.baselineWindow(1), S.baselineWindow(2), S.window(1), S.window(2));
+    end
+    if diff(S.baselineWindow) < S.movingwin(1) - 1e-9
+        error('chronuxSettings:Baseline', ['The baseline window [%g %g] s is %g s long, shorter than the %g s moving window: ' ...
+            'the baseline is the windows that lie wholly inside it. Lengthen it to at least %g s or shorten the moving window.'], ...
+            S.baselineWindow(1), S.baselineWindow(2), diff(S.baselineWindow), S.movingwin(1), S.movingwin(1));
     end
 end
 d = S.display;

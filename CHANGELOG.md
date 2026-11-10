@@ -10,6 +10,13 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app: special characters in a figure's text. A figure's title, a panel's title, X and Y axis labels and text
+  note (drawn as typed), a layer's name (the legend) and a trial measure's label print TeX character names as the
+  characters they name: *Amplitude (\muV)* draws *Amplitude (µV)*, `\pm` ±, `\Delta` Δ, `^\circ` °, any of MATLAB's
+  TeX characters. The text stays drawn as typed, so an `_` or `^` (in it, or in a label variable's value) stays as it
+  is; the config keeps what was typed. The report's figure headings and captions print the title the same way. New
+  private `figureLabelSymbols`, called by `figureLabelFill` (before the label variables are filled in) and
+  `trialMeasureLabel`; the fields' tooltips and **Help → Label variables** say so.
 - Event references and sequence steps: **Stitch gaps (s)** and **Refractory** (`stitchGapSec`, `refractorySec`; 0 =
   off) clean a digital line before anything else reads it. Stitching joins intervals at most the gap apart into one
   (first onset to last offset: a sensor's dropouts in one visit); the refractory period drops an interval that starts
@@ -57,6 +64,11 @@ says how to cut a release.
 
 ### Changed
 
+- `S_ExampleChronuxSpikes.m` takes its baseline by the analysis app's rule: `chronuxNormalize`, now public, over the
+  moving windows that lie wholly inside `baselineSec` (it took every window centered there, so one reaching past the
+  baseline's end, even past the event, counted). `chronuxSettings` checks the baseline before any dataset is loaded.
+  The default `baselineSec` is `[-1.1 -0.25]`, the same 8 windows as `[-1 -0.5]` took before; under the new rule,
+  `[-1 -0.5]` holds one window.
 - `NeuroGLMExport.designSpec`: `HistoryMs` is the spike-history (and coupling) filter's reach, as documented: the
   filter covers the lags from one bin to `HistoryMs` after a spike at any bin size. It was the peak of the last raised
   cosine, with the filter running 3 to 4 times as long (200 ms gave 653 ms; the script's 500 ms gave 2 s), and at bins
@@ -487,6 +499,14 @@ says how to cut a release.
 
 ### Fixed
 
+- A spectrogram baseline exactly one moving window long (the defaults: `[-0.5 0]` s with a 0.5 s window) normalized
+  nothing: `chronuxNormalize` took a window to reach half a sample past its first and last samples, so the one
+  starting on the baseline's start never fit and the panel was not drawn. A window now lies inside when its samples
+  do (`chronuxNormalize`'s new `fs` input, from `chronuxSpecgram` and `chronuxSpikeSpecgram`). `chronuxSettings`
+  refuses a baseline shorter than the moving window (`chronuxSettings:Baseline`), so **Validate** and the panel's
+  "Cannot draw" sign say what to change instead of "no window lies inside the baseline". A z-score over fewer than
+  two windows (an SD of 0: every value Inf) is refused with the reason (`chronuxNormalize:NoBaseline`), and an
+  unknown mode is `chronuxNormalize:BadMode`.
 - Dataset tags were missing when the analysis app or the dataset browser opened an `OutputRoot` without the recording
   root: the manifest that holds them stays beside the recording. `DatasetOutputs` now also finds
   `<Name>_manifest.json` in the recording folder the outputs' provenance names (`sourceFolder`); of that and a copy in

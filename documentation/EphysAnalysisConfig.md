@@ -977,7 +977,7 @@ words; the other fields are not checked until then.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `text` | `""` | the words; a new line starts a new line of text; [label variables](#label-variables) are filled in (escaped for TeX with `interpreter` `"tex"`) |
+| `text` | `""` | the words; a new line starts a new line of text; [label variables](#label-variables) are filled in (escaped for TeX with `interpreter` `"tex"`); drawn as typed, its [special characters](#special-characters) (`\mu`, `\pm`) print as µ, ± |
 | `placement` | `"below"` | outside the panel: `"below"`, `"above"`, `"right"`, `"left"` (the panel's area gives up a band for the text); over it, in the panel's whole area: `"northwest"`, `"north"`, `"northeast"`, `"west"`, `"center"`, `"east"`, `"southwest"`, `"south"`, `"southeast"`; or `"custom"`, at `x`, `y` |
 | `x`, `y` | `0.5`, `0.5` | custom: the text's anchor, 0-1 across (from the left edge) and up (from the bottom edge) the panel's area; may lie outside it |
 | `align` | `"left"` | `"left"`, `"center"` or `"right"`: how the lines line up; below and above the panel, also where the text sits across it; custom, the anchor's side of the text |
@@ -1215,6 +1215,29 @@ report's heading and caption of a figure fill its title with
 `PerObservation=false`: one heading serves every observation. Validate warns of
 a name in braces that is no variable ([Validating figures](#validating-figures)).
 
+### Special characters
+
+The same texts (a figure's `title`, a panel's `title`, `xLabel`, `yLabel` and
+`note.text`, a layer's `name`) and a [trial measure's](#trial-measures) `label`
+print TeX character names as the characters they name: `"Amplitude (\muV)"`
+draws *Amplitude (µV)*, `"\Deltat (ms)"` *Δt (ms)*, `"Phase (^\circ)"` *Phase
+(°)*. Only the names change. The text is still drawn as typed (`Interpreter`
+`"none"`), so an `_` or `^` in it, or in a variable's value, stays as it is. A
+name is the longest on the list that the letters after the backslash start
+with, as MATLAB's TeX reads them (`\muV` is µ then V, `\infty` is ∞); a
+backslash before anything else stays. The names are converted before the
+[label variables](#label-variables) are filled in, so a value is never read as
+one. The config keeps the text as typed. A note with `interpreter` `"tex"`
+reads the names itself, with powers and subscripts (`x^2`, `x_i`). The report's
+heading and caption of a figure print its title the same way.
+
+| Kind | Names |
+| --- | --- |
+| Greek | `\alpha` α, `\beta` β, `\gamma` γ, `\delta` δ, `\epsilon` (`\varepsilon`) ε, `\zeta` ζ, `\eta` η, `\theta` θ, `\vartheta` ϑ, `\iota` ι, `\kappa` κ, `\lambda` λ, `\mu` µ (the micro sign, as in the figures' own *µm*), `\nu` ν, `\xi` ξ, `\pi` π, `\varpi` ϖ, `\rho` ρ, `\sigma` σ, `\varsigma` ς, `\tau` τ, `\upsilon` υ, `\phi` (`\varphi`) φ, `\chi` χ, `\psi` ψ, `\omega` ω; `\Gamma` Γ, `\Delta` Δ, `\Theta` Θ, `\Lambda` Λ, `\Xi` Ξ, `\Pi` Π, `\Sigma` Σ, `\Upsilon` Υ, `\Phi` Φ, `\Psi` Ψ, `\Omega` Ω |
+| Math | `\pm` ±, `\times` ×, `\div` ÷, `\cdot` ·, `\circ` and `^\circ` °, `\leq` ≤, `\geq` ≥, `\neq` ≠, `\approx` ≈, `\sim` ∼, `\equiv` ≡, `\cong` ≅, `\propto` ∝, `\infty` ∞, `\partial` ∂, `\nabla` ∇, `\int` ∫, `\surd` √, `\prime` ′, `\ast` ∗, `\perp` ⊥, `\angle` ∠, `\neg` ¬, `\wedge` ∧, `\vee` ∨, `\forall` ∀, `\exists` ∃, `\in` ∈, `\ni` ∋, `\subset` ⊂, `\subseteq` ⊆, `\supset` ⊃, `\supseteq` ⊇, `\cap` ∩, `\cup` ∪, `\oplus` ⊕, `\otimes` ⊗, `\oslash` ⊘, `\aleph` ℵ, `\Re` ℜ, `\Im` ℑ, `\wp` ℘, `\lceil` ⌈, `\rceil` ⌉, `\lfloor` ⌊, `\rfloor` ⌋, `\langle` ⟨, `\rangle` ⟩, `\mid` \| |
+| Arrows | `\leftarrow` ←, `\rightarrow` →, `\leftrightarrow` ↔, `\uparrow` ↑, `\downarrow` ↓, `\Leftarrow` ⇐, `\Rightarrow` ⇒ |
+| Other | `\bullet` •, `\ldots` …, `\copyright` ©, `\clubsuit` ♣, `\diamondsuit` ♦, `\heartsuit` ♥, `\spadesuit` ♠ |
+
 ### Figure ids
 
 A figure whose `autoId` is true is named by what it holds,
@@ -1275,7 +1298,7 @@ follow its id.
 | `type` | `"psth"` | one of the [panel types](#panel-types) |
 | `title` | `""` | `""` = none, but for the observation's label on the top-left panel under a title of the figure's own. It may use [label variables](#label-variables) |
 | `box` | `"auto"` | the frame around the panel's axes (and a coherence panel's phase axes): `"auto"` leaves it to the [design](EphysAnalysis.md#plot-designs) (Tufte and Journal turn it off) and to the looks remembered for the panel's kind; `"on"` or `"off"` is the panel's own and wins over all of them, the figure's own `aesthetics` rules included (a right-click edit of a panel's *Box* does not show while `box` is not `"auto"`: set the panel's Box row instead). Validate: `auto`, `on` or `off` |
-| `xLabel`, `yLabel` | `""`, `""` | the panel's own x and y axis labels, any text (no TeX; [label variables](#label-variables) filled in); `""` = automatic: the label the panel type draws (`"Time (s)"` on a time axis, the rate's unit, `"Frequency (Hz)"`, ...). A stack of time panels tells the time once ([shared time axis](#shared-time-axis)): `xLabel` shows where the panel tells it. On a coherence panel with its phase strip the y label is the magnitude's; on a stacked PSTH, its left axis' |
+| `xLabel`, `yLabel` | `""`, `""` | the panel's own x and y axis labels, any text (no TeX markup, but [special characters](#special-characters) such as `\muV`; [label variables](#label-variables) filled in); `""` = automatic: the label the panel type draws (`"Time (s)"` on a time axis, the rate's unit, `"Frequency (Hz)"`, ...). A stack of time panels tells the time once ([shared time axis](#shared-time-axis)): `xLabel` shows where the panel tells it. On a coherence panel with its phase strip the y label is the magnitude's; on a stacked PSTH, its left axis' |
 | `xSide`, `ySide` | `"bottom"`, `"left"` | where the panel's x axis' ticks and label go, `"bottom"` or `"top"`, and its y axis', `"left"` or `"right"`; drawn once the type has drawn, for every type. A coherence panel's x axis on top goes on its magnitude, its phase strip dropping its tick labels; a stacked PSTH keeps its two y axes (left: the groups, right: the peaks) whatever `ySide` says. A color bar outside on the side an axis moves to goes to the opposite side. Validate: `bottom` or `top`, `left` or `right` |
 | `xShow`, `yShow` | `"all"`, `"all"` | what the panel's x and y axes show (`PanelAxisShows`): `"all"` its label and ticks, `"ticks"` its ticks with the label blanked, `"label"` its label with the ticks (marks and numbers) blanked, `"none"` neither (the axis line alone). Applied last, after the [shared time axis](#shared-time-axis) has hidden or named the stack's labels; a blanked part leaves its room to the plot. Every y axis of a stacked line panel goes alike; a coherence panel's phase strip goes with its magnitude. A panel's own `xLabel` is kept while its label is blanked. Not copied by **Apply to all panels** (`adoptPanelOptions`). Validate: one of `PanelAxisShows` |
 | `rect` | `[0 0 1 1]` | the panel's place on the page, `[x y width height]`, normalized 0-1 of the page with the origin at its bottom-left corner (as a MATLAB `Position`): `[0 0.5 1 0.5]` is the top half. It is the panel's plot area or its outer box, as the figure's `layout.boxesMean` says. Panels may overlap; the later one in `panels` is drawn on top (`orderPanel`). The app shows and takes it in `RectUnits` (`figureRectConvert`). [Placing panels](#placing-panels) |
@@ -1667,7 +1690,7 @@ refuses.
 | all three | `spikeFs` | 1000 | spike layers: the time grid the spike trains are analyzed on, Hz |
 | `coherence` | `overTime` | `false` | a coherogram of the first pair (signals or spike trains) |
 | `spectrogram`, `coherence` | `movingwin` | `[0.5 0.05]` | `[window step]` s (a coherence only with `overTime`) |
-| `spectrogram` | `baseline` | `Mode "none"`, `Window [-0.5 0]` | `Mode` `"none"`, `"db"`, `"percent"`, `"zscore"` or `"ratio"` (`chronuxNormalize`'s) against the power of the moving windows that lie wholly inside `Window` (a window reaching past its end would hold post-event power), which must lie inside the panel's window and be at least one moving window long |
+| `spectrogram` | `baseline` | `Mode "none"`, `Window [-0.5 0]` | `Mode` `"none"`, `"db"`, `"percent"`, `"zscore"` or `"ratio"` (`chronuxNormalize`'s) against the power of the moving windows that lie wholly inside `Window` (a window reaching past its end would hold post-event power), which must lie inside the panel's window and be at least one moving window long (a `"zscore"` needs two windows inside it: its SD is over them) |
 | `coherence` | `showPhase` | `true` | the phase strip under the magnitude (not over time) |
 | `spectrum`, `coherence` | `yLimMode`, `yLim` | `"auto"`, `[]` | the power or coherence axis ([Y limits](#y-limits)); a coherence's automatic axis is `[0 1]` |
 | `spectrogram`, `coherence` | `cLim` | `[]` | the color scale; a coherogram `[]` = `[0 1]` |
@@ -1793,7 +1816,7 @@ not used on the other types):
 | `maxGapSec` | `Inf` | a delay: a B farther than this from A is dropped and counted; a count: the window ends at A + `maxGapSec` at the latest (and at the trial's end) |
 | `param` | `""` | `kind "param"`: the numeric trial parameter, e.g. `RespLatency` |
 | `unit` | `"ms"` | a delay's or duration's unit, `"ms"` or `"s"` (a count has none, a parameter keeps its own) |
-| `label` | `""` | the measure's name in labels and legends; `""` = automatic, `trialMeasureLabel` |
+| `label` | `""` | the measure's name in labels and legends (its [special characters](#special-characters) printed: `"\Deltat (ms)"` is *Δt (ms)*); `""` = automatic, `trialMeasureLabel` |
 
 The kinds in short (the rules in full, and the `trialMeasure` result, are on
 [the scripting page](EphysAnalysis.md#trial-measures)). A **delay** is B's time

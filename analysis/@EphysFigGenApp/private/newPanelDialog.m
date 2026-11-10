@@ -171,7 +171,8 @@ nameField = uieditfield(rg, "text", "ValueChangedFcn", @(~, ~) nameTyped(), ...
 nameField.Layout.Row = 3; nameField.Layout.Column = 2;
 l = uilabel(rg, "Text", "Title:"); l.Layout.Row = 4;
 titleField = uieditfield(rg, "text", "Placeholder", "none", ...
-    "Tooltip", "The panel's own title (blank = none; under a figure title of your own the top-left panel names the observation).");
+    "Tooltip", "The panel's own title (blank = none; under a figure title of your own the top-left panel names the observation). " + ...
+    "Special characters: \mu, \pm, \Delta (µ, ±, Δ) and the other TeX names print as their characters.");
 titleField.Layout.Row = 4; titleField.Layout.Column = 2;
 l = uilabel(rg, "Text", "Place:"); l.Layout.Row = 5;
 [placeText, placeData, grayed, placeTip] = placeItems(F, anchor, canDraw);

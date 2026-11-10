@@ -8,7 +8,9 @@ function [T, V] = figureLabelVariables(spec, F, opts)
 %   trials". renderFigure fills them in for each figure it draws
 %   (figureLabelFill), so one text serves every unit, channel, trial group
 %   and dataset. A name not on the list is left as typed (TeX braces, as in
-%   x^{2}, are safe); names are case-sensitive.
+%   x^{2}, are safe); names are case-sensitive. The same texts print TeX
+%   character names as their characters ("\muV" is "µV":
+%   figureLabelSymbols).
 %
 %   [T, V] = figureLabelVariables(SPEC, F, Panel=K) also gives each one's
 %   value: T gets a Value column, V holds the values as a struct (a field

@@ -127,6 +127,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | change how a figure looks (colors, line widths, fonts, axis labels) | right-click a part of the preview and edit it there, or open **Design and looks** under LOOK in the settings column: pick a ready-made look in **Design** (journal, talk, ...; the **Design** menu and the list beside **Dataset** are the same choice), press **Edit aesthetics...** to edit the selected panel's colors, lines and fonts (or right-click the preview), and **Save look as design...** to keep the preview's look as a design of your own. Fonts, line widths, colors and the legend are under **Style** |
 | draw a smooth line over a PSTH's bars | select the PSTH and, in its **Display** section, tick **Smoothed line: Draw**. **SD (ms)** sets how smooth the line is; clear **Legend** to leave the line out of the legend; **Smooth SD (ms)** in **Analysis** still sets the bars' own smoothing, apart from the line's |
 | write a label that follows the data, such as *Time (s) re Stim onset* or *Hit trials* | type a variable in braces in a title, an axis label, a layer's name or a note: **Time (s) re {Line} {Edge}**, **{Response} trials**. Each figure fills it in. The **{x}** button beside the field lists them, with what each means (see [Labels that follow the data](#labels-that-follow-the-data)) |
+| put µ, ±, Δ, ° or another symbol in a label | type a backslash and its name: **Amplitude (\muV)** shows *Amplitude (µV)*; **\pm**, **\Delta** and **^\circ** show ±, Δ and °. It works in every title, axis label, legend name and note (see [Symbols and Greek letters](#symbols-and-greek-letters)) |
 | give one figure its own event or window | for the whole figure, untick **Use default** under the event reference or epoch window in its **Alignment** section; for one panel, untick **Same as the figure** in its **Panel alignment** section. The Alignment tab is only the default |
 | stop a sensor's brief blips from counting as new events (the animal touches the platform again as it leaves, or the beam drops out for a moment) | in the event reference, set **Refractory** to a time in seconds, such as 0.5: an interval that starts sooner than that after the one before ended is ignored. Or set **Stitch gaps (s)** to join intervals that close together into one visit, which then ends at the last offset. For a step of a sequence, the **Event sequence** window has the same two columns. The event rows above the plot are drawn the same way |
 | draw a figure across several recordings | in the figure's Observations section, set **Pages** to *Across datasets*; its settings are in the Sessions section that appears |
@@ -200,6 +201,27 @@ note to pick one from a menu; each item says what it means and what it shows
 for the figure in the preview now. **Help → Label variables** lists them all.
 Type the name exactly as listed (*{Line}*, not *{line}*): **Validate** on the
 Export tab points out a name it does not know.
+
+## Symbols and Greek letters
+
+To put a symbol in a label, type a backslash and the symbol's name. The
+field keeps what you typed; the figure shows the symbol.
+
+- **Amplitude (\muV)** shows *Amplitude (µV)*.
+- **mean \pm SEM** shows *mean ± SEM*.
+- **\Deltat (ms)** shows *Δt (ms)*.
+- **Phase (^\circ)** shows *Phase (°)*.
+
+Other names: **\alpha** α, **\beta** β, **\theta** θ, **\sigma** σ,
+**\times** ×, **\leq** ≤, **\geq** ≥, **\approx** ≈, **\rightarrow** →,
+**\infty** ∞. Greek letters work small (**\gamma**) and capital
+(**\Gamma**). This works in a figure's title, a panel's title, the axis
+labels, a layer's name in the legend, a text note and a trial measure's
+label. More are listed in
+[Special characters](EphysFigGenApp.md#special-characters).
+
+Only the names change. An underscore or a caret stays as it is, so unit and
+dataset names print correctly.
 
 ## Use your tags
 

@@ -141,7 +141,8 @@ uilabel(ug, 'Text', '', 'FontColor', gray);
 lg = row("Label:", {'1x'});
 D.Label = uieditfield(lg, 'text', 'Value', m.label, 'Placeholder', 'automatic', 'ValueChangedFcn', @(~, ~) sync(), ...
     'ValueChangingFcn', @(~, e) typing(e.Value), 'Tooltip', "The measure's name on the axis, in the legend and the " + ...
-    "caption, and in the {Measure} label variable. Blank: automatic (the line below).");
+    "caption, and in the {Measure} label variable. Blank: automatic (the line below). Special characters: " + ...
+    "\Delta, \mu, \pm (Δ, µ, ±) and the other TeX names print as their characters.");
 D.Preview = uilabel(g, 'WordWrap', 'on', 'FontColor', gray, 'VerticalAlignment', 'top', 'Text', "");
 D.Preview.Layout.Row = 8;
 bg = uigridlayout(g, [1 3], 'ColumnWidth', {'1x', 100, 100}, 'Padding', [0 0 0 0]);

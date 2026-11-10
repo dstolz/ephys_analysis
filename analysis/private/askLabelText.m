@@ -6,10 +6,11 @@ function [txt, ok] = askLabelText(fig, axisName, panel, txt)
 %   false when it was canceled or closed. PlotAesthetics' "Edit label
 %   text...". The text may name label variables ({Line}, {Response}, ...:
 %   figureLabelVariables), filled in for each figure drawn; the window's
-%   "Insert a variable" list adds one at the end of the text.
+%   "Insert a variable" list adds one at the end of the text. TeX
+%   character names (\mu, \pm) print as their characters (figureLabelSymbols).
 
 ok = false;
-pos = [300 300 520 196];
+pos = [300 300 520 214];
 try
     p = getpixelposition(fig);
     pos(1:2) = max(1, p(1:2) + (p(3:4) - pos(3:4)) / 2);
@@ -19,7 +20,7 @@ d = uifigure('Name', char(axisName + " label"), 'Position', pos, 'Resize', 'off'
 g = uigridlayout(d, [4 1], 'RowHeight', {'fit', 26, 26, 32});
 uilabel(g, 'WordWrap', 'on', 'Text', char("The " + lower(axisName) + " axis label of panel " + panel + ...
     ". Leave it blank for the automatic label. A variable in braces, such as {Line} or {Response}, is filled in " + ...
-    "for each figure drawn."));
+    "for each figure drawn. Special characters: \mu, \pm, \Delta or ^\circ print as µ, ±, Δ or °."));
 ed = uieditfield(g, 'text', 'Value', char(txt), 'Placeholder', 'automatic');
 T = figureLabelVariables();
 uidropdown(g, 'Items', cellstr(["Insert a variable..."; "{" + T.Name + "}   " + T.Meaning]), ...

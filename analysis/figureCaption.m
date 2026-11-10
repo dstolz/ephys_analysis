@@ -120,7 +120,7 @@ elseif nStar > 0
 end
 head = spec.id;
 if isfield(spec, 'title') && spec.title ~= ""
-    ttl = string(spec.title);
+    ttl = figureLabelSymbols(string(spec.title));   % its special characters ("\mu": µ), as the figure draws them
     if contains(ttl, "{")   % its label variables as one caption has them: the observations' left "<Unit>"
         [~, V] = figureLabelVariables(spec);
         if opts.Dataset ~= ""; V.Name = opts.Dataset; end

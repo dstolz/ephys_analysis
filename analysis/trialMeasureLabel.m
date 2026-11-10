@@ -1,6 +1,8 @@
 function s = trialMeasureLabel(m)
 %trialMeasureLabel  A trial measure in words, e.g. "Stim onset → Platform offset (ms)".
-%   S = trialMeasureLabel(M) is M.label when it is set, else built from the
+%   S = trialMeasureLabel(M) is M.label when it is set (its TeX character
+%   names as the characters they name: "\Deltat (ms)" is "Δt (ms)",
+%   figureLabelSymbols), else built from the
 %   TrialMeasure M (EphysAnalysisConfig.defaults("TrialMeasure"); a partial
 %   struct is completed from it) by its kind:
 %     delay     after:  "<A> → <B> (<unit>)", e.g. "Stim onset → Platform
@@ -28,7 +30,7 @@ end
 
 m = EphysAnalysisConfig.normalizeSection("TrialMeasure", m);
 if strtrim(m.label) ~= ""
-    s = m.label;
+    s = figureLabelSymbols(m.label);
     return
 end
 a = eventRefLabel(m.from, Detail=true);

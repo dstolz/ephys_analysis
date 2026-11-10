@@ -33,11 +33,17 @@
 %
 %   The plots show the change relative to a baseline (baseline, baselineSec;
 %   "none" plots power in dB instead): each frequency, unit and group against
-%   its own mean power over the windows centered in baselineSec, on a diverging
-%   colormap centered on no change. Spec.SpecRel holds the same numbers.
+%   its own mean power over the windows that lie wholly inside baselineSec,
+%   on a diverging colormap centered on no change. That is the analysis
+%   app's rule (chronuxNormalize; a window reaching past the baseline's end
+%   would hold post-event power), and its settings are checked by the app's
+%   rules before any dataset is loaded (chronuxSettings: baselineSec inside
+%   windowSec and at least one moving window long). Spec.SpecRel holds the
+%   same numbers.
 %
 %   See also S_ExampleSpikeAnalysis, EphysProject, loadAnalysisSource,
-%   selectUnits, epochTable, ChronuxDataset.spikeTrials, mtspecgrampt.
+%   selectUnits, epochTable, ChronuxDataset.spikeTrials, mtspecgrampt,
+%   chronuxNormalize, chronuxSettings.
 
 %% Parameters
 % projectRoot = "S:/ANALYSIS_BACKUPS/Daniel/EPHYS/OFC/Analysis";   % project folder (recordings, or the pipeline's outputs)
@@ -66,9 +72,9 @@ minTrials   = 2;                         % a group needs at least this many tria
 keepTrials  = false;                     % keep each unit's Chronux data (spike times per trial) in Spec
 
 % Change relative to a baseline: each frequency, unit and group is compared with its own mean power B
-% over the windows centered in baselineSec (plots, and Spec.SpecRel)
+% over the moving windows that lie wholly inside baselineSec (plots, and Spec.SpecRel)
 baseline    = "db";                      % "none" (power, dB) | "db" 10*log10(S/B) | "percent" 100*(S-B)/B | "ratio" S/B | "zscore" (S-B)/SD
-baselineSec = [-1 -0.5];                 % [b0 b1] s from the event
+baselineSec = [-1.1 -0.25];              % [b0 b1] s from the event, at least movingwin(1) long (here 8 windows, centered at -0.85 to -0.5 s)
 
 %% Load the project
 here = fileparts(fileparts(fileparts(mfilename('fullpath'))));   % repository root
@@ -112,6 +118,13 @@ sel = trialSelection(groupBy=groupBy, maxGroups=100);       % how trials are kep
 % The time grid every spectrogram is put on: window centers, s from the event
 tg = (windowSec(1) + movingwin(1)/2 : movingwin(2) : windowSec(2) - movingwin(1)/2).';
 nT = numel(tg);
+
+% The baseline checked now, not after every dataset is loaded: the analysis app's rules (chronuxSettings: a mode
+% it knows, inside windowSec, at least one moving window long), then a window of the grid wholly inside it
+baseline = string(baseline);
+chronuxSettings(struct('analysis', "spikeSpecgram", 'window', windowSec, 'movingwin', movingwin, ...
+    'baseline', baseline, 'baselineWindow', baselineSec));
+chronuxNormalize(ones(nT, 1), tg, baseline, baselineSec, movingwin(1));
 
 %% Spike trains to Chronux trials to spectrograms, one dataset at a time
 units = struct([]);
@@ -267,35 +280,16 @@ Spec.SpecAll = SpecAll;
 Spec.RateAll = RateAll;
 
 %% Change relative to the baseline, Z [time x freq x groups x units] (what the plots show)
-%   Same rule as the analysis app's Chronux tab (chronuxNormalize): B is the mean of
-%   the windows whose centers lie in baselineSec, per frequency, group and unit.
-%   A window whose spikes were never seen (NaN) is left out of B.
-baseline = string(baseline);
+%   The analysis app's rule (chronuxNormalize): B is the mean of the windows that lie
+%   wholly inside baselineSec (each spans movingwin(1) around its time in tg), per
+%   frequency, group and unit. A window whose spikes were never seen (NaN) is left out of B.
 if baseline == "none"
     Z = 10*log10(SpecAll);                % power in dB, on a sequential colormap
     zLabel = '10 log_{10} S';
     zCenter = [];
 else
-    inb = tg >= baselineSec(1) - 1e-9 & tg <= baselineSec(2) + 1e-9;
-    if ~any(inb)
-        error('S_ExampleChronuxSpikes:NoBaseline', ['No spectrogram window is centered in the baseline ' ...
-            '[%g %g] s: widen it or shorten movingwin.'], baselineSec(1), baselineSec(2));
-    end
-    B = mean(SpecAll(inb, :, :, :), 1, 'omitnan');
-    switch baseline
-        case "db"
-            Z = 10*log10(SpecAll ./ B);   zLabel = 'dB change';   zCenter = 0;
-        case "percent"
-            Z = 100*(SpecAll - B) ./ B;   zLabel = '% change';    zCenter = 0;
-        case "ratio"
-            Z = SpecAll ./ B;             zLabel = 'ratio';       zCenter = 1;
-        case "zscore"
-            Z = (SpecAll - B) ./ std(SpecAll(inb, :, :, :), 0, 1, 'omitnan');
-            zLabel = 'z';                 zCenter = 0;
-        otherwise
-            error('S_ExampleChronuxSpikes:BadBaseline', ...
-                'baseline must be "none", "db", "percent", "ratio" or "zscore".');
-    end
+    [Z, zLabel] = chronuxNormalize(SpecAll, tg, baseline, baselineSec, movingwin(1));
+    zCenter = double(baseline == "ratio");   % no change: 1 for a ratio, else 0
     Spec.SpecRel = Z;                     % [time x freq x groups x units]
 end
 

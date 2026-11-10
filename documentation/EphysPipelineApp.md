@@ -55,7 +55,8 @@ probe folder and scans the config's project when its root is there. The app
 opens on the Project tab.
 
 **Startup window.** While the app starts, a small window in the middle of
-the screen shows its name, its version, the step under way (each tab
+the screen shows its name, its version (the release, the commit and the
+commit's date and time), the step under way (each tab
 built, the preferences, the config opened, the scan's datasets) and a
 progress bar. The main window is built hidden and shows when it is ready;
 the small one then closes. Alerts raised meanwhile (a config that cannot

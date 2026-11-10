@@ -1,7 +1,8 @@
 classdef AppSplash < handle
 %AppSplash  The small window an app shows while it starts: its name, version, step and a progress bar.
 %   S = AppSplash(NAME, STEPS, WEIGHTS) opens a small window centered on
-%   the screen with the app's NAME, its version (ephysVersion), the text of
+%   the screen with the app's NAME, its version and the date and time of
+%   its commit (ephysVersion), the text of
 %   the step under way and a progress bar. STEPS (string keys) are the
 %   startup steps in order; WEIGHTS (one each, the seconds the step takes,
 %   as measured) set the share of the bar each one fills, so the bar moves
@@ -399,15 +400,16 @@ end
 
 
 function v = versionText()
-%versionText  "Version 0.1.0, commit 29f8451" (ephysVersion), "" when it cannot tell.
-%   Read once a session: git takes a moment, and a splash is no place to wait.
+%versionText  "Version 0.1.0, commit 29f8451, 2026-11-10 08:46" (ephysVersion), "" when it cannot tell.
+%   The date and time are the commit's. Read once a session: git takes a
+%   moment, and a splash is no place to wait.
 persistent cached
 if isempty(cached)
     cached = "";
     try
         info = ephysVersion();
-        parts = ["Version " + info.Version, "commit " + info.Commit];
-        cached = strjoin(parts([info.Version info.Commit] ~= ""), ", ");
+        parts = ["Version " + info.Version, "commit " + info.Commit, strtrim(info.CommitDate + " " + info.CommitTime)];
+        cached = strjoin(parts([info.Version info.Commit info.CommitDate] ~= ""), ", ");
     catch
     end
 end

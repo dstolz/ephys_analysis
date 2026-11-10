@@ -95,7 +95,8 @@ after the folder (`<folder> quick look`, or after the one dataset of
 `Datasets=`) with no figures yet.
 
 **Startup window.** While the app starts, a small window in the middle of
-the screen shows its name, its version, the step under way (each tab
+the screen shows its name, its version (the release, the commit and the
+commit's date and time), the step under way (each tab
 built, the preferences, the config opened, the scan, the first dataset
 loaded) and a progress bar; the main window is built hidden and shows when
 it is ready, and alerts raised meanwhile show on it then. `Splash=false`

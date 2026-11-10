@@ -43,8 +43,8 @@ B = DatasetBrowser(root, Scan=false);     % only read the result file: B.Result,
 | `Scan` | `false`: only restore the result file, without touching the share |
 | `Workers` | the process workers **Compute** and `forEach` use ([Workers](#workers)). Default: all workers of a process pool already open, else the last one set, else 0 |
 
-While the window opens, a small startup window (the name, version and a progress
-bar) shows the steps: the window is built hidden, the last session restored and
+While the window opens, a small startup window (the name, the version with the
+commit's date and time, and a progress bar) shows the steps: the window is built hidden, the last session restored and
 the root scanned, then the browser appears. `Splash=false` starts without it
 (the default with `Visible=false` and under `-batch`).
 

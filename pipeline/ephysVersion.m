@@ -9,7 +9,9 @@ function info = ephysVersion()
 %     Commit      short hash of the commit checked out ("" when git cannot
 %                 tell: a zip download, or no git on the PATH)
 %     CommitDate  that commit's date, yyyy-MM-dd ("" likewise)
-%     Branch      the branch checked out ("" when detached or unknown)
+%     CommitTime  its time of day, HH:mm, in the committer's time zone
+%                 ("" likewise)
+%     Branch     the branch checked out ("" when detached or unknown)
 %     Dirty       true when tracked files have uncommitted changes
 %     Describe    git describe --tags --always --dirty: the nearest release
 %                 tag, the commits since it and the commit, e.g.
@@ -24,7 +26,7 @@ function info = ephysVersion()
 %
 %   See also ephysProvenance.
 
-info = struct('Version', "", 'Commit', "", 'CommitDate', "", ...
+info = struct('Version', "", 'Commit', "", 'CommitDate', "", 'CommitTime', "", ...
     'Branch', "", 'Dirty', false, 'Describe', "", 'Folder', "", 'Text', "");
 
 here = fileparts(mfilename('fullpath'));   % pipeline/
@@ -43,11 +45,12 @@ else
 end
 
 try
-    [st, out] = system(sprintf('git -C "%s" log -1 --format="%%h %%cs"', here));
+    [st, out] = system(sprintf('git -C "%s" log -1 --format="%%h %%ci"', here));   % "a87e0f4 2026-11-10 08:46:03 -0500"
     parts = split(strtrim(string(out)));
-    if st == 0 && numel(parts) == 2 && ~isempty(regexp(parts(1), '^[0-9a-f]{7,40}$', 'once'))
+    if st == 0 && numel(parts) >= 3 && ~isempty(regexp(parts(1), '^[0-9a-f]{7,40}$', 'once'))
         info.Commit = parts(1);
         info.CommitDate = parts(2);
+        info.CommitTime = extractBefore(parts(3) + ":", 6);   % HH:mm
         [st, branch] = system(sprintf('git -C "%s" rev-parse --abbrev-ref HEAD', here));
         branch = strtrim(string(branch));
         if st == 0 && branch ~= "HEAD"; info.Branch = branch; end

@@ -436,7 +436,7 @@ end
 
 
 function applySpectral(E, op)
-%applySpectral  A spectrum, spectrogram or coherence panel's Chronux rows (the fields its type has).
+%applySpectral  A spectrum, spectrogram, coherence or phase coherence (itpc) panel's multitaper rows (the fields its type has).
 E.spTaperMode.Value = char(pickFrom(op.taperMode, string(E.spTaperMode.ItemsData), "TWK"));
 E.spTW.Value = max(eps, op.TW);
 E.spK.Value = max(1, round(op.K));

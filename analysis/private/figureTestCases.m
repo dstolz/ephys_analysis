@@ -11,6 +11,7 @@ function [C, fx] = figureTestCases(root)
 %       continuous, heatmap, waveforms, probemap, corrmap, rate, tuning,
 %       spectrum, spectrogram, coherence (the spectral ones need Chronux
 %       on the path; without it their panels are skipped, drawn as notes),
+%       itpc (the observed channel's phase coherence by frequency),
 %       eventTrace (the Stim line's bars, epochs overlaid), trialDist,
 %       trialHist, trialScatter (the delay from Stim onset to the trial's
 %       offset per trial, a scatter's against the trial's onset to Stim)
@@ -33,6 +34,10 @@ function [C, fx] = figureTestCases(root)
 %                       the spectral templates stacked by trial group (a
 %                       coherogram: the coherence over time), skipped to
 %                       notes without Chronux
+%     itpc_stack        the phase coherence by frequency, a row per group
+%     itpcgram, itpcgram_stack  the phase coherence over time on a log
+%                       frequency axis (a time/frequency coherogram), one
+%                       group, then an image row per group
 %     rate_box          firing rates as boxes
 %     heatmap_trials    a heat map of one unit's trials
 %     notes_overlays    rasterPsth with a note on each panel, a line and a
@@ -120,13 +125,20 @@ st.panels(1).options.param = "Depth";
 st.panels(1).options.seriesParam = "TrialType";
 st.panels(1).options.stack = "groups";
 cfg = cfg.addFigure(st);
-for t = ["spectrum" "spectrogram" "coherence"]
+for t = ["spectrum" "spectrogram" "coherence" "itpc"]
     st = cfg.Figures(cfg.figureIndex(t)); st.id = t + "_stack";
     st.panels(1).options.stack = "groups";
     cfg = cfg.addFigure(st);
 end
 st = cfg.Figures(cfg.figureIndex("coherence")); st.id = "cohgram_stack";
 st.panels(1).options.overTime = true;
+st.panels(1).options.stack = "groups";
+cfg = cfg.addFigure(st);
+st = cfg.Figures(cfg.figureIndex("itpc")); st.id = "itpcgram";   % the phase coherence over time: a coherogram, log frequency
+st.panels(1).options.overTime = true;
+st.panels(1).options.freqScale = "log";
+cfg = cfg.addFigure(st);
+st.id = "itpcgram_stack";
 st.panels(1).options.stack = "groups";
 cfg = cfg.addFigure(st);
 r = cfg.Figures(cfg.figureIndex("rate")); r.id = "rate_box";

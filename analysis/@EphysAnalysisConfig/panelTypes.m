@@ -5,7 +5,7 @@ function T = panelTypes()
 %     Type            "raster" | "psth" | "continuous" | "heatmap" |
 %                     "waveforms" | "probemap" | "corrmap" | "rate" |
 %                     "tuning" | "spectrum" | "spectrogram" | "coherence" |
-%                     "eventTrace" | "trialDist" | "trialHist" |
+%                     "itpc" | "eventTrace" | "trialDist" | "trialHist" |
 %                     "trialScatter" | "legend"
 %     Label           name shown in the app
 %     Short           one word: the type's part of an automatic figure id
@@ -32,11 +32,11 @@ function T = panelTypes()
 %   automatic, else [lo hi]) live in the options because one figure holds
 %   different axes; a figure's Style.YLim / Style.CLim are not used. Every
 %   type with a y axis of values (PSTH, continuous, waveforms, rate,
-%   tuning, spectrum, coherence, trial distribution and scatter) takes
-%   options.yLimMode, one vocabulary
+%   tuning, spectrum, coherence, itpc, trial distribution and scatter)
+%   takes options.yLimMode, one vocabulary
 %   (EphysAnalysisConfig.YLimModes):
-%     "auto"   (default) each axis fits its data (the type's own: an auROC
-%              and a coherence 0 to 1); in a stack each row fits itself,
+%     "auto"   (default) each axis fits its data (the type's own: an auROC,
+%              a coherence and an ITPC 0 to 1); in a stack each row fits itself,
 %              scaled to its own reach (its top named on the right axis)
 %     "rows"   a stack's rows share one scale, the reach of them all (an
 %              axis without rows: as "auto", its groups share it already)
@@ -52,7 +52,7 @@ function T = panelTypes()
 %   with its auroc settings (defaults("Auroc")).
 %   Stacks, one vocabulary for every type that takes them
 %   (EphysAnalysisConfig.stackModes): a PSTH, continuous, heat map (rows
-%   "items"), tuning, spectrum, spectrogram or coherence panel with stack
+%   "items"), tuning, spectrum, spectrogram, coherence or itpc panel with stack
 %   "groups" draws one row per trial group (a tuning panel's series), the
 %   first on top as a raster lists its groups, instead of the groups
 %   overlaid (a heat map, a spectrogram, a coherogram: instead of the one
@@ -132,7 +132,7 @@ function T = panelTypes()
 %   error bars (display "bar"), a tuning curve's error bars), a continuous
 %   panel's ("off" | "sem" | "std" | "ci95" | "iqr", AuxErrorTypes), each
 %   with errorResamples (ci95: the bootstrap's resamples, default 1000).
-%   The look of the bands a PSTH, continuous, spectrum, coherence,
+%   The look of the bands a PSTH, continuous, spectrum, coherence, itpc,
 %   waveforms or probe map panel draws is its band (defaults("ErrorBand"): face color
 %   and opacity, edge color, style and width); a waveform inset's band
 %   takes its panel's.
@@ -157,11 +157,22 @@ function T = panelTypes()
 %   (chronuxSpikeField) or spikes x spikes (chronuxUnitCoherence); with
 %   overTime a coherogram over the moving window,
 %   which on the epochs shares the figure's time axis; showPhase draws the
-%   phase under the magnitude. Spectrum and coherence take timeBase "range":
+%   phase under the magnitude; freqScale "log" draws its frequency axis
+%   logarithmic (the drawing's alone, as a spectrogram's). Spectrum and coherence take timeBase "range":
 %   segments of the whole recording clear of its artifact periods, not
-%   the figure's epochs.
+%   the figure's epochs. An "itpc" panel draws the inter-trial phase
+%   coherence of its first layer's signal over the epochs
+%   (phaseCoherence: the mean over the tapers of |mean over the trials of
+%   exp(i*phase)|, 0 for random phases, 1 for the same phase in every
+%   trial; it needs no Chronux), every channel by frequency with the
+%   groups overlaid, the jackknife band (err "jackknife") and the level
+%   random phases stay under at 1 - errP (err not "none"); with overTime
+%   the first channel's ITPC over the moving window, an image over time
+%   and frequency (a coherogram of one group, options.group) on the
+%   figure's time axis. Its stack, stackSpacing, cLim, freqScale ("log":
+%   a log frequency axis) and the band are the drawing's.
 %   The types that draw signals (continuous, heatmap, spectrum,
-%   spectrogram, coherence) take options.filter, a SignalFilter (enabled
+%   spectrogram, coherence, itpc) take options.filter, a SignalFilter (enabled
 %   false, the default: none): their signal layers (LFP, MUA, SPIKE, AUX)
 %   are read through it, the whole recording filtered before the epochs
 %   are cut (selectChannels' Filter), after the config's
@@ -236,8 +247,8 @@ waveformsOwn.mode = "both";                                    % a waveforms pan
 firstSpike = EphysAnalysisConfig.defaults("FirstSpike");       % raster: the first-spike latency marks' look (enabled false = none)
 latencyBox = EphysAnalysisConfig.defaults("LatencyBox");       % psth: the latency box plot's look (enabled false = none)
 auroc = EphysAnalysisConfig.defaults("Auroc");                % psth / heatmap of spikes: baseline Mode "auroc"
-band = EphysAnalysisConfig.defaults("ErrorBand");             % psth / continuous / spectrum / coherence / waveforms / probemap: the bands' look
-signalFilter = SignalFilter.defaults();                       % continuous / heatmap / spectral: the filter its signal layers are read through (off)
+band = EphysAnalysisConfig.defaults("ErrorBand");             % psth / continuous / spectrum / coherence / itpc / waveforms / probemap: the bands' look
+signalFilter = SignalFilter.defaults();                       % continuous / heatmap / spectral / itpc: the filter its signal layers are read through (off)
 
 opts = struct();
 opts.raster = struct( ...
@@ -413,9 +424,32 @@ opts.coherence = struct( ...
     'spikeFs',    1000, ...
     'overTime',   false, ...            % a coherogram over the moving window: an image over time
     'movingwin',  [0.5 0.05], ...
+    'freqScale',  "linear", ...         % the frequency axis: "linear" | "log" (the drawing's alone; the 0 Hz bin is left out)
     'showPhase',  true, ...             % the phase under the magnitude (not over time)
     'yLimMode',   "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',       [], ...               % [] = [0 1]
+    'cLim',       [], ...               % over time: [] = [0 1]
+    'group',      1, ...                % over time: the trial group drawn (not with stack "groups")
+    'stack',      "off", ...            % "off" (the groups overlaid; over time one group) | "groups" (a row per trial group, the first on top)
+    'stackSpacing', 1.1);               % stack: the row step, x the row height (an image's: below 1 counts as 1)
+opts.itpc = struct( ...
+    'filter',     signalFilter, ...     % its signal layer (LFP, MUA, SPIKE, AUX) filtered over the whole recording before the epochs are cut (SignalFilter; enabled false = none)
+    'taperMode',  "TWK", ...            % the tapers, as the other spectral types' (chronuxSettings); TW 1, K 1: one taper, the usual ITPC
+    'TW',         2, ...
+    'K',          3, ...
+    'W',          4, ...
+    'p',          1, ...
+    'pad',        0, ...
+    'fpass',      [2 100], ...          % [fmin fmax] Hz (fmax Inf = Nyquist; 0 Hz and Nyquist are always left out: their phase is 0 or pi)
+    'err',        "jackknife", ...      % "none" | "theoretical" (the level of random phases) | "jackknife" (that level and the band; not over time)
+    'errP',       0.05, ...             % the level's and the band's p (0.05: 95%)
+    'band',       band, ...             % the band's look
+    'detrend',    "constant", ...       % each trial's "none" | "constant" | "linear" trend removed
+    'overTime',   false, ...            % the ITPC over the moving window: an image over time and frequency (a coherogram), on the figure's time axis
+    'movingwin',  [0.5 0.05], ...       % over time: [window step] s
+    'freqScale',  "linear", ...         % the frequency axis: "linear" | "log" (the drawing's alone)
+    'yLimMode',   "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes); "auto": 0 to 1
+    'yLim',       [], ...
     'cLim',       [], ...               % over time: [] = [0 1]
     'group',      1, ...                % over time: the trial group drawn (not with stack "groups")
     'stack',      "off", ...            % "off" (the groups overlaid; over time one group) | "groups" (a row per trial group, the first on top)
@@ -534,6 +568,7 @@ rows = {
     "spectrum",   "Power spectrum",    "Spectrum",    ["point" "continuous"],  true,   false,     false,   true,      "observation",  "Multitaper power spectra (Chronux) of channels or spike trains over the epochs, groups overlaid"
     "spectrogram", "Spectrogram",      "Spectrogram", ["continuous" "point"],  true,   true,      true,    false,     "observation",  "A channel's or a unit's multitaper power over time from the event and frequency (Chronux), one trial group"
     "coherence",  "Coherence",         "Coherence",   ["point" "continuous"],  true,   false,     false,   true,      "observation",  "Multitaper coherence (Chronux) of a seed layer with a partner layer: field-field, spike-field or unit-unit"
+    "itpc",       "Phase coherence (ITPC)", "ITPC",   "continuous",            true,   false,     false,   false,     "observation",  "Inter-trial phase coherence of a channel over the epochs: how alike each frequency's phase is from trial to trial, by frequency or over time (a coherogram)"
     "eventTrace", "Event traces",      "EventTraces", "point",                 true,   true,      false,   true,      "fixed",        "Digital or derived lines as a logic analyzer shows them: a row per line, a bar (or a level) from each onset to its offset, epochs overlaid or a sub-row each"
     "trialDist",  "Trial distribution", "Dist",       "trial",                 false,  false,     false,   true,      "fixed",        "One value per trial (a delay, duration, count or parameter) by category: swarm, box, violin, points or a line, with group tests"
     "trialHist",  "Trial histogram",   "Hist",        "trial",                 false,  false,     false,   true,      "fixed",        "The distribution of one value per trial: bars, an outline or the cumulative distribution, per series"

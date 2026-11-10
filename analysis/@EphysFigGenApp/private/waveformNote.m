@@ -39,7 +39,7 @@ else
             txt = "A heat map draws its units, or one unit's epochs, as colors over time: it has no waveform inset." + alt;
         case "corrmap"
             txt = "A unit correlation map is a units-by-units matrix, no one unit's panel: it has no waveform inset." + alt;
-        case {"spectrum" "spectrogram" "coherence"}
+        case {"spectrum" "spectrogram" "coherence" "itpc"}
             txt = "A spectral panel's axis is frequency: it has no waveform inset." + alt;
         otherwise
             txt = "This panel draws no spikes, so no waveform: the Waveform section is for a raster, PSTH, " + ...

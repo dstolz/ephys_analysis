@@ -1041,7 +1041,7 @@ ANALYSIS_GROUPS = [
     ("Population analysis", ["populationAnalysis", "populationSummary", "renderPopulation", "writePopulation"]),
     ("Chronux analyses", ["chronuxSettings", "chronuxTimeBase", "chronuxSpectrum", "chronuxSpecgram",
                           "chronuxCoherence", "chronuxSpikeSpectrum", "chronuxSpikeSpecgram",
-                          "chronuxUnitCoherence", "chronuxSpikeField", "chronuxNormalize"]),
+                          "chronuxUnitCoherence", "chronuxSpikeField", "chronuxNormalize", "phaseCoherence"]),
     ("Dataset browser: epochs of every dataset", ["epochMatrix", "epochMatrixSettings", "epochMatrixLabels",
                                                   "epochMatrixNormalize", "epochMatrixRaster"]),
     ("Dataset browser: whole sessions", ["sessionData"]),

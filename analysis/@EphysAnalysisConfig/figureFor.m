@@ -12,8 +12,8 @@ function spec = figureFor(obj, id)
 %     (panelTypes().Aligned of its type) and sharesTime (the type shares
 %     time and both its ref and window were "default": it takes the
 %     figure's time axis; a selection of its own does not change that; a
-%     coherence panel shares it only over time, options.overTime, on the
-%     aligned time base). A
+%     coherence or phase coherence (itpc) panel shares it only over time,
+%     options.overTime, on the aligned time base). A
 %     panel whose selection differs from the figure's computes its own
 %     epochs and groups (figureCompute)
 %   - each panel's options completed against its type's DefaultOptions
@@ -80,8 +80,9 @@ for j = 1:numel(fig.panels)
     if isequal(p.selection, "default"); p.selection = spec.selection; end
     if known
         p.options = EphysAnalysisConfig.coerceStruct(T.DefaultOptions{row}, p.options, "options");
-        if p.type == "coherence"   % a coherogram over the epochs is drawn over time from the event
-            p.sharesTime = linked && p.options.overTime && p.options.timeBase == "aligned";
+        if ismember(p.type, ["coherence" "itpc"])   % a coherogram over the epochs is drawn over time from the event
+            onEpochs = ~isfield(p.options, 'timeBase') || p.options.timeBase == "aligned";   % (an itpc panel has no other)
+            p.sharesTime = linked && p.options.overTime && onEpochs;
         end
     end
     own = [];   % the panel's filter (the types that draw signals: options.filter)

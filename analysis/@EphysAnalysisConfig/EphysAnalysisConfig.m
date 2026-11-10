@@ -235,7 +235,7 @@ classdef EphysAnalysisConfig
         % How the observed unit is matched across sessions (a figure observes one matched unit), and the panel types
         % combineSessions does not merge (a session figure holds none).
         FigureSessionMatches = ["site" "mapping"]
-        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence"]
+        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence" "itpc"]
         % Probe figures (Figure.probe): how the tiles are laid out (layout), how a physical layout keeps them apart
         % (overlap) and what labels each tile (labels).
         ProbeLayouts = ["schematic" "physical"]
@@ -756,9 +756,10 @@ classdef EphysAnalysisConfig
             %   an inset). The spectral types (spectrum,
             %   spectrogram, coherence): stack, stackSpacing and (spectrum,
             %   coherence) yLimMode only (their Chronux settings are their
-            %   own; a spectrogram's baseline is chronuxNormalize's). The
+            %   own; a spectrogram's baseline is chronuxNormalize's); a
+            %   phase coherence (itpc) panel as a coherence panel. The
             %   types that draw signals (continuous, heatmap, spectrum,
-            %   spectrogram, coherence) also share filter, last (the
+            %   spectrogram, coherence, itpc) also share filter, last (the
             %   SignalFilter their signal layers are read through). The
             %   stack options and yLimMode mean the same on every type
             %   (stackModes, YLimModes); yLim itself (in the type's units)
@@ -777,7 +778,7 @@ classdef EphysAnalysisConfig
             if ~any(row); return; end
             names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform" "stack" "stackSpacing" "yLimMode" "filter"];
             if ismember(string(type), ["waveforms" "probemap"]); names(names == "waveform") = []; end
-            if ismember(string(type), ["spectrum" "spectrogram" "coherence"]); names = ["stack" "stackSpacing" "yLimMode" "filter"]; end
+            if ismember(string(type), ["spectrum" "spectrogram" "coherence" "itpc"]); names = ["stack" "stackSpacing" "yLimMode" "filter"]; end
             if ismember(string(type), EphysAnalysisConfig.TrialPanelTypes)
                 names = ["series" "seriesParam" "seriesBins" "summary" "errorType" "errorResamples" "test" "testPairs" ...
                     "adjust" "testAlpha" "testShow" "xScale" "yScale" "yLimMode"];
@@ -791,8 +792,8 @@ classdef EphysAnalysisConfig
             %   trial groups overlaid, or the one group options.group names)
             %   and "groups" (a row per trial group, the first on top: its
             %   stackSpacing the row step x the row height) on a PSTH, heat
-            %   map, tuning curve (a row per series), spectrum, spectrogram
-            %   and coherence panel; a continuous panel also "items" (a row
+            %   map, tuning curve (a row per series), spectrum, spectrogram,
+            %   coherence and phase coherence (itpc) panel; a continuous panel also "items" (a row
             %   per channel or layer mean, the groups overlaid in each).
             %   None on a raster (it lists its groups in blocks already), a
             %   firing rate panel (its groups go along x), a waveforms, probe
@@ -805,7 +806,7 @@ classdef EphysAnalysisConfig
                 type (1,1) string
             end
             switch type
-                case {"psth" "heatmap" "tuning" "spectrum" "spectrogram" "coherence"}
+                case {"psth" "heatmap" "tuning" "spectrum" "spectrogram" "coherence" "itpc"}
                     modes = ["off" "groups"];
                 case "continuous"
                     modes = ["off" "groups" "items"];
@@ -854,7 +855,7 @@ classdef EphysAnalysisConfig
             %   A = EphysAnalysisConfig.aggregates(TYPE, SOURCE): a raster,
             %   PSTH, continuous, rate or tuning panel "each" (an item each)
             %   or "mean" (their mean, a band across them); a spectrum,
-            %   spectrogram or coherence panel, SOURCE a signal (SignalSources),
+            %   spectrogram, coherence or itpc panel, SOURCE a signal (SignalSources),
             %   "each" or "magnitude" (the channels as one: their vector
             %   magnitude, each channel's static part out first, as
             %   figureChronuxLayer reads it, e.g. a 3-axis accelerometer's
@@ -867,7 +868,7 @@ classdef EphysAnalysisConfig
             end
             if ismember(type, ["raster" "psth" "continuous" "rate" "tuning"])
                 a = ["each" "mean"];
-            elseif ismember(type, ["spectrum" "spectrogram" "coherence"]) && ismember(source, EphysAnalysisConfig.SignalSources)
+            elseif ismember(type, ["spectrum" "spectrogram" "coherence" "itpc"]) && ismember(source, EphysAnalysisConfig.SignalSources)
                 a = ["each" "magnitude"];
             else
                 a = "each";

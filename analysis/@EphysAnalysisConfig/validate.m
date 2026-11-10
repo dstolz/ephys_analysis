@@ -123,8 +123,11 @@ function issues = validate(obj, opts)
 %               runs past the 0.38 x rate a downsampled signal layer
 %               keeps unchanged, Source.Downsample), a coherence panel's two enabled layers (seed,
 %               partner; a warning for a fixed seed of several items), a
-%               spectrogram's signal or spike layer and its freqScale
-%               ("linear" or "log"); an enabled options.filter of a
+%               spectrogram's signal or spike layer, a spectrogram's,
+%               coherence's or phase coherence (itpc) panel's freqScale
+%               ("linear" or "log"), a phase coherence panel's moving
+%               window (a warning when longer than its window, over
+%               time); an enabled options.filter of a
 %               continuous, heat map or spectral panel (its settings at
 %               "<...>.options.filter.<field>", its cutoffs against each
 %               of its signals' Downsample rate as Source's are, a
@@ -787,7 +790,7 @@ for k = 1:numel(obj.Figures)
                 checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("corrmap"), o0, A);
                 checkFigGroup(op.group, o0);
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
-            case {"spectrum" "spectrogram" "coherence"}
+            case {"spectrum" "spectrogram" "coherence" "itpc"}
                 checkSpectral(pj, op, pw, Lp(on), o0, p0, find(on));
             case "eventTrace"
                 checkEventTrace(op, o0);
@@ -1192,11 +1195,12 @@ issues = table(Section, Field, Severity, Message);
     end
 
     function checkSpectral(hP, hOp, hW, hL, hO0, hP0, hIdx)
-        %checkSpectral  A Chronux panel (spectrum, spectrogram, coherence): its options by chronuxSettings' rules, and its layers.
+        %checkSpectral  A multitaper panel (spectrum, spectrogram, coherence, itpc): its options by chronuxSettings' rules, its layers, a frequency axis.
         %   HL: its enabled layers, HIDX their indices in the panel. The options go through figureChronuxSettings (with
         %   the panel's fixed window, which a spectrogram's baseline window must lie inside); what chronuxSettings
         %   throws is reported with its message. A coherence panel takes exactly two enabled layers (the seed, then
-        %   its partner); a spectrogram a signal or spike layer.
+        %   its partner); a spectrogram a signal or spike layer; a phase coherence (itpc) panel warns of a moving
+        %   window (over time) longer than its fixed window.
         hRange = isfield(hOp, 'timeBase') && hOp.timeBase == "range";
         hWin = [];
         if isstruct(hW) && isfield(hW, 'mode') && hW.mode == "fixed" && isfinite(hW.pre) && isfinite(hW.post) && hW.post > hW.pre
@@ -1216,18 +1220,25 @@ issues = table(Section, Field, Severity, Message);
         hSrc = strings(1, 0);
         if ~isempty(hL); hSrc = [hL.source]; end
         checkSpectralRate(hOp, hSrc, hO0);
+        if isfield(hOp, 'freqScale')
+            hFs = string(hOp.freqScale);
+            if ~(isscalar(hFs) && ismember(hFs, ["linear" "log"]))
+                add("Figures", hO0 + ".freqScale", "error", "A " + hP.type + " panel's freqScale (its frequency axis) is " + ...
+                    """linear"" or ""log"", not """ + strjoin(hFs, " ") + """.");
+            end
+        end
         switch hP.type
             case "spectrogram"
                 if ~isempty(hL) && ~any(ismember(hSrc, [EphysAnalysisConfig.SignalSources EphysAnalysisConfig.SpikeSources]))
                     add("Figures", hP0 + ".layers", "error", "A spectrogram draws a signal or spike layer (LFP, MUA, SPIKE, " + ...
                         "AUX, units or detected).");
                 end
-                if isfield(hOp, 'freqScale')
-                    hFs = string(hOp.freqScale);
-                    if ~(isscalar(hFs) && ismember(hFs, ["linear" "log"]))
-                        add("Figures", hO0 + ".freqScale", "error", "A spectrogram's freqScale (its frequency axis) is " + ...
-                            """linear"" or ""log"", not """ + strjoin(hFs, " ") + """.");
-                    end
+            case "itpc"   % (its layers' sources and their number: every type's checks, MultiLayer false)
+                if ~isempty(hWin) && isfield(hOp, 'overTime') && isequal(hOp.overTime, true) && numel(hOp.movingwin) == 2 ...
+                        && hOp.movingwin(1) > diff(hWin) + 1e-9
+                    add("Figures", hO0 + ".movingwin", "warning", sprintf(['The %g s moving window is longer than the ' ...
+                        'panel''s %g s window: nothing can be drawn over time. Shorten it, or lengthen the window.'], ...
+                        hOp.movingwin(1), diff(hWin)));
                 end
             case "coherence"
                 if numel(hL) ~= 2

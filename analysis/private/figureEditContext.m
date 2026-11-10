@@ -32,7 +32,7 @@ for k = find(types == "spectrogram")   % a baseline-normalized spectrogram: dive
     aurocMap = aurocMap || (isfield(o, 'baseline') && isstruct(o.baseline) && o.baseline.Mode ~= "none");
 end
 cohgram = false;
-for k = find(types == "coherence")
+for k = find(ismember(types, ["coherence" "itpc"]))   % a coherogram (a coherence's, an ITPC's)
     cohgram = cohgram || (isfield(panels(k).options, 'overTime') && panels(k).options.overTime);
 end
 if any(types == "corrmap") || aurocMap

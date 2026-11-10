@@ -7,15 +7,17 @@ function S = chronuxSettings(s)
 %                   "coherence" (coherencyc; cohgramc when overTime) |
 %                   "spikeSpectrum" (mtspectrumpt) | "spikeSpecgram"
 %                   (mtspectrumpt over the moving window) | "spikeField"
-%                   (coherencycpt) | "unitCoherence" (coherencypt)
-%     signal        the continuous signal: "LFP" (default) | "MUA" |
+%                   (coherencycpt) | "unitCoherence" (coherencypt) |
+%                   "itpc" (inter-trial phase coherence: phaseCoherence;
+%                   over the moving window when overTime)
+%     signal       the continuous signal: "LFP" (default) | "MUA" |
 %                   "SPIKE" | "AUX"
 %     channels      columns of the signal ([] = all)
 %     pairMode      coherence: "seed" (seed against every other channel
 %                   or unit picked) | "pair" (seed against partner)
 %     seed, partner coherence: channels (columns of the signal)
-%     overTime      coherence: over time (cohgramc) instead of one
-%                   spectrum of coherence
+%     overTime      coherence, itpc: over time (cohgramc; phaseCoherence
+%                   over the moving window) instead of one spectrum
 %     spikeSource   spike analyses: "units" (sorted units) | "detected"
 %     units         spike analyses: indices into the file's spike trains
 %                   ([] = all)
@@ -127,7 +129,7 @@ end
 
 
 function S = check(S)
-S.analysis = member(S.analysis, "analysis", ["spectrum" "specgram" "coherence" "spikeSpectrum" "spikeSpecgram" "spikeField" "unitCoherence"]);
+S.analysis = member(S.analysis, "analysis", ["spectrum" "specgram" "coherence" "spikeSpectrum" "spikeSpecgram" "spikeField" "unitCoherence" "itpc"]);
 S.signal = member(S.signal, "signal", ["LFP" "MUA" "SPIKE" "AUX"]);
 S.channels = whole(S.channels, "channels");
 S.pairMode = member(S.pairMode, "pairMode", ["seed" "pair"]);

@@ -363,7 +363,8 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   band-stop, low- and high-pass filters of the analysis app's **Filter...**
   windows (the config's `Source.SignalFilter` and a panel's
   `options.filter`: `selectChannels`' `Filter`, `DatasetOutputs.prepared`),
-  their responses drawn by `FilterDialog`).
+  their responses drawn by `FilterDialog`); `dpss`, the Slepian tapers of a
+  phase coherence (ITPC) panel, `phaseCoherence` (which needs no Chronux).
 - Statistics and Machine Learning Toolbox (`mad` in automatic
   derived-signal bad-channel detection, a robust z of each channel's RMS,
   made before the common reference so the channels it flags are left out of
@@ -394,7 +395,8 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   `fitlm` and `predict` for the trial panels' statistics, `trialStats`:
   the group tests, the summary's quartiles, the correlations and the fits'
   95% bands; `ecdf` for a trial histogram's cumulative distribution,
-  `drawTrialHistPanel`).
+  `drawTrialHistPanel`; `quantile` for the level of random phases and `tinv`
+  for the jackknife band of a phase coherence (ITPC) panel, `phaseCoherence`).
 - Image Processing Toolbox (`padarray` in the mTRF-Toolbox packaging,
   `mTRFExport.resample`, which mirrors a signal past its ends so that
   `resample` does not filter them against zeros; `imresize` in the analysis

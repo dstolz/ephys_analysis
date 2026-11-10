@@ -10,6 +10,17 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app: a **Phase coherence (ITPC)** panel type (`itpc`): the inter-trial phase coherence of a signal over the
+  epochs, how alike each frequency's phase is from trial to trial (0 random, 1 the same phase in every trial). By
+  frequency, a trace per channel and trial group with the jackknife band and a dashed line at the level random phases
+  stay under at 1 − `errP` (simulated for the trial count and tapers, so the small-sample bias is accounted for); with
+  **Over time** (`overTime`) a time/frequency coherogram of the first channel on the figure's time axis, one trial
+  group or a stack of them. It takes the spectral panels' multitaper rows (tapers, `fpass`, `detrend`, `err` / `errP`,
+  `movingwin`), a log **Frequency axis**, stacks, `yLimMode`, `cLim`, the band's look and the panel's filter; the New
+  panel window offers **Frequency (Hz)**, **View** (by frequency or a time/frequency coherogram) and **Moving window
+  (s)**. New public `phaseCoherence(D, TB, S)` computes it (each taper's ITPC, averaged over the tapers; Slepian
+  tapers from the Signal Processing Toolbox's `dpss`): it needs no Chronux. `chronuxSettings` takes `analysis "itpc"`;
+  a template `"itpc"`; `validate` warns of a second layer and of a moving window longer than the panel's window.
 - Spectrograms: a logarithmic frequency axis. A spectrogram panel's `freqScale` (`"linear"`, the default, or `"log"`;
   **Frequency axis** in the figure editor's Axes section) spreads out the low frequencies: each frequency bin takes its
   share of a log axis, ticks at 2, 5, 10, 20, 50 ... Hz, the 0 Hz bin left out, a stack's rows too, the data tips

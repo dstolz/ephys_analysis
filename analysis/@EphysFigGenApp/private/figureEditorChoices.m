@@ -11,13 +11,14 @@ function ch = figureEditorChoices(type, source, rows, opts)
 %                    tuning or coherence panel takes none): a spectrum or
 %                    coherence panel units, detected, LFP, MUA, SPIKE, AUX;
 %                    a spectrogram the signals, units, detected and events;
+%                    a phase coherence (itpc) panel the signals;
 %                    an event-trace panel events only; a trial distribution,
 %                    histogram or scatter panel trials only
 %     SourceLabels   their names in the app ("units (sorted)", ...)
 %     Bindable       a layer of SOURCE on this type may follow the
 %                    observation (spikes or a signal, on a raster, PSTH,
 %                    continuous, waveforms, rate, tuning, spectrum,
-%                    spectrogram or coherence panel; spikes on a heat map
+%                    spectrogram, coherence or itpc panel; spikes on a heat map
 %                    of trials); otherwise it is fixed. AUX records no
 %                    amplifier channel (figureLayerItems): under a figure
 %                    observing units or another signal an AUX layer is
@@ -73,7 +74,7 @@ known = isKey(names, srcs);
 labels(known) = names(srcs(known));
 ch = struct('Sources', srcs, 'SourceLabels', labels, ...
     'Bindable', (ismember(source, [EphysAnalysisConfig.SpikeSources EphysAnalysisConfig.SignalSources]) ...
-        && ismember(type, ["raster" "psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "spectrogram" "coherence"])) ...
+        && ismember(type, ["raster" "psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "spectrogram" "coherence" "itpc"])) ...
         || (type == "heatmap" && rows == "trials" && ismember(source, EphysAnalysisConfig.SpikeSources)), ...
     'BaselineModes', "none", 'WaveModes', EphysAnalysisConfig.WaveformModes, ...
     'WaveLabels', ["Off" "Mean" "Individual spikes" "Mean + individual spikes" "Template"], ...

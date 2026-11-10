@@ -22,7 +22,11 @@ function test_ChronuxAnalysis()
 %   at 30 Hz after each event stands out over the baseline, on the signal
 %   spectrogram's window centers, its refusals; the spike-field and
 %   unit-unit coherograms over epochs and over a stretch, NaN over its
-%   artifact period), and renderChronux (every kind, layout and
+%   artifact period), phaseCoherence (without Chronux: a burst with the
+%   same phase every trial is phase-locked, an ongoing rhythm of random
+%   phase and noise stay under the level of random phases, Rayleigh's with
+%   one taper, the jackknife bars, over time the locking after the event,
+%   its refusals), and renderChronux (every kind, layout and
 %   scale, the phase tiles, into a classic figure and a uifigure panel,
 %   pages, every component's role known to PlotAesthetics).
 %
@@ -146,6 +150,65 @@ check(isequal(kept, 1:3) && size(Xc, 1) == 1501 && isequal(Xc(1 - s0, :).', r0) 
 TBr.starts = [1.2; 5];   % the first leaves the block (it starts at 1.5 s)
 [~, kept, info] = chronuxCut(Db, TBr, 1, "none");
 check(isequal(kept, 2) && info.droppedEdge == 1, 'a trial that leaves the block is left out and counted');
+
+fprintf('\n== 4b. phaseCoherence (inter-trial phase coherence; no Chronux needed) ==\n');
+durP = 200;
+nPh = durP * fs;
+tP = (0:nPh-1).' / fs;
+evP = (5:3:185).' + 0.37 * rand(numel(5:3:185), 1);     % jittered: an ongoing rhythm's phase is random at each event
+xP = 5 * sin(2 * pi * 25 * tP) + randn(nPh, 1);         % 25 Hz throughout, not locked to the events
+for e = evP.'
+    on = tP >= e & tP < e + 0.4;
+    xP(on) = xP(on) + 5 * sin(pi * (tP(on) - e) / 0.4) .^ 2 .* sin(2 * pi * 12 * (tP(on) - e));   % a 12 Hz burst after each event,
+    % the same phase every time; its Hann envelope keeps it near 12 Hz (an abrupt edge is a step locked to the event at every frequency)
+end
+EP = table((1:numel(evP)).', evP, 1 + mod((0:numel(evP)-1).', 2), 'VariableNames', {'epoch', 't0Continuous', 'groupIndex'});
+EP.Properties.UserData = struct('nDroppedEdge', 0, 'nDroppedArtifact', 0);
+TBp = chronuxTimeBase("aligned", E=EP, Groups=G, Window=[-0.5 1]);
+Dp = blockOf(xP, fs, 1, rowsOf(TBp.span, fs, nPh));
+Sp3 = chronuxSettings(struct('analysis', "itpc", 'window', [-0.5 1], 'TW', 2, 'K', 3, 'fpass', [0 100], 'err', "jackknife"));
+Rp = phaseCoherence(Dp, TBp, Sp3, Dataset="demo");
+[~, k12] = min(abs(Rp.f - 12));
+[~, k25] = min(abs(Rp.f - 25));
+hiP = Rp.f > 60;
+check(Rp.kind == "phaseCoherence" && ~Rp.overTime && isequal(size(Rp.C), [numel(Rp.f) 1 2]) && all(Rp.f > 0) ...
+    && all(Rp.C(:) >= 0 & Rp.C(:) <= 1 + 1e-12) && isequal(Rp.nTrials, TBp.groups.n.') && Rp.dataset == "demo" ...
+    && Rp.tapers.K == 3 && isempty(Rp.t), ...
+    'phaseCoherence: one ITPC per channel and group, 0 to 1, the 0 Hz bin left out, the trials counted');
+check(all(Rp.C(k12, 1, :) > 0.8) && all(reshape(Rp.C(k25, 1, :), 1, []) < Rp.confC(1, :) + 0.05) ...
+    && all(mean(Rp.C(hiP, 1, :) < reshape(Rp.confC(1, :), 1, 1, []), 1) > 0.85), ...
+    sprintf(['a burst with the same phase every trial is phase-locked (ITPC %.2f at 12 Hz); an ongoing rhythm of random ' ...
+    'phase (%.2f at 25 Hz) and noise stay under the level of random phases (%.2f)'], Rp.C(k12, 1, 1), Rp.C(k25, 1, 1), Rp.confC(1, 1)));
+check(all(Rp.Clo(:) <= Rp.C(:) + 1e-12 & Rp.C(:) <= Rp.Chi(:) + 1e-12) && all(Rp.Clo(:) >= 0 & Rp.Chi(:) <= 1), ...
+    'the jackknife bars bracket the ITPC, within 0 and 1');
+S1t = Sp3; S1t.TW = 1; S1t.K = 1;
+R1t = phaseCoherence(Dp, TBp, S1t);
+ray = sqrt(-log(0.05) ./ R1t.nTrials);
+check(all(abs(R1t.confC - ray) ./ ray < 0.15) && all(Rp.confC < R1t.confC), ...
+    sprintf('one taper: the level of random phases is Rayleigh''s sqrt(-ln p / N) (%.3f, %.3f expected); averaging 3 tapers lowers it (%.3f)', ...
+    R1t.confC(1), ray(1), Rp.confC(1)));
+Rp2 = phaseCoherence(Dp, TBp, Sp3);
+Snone = Sp3; Snone.err = "none";
+Rn = phaseCoherence(Dp, TBp, Snone);
+check(isequal(Rp2.confC, Rp.confC) && isempty(Rn.Clo) && all(isnan(Rn.confC(:))) && max(abs(Rn.C(:) - Rp.C(:))) < 1e-12, ...
+    'the level is the same on every call (a fixed seed); err "none": the same ITPC, no level, no bars');
+Sot = chronuxSettings(struct('analysis', "itpc", 'window', [-0.5 1], 'TW', 1, 'K', 1, 'fpass', [4 40], 'overTime', true, ...
+    'movingwin', [0.25 0.025]));
+Ro = phaseCoherence(Dp, TBp, Sot);
+nWo = round(0.25 * fs);
+fo12 = abs(Ro.f - 12) <= 2;
+postO = Ro.t > 0.1 & Ro.t < 0.3;
+preO = Ro.t > -0.35 & Ro.t < -0.15;
+check(Ro.overTime && isequal(size(Ro.C), [numel(Ro.t) numel(Ro.f) 1 2]) && abs(Ro.t(1) - (-0.5 + (nWo - 1) / 2 / fs)) < 1e-12 ...
+    && isempty(Ro.Clo) && mean(Ro.C(postO, fo12, 1, :), 'all') > mean(Ro.C(preO, fo12, 1, :), 'all') + 0.4, ...
+    'over time: the ITPC over each moving window (its center, s from the event), the burst''s phase-locking after the event, not before');
+TBrange = chronuxTimeBase("range", Range=[10 40], Fs=fs, NRows=nPh, Segment=1);
+check(strcmp(errorId(@() phaseCoherence(Dp, TBrange, Sp3)), 'phaseCoherence:Aligned') ...
+    && strcmp(errorId(@() phaseCoherence(Dp, TBp, setfield(Sot, 'movingwin', [2 0.1]))), 'phaseCoherence:Short') ...
+    && strcmp(errorId(@() phaseCoherence(Dp, TBp, setfield(Sp3, 'fpass', [0 0.2]))), 'phaseCoherence:Fpass') ...   % (0.49 Hz bins: 0 Hz alone)
+    && strcmp(errorId(@() phaseCoherence(Dp, TBp, Sot, MaxMB=1e-4)), 'phaseCoherence:TooLarge') ...
+    && strcmp(errorId(@() phaseCoherence(Dp, TBp, Sp3, Check=@() error('test:stop', 'stop'))), 'test:stop'), ...
+    'refused: a time base that is not aligned, a moving window longer than the epoch, no frequency in fpass, over MaxMB; a Check that throws stops it');
 
 if ~ChronuxDataset.hasChronux()
     fprintf('\n(Chronux is not on the path: the analyses are not checked)\n');

@@ -202,7 +202,7 @@ same channel filters nothing again). A layer's result keeps both rates:
 script reads a channel figure's signal at the same rate. The rate changes
 the figure's data, so a preview drawn at another rate computes again.
 
-A spectrum, spectrogram or coherence whose `fpass` runs past 0.38 × a
+A spectrum, spectrogram, coherence or ITPC whose `fpass` runs past 0.38 × a
 layer's rate would show the anti-aliasing filter's roll-off as if it were
 the signal's own: `validate` warns (at `<figure>.<panel>.options.fpass`) and
 names the rate that would keep `fmax`.
@@ -219,7 +219,7 @@ reaches into the samples before and after each window. Two places set one:
   (the app's Data tab, **Filter...**).
 - a panel's `options.filter`: that panel's signal layers are read through
   it, after the signal's own (the continuous, heat map, spectrum,
-  spectrogram and coherence panels; [Panel options](#panel-options)). A
+  spectrogram, coherence and phase coherence panels; [Panel options](#panel-options)). A
   figure can so draw one channel raw in one panel and its theta band in
   another.
 
@@ -513,13 +513,13 @@ groups), on the panel's one x axis. One vocabulary serves every such type
 | --- | --- | --- |
 | `psth` | `groups` | each group's PSTH from its own zero (bars or a line, its band); the groups' values on the left axis, each row's peak on the right. With `display "heatmap"` the stack is not used (the image has a row per group already) |
 | `continuous` | `groups`, `items` | line rows: each row's traces, bands and (with `trials`) epochs; the rows named on the left axis, each row's top value on the right; y label `Channel (<height> <unit> per row)` (a stack of groups: the group-by parameters) |
-| `spectrum`, `coherence` | `groups` | line rows, every item or pair overlaid in each; a spectrum's `scale "log"` draws log10 of the power in a stack (a log axis holds no offset rows); a coherence panel's phase strip stays overlaid |
+| `spectrum`, `coherence`, `itpc` | `groups` | line rows, every item or pair overlaid in each; a spectrum's `scale "log"` draws log10 of the power in a stack (a log axis holds no offset rows); a coherence panel's phase strip stays overlaid |
 | `tuning` | `groups` | a row per series (`seriesParam`), every item in each |
 | `heatmap` | `groups` (rows `"items"`) | a block of the layer's units or channels per group, every block in the same row order and on one color scale; not used for rows `"trials"` (they list the groups in blocks already: a validation warning) |
-| `spectrogram`, `coherence` over time | `groups` | an image row per group sharing the time axis, one color scale and one color bar for all, y label `<parameters> (<f1>-<f2> Hz per row)` |
+| `spectrogram`, `coherence` and `itpc` over time | `groups` | an image row per group sharing the time axis, one color scale and one color bar for all, y label `<parameters> (<f1>-<f2> Hz per row)` |
 | `raster`, `rate`, `waveforms`, `probemap`, `corrmap`, `eventTrace` | — | none: a raster lists its groups in blocks already and an event trace has a row per line; a rate panel puts its groups along x; waveforms and the probe map have no trial groups, and a unit correlation map is a units-by-units matrix (draw one panel per group with `options.group`) |
 
-- **Line rows** (PSTH, continuous, spectrum, coherence, tuning): a thin gray line
+- **Line rows** (PSTH, continuous, spectrum, coherence, ITPC, tuning): a thin gray line
   along each row (role `stackBase`; at the row's zero, else its bottom), the
   rows' names on the left axis (the group's value, `0.5` or `0.5, 1` for two
   `groupBy` parameters, the parameters naming the axis), each row's top value
@@ -543,13 +543,13 @@ groups), on the panel's one x axis. One vocabulary serves every such type
 ### Y limits
 
 Every panel type with a y axis of values (PSTH, continuous, waveforms, rate,
-tuning, spectrum, coherence) takes `options.yLimMode`, one vocabulary
+tuning, spectrum, coherence, ITPC) takes `options.yLimMode`, one vocabulary
 (`EphysAnalysisConfig.YLimModes`), with `options.yLim` the limits it uses when
 `"fixed"`:
 
 | `yLimMode` | Overlaid groups (one axis) | Stacked rows ([Stacks](#stacks)) |
 | --- | --- | --- |
-| `"auto"` (default) | the axis fits the data (the type's own range: an auROC and a coherence 0 to 1) | each row fits itself: scaled to its own reach, its top value on the right axis; y label `... (each row on its own scale)` |
+| `"auto"` (default) | the axis fits the data (the type's own range: an auROC, a coherence and an ITPC 0 to 1) | each row fits itself: scaled to its own reach, its top value on the right axis; y label `... (each row on its own scale)` |
 | `"rows"` | as `"auto"` (the groups share the one axis already) | every row on one scale, the reach of them all; y label `... (<height> <unit> per row)` |
 | `"batch"` | one range for every observation of a run of the figure | every row on that one range |
 | `"fixed"` | `yLim` (`[lo hi]`, required) | every row's range is `yLim` |
@@ -1273,7 +1273,8 @@ its own (`"psth"`, `"raster"`, `"continuous"`, `"eventTrace"` for [event traces]
 `"trialHist"` and `"trialScatter"` for the [trial panels](#trial-measures), `"heatmap"`, `"waveforms"`,
 `"probemap"`, `"corrmap"`, `"rate"` for a firing rate panel, `"tuning"` for a
 tuning curve, `"spectrum"`, `"spectrogram"` and `"coherence"` for the
-[spectral panels](#spectral-panels)): one panel `<type>_1` over the whole page (`[0 0 1 1]`) holding
+[spectral panels](#spectral-panels), `"itpc"` for a [phase coherence
+panel](#phase-coherence-panels)): one panel `<type>_1` over the whole page (`[0 0 1 1]`) holding
 `defaultLayer(type)`, a layer of the first source of the type's first
 [category](#source-categories) (`units`; `LFP` for continuous; an events layer of the `Stim` line for event traces; a
 `trials` layer measuring Stim onset to Trial offset for the trial panels, a scatter's x Trial onset to Stim onset) bound as the
@@ -1425,7 +1426,7 @@ follow its id.
 | `binding` | `"observation"` | `"observation"`: follows the previewed or generated unit or channel ([what a layer reads](#what-a-layer-reads)); `"fixed"`: reads what `units`, `channels`, `event` or `measure` name. Events and trials layers are always fixed |
 | `units` | [UnitSelection](#unitselection) without `source` | fixed point and unit layers: which units (it may keep several). A layer following the observation uses it only for the other spike source, on the observed channel. `source` is taken from the layer's |
 | `channels` | `[]` | fixed signal layers: the extract's columns (`[]` = all) |
-| `aggregate` | `"each"` | several units or channels in one layer: `"each"` (one trace or block per item) or `"mean"` (their mean, with a band across them: a PSTH overlay, the aux magnitude's mean) on a raster, PSTH, continuous, rate or tuning panel; `"each"` or `"magnitude"` (the channels as one item, their vector magnitude, each channel's 2 s running mean out first: an accelerometer's movement) for a fixed signal layer of a spectrum, spectrogram or coherence panel ([Spectral panels](#spectral-panels)); `EphysAnalysisConfig.aggregates(type, source)` lists them |
+| `aggregate` | `"each"` | several units or channels in one layer: `"each"` (one trace or block per item) or `"mean"` (their mean, with a band across them: a PSTH overlay, the aux magnitude's mean) on a raster, PSTH, continuous, rate or tuning panel; `"each"` or `"magnitude"` (the channels as one item, their vector magnitude, each channel's 2 s running mean out first: an accelerometer's movement) for a fixed signal layer of a spectrum, spectrogram, coherence or phase coherence panel ([Spectral panels](#spectral-panels)); `EphysAnalysisConfig.aggregates(type, source)` lists them |
 | `event` | [EventMark](#raster-event-marks) | source `events`: the line, edge, which / scope / [sequence](#event-sequences) and the mark's look (`marker`, `size`, `color`, and a span's `spanStyle`, `spanWidth`, `spanAlpha`) |
 | `eventsAs` | `"marks"` | source `events`: `"marks"` (a mark on every raster row; a latency line and a rug on a PSTH, signal or heat map panel), `"train"` (the events as a spike train of their own: rows in a raster, a PSTH, a heat map row) or `"span"` (a line from each onset to its offset on every raster row; a line per trial group from the median onset to the median offset elsewhere: [Spans](#raster-event-marks)). Not used on an [event-trace panel](#event-traces) |
 | `measure` | [TrialMeasure](#trial-measures), Stim onset → Trial offset | source `trials`: the value each trial gives, a delay, a duration, a count or a trial parameter (a scatter's y) |
@@ -1451,6 +1452,7 @@ follow its id.
 | `spectrum` | Power spectrum | Spectrum | point, continuous | yes | no | no | yes | `observation` |
 | `spectrogram` | Spectrogram | Spectrogram | continuous, point | yes | yes | yes | no | `observation` |
 | `coherence` | Coherence | Coherence | point, continuous | yes | no | no | yes | `observation` |
+| `itpc` | Phase coherence (ITPC) | ITPC | continuous | yes | no | no | no | `observation` |
 | `eventTrace` | Event traces | EventTraces | point (events layers only) | yes | yes | no | yes | `fixed` |
 | `trialDist` | Trial distribution | Dist | trial | no | no | no | yes | `fixed` |
 | `trialHist` | Trial histogram | Hist | trial | no | no | no | yes | `fixed` |
@@ -1463,14 +1465,14 @@ follow its id.
   apply. An unaligned panel (waveforms, probe map, the trial panels) must keep both `"default"`;
   a trial panel may still take a `selection` of its own.
 - `SharesTime`: its x axis is time from the event; it takes the figure's time
-  axis ([below](#shared-time-axis)) and the events layers. A coherence panel
-  does not share it in the table, but `figureFor` sets `sharesTime` for one
-  drawn over time (`options.overTime`) on the aligned base while its `ref` and
-  `window` are the figure's.
+  axis ([below](#shared-time-axis)) and the events layers. A coherence or
+  phase coherence panel does not share it in the table, but `figureFor` sets
+  `sharesTime` for one drawn over time (`options.overTime`) on the aligned base
+  while its `ref` and `window` are the figure's.
 - `OneGroup`: draws one trial group, `options.group` (a 1-based number); a heat
   map of trials (`rows "trials"`) draws every group and ignores it. A coherogram
-  (a coherence panel's `overTime`) has a `group` too, though the type is not
-  marked.
+  (a coherence or phase coherence panel's `overTime`) has a `group` too, though
+  the type is not marked.
 - `MultiLayer`: draws every enabled layer. Any other type draws the first
   enabled one (validate warns of more).
 - `DefaultBinding`: what a new layer of the type binds to (`""`: a legend
@@ -1638,6 +1640,12 @@ What each draws:
 - `coherence`: the multitaper coherence of a seed layer's first item with each
   item of a partner layer (channels or spike trains), its phase in a strip
   under it; with `overTime` an image of the first pair's coherence over time.
+- `itpc`: the inter-trial phase coherence of a signal's channels over the
+  epochs, how alike each frequency's phase is from trial to trial: a trace per
+  channel and trial group by frequency, with the level random phases stay
+  under; with `overTime` an image of the first channel's ITPC over time and
+  frequency, a coherogram on the figure's time axis ([Phase coherence
+  panels](#phase-coherence-panels)).
 - `eventTrace`: digital or derived lines as a logic analyzer shows them, a row
   per events layer, each interval from its onset to its offset ([Event
   traces](#event-traces)).
@@ -1793,7 +1801,7 @@ refuses.
 | `spectrum`, `coherence` | `band` | `defaults("ErrorBand")` | the band's look, as the PSTH's ([Error bands](#error-bands)) |
 | all three | `detrend` | `"constant"` | each trial's trend removed: `"none"`, `"constant"` or `"linear"` |
 | `spectrum`, `spectrogram` | `scale` | `"db"` | `"db"` (10 log10), `"log"` (a log y axis; a spectrogram: dB too) or `"linear"` (as is; a spectrogram baseline then in its own units) |
-| `spectrogram` | `freqScale` | `"linear"` | the frequency (y) axis: `"linear"` or `"log"`, which spreads out the low frequencies: each frequency bin on its share of a log axis (the image on rows evenly spaced in log10 Hz, a bin repeated over the rows it spans, nothing interpolated), ticks at 2, 5, 10, 20, 50 ... Hz, the 0 Hz bin left out; a stack's rows too. It is the drawing's alone: changing it computes nothing again |
+| `spectrogram`, `coherence` | `freqScale` | `"linear"` | the frequency axis (a spectrogram's or coherogram's y, a coherence's x): `"linear"` or `"log"`, which spreads out the low frequencies: each frequency bin on its share of a log axis (an image on rows evenly spaced in log10 Hz, a bin repeated over the rows it spans, nothing interpolated; a coherence's lines and phase strip on a log x axis), ticks at 2, 5, 10, 20, 50 ... Hz, the 0 Hz bin left out; a stack's rows too. It is the drawing's alone: changing it computes nothing again |
 | all three | `spikeFs` | 1000 | spike layers: the time grid the spike trains are analyzed on, Hz |
 | `coherence` | `overTime` | `false` | a coherogram of the first pair (signals or spike trains) |
 | `spectrogram`, `coherence` | `movingwin` | `[0.5 0.05]` | `[window step]` s (a coherence only with `overTime`) |
@@ -1809,7 +1817,7 @@ reports its message at `<figure>.<panel>.options` (the tapers, `fpass`, `err`
 and `errP`, `detrend`, `scale`, `spikeFs`, the moving window, the range and
 segment, a spectrogram's baseline `Mode` and its `Window` inside the panel's
 window, which must therefore be a fixed one unless the panel is on the range
-base), `yLim` and `cLim` `[]` or ascending, `group` a whole number, and a spectrogram's `freqScale`
+base), `yLim` and `cLim` `[]` or ascending, `group` a whole number, and a spectrogram's or coherence panel's `freqScale`
 `"linear"` or `"log"` (at `<figure>.<panel>.options.freqScale`). Layers
 are errors at `<figure>.<panel>.layers`: a coherence panel without exactly two
 enabled layers, a spectrogram without a signal or spike layer (events marks
@@ -1822,6 +1830,80 @@ observed unit and the LFP of its channel (a spike-field coherence).
 The generated standalone script runs a figure through `figureCompute`
 and `renderFigure` like any other, so a spectral panel needs Chronux on the
 path of the MATLAB that runs it.
+
+### Phase coherence panels
+
+An `itpc` panel ("Phase coherence (ITPC)") draws the **inter-trial phase
+coherence** of a signal over the panel's epochs: at each frequency, how alike
+the phase is from one trial to the next. 0 means the phases are random across
+trials; 1 means every trial has the same phase. It shows activity locked in
+phase to the event (an evoked oscillation, a phase reset) even where the power
+does not change. `phaseCoherence` computes it
+([Chronux analyses](EphysAnalysis.md#chronux-analyses)) with the same multitaper
+settings as the spectral panels, but it needs no Chronux.
+
+Each epoch (detrended, `detrend`) is multiplied by each Slepian taper (`dpss`,
+`TW` and `K`, or `W` and `p`) and Fourier transformed. Each coefficient keeps
+only its phase, and
+
+    ITPC(f) = mean over the K tapers of | mean over the N trials of exp(i·phase) |
+
+One taper (`TW 1`, `K 1`) gives the usual single-taper ITPC. More tapers average
+independent estimates: a smoother ITPC with less variance, at a wider bandwidth.
+The 0 Hz and Nyquist bins are left out (their phase is always 0 or pi).
+
+It reads one layer, the first enabled one, a signal (`LFP`, `MUA`, `SPIKE`,
+`AUX`) that may follow the observation; a further layer is skipped (`A phase
+coherence panel draws its first enabled layer only`; Validate warns). A fixed
+layer's `aggregate` may be `"magnitude"`, as on the spectral panels. It is
+always on the aligned time base (no `timeBase`).
+
+| View | Option | Draws |
+| --- | --- | --- |
+| by frequency | `overTime false` (default) | one ITPC over the panel's whole window: a trace per channel and trial group, the groups overlaid (a layer of several channels colored along the sequential colormap, the groups told apart by line style), a dashed line at the level random phases stay under, and the jackknife band. x is frequency, so it shares no time axis |
+| time/frequency coherogram | `overTime true` | the ITPC over the moving window (`movingwin`): an image of the first channel over time from the event and frequency, 0 to 1 (`cLim`), for the trial group `group`, in the design's heat colormap with a color bar `ITPC`. It shares the figure's time axis while the panel's `ref` and `window` are the figure's (`figureFor` sets `sharesTime`) |
+
+**The level of random phases.** The ITPC is biased up with few trials (by about
+sqrt(pi / 4N)). The dashed line (`R.confC`, role `confLine`) is the level the
+ITPC of N trials of random phases stays under with probability 1 − `errP`.
+It is simulated for that number of trials and tapers (4000 draws, a fixed seed:
+the same line every time). With one taper it is close to Rayleigh's
+sqrt(−ln(`errP`) / N). An ITPC over the line is phase-locked at that level. It
+is drawn unless `err` is `"none"`. `err "jackknife"` also draws the band: the
+leave-one-trial-out jackknife's 1 − `errP` interval (the t quantile, within 0
+and 1). Over time there is no band or line.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `taperMode`, `TW`, `K`, `W`, `p`, `pad`, `detrend` | `"TWK"`, 2, 3, 4, 1, 0, `"constant"` | as the spectral panels' |
+| `fpass` | `[2 100]` | `[fmin fmax]` Hz (`fmax` `Inf` = Nyquist) |
+| `err` | `"jackknife"` | `"none"`, `"theoretical"` (the level of random phases) or `"jackknife"` (the level and the band; by frequency) |
+| `errP` | 0.05 | the level's and the band's p |
+| `band` | `defaults("ErrorBand")` | the band's look ([Error bands](#error-bands)) |
+| `overTime` | `false` | the time/frequency coherogram instead of the ITPC by frequency |
+| `movingwin` | `[0.5 0.05]` | over time: `[window step]` s |
+| `freqScale` | `"linear"` | the frequency axis, `"linear"` or `"log"` (by frequency a log x axis; over time the image on rows evenly spaced in log10 Hz, as a spectrogram's). The drawing's alone |
+| `yLimMode`, `yLim` | `"auto"`, `[]` | the ITPC axis by frequency ([Y limits](#y-limits)); automatic: `[0 1]` |
+| `cLim` | `[]` | over time: the color scale, `[]` = `[0 1]` |
+| `group` | 1 | over time: the trial group drawn; not used in a stack |
+| `stack`, `stackSpacing` | `"off"`, 1.1 | `"groups"`: a row per trial group, the first on top: line rows by frequency, image rows over time ([Stacks](#stacks)) |
+| `filter` | off | the [signal filter](#filtered-signals) its layer is read through |
+
+The result is the layer's `R` (`R.f`, `R.C` `[freq x channel x group]` or over
+time `[time x freq x channel x group]` with `R.t`, `R.Clo` / `R.Chi`,
+`R.confC` `[channel x group]`, `R.nTrials`, `R.names`). A moving window longer
+than the epoch, no frequency left in `fpass`, or a result over the 2000 MB
+limit skip the layer with the reason. Validate checks the options with
+`chronuxSettings`' rules, as the spectral panels', and `freqScale`; it warns
+of a moving window longer than the panel's fixed window when drawn over time.
+The `"itpc"` template gives a panel with an LFP layer that follows the
+observed channel. For example, the ITPC of the observed channel's LFP over
+time, from 2 to 60 Hz on a log axis:
+
+```json
+{ "id": "itpc_1", "type": "itpc", "layers": [ { "source": "LFP", "binding": "observation" } ],
+  "options": { "overTime": true, "fpass": [2 60], "freqScale": "log", "movingwin": [0.4 0.02] } }
+```
 
 ### Event traces
 
@@ -2345,7 +2427,7 @@ options a type has, in order:
 | `corrmap` | `bins`, `baseline` |
 | `rate` | `measure`, `baseline`, `waveform` |
 | `tuning` | `measure`, `baseline`, `waveform`, `stack`, `stackSpacing` |
-| `spectrum`, `spectrogram`, `coherence` | `stack`, `stackSpacing`, `filter` (a spectrogram's `baseline` is `chronuxNormalize`'s) |
+| `spectrum`, `spectrogram`, `coherence`, `itpc` | `stack`, `stackSpacing`, `filter` (a spectrogram's `baseline` is `chronuxNormalize`'s) |
 | `trialDist` | `series`, `seriesParam`, `seriesBins`, `summary`, `errorType`, `errorResamples`, `test`, `testPairs`, `adjust`, `testAlpha`, `testShow`, `yScale`, `yLimMode` |
 | `trialHist` | the same but `yScale` and `yLimMode`, with `xScale` |
 | `trialScatter` | the same with `xScale`, `yScale` and `yLimMode` |
@@ -2379,8 +2461,8 @@ it accepts. `EphysAnalysisConfig.sourceCategories()`:
 (`EphysAnalysisConfig.categoryOf(source, type)` is the category the type
 accepts for the source, or `""`). An `events` layer is `point` on every panel
 that shares the time axis (raster, PSTH, continuous, heat map, spectrogram,
-event traces) and nothing elsewhere (so not on a firing rate, tuning, spectrum
-or coherence panel). A heat map takes `point` or `continuous` layers. An
+event traces) and nothing elsewhere (so not on a firing rate, tuning, spectrum,
+coherence or phase coherence panel). A heat map takes `point` or `continuous` layers. An
 event-trace panel takes events layers only: `units`, `detected` and the
 signals are `""` there. A `trials` layer is `trial` on a trial distribution,
 histogram or scatter panel, which take nothing else, and `""` elsewhere.
@@ -2945,7 +3027,7 @@ Errors:
   (but for the spike layer of a heat map of trials), probe map or unit correlation
   panel, and AUX never following a unit
   observation; `aggregate` `each` or `mean`, or `magnitude` on a fixed signal
-  layer of a spectrum, spectrogram or coherence panel; `units.maxUnits` >= 1; `channels`
+  layer of a spectrum, spectrogram, coherence or phase coherence panel; `units.maxUnits` >= 1; `channels`
   whole numbers >= 1; an events layer's `eventsAs` `marks`, `train` or `span`
   (`train` only on a raster, PSTH or heat map; not checked on an event-trace
   panel, which does not use it), the mark's event reference, a
@@ -3347,7 +3429,7 @@ layout's rings are not drawn across sessions*), a **heat map of trials** (*a
 heat map of trials is not merged across sessions*), and a whole panel of a type
 in `EphysAnalysisConfig.FigureSessionUnmerged` (*probe map panels are not merged
 across sessions*, the type named by its label; likewise unit correlation, power
-spectrum, spectrogram and coherence panels). An event-trace panel is merged:
+spectrum, spectrogram, coherence and phase coherence panels). An event-trace panel is merged:
 every session's epochs, as a raster's ([Event traces](#event-traces)). A trial
 panel is merged too: every session's per-trial values, each in its series, its
 statistics made again over them ([Trial measures](#trial-measures)). Events drawn as spans are skipped as marks are. A merge that fails (`combineSessions:TooFew`, `:Bins`,
@@ -3443,7 +3525,7 @@ Errors:
   (it names units), without a `mappingFile`, or with one that does not exist
   (with `CheckPaths`), cannot be read or has no `cell` column;
 - with `sessions.enabled`: a probe map, unit correlation, power spectrum,
-  spectrogram or coherence panel (`<figure>.<panel>.type`: *A session figure
+  spectrogram, coherence or phase coherence panel (`<figure>.<panel>.type`: *A session figure
   cannot hold probe map panels: combineSessions does not merge them across
   sessions.*),
   and an auROC baseline
@@ -3852,7 +3934,7 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | Source | each `Downsample` rate is `[]` or one rate above 0 (Field `Downsample.<signal>`) | error |
 | Source, Figures | an enabled `SignalFilter.<signal>` or panel `options.filter` whose settings `SignalFilter.problems` refuses (Field `SignalFilter.<signal>.<field>`, `<figure>.<panel>.options.filter.<field>`); a cutoff at or above the Nyquist frequency of the rate `Source.Downsample` reads its signal at ([Filtered signals](#filtered-signals)) | error |
 | Source, Figures | a filter's cutoff past 0.38 × the rate `Source.Downsample` reads its signal at (the anti-aliasing filter cuts its band); a panel's filter on a panel with no signal layer | warning |
-| Figures | a spectrum, spectrogram or coherence panel's `fpass` runs past 0.38 × the rate a signal layer is downsampled to ([Downsampled signals](#downsampled-signals)) | warning |
+| Figures | a spectrum, spectrogram, coherence or phase coherence panel's `fpass` runs past 0.38 × the rate a signal layer is downsampled to ([Downsampled signals](#downsampled-signals)) | warning |
 | Defaults, Figures | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Figures | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |
 | Figures | at least one figure or session figure enabled (`No figure is enabled.`); the figure id is not empty, file-name safe and distinct once sanitized from the other figures' (`{Plot}` fills the files' names, case-blind); the figure's alignment is valid; `observe` (`data`, channels, `maxUnits`; on a figure that observes units, an enabled `units.response` test at `<figure>.observe.units.response.<field>` and each spike layer's at `<figure>.<panel>.layers(<j>).units.response.<field>`: the test, `param` for tuning / either / both, ordered `baseline` and `window`, direction, correction, `alpha` in (0, 1], the `"auroc"` test's settings and the Statistics and Machine Learning Toolbox the tests need), `sessions` (the known values, `minSessions`; with `sessions.enabled` no probe map, unit correlation or spectral panel, no auROC baseline, a mapping file for `match "mapping"` and a unit observation for it: [rules](#validating-session-figures)), `probe` (`layout`, `overlap`, `labels` known values, `lanes` / `maxTiles` / `maxPerSite` whole >= 1, `tileWidth` / `tileHeight` in (0, 1], `tileScale` > 0, whole `shanks` and `channels`, `depthRange` `[]` or `[lo hi]`; with `probe.enabled` not a session figure too and not observing the dataset: [rules](#probe-figures)) and `layout` (`boxesMean`, `padding`) hold known values; each panel has an id of its own, a known type and a `rect` inside the page with a width and height (overlapping rects: a warning), a figure one legend panel at most, and each panel its own `ref` / `window` / `selection` only when its type is aligned; each enabled layer's source, binding, aggregate, channels, events (`eventsAs`, event reference, marker, size, a span's look; only events layers on an event-trace panel) and line style fit its panel type; a raster has rows, not marks or spans alone; each type's options; the style ([rules](#validating-figures)) | error |

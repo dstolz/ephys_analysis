@@ -41,7 +41,12 @@ function hk = drawCoherencePanel(ax, P, look)
 %   color strip at the left, its name on the y axis, one color scale and
 %   color bar for all; y label "<groups' parameters> (<f1>-<f2> Hz per
 %   row)"), the groups offered to the legend. x: "Frequency (Hz)", y
-%   "Coherence" (a coherogram: "Frequency (Hz)"). Skipped layers are noted
+%   "Coherence" (a coherogram: "Frequency (Hz)"). options.freqScale "log"
+%   draws the frequency axis logarithmic, as a phase coherence panel's: a
+%   log x axis (the magnitude's and the phase's; the 0 Hz bin left out), a
+%   coherogram's image on rows evenly spaced in log10 Hz (logFrequencyRows,
+%   logFrequencyTicks; a stack's y label then ends "per row, log scale").
+%   Skipped layers are noted
 %   (figLayerNotes). The legend offers the groups, then the pairs when
 %   there are several.
 %
@@ -64,6 +69,14 @@ if R.kind == "chronuxCohgram"
 end
 [~, nP, nG] = size(R.C);
 f = R.f;
+logF = isfield(o, 'freqScale') && o.freqScale == "log" && any(f > 0);
+if logF   % a log axis has no 0 Hz: its bin is left out (the drawing's alone: nothing is computed again)
+    keep = reshape(f, [], 1) > 0;
+    f = f(keep);
+    R.C = R.C(keep, :, :);
+    if ~isempty(R.Clo); R.Clo = R.Clo(keep, :, :); R.Chi = R.Chi(keep, :, :); end
+    if isfield(R, 'phi') && ~isempty(R.phi); R.phi = R.phi(keep, :, :); end
+end
 colors = look.colors;
 if size(colors, 1) ~= height(R.groups); colors = groupPalette(R.groups, style); end
 band = ~isempty(R.Clo);
@@ -163,6 +176,7 @@ if stacked; flat.YLim = []; end
 styleAxes(ax, flat);
 if isempty(yl) && ~stacked; ylim(ax, [0 1]); end
 if numel(f) > 1; xlim(ax, double(f([1 end]).')); end
+if logF; set(ax, 'XScale', 'log'); end
 hk.yName = "Coherence";
 if stacked
     stackAxes(ax, L, rowNames, "Row top (coherence)");
@@ -171,6 +185,7 @@ end
 if ~isempty(px)
     tagPart(px, "axes", "", look.panelId);
     if numel(f) > 1; xlim(px, double(f([1 end]).')); end
+    if logF; set(px, 'XScale', 'log'); end
     ph = style;
     ph.XLim = [];
     ph.YLim = [];
@@ -209,12 +224,17 @@ nG = size(R.C, 4);
 g = min(max(1, round(o.group)), nG);
 stacked = isfield(o, 'stack') && o.stack == "groups";   % every group: an image row each, the first on top
 name = string(R.pairs.label(1));
+f = reshape(double(R.f), [], 1);
+logF = isfield(o, 'freqScale') && o.freqScale == "log" && any(f > 0);
+fIn = f(f > 0 | ~logF);   % the bins drawn (a log axis leaves 0 Hz out)
 if stacked
     colors = look.colors;
     if size(colors, 1) ~= nG; colors = groupPalette(R.groups, style); end
     rowNames = reshape(string(rowLabels(R)), 1, []);
     Z = permute(R.C(:, :, 1, :), [2 1 4 3]);   % [nF x nT x nGroups]
-    [~, hLeg] = drawImageStack(ax, R.t, R.f, Z, rowNames(1:nG), colors, o.stackSpacing);
+    fY = f;
+    if logF; [fY, Z] = logFrequencyRows(f, Z); end   % rows evenly spaced in log10 Hz, on a y axis of log10 Hz
+    [~, hLeg] = drawImageStack(ax, R.t, fY, Z, rowNames(1:nG), colors, o.stackSpacing);
     for q = 1:nG
         hk.legendHandles(end+1) = hLeg(q);
         hk.legendLabels(end+1) = string(R.groups.label(q));
@@ -222,7 +242,10 @@ if stacked
     end
 else
     x = R.C(:, :, 1, g).';
-    tagPart(imagesc(ax, R.t, R.f, x, 'AlphaData', double(isfinite(x))), "image", name);
+    fY = f;
+    if logF; [fY, x, fRow] = logFrequencyRows(f, x); end
+    hIm = tagPart(imagesc(ax, R.t, fY, x, 'AlphaData', double(isfinite(x))), "image", name);
+    if logF; setappdata(hIm, 'RowLabels', compose("%.3g Hz", fRow)); end   % (the data tips: a row's frequency)
 end
 tagPart(ax, "axes", "", look.panelId);   % after imagesc
 set(ax, 'YDir', 'normal', 'Layer', 'top');
@@ -247,7 +270,12 @@ if R.aligned && numel(W) == 2 && W(2) > W(1)
 elseif numel(R.t) > 1
     xlim(ax, double(R.t([1 end]).'));
 end
-if numel(R.f) > 1 && ~stacked; ylim(ax, double(R.f([1 end]).')); end
+if ~stacked && logF
+    if numel(fIn) > 1; ylim(ax, log10(reshape(fIn([1 end]), 1, 2))); end
+    logFrequencyTicks(ax);
+elseif numel(R.f) > 1 && ~stacked
+    ylim(ax, double(R.f([1 end]).'));
+end
 if ~R.aligned; xlabel(ax, "Time (s)"); end   % the recording's clock (an aligned one: renderFigure's time axis)
 cb = tagPart(colorbar(ax), "colorbar");
 cb.Label.String = "Coherence";
@@ -260,7 +288,10 @@ title(ax, ttl, 'FontWeight', 'normal', 'Interpreter', 'none');
 figLayerNotes(ax, P, look, true);
 hk.axes = ax;
 hk.yName = "Frequency (Hz)";
-if stacked
+if stacked && logF
+    [~, gName] = rowLabels(R);
+    hk.yName = sprintf("%s (%.3g-%.3g Hz per row, log scale)", gName, fIn(1), fIn(end));
+elseif stacked
     [~, gName] = rowLabels(R);
     hk.yName = sprintf("%s (%.3g-%.3g Hz per row)", gName, R.f(1), R.f(end));
 end

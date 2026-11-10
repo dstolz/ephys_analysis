@@ -2169,7 +2169,9 @@ runner does. Not mirrored: cancel, the `Results` rows and the run record.
 
 The Figures tab's [spectral panels](EphysAnalysisConfig.md#spectral-panels) (spectrum,
 spectrogram, coherence) run [Chronux](http://chronux.org) (bundled in
-`toolboxes/chronux`; put it on the path) through the functions below. They take
+`toolboxes/chronux`; put it on the path) through the functions below; a phase
+coherence panel runs `phaseCoherence`, which takes the same settings and needs
+no Chronux. They take
 the block of a layer's signal or the spike trains the panel has read
 (`figureChronuxLayer`), not a file. To run Chronux on a dataset yourself, use
 [ChronuxDataset](ChronuxDataset.md) or the DatasetBrowser's
@@ -2188,6 +2190,7 @@ the block of a layer's signal or the spike trains the panel has read
 | `chronuxSpikeField(D, SP, TB, S)` | `coherencycpt` of each train with the field channel `S.fieldChannel`, the spikes cut to the field's very samples (half a sample of margin, moved onto the grid's ends by `chronuxOntoGrid` so a trial whose only spikes sit in the margin is not read by `mtfftpt` with them outside the tapers); `S.overTime`: `cohgramcpt`, as a coherogram |
 | `chronuxUnitCoherence(SP, TB, S)` | `coherencypt` of the seed train with its partner, or with every other train (spikes stamped past the grid's last point moved onto it, as `chronuxSpikeSpectrum`); `S.overTime`: `coherencypt` over each moving window, as a coherogram |
 | `chronuxNormalize(S, t, mode, window, winSec, fs)` | a spectrogram `[time x freq x ...]` against its baseline, frequency by frequency: the mean of the moving windows that lie wholly inside `window` (`[b0 b1]` s), as `"db"`, `"percent"`, `"zscore"` or `"ratio"`; `fs` when the windows are samples (`chronuxSpecgram`, `chronuxSpikeSpecgram`), none when each spans `winSec` around its time (`mtspecgrampt`'s, in `S_ExampleChronuxSpikes`) |
+| `phaseCoherence(D, TB, S)` | the inter-trial phase coherence (ITPC) per channel and group over aligned epochs, with the same settings (`S.analysis = "itpc"`): each trial tapered by each Slepian taper (`dpss`) and Fourier transformed, its coefficients kept as their phase, ITPC = the mean over the tapers of \|mean over the trials of exp(i·phase)\| (0 random, 1 the same phase in every trial; one taper, `TW 1, K 1`: the usual ITPC); `R.C`, the level random phases stay under at 1 − `errP` `R.confC` (simulated for the trial count and tapers), the jackknife bars `R.Clo` / `R.Chi`; `S.overTime`: over the moving window, `R.C` `[time x freq x channel x group]`. 0 Hz and Nyquist are left out. Needs no Chronux. The figure's [phase coherence panel](EphysAnalysisConfig.md#phase-coherence-panels) draws it; `renderChronux` does not |
 | `renderChronux(R, target, Display=)` | draws any of them (a tile per channel, train or pair, or per group; a coherence's phase under it; an image per channel or pair and group over time, its frequency axis logarithmic with `Display.freqScale = "log"`) in the plot design, its parts named for the aesthetics editor (a coherence's `confLine` and `phase`, a spike spectrum's `rateLine`) |
 
 The trials are cut as `evokedPotential` cuts its epochs: offset 0 of a

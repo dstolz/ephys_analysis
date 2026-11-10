@@ -22,7 +22,9 @@ previews, plans and runs are the runner's `computeFigure`,
 [generated script](EphysAnalysis.md#scripts) draws. Its
 [spectral panels](EphysAnalysisConfig.md#spectral-panels) (power spectrum,
 spectrogram, coherence) compute multitaper spectra and coherence of signals and
-spike trains straight from the extracts and units. For anything further, the
+spike trains straight from the extracts and units, and its
+[phase coherence panel](EphysAnalysisConfig.md#phase-coherence-panels) the
+inter-trial phase coherence (ITPC) of a signal. For anything further, the
 [DatasetBrowser](DatasetBrowser.md#the-post-processing-script) makes the inputs
 of Chronux, FieldTrip and other toolboxes. There are five
 tabs: Data, Alignment, Figures, Export and Log.
@@ -388,7 +390,9 @@ added to it one by one. The three spectral panel types (*Power spectrum*, *Spect
 *Coherence*) call Chronux, which must be on the MATLAB path
 (`toolboxes/chronux`); without it the panel says
 *Chronux is not on the path* and the rest of the figure still draws
-([Spectral panels](EphysAnalysisConfig.md#spectral-panels)).
+([Spectral panels](EphysAnalysisConfig.md#spectral-panels)). A *Phase
+coherence (ITPC)* panel takes the same multitaper rows but needs no Chronux
+([Phase coherence panels](EphysAnalysisConfig.md#phase-coherence-panels)).
 
 The preview draws one observation. The Export tab's **Plan** and **Run**
 draw every enabled figure for every observation of every ticked dataset, a
@@ -834,7 +838,7 @@ it, or drag a neighbor over it with Arrange.
 
 **The New panel window** (**New panel...**, and **Add** after it makes a blank
 figure; *New panel*, modal) adds one panel to the selected figure. On the left a
-tile per [panel type](EphysAnalysisConfig.md#panel-types), all seventeen
+tile per [panel type](EphysAnalysisConfig.md#panel-types), all eighteen
 (`EphysAnalysisConfig.panelTypes()`: a type added there shows here too), each a
 small representative plot of the type over its label (the type's description is
 its tooltip): the type drawn by its real draw function on a small synthetic
@@ -849,7 +853,7 @@ right side follows it:
 | **Name** | the panel's id (`<type>_<n>`, the first free, until you type one; another panel of the figure's name is refused with a red line, the window staying open; so is a second *Legend* panel: *"The figure already has a legend panel (legend_1)."*) |
 | **Title** | the panel's own title (blank = none) |
 | **Place** | *Largest empty space* (the largest rectangle of the page no panel covers; grayed, and refused with a red line, when the page has none), *Below*, *Above*, *Right of* or *Left of* the selected panel (named: *Below raster_2 (splits it)*, the selected panel keeping the half next to the new one), and *Draw it on the preview (two clicks)* (after **OK**, click one corner of its place on the preview, then the opposite one; Arrange switches on, Escape cancels; grayed until the preview shows the figure). *Fill the page*, and off, for a figure's first panel |
-| **Key parameters** | **Reads** (the first layer's source, among the sources the type draws; a *Coherence* panel's **Seed** and **Partner**) and **Binding** (*Follows the observation* or *Fixed*; fixed and grayed out where the layer cannot follow), for every type but *Event traces*; then the type's own: *Raster* **Sort rows by** (trial order, the stop event or a trial parameter); *PSTH* **Bin width (ms)**, **Smooth SD (ms)**, **Measure**, **Draw as** (trace or heat map); *Continuous signal* **Stack** (overlaid lines or stacked rows), **Error band**; *Heat map* **Rows** (the layer's units or channels, or one unit's epochs: the binding then follows the observation), **Bin width (ms)**; *Unit waveforms* **Layout**; *Probe map* **Color by**; *Unit correlation* **Epoch rate**, **Correlation**; *Firing rate* **Measure**, **Draw as**; *Tuning curve* **Parameter**, **Series**; *Power spectrum* **Frequency (Hz)**, **Power scale**; *Spectrogram* **Frequency (Hz)**, **Moving window (s)**; *Coherence* **Frequency (Hz)**; *Event traces* **Lines** (the active dataset's lines, several picked with Ctrl+click: an events layer and a row each) and **Draw as**; *Trial distribution*, *Trial histogram* and *Trial scatter* no **Reads** or **Binding** (a trials layer, always fixed) but their first layer's measure: **Trial measure** (*Delay from an event to another*, *Duration of an interval*, *Count of events after an event* or *A trial parameter*), **From (A)** (a line and its edge; grayed out for a parameter), **To (B)** (grayed out for a duration or a parameter), **Parameter** (the dataset's trial parameters; a parameter's only), then **Draw as** for a distribution (swarm, box, violin, points or line) or a histogram (bars, an outline or the ECDF) and a scatter's **Fit**; the [Trial measure window](#the-trial-measure-window) has the rest of the measure (which, scope, shifts, sequences, direction, gap, unit, label); *Legend* **Orientation** (auto, by the panel's shape; vertical; horizontal) and **Columns** (0 = automatic), and no source: it shows the figure's legend entries. Every other option keeps the type's default and is in the editor's sections |
+| **Key parameters** | **Reads** (the first layer's source, among the sources the type draws; a *Coherence* panel's **Seed** and **Partner**) and **Binding** (*Follows the observation* or *Fixed*; fixed and grayed out where the layer cannot follow), for every type but *Event traces*; then the type's own: *Raster* **Sort rows by** (trial order, the stop event or a trial parameter); *PSTH* **Bin width (ms)**, **Smooth SD (ms)**, **Measure**, **Draw as** (trace or heat map); *Continuous signal* **Stack** (overlaid lines or stacked rows), **Error band**; *Heat map* **Rows** (the layer's units or channels, or one unit's epochs: the binding then follows the observation), **Bin width (ms)**; *Unit waveforms* **Layout**; *Probe map* **Color by**; *Unit correlation* **Epoch rate**, **Correlation**; *Firing rate* **Measure**, **Draw as**; *Tuning curve* **Parameter**, **Series**; *Power spectrum* **Frequency (Hz)**, **Power scale**; *Spectrogram* **Frequency (Hz)**, **Moving window (s)**; *Coherence* **Frequency (Hz)**; *Phase coherence (ITPC)* **Frequency (Hz)**, **View** (*ITPC by frequency* or a *time/frequency coherogram*: `overTime`), **Moving window (s)**; *Event traces* **Lines** (the active dataset's lines, several picked with Ctrl+click: an events layer and a row each) and **Draw as**; *Trial distribution*, *Trial histogram* and *Trial scatter* no **Reads** or **Binding** (a trials layer, always fixed) but their first layer's measure: **Trial measure** (*Delay from an event to another*, *Duration of an interval*, *Count of events after an event* or *A trial parameter*), **From (A)** (a line and its edge; grayed out for a parameter), **To (B)** (grayed out for a duration or a parameter), **Parameter** (the dataset's trial parameters; a parameter's only), then **Draw as** for a distribution (swarm, box, violin, points or line) or a histogram (bars, an outline or the ECDF) and a scatter's **Fit**; the [Trial measure window](#the-trial-measure-window) has the rest of the measure (which, scope, shifts, sequences, direction, gap, unit, label); *Legend* **Orientation** (auto, by the panel's shape; vertical; horizontal) and **Columns** (0 = automatic), and no source: it shows the figure's legend entries. Every other option keeps the type's default and is in the editor's sections |
 | **OK**, **Cancel** | **OK** adds the panel (`onNewPanel`, `EphysAnalysisConfig.placePanel`) and selects it: the editor and the preview follow, a figure that observed the dataset observes what a following layer reads, and an automatic id follows the panel; the status bar says what was added and where, in the units picked (*"Added psth_1 (PSTH) in the free space, 9.0 x 6.0 cm at 0, 0. Its layer: units, follows the observation."*; *"... below raster_1 (raster_1 halved), ..."*; the first panel *"... filling the page, ..."*). **Cancel**, or closing the window, adds nothing |
 
 The key parameters, and the panel's other options, start from the
@@ -966,7 +970,7 @@ only what the panel's type draws
 ([source categories](EphysAnalysisConfig.md#source-categories), and *events
 (a line)* only on a panel that shares the time axis: a raster, PSTH, continuous
 signal, heat map or spectrogram, no longer a firing rate, tuning curve, power
-spectrum or coherence panel); the layer is bound as the
+spectrum, coherence or phase coherence panel); the layer is bound as the
 type binds a new one, and fixed where it cannot follow the observation. **Remove**, **Up**
 and **Down** edit the list; the order is the drawing order (the first
 layer's first unit is a raster's top rows). A type that draws one layer
@@ -974,7 +978,9 @@ layer's first unit is a raster's top rows). A type that draws one layer
 red when it has more: only the first enabled one is drawn (a unit waveforms
 panel in the *probe* layout takes more: the first layer is drawn, the others
 frame their units in red). A *Spectrogram* is a one-layer type too (its first
-signal or spike layer: LFP, MUA, SPIKE, AUX, sorted units or detected spikes).
+signal or spike layer: LFP, MUA, SPIKE, AUX, sorted units or detected spikes),
+and so is a *Phase coherence (ITPC)* panel (its first signal layer: LFP, MUA,
+SPIKE or AUX; Validate warns of more).
 A *Coherence* panel takes exactly two layers, the seed first and
 its partner second (Validate refuses any other number): the seed's first
 channel or unit is paired with each item of the partner, so *Up* and *Down*
@@ -1005,7 +1011,7 @@ cut by what an edit costs, so the section tells you what a change will do:
 | --- | --- | --- |
 | **Analysis** (*Analysis — PSTH*) | what is computed: **Filter** (a continuous, heat map, spectrum, spectrogram or coherence panel: the filter its signal layers are read through, in words, and **Filter...**, [below](#a-panels-filter)), **Bin width (ms)**, **Smooth SD (ms)**, **Measure**, **Baseline** and **Baseline span (s)**, the auROC rows (the folded **auROC** group), **Normalize**, **Mask after the stop event**, **Signal**, **Epoch rate**, **Correlation**, **Fisher z transform**, **Detrend over the session**, **Parameter** and **series**, **Rows**, **Row order**, **Trial group drawn**, **Color by** (a probe map's value), the spectral panels' **Time base**, **Range (s)**, **Segment (s)**, the folded **Tapers** group (**Tapers**, **TW, K**, **W (Hz), p**, **Pad**), **Frequency (Hz)**, **Detrend**, **Sampling (Hz)**, **Over time** and **Moving window (s)**, the trial panels' **Categories**, **Series**, **Bins**, **Fit** and **Correlation**, and under **Statistics** the trial panels' **Summary**, the **Error** row (*Off*, *mean ± SEM*, ..., with its **resamples**; a spectral panel's *Off*, *theoretical* or *jackknife* with its p-value), **Test** with its pairs and **P adjustment** with its alpha | computes the figure again (`figureCompute` reads the row) |
 | **Display** (*Display — PSTH*) | how it is drawn: **Draw as** (a PSTH's trace or heat map, a firing rate panel's bars, boxes or points, an event-trace panel's bars or level, a distribution's swarm, box, violin, ... and a histogram's bars, outline or ECDF), **Trace**, **Fill**, **Smoothed line**, **Stack**, **Onset line**, **Trial count**, **First-spike marks**, **Latency box plot**, **Band fill**, **Band edge**, the raster's **Sort rows by**, **Sort event**, **Sort sequence**, **Rows by group first**, **Show y ticks**, **Tick color**, **Row bands** and **Tick width**, **Single trials** (a continuous panel's, with **at most**; an event-trace panel's), the waveforms panel's **Layout**, **Power scale**, **Show phase**, the event traces' **Color by**, **Height**, **Bar outline**, **Narrowest bar**, **Level line**, **Row line**, **Row line style** and **Row spacing**, the trial panels' **Points**, **Also show**, **Show tests**, **Opacity** and **Marginals**, a legend panel's **Entries** and **Place in panel**, and a probe map's **Unit labels** and **Color waveforms by value** | redraws the plot, nothing computed again |
-| **Axes** (*Axes*) | what sets an axis: **Axes box**, **X axis**, **Y axis**, **Show (x, y)**, the trial panels' **Scales (x, y)** and **X limits**, a spectrogram's **Frequency axis**, **Y limits**, **Colormap**, **Color limits** | redraws |
+| **Axes** (*Axes*) | what sets an axis: **Axes box**, **X axis**, **Y axis**, **Show (x, y)**, the trial panels' **Scales (x, y)** and **X limits**, a spectrogram's, coherence's or phase coherence panel's **Frequency axis**, **Y limits**, **Colormap**, **Color limits** | redraws |
 
 A sub-heading cuts a section's long run of rows: **auROC** and **Tapers** in
 Analysis are folded away until opened (a click on the **▸** opens them; the
@@ -2365,7 +2371,7 @@ read and write notes with `DatasetNotes`.
 
 ## Panel types
 
-A figure's panels are of the seventeen types of `EphysAnalysisConfig.panelTypes()`;
+A figure's panels are of the eighteen types of `EphysAnalysisConfig.panelTypes()`;
 the Figures tab's **New panel** window offers all of them, each with a small
 representative plot, and the Analysis,
 Display and Axes sections show the rows of the selected panel's type
@@ -2383,6 +2389,7 @@ Display and Axes sections show the rows of the selected panel's type
 | `rate` (Firing rate) | the rate in each epoch window per trial group: bars, boxes or points |
 | `tuning` (Tuning curve) | the rate against a trial parameter, a curve per series |
 | `spectrum`, `spectrogram`, `coherence` | multitaper power, spectrogram and coherence (Chronux) |
+| `itpc` (Phase coherence (ITPC)) | the inter-trial phase coherence of a channel over the epochs, by frequency or over time and frequency (a coherogram), with the level random phases stay under |
 | `eventTrace` (Event traces) | digital or derived lines as a logic analyzer shows them: a row per line, bars or a logic level from each onset to its offset, epochs overlaid or a sub-row each |
 | `trialDist` (Trial distribution) | one value per trial (a delay, duration, count or parameter: its layer's [measure](#the-trial-measure-window)) by category, as a swarm, box, violin, points or a line, with group tests |
 | `trialHist` (Trial histogram) | the distribution of one value per trial, per series: bars, an outline or the cumulative distribution |
@@ -2580,7 +2587,7 @@ the preview's line, Plan's *WhatToDo* column and the results' *WhatToDo* column:
 
 A [session figure](#sessions-in-the-figures-tab) is skipped, in Plan and the preview, when
 (`figureSessionSkipReason`): it is *disabled*; *X panels are not merged across
-sessions* (probe map, unit correlation, power spectrum, spectrogram or coherence);
+sessions* (probe map, unit correlation, power spectrum, spectrogram, coherence or phase coherence);
 *an auROC baseline is not merged across sessions*; with *Mapping*, there is
 *no mapping file* or the *mapping file is not found*; or *fewer than N
 session(s) can draw it*, followed by each session that cannot and its own

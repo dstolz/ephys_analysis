@@ -7,7 +7,9 @@ function reason = figureLayerError(ME)
 %   filter that cannot run at the rate the signal is read at; for the
 %   Chronux panels no trial or segment left, a pair or field channel not
 %   at hand, a moving window longer than the epoch, a result over its
-%   limit, settings chronuxSettings refuses, ...; for the trial panels a
+%   limit, settings chronuxSettings refuses, ...; for a phase coherence
+%   panel a moving window longer than the epoch, no frequency in fpass,
+%   a result over its limit; for the trial panels a
 %   trial selection that cannot be applied, a measure with no value or
 %   whose trial parameter is missing or not numeric): the
 %   layer (or the panel) is skipped with it and the
@@ -29,6 +31,7 @@ skippable = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLef
     "chronuxSpikeField:Short" "chronuxSpikeField:TooLarge" "chronuxUnitCoherence:Short" "chronuxUnitCoherence:TooLarge" "chronuxCoherence:Short" "chronuxCoherence:TooLarge" "chronuxTimeBase:NoTrials" ...
     "chronuxTimeBase:BadValue" "chronuxSettings:BadValue" "chronuxSettings:Baseline" ...
     "chronuxNormalize:NoBaseline" "chronuxParams:Fpass" ...   % no window wholly inside the baseline; fpass above the layer's Nyquist
+    "phaseCoherence:Short" "phaseCoherence:Fpass" "phaseCoherence:TooLarge" ...   % a phase coherence panel's
     "selectTrials:NoTrials" "selectTrials:NoParam" "selectTrials:NoRespCode" "selectTrials:TooManyGroups" ...
     "trialSelection:BadFilter" "trialMeasure:NoValues" "trialMeasure:NoParam" "trialMeasure:BadParam"];   % a trial panel's selection and measures
 if string(ME.identifier) == "ChronuxDataset:NoChronux"   % the spectral panels: the toolbox, not the data

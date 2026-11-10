@@ -22,10 +22,9 @@ try
 catch ME
     obj.setStatus("Cannot read " + name + ": " + string(ME.message));
 end
-set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Value', idx);
 obj.refreshDatasetsTable();
 obj.refreshDatasetInfo();
-refreshDatasetLabels(obj, idx);
+refreshDatasetLabels(obj, idx);   % the Dataset drop-downs show it (listed even when not ticked)
 listFavorites(obj);   % its entries labeled with what was just read
 syncStarButtons(obj);   % the dataset's star
 wasApplying = obj.Applying;

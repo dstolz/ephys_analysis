@@ -64,7 +64,9 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 
 1. **Data.** The project is scanned when the app opens (if not, type the
    **Project root** and press **Scan**). Click a recording in the table to
-   make it the *active* one: the previews show it.
+   make it the *active* one: the previews show it. The **Dataset** list on
+   the Alignment and Figures tabs offers the recordings ticked in the
+   table's **Run** column (all of them when none is ticked).
 2. **Alignment.** Pick the **Line** to align to (a stimulus line, say) and
    the **Edge** (onset). Set the window, for example 0.2 s before to 0.8 s
    after. Pick a trial parameter in **Group by** (`Depth`, say) to draw one

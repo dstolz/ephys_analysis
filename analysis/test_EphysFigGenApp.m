@@ -498,6 +498,24 @@ if S.sec("1", "build, open the project, scan")
         && app1.Config.Name == string(leaf1) + " quick look" && ~startsWith(app1.Fig.Name, "*"), ...
         ['Datasets= (the pipeline app''s Tools panel) ticks only those datasets of the project to run, ' ...
         'the first one active, and names the config after the one']);
+    a1 = app1.ActiveIdx;
+    o1 = find(~app1.Ticked, 1);
+    dd1 = [app1.AlignDatasetDropDown app1.FiguresDatasetDropDown];
+    listed = @(idx, active) all(arrayfun(@(d) isequal(d.ItemsData, idx) && numel(d.Items) == numel(idx) && d.Value == active, dd1));
+    onlyTicked = listed(a1, a1);
+    app1.selectDataset(o1);   % as a click on the unticked row
+    withActive = listed(sort([a1 o1]), o1);
+    T1 = app1.DatasetsTable.Data;
+    T1.Run = T1.Idx == o1;
+    app1.DatasetsTable.Data = T1;
+    app1.onDatasetsTableEdited([]);
+    followsTicks = listed(o1, o1);
+    T1.Run(:) = false;
+    app1.DatasetsTable.Data = T1;
+    app1.onDatasetsTableEdited([]);
+    check(onlyTicked && withActive && followsTicks && listed(1:2, o1), ...
+        ['the Alignment and Figures tabs'' Dataset drop-downs list only the ticked datasets, and the active one ' ...
+        'when it is not ticked; they follow the Run ticks; none ticked lists every dataset']);
     closeApp(app1);
 end
 

@@ -1,8 +1,13 @@
 function refreshDatasetLabels(obj, idx)
-%refreshDatasetLabels  The Dataset drop-downs' items: each dataset's name and its number of sorted units.
-%   refreshDatasetLabels(OBJ) labels the datasets of the Alignment
-%   and Figures tabs' Dataset drop-downs (the same items on each;
-%   their ItemsData, the datasets' indices, and so the pick, are kept):
+%refreshDatasetLabels  The Dataset drop-downs' items: the ticked datasets, each with its number of sorted units.
+%   refreshDatasetLabels(OBJ) lists and labels the datasets of the
+%   Alignment and Figures tabs' Dataset drop-downs (the same items on
+%   each). They list the datasets ticked to run (Ticked), in scan order,
+%   and the active one even when it is not ticked (a click on an unticked
+%   row of the datasets table makes it active); every dataset when none is
+%   ticked, as the pipeline app's Dataset boxes. Their ItemsData are the
+%   datasets' indices and their Value the active dataset (ActiveIdx). Each
+%   is labeled:
 %     "subj1_day1  (14 units)"      a sort whose units have been counted
 %     "subj1_day1"                  a sort not counted yet
 %     "subj2_day1  (detected only)" no sort, a spikes file
@@ -25,7 +30,9 @@ function refreshDatasetLabels(obj, idx)
 %   share's folders are never walked for the counts.
 %
 %   Nothing happens while HoldDatasetViews is set (onScan labels them
-%   once).
+%   once). Called again when the active dataset (selectDataset), the stars
+%   (refreshFavorites), the notes (refreshNotes) or the Run ticks
+%   (onConfigChanged "ticks") change.
 %
 %   See also selectDataset, onScan, refreshDatasetsTable.
 arguments
@@ -81,7 +88,14 @@ if numel(obj.Favorites) == n
     starred = [obj.Favorites.Dataset];
     items(starred) = "★ " + items(starred);
 end
-set([obj.AlignDatasetDropDown obj.FiguresDatasetDropDown], 'Items', items);
+shown = true(1, n);   % none ticked (or the ticks not set yet): every dataset
+if numel(obj.Ticked) == n && any(obj.Ticked); shown = obj.Ticked; end
+active = obj.ActiveIdx;
+if active >= 1 && active <= n; shown(active) = true; end   % a click on an unticked row can make it active
+data = find(shown);
+dd = [obj.AlignDatasetDropDown obj.FiguresDatasetDropDown];
+set(dd, 'Items', items(data), 'ItemsData', data);
+if active >= 1 && active <= n; set(dd, 'Value', active); end
 end
 
 

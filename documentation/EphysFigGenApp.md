@@ -166,7 +166,9 @@ copies them.
 | **Trials**, **Pairing**, **Duration (s)** | once the dataset has been loaded (making it active loads it): the number of trials, the pairing (its recorded status, `paired`, or `not paired`) and the recording's length |
 
 Click a row to make it the **active dataset**: the Alignment and Figures tabs
-preview it. After a scan the first ticked dataset is active. Click a header to
+preview it. After a scan the first ticked dataset is active. Their **Dataset**
+drop-downs list the ticked datasets only (every dataset when none is ticked),
+and the active one when it is not ticked, and follow the Run ticks. Click a header to
 sort the rows (by Subject or Date, say); the sort is kept as the table is filled
 again, for a tick or a new active dataset, until the app closes, and right-click
 → **Clear sort** returns to the scan order. Ticks and clicks go to the row's own
@@ -1153,7 +1155,7 @@ only that unit's spikes or that channel's column are read) and
 
 | Control | Effect |
 | --- | --- |
-| **Dataset** | the active dataset (the same one as on the other tabs, which list it the same way), with what it holds of spikes: *subj1_day1  (14 units)* (its sorted units, counted the first time it is opened in the session: they are read for the Data tab then, so nothing more is read and a share's folders are never walked for the counts; until then the name alone), *(detected only)* (no sort, a spikes file) or *(no sorting)*. Grayed out for a figure across sessions, which is drawn over the ticked (or listed) datasets, not the active one |
+| **Dataset** | the active dataset (the same one as on the other tabs, which list it the same way), among the datasets ticked on the Data tab (every dataset when none is ticked; the active one is listed even when it is not ticked), with what it holds of spikes: *subj1_day1  (14 units)* (its sorted units, counted the first time it is opened in the session: they are read for the Data tab then, so nothing more is read and a share's folders are never walked for the counts; until then the name alone), *(detected only)* (no sort, a spikes file) or *(no sorting)*. Grayed out for a figure across sessions, which is drawn over the ticked (or listed) datasets, not the active one |
 | **Observation** | what the figure is drawn for: the units, channels or dataset the Observations section keeps, in probe order (*su12  ch 7  -320 µm  (5,210 spikes)*: a sorted unit ends in its number of spikes, a detection channel in its number of detections; a signal's channel and the dataset have no count). With **Per trial group** it lists a row for each unit and trial group (the unit's rows together, in group order, the label ending in a middle dot and the group's label, then the unit's count), the preview draws that group's epochs only, and **>** steps from a unit's group to its next one. Each figure remembers its pick until the app closes, by label (without the count), so it stays through a filter change or another dataset while that label is in the list, else the first is picked. Picking one draws it, whether or not Auto is on. For a figure across sessions it lists the sites, cells or channels matched across the sessions, each ending *(across 3 sessions)* ([below](#sessions-in-the-figures-tab)) |
 | **Open in window** | (**Ctrl+W**) at the right of the status line under the preview, right of **Export code**: draws the figure as previewed into a new regular MATLAB figure window (`figure`), named *figure id: observation (dataset)* and the shape of the figure's export page at its true size on screen ([the page](#the-page-a-figure-is-exported-on); Ctrl+Click on a panel selects it in the editor), with the right-click aesthetics editor and its Design submenu (what it remembers for the figure reaches the config while the app is open). A drawn preview is used as it is; an *Out of date*, canceled or missing one is previewed first, and the status bar says why when that draws nothing. The window is independent of the app: later edits do not follow into it, and closing the app leaves it. Off with no figure selected |
 | **Redraw All** | (**Ctrl+R**) computes and draws again the preview of every enabled figure (and the shown one, enabled or not), each for its own observation on the active dataset, so that every figure's kept preview is current after an edit of the defaults, a dataset or a scan (see **Redraw All** below). It sits under **Preview**, in the same colors, and is off with no figure selected, while a run goes and while it goes itself. Writing the selected figure's files for every observation is **File → Generate selected figure** (**Ctrl+G**, see **Generate selected figure** below) |
@@ -2524,7 +2526,7 @@ tab, the run and results tools following the Export tab's buttons); the scan;
 the datasets table's filter (Subject, Tags (any of / all of), their "not" lists and Search, together; a hidden
 dataset keeping its tick; Tick shown only and Untick all); opening on a list of datasets (`Datasets=`, as the pipeline app's Tools panel
 does); the active dataset's lines and parameters, and its sorted units counted
-in the Dataset drop-downs (the same items on the three tabs); the Help menu's GitHub issue
+in the Dataset drop-downs (the same items on the three tabs: the ticked datasets and the active one, following the Run ticks); the Help menu's GitHub issue
 and feature request (1c); what stops an action (1d: the alerts of Scan, Plan and Run
 read through `AppDialog.captured`, the issues and plan tables' double click, the
 empty preview's **Add figure** answered with the saved figure *Raster over PSTH*, no **Add Raster + PSTH**

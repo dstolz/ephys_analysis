@@ -285,7 +285,7 @@ classdef DatasetBrowser < handle
         NamePattern (1,1) string = ""
         Recordings (1,1) string = "concatenate"
         Runner = []                        % the EphysAnalysisRunner of the last scan ([] before one)
-        Datasets table                     % every dataset found: key, name, subject, date, session, tags (";"-joined), tagSet, variables (DatasetVariables.toText), varSet (its DatasetVariables set), units, detected, behavior, signals, stamp (outputsStamp at the scan)
+        Datasets table                     % every dataset found: key, name, subject, date, tags (";"-joined), tagSet, variables (DatasetVariables.toText), varSet (its DatasetVariables set), units, detected, behavior, signals, stamp (outputsStamp at the scan)
         Results = []                       % the last compute's results, one per kind of data, by kind ([] before one):
         %   a struct whose fields are the kinds of Settings.data, in its
         %   order (B.Results.units, B.Results.LFP), each a result R as
@@ -302,7 +302,7 @@ classdef DatasetBrowser < handle
         %     R.rows         table, nRows rows
         %                    One row per unit (spikes) or channel (signals), in
         %                    data's first-dimension order. Columns for every kind:
-        %                    label, Dataset (key), Subject, Date (day), Session,
+        %                    label, Dataset (key), Subject, Date (day),
         %                    Tags (";"-joined). Units add unitId, class ("su",
         %                    "mua", "det", ...), channel, channelName, shank, x, y,
         %                    nSpikes, and nSites/sites when merged. Channels add
@@ -380,11 +380,6 @@ classdef DatasetBrowser < handle
         %     the recording started (the project's AcqDate) when that is known,
         %     else the date in the name. The table's Subject and Date are the
         %     same (both use one function with the same inputs).
-        %     Session is each subject's datasets numbered 1, 2, ... by date,
-        %     counting only the datasets that contribute rows (as the script
-        %     does): the rank of the dataset's date among them, so two datasets
-        %     of one day share a number. A NaT date gives NaN. (The table's
-        %     Session counts every dataset listed.)
         %     Group labels: NaN is treated as one label, and groups are matched
         %     across datasets as epochMatrix's help describes.
         %   ("The table above" is epochMatrixSettings' list of the fields of S.)
@@ -2269,8 +2264,8 @@ classdef DatasetBrowser < handle
             c.UntickAll = uibutton(r2, "Text", "Untick all", "ButtonPushedFcn", @(~, ~) B.uiRun(@() B.untickAll()));
             c.Count = uilabel(L, "Text", "", "FontColor", B.TextColor);
             c.Table = uitable(L, "RowName", {}, "ColumnSortable", true, ...
-                "ColumnName", {'Use', 'Name', 'Subject', 'Date', 'Session', 'Tags', 'Variables', 'Units', 'Detected', 'Behavior', 'Signals', 'Cached', 'Key', ''}, ...
-                "ColumnWidth", {42, 'auto', 100, 84, 66, 110, 140, 52, 70, 70, 100, 100, 'auto', 1}, ...
+                "ColumnName", {'Use', 'Name', 'Subject', 'Date', 'Tags', 'Variables', 'Units', 'Detected', 'Behavior', 'Signals', 'Cached', 'Key', ''}, ...
+                "ColumnWidth", {42, 'auto', 100, 84, 110, 140, 52, 70, 70, 100, 100, 'auto', 1}, ...
                 "CellEditCallback", @(~, evt) B.uiRun(@() B.onTableEdit(evt)), ...
                 "CellSelectionCallback", @(~, evt) B.uiRun(@() B.onTableSelect(evt)), ...
                 "DisplayDataChangedFcn", @(~, evt) B.onTableSorted(evt), ...
@@ -2555,9 +2550,9 @@ classdef DatasetBrowser < handle
             Date(~isnat(D.date)) = string(D.date(~isnat(D.date)), 'yyyy-MM-dd');
             Tags = strings(n, 1);
             for k = 1:n; Tags(k) = TagSet.toText(D.tagSet{k}, TagSet.DisplayDelimiter); end
-            T = table(Use, D.name, D.subject, Date, D.session, Tags, D.variables, mark(D.units), mark(D.detected), mark(D.behavior), ...
+            T = table(Use, D.name, D.subject, Date, Tags, D.variables, mark(D.units), mark(D.detected), mark(D.behavior), ...
                 D.signals, Cached, D.key, (1:n).', 'VariableNames', ...
-                {'Use', 'Name', 'Subject', 'Date', 'Session', 'Tags', 'Vars', 'Units', 'Detected', 'Behavior', 'Signals', 'Cached', 'Key', 'Idx'});   % Vars: the Variables column (a table cannot have a variable named Variables)
+                {'Use', 'Name', 'Subject', 'Date', 'Tags', 'Vars', 'Units', 'Detected', 'Behavior', 'Signals', 'Cached', 'Key', 'Idx'});   % Vars: the Variables column (a table cannot have a variable named Variables)
             T = T(B.filterKeep(D), :);
             T = TableSort.apply(T, B.Sort);
         end
@@ -3754,9 +3749,8 @@ classdef DatasetBrowser < handle
                 varSet{k} = outputVariables(out);
                 variables(k) = DatasetVariables.toText(varSet{k});
             end
-            session = sessionNumbers(subject, date);
-            D = table(keys, names, subject, date, session, tags, tagSet, variables, varSet, units, detected, behavior, signals, stamp, ...
-                'VariableNames', {'key', 'name', 'subject', 'date', 'session', 'tags', 'tagSet', 'variables', 'varSet', 'units', 'detected', ...
+            D = table(keys, names, subject, date, tags, tagSet, variables, varSet, units, detected, behavior, signals, stamp, ...
+                'VariableNames', {'key', 'name', 'subject', 'date', 'tags', 'tagSet', 'variables', 'varSet', 'units', 'detected', ...
                 'behavior', 'signals', 'stamp'});
         end
 
@@ -4052,9 +4046,9 @@ classdef DatasetBrowser < handle
         end
 
         function D = emptyDatasets()
-            D = table(strings(0, 1), strings(0, 1), strings(0, 1), NaT(0, 1), zeros(0, 1), strings(0, 1), cell(0, 1), ...
+            D = table(strings(0, 1), strings(0, 1), strings(0, 1), NaT(0, 1), strings(0, 1), cell(0, 1), ...
                 strings(0, 1), cell(0, 1), false(0, 1), false(0, 1), false(0, 1), strings(0, 1), strings(0, 1), 'VariableNames', ...
-                {'key', 'name', 'subject', 'date', 'session', 'tags', 'tagSet', 'variables', 'varSet', 'units', 'detected', 'behavior', ...
+                {'key', 'name', 'subject', 'date', 'tags', 'tagSet', 'variables', 'varSet', 'units', 'detected', 'behavior', ...
                 'signals', 'stamp'});
         end
 
@@ -4295,19 +4289,6 @@ end
 function tf = sameNormalize(a, b)
 %sameNormalize  Settings A and B normalize alike (A from a result that may predate normalize).
 tf = isfield(a, 'normalize') && isequal(a.normalize, b.normalize);
-end
-
-
-function s = sessionNumbers(subject, date)
-%sessionNumbers  Per subject, 1, 2, ... for each recording day in order (NaN for NaT).
-s = NaN(numel(subject), 1);
-subject = string(subject);
-for sub = unique(subject).'
-    m = subject == sub & ~isnat(date);
-    if ~any(m); continue; end
-    [~, ~, r] = unique(date(m));
-    s(m) = r;
-end
 end
 
 

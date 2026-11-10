@@ -11,12 +11,12 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
     %   evokedPotential by hand, with the shank and channel picks, and AUX's
     %   magnitude is one row; a dataset without the signal is skipped. With
     %   hand-made parts: the group labels' union and order, NaN, text and
-    %   mixed labels, the rows' union of columns, Session, and the time-base
+    %   mixed labels, the rows' union of columns, and the time-base
     %   check. A cancel keeps the finished part in Runs, which a second call
     %   reuses, and a signal option leaves the spike parts cached. The
     %   script's own spike settings (detected, merged, some shanks) equal
-    %   its loop; Subject, Date and Session follow subjectAndDate and the
-    %   script's session rule; a changed outputs stamp recomputes that
+    %   its loop; Subject and Date follow subjectAndDate; a changed outputs
+    %   stamp recomputes that
     %   dataset only. Assembly: numeric and text labels of one parameter
     %   line up, two parameters order by value (Depth 9 before 10), and an
     %   integer column some datasets lack becomes double. Normalization:
@@ -320,7 +320,7 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             tc.verifyEqual(sum(R.datasets.nRows), height(R.rows));
             tc.verifyEqual(R.keys, reshape(r.Keys, [], 1));
             tc.verifyClass(R.created, 'datetime');
-            for c = ["Dataset" "Subject" "Date" "Tags" "Session"]
+            for c = ["Dataset" "Subject" "Date" "Tags"]
                 tc.verifyTrue(ismember(c, string(R.rows.Properties.VariableNames)), c);
             end
             tc.verifyEqual(unique(R.rows.Dataset, 'stable'), reshape(r.Keys, [], 1));
@@ -350,7 +350,7 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             tc.verifyEqual(R.rows.nSites, units0.nSites);
         end
 
-        function subjectDateAndSession(tc)
+        function subjectAndDateFromNames(tc)
             r = tc.Runner;
             R = epochMatrix(r, tc.spikeSettings(), LogFcn=[]);
             keys = reshape(r.Keys, [], 1);
@@ -372,17 +372,6 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             end
             tc.verifyEqual(R.datasets.subject, subj);
             tc.verifyEqual(R.datasets.date, date);
-            % Session: per subject, the rank of the date among the datasets that give rows (the script's rule)
-            gives = ismember(keys, R.keys);
-            want = NaN(height(R.rows), 1);
-            for s = unique(subj(gives)).'
-                ds = find(gives & subj == s);
-                [~, ~, rk] = unique(date(ds));
-                for i = 1:numel(ds)
-                    want(R.rows.Dataset == keys(ds(i))) = rk(i);
-                end
-            end
-            tc.verifyEqual(R.rows.Session, want);
         end
 
         function outputsChangeRecomputes(tc)
@@ -916,7 +905,7 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             tc.verifyEqual(height(r.source(2).variableInfo), 0);
         end
 
-        function rowsUnionAndSession(tc)
+        function rowsUnion(tc)
             A = makePart("A", [1; 2], 2);
             B = makePart("B", [1; 2], 1);
             C = makePart("C", [1; 2], 1);
@@ -929,7 +918,6 @@ classdef test_EpochMatrix < matlab.unittest.TestCase
             R = epochMatrix([A B C D], [], Info=info);
             tc.verifyEqual(R.rows.Dataset, ["A"; "A"; "B"; "C"; "D"]);
             tc.verifyEqual(R.rows.Subject, ["s1"; "s1"; "s1"; "s2"; "s1"]);
-            tc.verifyEqual(R.rows.Session, [2; 2; 1; 1; NaN]);
             tc.verifyEqual(R.rows.Tags, ["x;y"; "x;y"; ""; "y"; ""]);
             tc.verifyEqual(R.rows.nSites, [NaN; NaN; 3; NaN; NaN]);
             tc.verifyEqual(ismissing(R.rows.sites), [true; true; false; true; true]);

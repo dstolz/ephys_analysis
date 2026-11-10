@@ -138,10 +138,10 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(D.tags(k1), "ofc;pilot");
             tc.verifyEqual(sort(B.Selected), sort(tc.Keys), 'With no saved state, a scan ticks what shows.');
             T = B.Table;
-            tc.verifyEqual(string(T.Properties.VariableNames), ["Use" "Name" "Subject" "Date" "Session" "Tags" "Vars" ...
+            tc.verifyEqual(string(T.Properties.VariableNames), ["Use" "Name" "Subject" "Date" "Tags" "Vars" ...
                 "Units" "Detected" "Behavior" "Signals" "Cached" "Key" "Idx"]);
             tc.verifyEqual(B.Ctl.Table.Data, T);
-            tc.verifyEqual(B.Ctl.Table.ColumnEditable, [true false(1, 13)]);
+            tc.verifyEqual(B.Ctl.Table.ColumnEditable, [true false(1, 12)]);
             tc.verifyTrue(all(T.Cached == ""));
             tc.verifyEmpty(B.Result);
             tc.verifyFalse(B.Busy);

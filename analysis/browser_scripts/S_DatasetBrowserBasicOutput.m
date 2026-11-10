@@ -38,15 +38,13 @@ end
 units_ = R.rows(ind, :);   % a row per unit or channel; the plots call both "units"
 data_ = R.data(ind, :, :);
 
-% sort by session (then subject and unit id or channel, to keep ties in a fixed order), and the groups by Depth
-[units_, i] = sortrows(units_, ["Session" "Subject" idKey]);
+% sort by date (then subject and unit id or channel, to keep ties in a fixed order), and the groups by Depth
+[units_, i] = sortrows(units_, ["Date" "Subject" idKey]);
 data_ = data_(i, :, :);
 [groupLabels_, j] = sort(R.groupLabels, 'descend');
 data_ = data_(:, :, j);
 groupTexts_ = R.labels.groups(j);   % "Depth 3", ... in groupLabels_' order
 
-uSessions = unique(units_.Session);
-nS = numel(uSessions);
 [nU, nB, nG] = size(data_);
 cmap = turbo(nG);   % a color per depth group
 

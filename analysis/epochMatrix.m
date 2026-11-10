@@ -81,9 +81,9 @@ function [R, T] = epochMatrix(source, S, opts)
 %                      selectTrials orders a dataset's groups (Depth 9
 %                      before Depth 10 ascending). The labels are text,
 %                      "Depth = 9, Level = 2" (numbers "%.10g").
-%   Session numbers each subject's datasets by date (below). Last, the
-%   values are normalized as S.normalize asks (epochMatrixNormalize; none
-%   by default): a change to it computes no dataset again.
+%   Last, the values are normalized as S.normalize asks
+%   (epochMatrixNormalize; none by default): a change to it computes no
+%   dataset again.
 %
 %   R fields (size(R.data) = [height(R.rows), numel(R.t), numel(R.groupLabels)])
 %     R.data         double [nRows x nTime x nGroups]
@@ -96,7 +96,7 @@ function [R, T] = epochMatrix(source, S, opts)
 %     R.rows         table, nRows rows
 %                    One row per unit (spikes) or channel (signals), in
 %                    data's first-dimension order. Columns for every kind:
-%                    label, Dataset (key), Subject, Date (day), Session,
+%                    label, Dataset (key), Subject, Date (day),
 %                    Tags (";"-joined), then a column per dataset variable
 %                    (var_probeDepth, DatasetVariables.columns: a number
 %                    column when every dataset's value is a number, else a
@@ -172,10 +172,6 @@ function [R, T] = epochMatrix(source, S, opts)
 %     the recording started (the project's AcqDate) when that is known,
 %     else the date in the name. DatasetBrowser's table gives the same
 %     (both use one function with the same inputs).
-%     Session is each subject's datasets numbered 1, 2, ... by date,
-%     counting only the datasets that contribute rows (as the script
-%     does): the rank of the dataset's date among them, so two datasets
-%     of one day share a number. A NaT date gives NaN.
 %     Group labels: NaN is treated as one label, and groups are matched
 %     across datasets as described above.
 %   ("The table above" is epochMatrixSettings' list of the fields of S.)
@@ -608,7 +604,6 @@ for i = 1:numel(use)
     tabs{i} = U;
 end
 rows = stackRows(tabs);
-rows.Session = sessionNumbers(rows.Subject, rows.Date);
 
 data = NaN(height(rows), numel(t), numel(groupLabels));
 row = 0;
@@ -896,20 +891,6 @@ elseif iscell(v)
     f = cell(n, w);
 else
     f = repmat(missing, n, w);
-end
-end
-
-
-function s = sessionNumbers(subject, date)
-%sessionNumbers  Per subject, 1, 2, ... for each recording day in order (NaN for NaT).
-s = NaN(numel(subject), 1);
-subject = string(subject);
-subject(ismissing(subject)) = "";
-for sub = unique(subject).'
-    m = subject == sub & ~isnat(date);
-    if ~any(m); continue; end
-    [~, ~, r] = unique(date(m));
-    s(m) = r;
 end
 end
 

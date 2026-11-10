@@ -558,6 +558,9 @@ says how to cut a release.
 
 ### Removed
 
+- Dataset browser: the table's **Session** column, `Datasets.session` and `R.rows.Session` from `epochMatrix` (the
+  private `sessionNumbers` in both). A session number can be kept as a dataset variable (`var_` column) instead;
+  `S_DatasetBrowserBasicOutput` sorts by `Date` and no longer leaves `nS`.
 - Analysis app, Figures tab: the Panels section's schematic of the grid (with its drag and drop), **Row span**, **Column span**, **Row height**, **Column width**, **Panel size**,
   **Align in cell**, **Spacing** and the Spacing window, and **Move** (`drawFigureSchematic`, `onSchematicPress`,
   `cancelSchematicDrag`, `schematicPixel`, `onMovePanel`, `private/figureSpacingDialog`, the

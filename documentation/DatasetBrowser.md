@@ -130,7 +130,6 @@ without a manifest on disk is named in the status line.
 | **Use** | tick to include the dataset in **Compute**; the only column you can edit |
 | **Name**, **Key** | the dataset's name and its project key |
 | **Subject**, **Date** | from `subjectAndDate`, the same function and inputs `epochMatrix` uses, so the table and `R.rows` agree: the subject from the name pattern; the date is the acquisition date (the day the recording started) when known, else the date in the name |
-| **Session** | each subject's datasets numbered 1, 2, ... by date; datasets on the same day share a number |
 | **Tags** | the manifest's tags; click the cell to edit them |
 | **Units**, **Detected**, **Behavior** | a check mark when the sorting, the spikes file or the behavior file exists |
 | **Signals** | the derived signals the dataset has (`LFP`, `MUA`, `SPIKE`, `AUX`) |
@@ -566,9 +565,9 @@ these (`removeScript` raises `DatasetBrowser:BundledScript`). **+** and **−**
 add and remove scripts from anywhere else; only those are kept in the
 `Scripts` preference. The folder holds
 [`S_DatasetBrowserBasicOutput.m`](../analysis/browser_scripts/S_DatasetBrowserBasicOutput.m):
-it keeps the `su` units (or every channel of a signal), sorts them by session
+it keeps the `su` units (or every channel of a signal), sorts them by date
 and the groups by label, and leaves `R`, `units_`, `data_`, `groupLabels_`,
-`groupTexts_`, `cmap`, `nS`, `nU`, `nB`, `nG` and a summary of `R` in the
+`groupTexts_`, `cmap`, `nU`, `nB`, `nG` and a summary of `R` in the
 workspace. It also holds
 [`S_DatasetBrowserToFieldTrip.m`](../analysis/browser_scripts/S_DatasetBrowserToFieldTrip.m),
 which turns a signal into FieldTrip raw structures (`ft_datatype_raw`) and
@@ -893,7 +892,7 @@ R.data(:, :, 1))` draws the first group of every row, and `R.labels`
 | Field | Type | Holds |
 | --- | --- | --- |
 | `R.data` | double [nRows x nTime x nGroups] | The values: data(row, time, group). It holds the measure (rate, count or auROC) for spikes, and the group mean or median for signals. Wherever a row's dataset has no epochs in a group, the value is NaN. With `settings.normalize.method` other than `"none"` the values are normalized ([Normalization](#normalization)). |
-| `R.rows` | table, nRows rows | One row per unit (spikes) or channel (signals), in data's first-dimension order. Columns for every kind: label, Dataset (key), Subject, Date (day), Session, Tags (";"-joined), then a `var_<name>` column per [variable](#editing-variables) (its label and units in `VariableDescriptions` and `VariableUnits`; NaN or missing where a dataset lacks it). Units add unitId, class ("su", "mua", "det", ...), channel, channelName, shank, x, y, nSpikes, and nSites/sites when merged. Channels add channel, shank, x, y, units. A column that some datasets lack is missing (missing/NaN) in their rows. |
+| `R.rows` | table, nRows rows | One row per unit (spikes) or channel (signals), in data's first-dimension order. Columns for every kind: label, Dataset (key), Subject, Date (day), Tags (";"-joined), then a `var_<name>` column per [variable](#editing-variables) (its label and units in `VariableDescriptions` and `VariableUnits`; NaN or missing where a dataset lacks it). Units add unitId, class ("su", "mua", "det", ...), channel, channelName, shank, x, y, nSpikes, and nSites/sites when merged. Channels add channel, shank, x, y, units. A column that some datasets lack is missing (missing/NaN) in their rows. |
 | `R.t` | double column, nTime | Times along data's second dimension, in s from the event. For spikes these are bin centers (auROC window centers for auroc); for signals, sample times. |
 | `R.groupLabels` | column, nGroups | Labels along data's third dimension, in settings.selection.groupOrder. Numeric when grouped by one parameter that is numeric in every dataset (e.g. Depth), otherwise string: the value's text for one parameter, "Depth = 3, Level = 2" for several. |
 | `R.rowKind` | string | "unit" or "channel". |
@@ -914,10 +913,6 @@ Notes on the fields:
   dataset's name (the project's name pattern); the date is the day the
   recording started (the project's `AcqDate`) when that is known, else the
   date in the name. The browser's table gives the same.
-- `Session` is each subject's datasets numbered 1, 2, ... by date, counting
-  only the datasets that contribute rows (as the script does): the rank of
-  the dataset's date among them, so two datasets of one day share a number.
-  A NaT date gives NaN.
 - Group labels: NaN is treated as one label. The groups are ordered by
   `selection.groupOrder`: `"ascending"`, `"descending"` (reverses it) or
   `"appearance"` (as first met, dataset by dataset).

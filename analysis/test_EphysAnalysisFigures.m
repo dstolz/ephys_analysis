@@ -6774,8 +6774,24 @@ if S.sec("17", "label variables: the list, their values, filled in by renderFigu
     check(okV && okP && okN, sprintf(['the values: the figure''s event, window and trials, F''s observation (%s), dataset and epochs (%s); ' ...
         'a panel''s own event and bins; without F "<Unit>"'], V.Unit, V.Epochs));
     subjName = subjectAndDate(string(src.name), string(cfg.Source.NamePattern));
-    check(V.Subject ~= "" && (V.Subject == subjName || subjName == ""), sprintf( ...
-        '{Subject} is filled (%s): the behavior file''s subject, else the name''s SubjectID (%s) as the Data tab lists it', V.Subject, subjName));
+    subjFile = loadAnalysisSource(rn.Outputs(1)).subject;
+    check(V.Subject ~= "" && (V.Subject == subjFile || subjFile == "" && V.Subject == subjName), sprintf( ...
+        '{Subject} is filled (%s): the behavior file''s subject ("%s"), else the name''s SubjectID (%s) as the Data tab lists it', ...
+        V.Subject, subjFile, subjName));
+    bf = string(rn.Outputs(1).BehaviorFile);   % a behavior file without a subject: the name's SubjectID
+    bk = tempname + ".mat";
+    copyfile(bf, bk);
+    restoreB = onCleanup(@() copyfile(bk, bf));
+    Bf = load(bf, 'behavior');
+    Bf.behavior.subject = "";
+    save(bf, '-struct', 'Bf', '-append');
+    rn.clearSources();
+    srcB = rn.source(1);
+    copyfile(bk, bf);
+    rn.clearSources();
+    check(subjName ~= "" && srcB.subject == subjName, sprintf( ...
+        'a behavior file naming no subject: the source''s subject is the name''s SubjectID (%s, want %s)', srcB.subject, subjName));
+    clear restoreB
     sq = sv;
     st = EphysAnalysisConfig.defaults("SequenceStep");
     st.line = "Resp";

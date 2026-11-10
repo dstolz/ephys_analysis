@@ -15,7 +15,9 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
     %   and evidence optimization (skipped without matRegress or the
     %   Optimization Toolbox); the spike-history filter's reach at two bin
     %   sizes; the kernels' standard errors against the weights' covariance;
-    %   lockedEvents on events a fixed time apart; fitWorkers' zero cases.
+    %   lockedEvents on events a fixed time apart; periods cut into trials
+    %   and their boxcar; kernels on a boxcar and kernels with a length of
+    %   their own; fitWorkers' zero cases.
     %
     %   Usage:  runtests("test_NeuroGLMExport")
 
@@ -235,6 +237,7 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyEqual(info.units.variable, ["sp_su001_1"; "sp_su002_2"]);
             tc.verifyEqual(info.lines.on, ["Trial_on"; "Stim_on"; "Resp_on"]);
             tc.verifyEqual(info.lines.off, ["Trial_off"; "Stim_off"; "Resp_off"]);
+            tc.verifyEqual(info.lines.box, ["Trial_box"; "Stim_box"; "Resp_box"]);
             tc.verifyEqual(info.values.variable, ["trialIndex"; "group"; "RespCode"; "Depth"; "response"]);
             tc.verifyEqual(info.response, "response");
             tc.verifyEqual(info.responseTime, "");
@@ -250,6 +253,11 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyEqual(T(1).Trial_on, 500, 'AbsTol', 1e-6);
             tc.verifyNumElements(T(1).Resp_on, 1);
             tc.verifyEmpty(T(2).Resp_on, 'A line with no pulse on this trial.');
+            tc.verifyEqual(expt.type.Stim_box, 'value');
+            tc.verifyEqual(T(1).Stim_box, [800 1000], 'AbsTol', 1e-5, 'The period the line is on, ms from the trial''s start.');
+            tc.verifyEqual(T(1).Trial_box, [500 2000], 'AbsTol', 1e-5);
+            tc.verifyEqual(T(1).Resp_box, [1300 1350], 'AbsTol', 1e-5);
+            tc.verifySize(T(2).Resp_box, [0 2], 'No pulse on this trial.');
             planted = T(1).Stim_on + [10 12 15 20 30];
             tc.verifyTrue(all(min(abs(T(1).sp_su001_1 - planted), [], 1) < 1e-6), 'The planted spikes, in ms.');
             tc.verifyTrue(all(T(1).sp_su001_1 >= 0 & T(1).sp_su001_1 < T(1).duration));
@@ -257,6 +265,7 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             e2 = sessionDataNeuroGLM(D, Window=[-0.2 1.0], Trials="all", DropArtifacts=false);
             tc.verifyNumElements(e2.trial, 12);
             tc.verifyTrue(all([e2.trial.duration] == 1200));
+            tc.verifyEqual(e2.trial(1).Trial_box, [200 1200], 'AbsTol', 1e-5, 'A period is cut at the trial''s end.');
             tc.verifyEqual([e2.trial.group], [1 2 0 2 1 2 1 2 1 2 1 2], 'Trial 3 is not kept: group 0.');
             % trials off the recording
             [e3, i3] = sessionDataNeuroGLM(D, Window=[-2 1]);
@@ -264,8 +273,8 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyEqual(e3.trial(1).trialIndex, 2);
             % a subset of lines and units
             [e4, i4] = sessionDataNeuroGLM(D, Lines="Stim", Units=2);
-            tc.verifyEqual(string(fieldnames(e4.type)).', ["sp_su002_2" "Stim_on" "Stim_off" "trialIndex" "group" "RespCode" "Depth" "response"], ...
-                'Spike trains, timings, values, then continuous variables.');
+            tc.verifyEqual(string(fieldnames(e4.type)).', ["sp_su002_2" "Stim_on" "Stim_off" "trialIndex" "group" "RespCode" "Depth" "response" "Stim_box"], ...
+                'Spike trains, timings, values, the lines'' periods, then continuous variables.');
             tc.verifyEqual(i4.units.label, "su002_2");
             tc.verifyError(@() sessionDataNeuroGLM(D, Lines="Nope"), 'sessionDataNeuroGLM:NoLine');
             tc.verifyError(@() sessionDataNeuroGLM(D, Align="Nope"), 'sessionDataNeuroGLM:NoColumn');
@@ -527,6 +536,63 @@ classdef test_NeuroGLMExport < matlab.unittest.TestCase
             tc.verifyEqual(string(T3.Properties.VariableNames), ...
                 ["first" "second" "lagMs" "fractionFirst" "fractionSecond" "nFirst" "nSecond"]);
             tc.verifyError(@() NeuroGLMExport.lockedEvents(expt, Events="Nope"), 'NeuroGLMExport:BadEvent');
+        end
+
+        function experimentCutsPeriods(tc)
+            % the periods something is on, cut into the trials they reach into; their boxcar
+            spans = [0 1; 2 3];
+            Iv = struct('p', [0.5 0.7; 0.9 2.25; 2.5 2.5; NaN 3; 2.8 5], 'q', zeros(0, 2));
+            expt = NeuroGLMExport.experiment(spans, BinMs=5, Spikes=struct('a', 0.1), Intervals=Iv);
+            tc.verifyEqual(expt.type.p, 'value');
+            T = expt.trial;
+            tc.verifyEqual(T(1).p, [500 700; 900 1000], 'AbsTol', 1e-5, 'Cut at the trial''s end.');
+            tc.verifyEqual(T(2).p, [0 250; 800 1000], 'AbsTol', 1e-5, 'Cut at both edges; an empty and a NaN period left out.');
+            tc.verifySize(T(1).q, [0 2]);
+            box = NeuroGLMExport.boxcarStim(T(1).p, 5, T(1).duration);
+            tc.verifySize(box, [200 1]);
+            tc.verifyEqual(find(box).', [101:140, 181:200], 'From the bin of the start to the one before the stop''s.');
+            tc.verifyEqual(find(NeuroGLMExport.boxcarStim(T(2).p, 5, T(2).duration)).', [1:50, 161:200]);
+            tc.verifyEqual(find(NeuroGLMExport.boxcarStim([12 13] + 1e-6, 5, 100)).', 3, 'A period shorter than a bin has one bin.');
+            tc.verifyEqual(nnz(NeuroGLMExport.boxcarStim(zeros(0, 2), 5, 100)), 0);
+            tc.verifyError(@() NeuroGLMExport.experiment(spans, Intervals=struct('p', [1 2 3])), 'NeuroGLMExport:BadIntervals');
+            tc.verifyError(@() NeuroGLMExport.experiment(spans, Spikes=struct('p', 0.1), Intervals=Iv), 'NeuroGLMExport:DuplicateLabel');
+        end
+
+        function boxcarsAndOwnLengths(tc)
+            % a kernel on a line's boxcar, split by trial group; kernels with a length of their own
+            expt = sessionDataNeuroGLM(tc.D, Window=[-0.2 1.2], BinMs=5, Trials="all", DropArtifacts=false);
+            d = NeuroGLMExport.designSpec(expt, Response="sp_su002_2", Events=["Trial_on" "Resp_on"], Boxcars="Stim_box", ...
+                KernelMs=200, NBases=4, KernelMsOf=struct('Stim_box', 400, 'Trial_on', 100), AcausalMsOf=struct('Resp_on', 300), ...
+                GroupBy="group", GroupEvents="Stim_box", History=false);
+            tc.verifyEqual(string({d.covar.label}), ["Trial_on" "Resp_on" "Stim_box__0" "Stim_box__1" "Stim_box__2"]);
+            tc.verifyEqual(d.covariates.kind.', ["event" "event" "boxcar" "boxcar" "boxcar"]);
+            tc.verifyEqual(d.covariates.source.', ["Trial_on" "Resp_on" "Stim_box" "Stim_box" "Stim_box"]);
+            tc.verifyEqual(d.covariates.by.', ["" "" "group" "group" "group"]);
+            tc.verifySize(d.covar(1).basis.B, [20 2], 'Its own 100 ms, the raised cosines as wide: 4 per 200 ms.');
+            tc.verifySize(d.covar(2).basis.B, [100 10], '300 ms before the event and 200 ms after it.');
+            tc.verifyEqual(d.covar(2).offset, -60);
+            tc.verifySize(d.covar(3).basis.B, [80 8], 'The boxcar''s own 400 ms.');
+            tc.verifyEqual([d.covar([1 3]).offset], [0 0]);
+            F = NeuroGLMExport.fit(d);
+            tc.verifyEqual(F.kernels.Trial_on.tr([1 end]).', [0 95]);
+            tc.verifyEqual(F.kernels.Resp_on.tr([1 end]).', [-300 195]);
+            tc.verifyEqual(F.kernels.Stim_box__1.tr([1 end]).', [0 395]);
+            tc.verifySize(F.kernelSE.Stim_box__2.data, [80 1]);
+            % the boxcar's columns: 1 in the bins Stim is on (500 to 700 ms), convolved with each raised cosine
+            d2 = NeuroGLMExport.designSpec(expt, Response=1, Events="Trial_on", Boxcars="Stim_box", KernelMs=200, NBases=4, History=false);
+            tc.verifyEqual(string({d2.covar.label}), ["Trial_on" "Stim_box"]);
+            tr = expt.trial(1);
+            box = NeuroGLMExport.boxcarStim(tr.Stim_box, 5, tr.duration);
+            tc.verifyEqual(find(box).', 101:140);
+            dm = buildGLM.compileSparseDesignMatrix(d2, 1);
+            cols = buildGLM.getDesignMatrixColIndices(d2, 'Stim_box');
+            want = conv2(box, d2.covar(2).basis.B);
+            tc.verifyEqual(full(dm.X(:, cols{1})), want(1:numel(box), :), 'AbsTol', 1e-12);
+            tc.verifyError(@() NeuroGLMExport.designSpec(expt, Boxcars="Nope"), 'NeuroGLMExport:BadBoxcar');
+            tc.verifyError(@() NeuroGLMExport.designSpec(expt, Boxcars="Depth"), 'NeuroGLMExport:BadBoxcar');
+            tc.verifyError(@() NeuroGLMExport.designSpec(expt, KernelMsOf=struct('Nope', 100)), 'NeuroGLMExport:BadEvent');
+            tc.verifyError(@() NeuroGLMExport.designSpec(expt, AcausalMsOf=struct('Nope', 100)), 'NeuroGLMExport:BadEvent');
+            tc.verifyError(@() NeuroGLMExport.designSpec(expt, KernelMsOf=struct('Stim_on', -1)), 'NeuroGLMExport:BadKernelMs');
         end
 
         function fitWorkersCap(tc)

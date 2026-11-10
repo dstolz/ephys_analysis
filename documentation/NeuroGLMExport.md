@@ -42,8 +42,8 @@ others.
 
 | Call | Returns |
 | --- | --- |
-| `[expt, keep] = NeuroGLMExport.experiment(spans, ...)` | neuroGLM's experiment struct, one trial per row of `spans` (`[start stop]`, s on the continuous clock). `Spikes=` (struct: label → spike times, s) registers spike trains, `Events=` (label → event times) timing variables, `Values=` (a table, a row per span) per-trial values, `Continuous=` (label → `struct(data=[N x d], fs=)`) continuous variables resampled to the bin rate and cut. `BinMs` (1), `Id`, `Param` (kept in `expt.param`), `Describe` (label → description). `keep` marks the spans that became trials |
-| `dspec = NeuroGLMExport.designSpec(expt, ...)` | a design: a raised-cosine kernel per timing variable (`Events=`, all by default; `KernelMs` 500, `NBases` 8, `Shape`), `Acausal=` events whose kernel spans `[-AcausalMs, KernelMs]` (`AcausalMs` = `KernelMs` by default), `GroupBy=` a value variable and `GroupEvents=` the events that get one kernel per value (included only on the trials with it, the paper's coherence-dependent kernels; labels `<event>__<value>`; a value of `""` gets none; several variables split different events: `GroupBy=["group" "response"], GroupEvents={"Stim_on", "RespWindow_on"}`, and an event takes one split), `History` (true; `HistoryMs` 200, the filter's reach: it covers the lags from one bin to `HistoryMs` after a spike at any bin size; `HistoryBases` 10 log-stretched raised cosines, fewer with the warning `NeuroGLMExport:HistoryBases` when the lags cannot tell that many apart), `Coupling` (false; a filter from every other spike train, `coupling_<label>`), `Continuous=` (all; instantaneous). `Response=` the spike train modeled (label or index, 1); kept in `dspec.response`. `dspec.covariates` is a table with a row per covariate: `label`, `source` (the experiment's variable), `kind` (`"event"`, `"history"`, `"coupling"`, `"continuous"`), `by` and `level` (the `GroupBy` variable and its value) |
+| `[expt, keep] = NeuroGLMExport.experiment(spans, ...)` | neuroGLM's experiment struct, one trial per row of `spans` (`[start stop]`, s on the continuous clock). `Spikes=` (struct: label → spike times, s) registers spike trains, `Events=` (label → event times) timing variables, `Values=` (a table, a row per span) per-trial values, `Intervals=` (label → `[k x 2]` `[start stop]` s) the periods something is on, each a value holding per trial the `[m x 2]` periods inside it in ms from its start, cut at its edges, `Continuous=` (label → `struct(data=[N x d], fs=)`) continuous variables resampled to the bin rate and cut. `BinMs` (1), `Id`, `Param` (kept in `expt.param`), `Describe` (label → description). `keep` marks the spans that became trials |
+| `dspec = NeuroGLMExport.designSpec(expt, ...)` | a design: a raised-cosine kernel per timing variable (`Events=`, all by default; `KernelMs` 500, `NBases` 8, `Shape`), `Boxcars=` the interval variables given a kernel on their boxcar (1 in the bins the period covers, convolved with the kernel; none by default), `KernelMsOf=` a struct of the kernels with a length of their own (`struct('Stim_box', 800, 'Trial_on', 2000)`; `round(NBases * span / KernelMs)` raised cosines, so they keep their width), `Acausal=` events whose kernel spans `[-AcausalMs, KernelMs]` (`AcausalMs` = `KernelMs` by default), `AcausalMsOf=` a struct of the events with their own reach before them (`struct('response_time', 2500)`; they are acausal without being in `Acausal`), `GroupBy=` a value variable and `GroupEvents=` the events that get one kernel per value (included only on the trials with it, the paper's coherence-dependent kernels; labels `<event>__<value>`; a value of `""` gets none; several variables split different events: `GroupBy=["group" "response"], GroupEvents={"Stim_on", "RespWindow_on"}`, and an event takes one split; a name of `Boxcars` splits that boxcar's kernel), `History` (true; `HistoryMs` 200, the filter's reach: it covers the lags from one bin to `HistoryMs` after a spike at any bin size; `HistoryBases` 10 log-stretched raised cosines, fewer with the warning `NeuroGLMExport:HistoryBases` when the lags cannot tell that many apart), `Coupling` (false; a filter from every other spike train, `coupling_<label>`), `Continuous=` (all; instantaneous). `Response=` the spike train modeled (label or index, 1); kept in `dspec.response`. `dspec.covariates` is a table with a row per covariate: `label`, `source` (the experiment's variable), `kind` (`"event"`, `"boxcar"`, `"history"`, `"coupling"`, `"continuous"`), `by` and `level` (the `GroupBy` variable and its value) |
 | `F = NeuroGLMExport.fit(dspec, Trials=, Response=, Method=, Ridge=, RidgeGrid=)` | the design matrix (`F.dm`, constant columns removed), the binned response `F.y` and a Poisson GLM. `Method="glmfit"` (default): maximum likelihood by `glmfit`, `stats` its stats. `Method="matRegress"`: neuroGLM's route, `glms.neglog.poisson` with its gradient and Hessian minimized by `fminunc` (trust-region) under a ridge prior of precision `Ridge` on every weight but the bias (the penalty `Ridge/2 · ‖w‖²`; 1 by default, 0 = maximum likelihood), or `Ridge="evidence"`: the precision on `RidgeGrid` (`logspace(-2, 4, 13)`) with the largest Laplace approximation of the log marginal likelihood, the paper's evidence optimization (`F.ridge` the value used, `F.evidence` the grid's log evidence); standard errors from the Hessian at the optimum, `stats.hessian` / `stats.covb`. Either way: `bias`, `w`, `se`, `kernels` (`buildGLM.combineWeights`: `kernels.<covariate>.tr` ms from the event, `.data` the log-rate change, so `exp(data)` is the gain), `kernelSE` (the same shape: the standard error of the kernel itself, from the weights' full covariance; NaN where the data say nothing), `converged` (false when `glmfit` stopped at its iteration limit or `fminunc`'s exit flag was not positive), `rate` (spikes/s per bin), `deviance`, `logLik`, `logLikNull` (a constant rate), `bitsPerSpike` (their difference per spike in bits, the paper's single-trial prediction measure), `nSpikes`, `nBins`, `method`, `ridge` |
 | `P = NeuroGLMExport.predict(F, trials)` | the model's rate on any trials (held-out ones give the cross-validated prediction): `t{k}` (ms from the trial's start), `rate{k}` (spikes/s), `counts{k}` (the response's spikes per bin), `logLik`, `logLikNull`, `bitsPerSpike`. With a history or coupling filter the rate of a bin is the model's given the spikes observed before it |
 | `T = NeuroGLMExport.lockedEvents(expt, Events=, Trials=, WithinMs=1000, ToleranceMs=, MinFraction=0.95)` | the pairs of timing variables a fixed time apart: a table with `first`, `second`, `lagMs` (the median), `fractionFirst`, `fractionSecond` (of each one's events with its partner at that lag, give or take `ToleranceMs`, one bin by default), `nFirst`, `nSecond`. Each event is paired with the nearest event of the other variable in its trial; a pair is listed when both fractions reach `MinFraction` and the lag is shorter than `WithinMs`. See [Events a fixed time apart](#events-a-fixed-time-apart) |
@@ -79,6 +79,11 @@ others.
   and nudged by 1 ns into the bin that starts on a bin edge.
 - Labels are MATLAB field names (`matlab.lang.makeValidName`, made unique);
   `sessionDataNeuroGLM` keeps the originals in `info` and `expt.param`.
+- A **boxcar** (`Boxcars=`) is 1 from the bin its period starts in to the bin
+  before the one its stop falls in: the bins from the line's onset event to
+  the one before its offset event, `(stop - start) / BinMs` of them when both
+  are on bin edges, and never fewer than one. A period that begins before
+  the trial or ends after it is cut at the trial's edge.
 - neuroGLM builds the design matrix **one trial at a time**: a kernel stops
   at its trial's end (an acausal one starts at its start), and the spike
   history starts empty in every trial, also when the trials tile the
@@ -109,13 +114,14 @@ cover are dropped too (`info.nDroppedSignal`).
 | spike trains | every element of `D.spikes` (`Units=` a subset) | `sp_<unit label>` |
 | timing | every digital line's pulses (`Lines=` a subset), onsets and offsets apart | `<line>_on`, `<line>_off` |
 | timing | with `ResponseLine=`, the moment of the response, from the digital lines alone: the first `ResponseEdge` (`"onset"` or `"offset"`) of that line after each onset of `ResponseAfter=` (`"Trial"`: the trial's onset; e.g. `"RespWindow"`), before the next trial's onset. A trial without one has none; no trial column is read | `response_time` |
+| periods | every digital line's pulses (`Lines=` a subset), whole: the `[m x 2]` `[start stop]` ms the line is on inside the trial, for a kernel on the line's boxcar (`designSpec`'s `Boxcars=`) | `<line>_box` |
 | values | the trial's row of `D.trials`, its group (its row of `D.groups`, 0 when not kept), the response code (`D.respField`), every trial parameter (`D.paramNames`) | `trialIndex`, `group`, the column names |
 | values | with a response code, the trial's response word: the first of `Responses=` (`["Hit" "Miss" "CR" "FA" "Abort"]`) that it is, `""` when none | `response` |
 | continuous | `Signal=`, a `sessionData` struct of the **same dataset** holding a signal, every channel | the signal's name (`LFP`, `MUA`, `AUX`) |
 
 `info` holds `trialIndex` (the row of `D.trials` of each `expt.trial`),
 `spans`, `units` (the rows of `D.units` plus `variable`), `lines` (`line`,
-`on`, `off`), `values` (`column`, `variable`), `signal`, `response` and
+`on`, `off`, `box`), `values` (`column`, `variable`), `signal`, `response` and
 `responseTime` (the variables' names, `""` without them); `expt.param` holds
 the same tables with `key`, `name`, `variables` (the dataset's recorded
 variables as a struct of values), `fs`, `binMs`, `window`, `align`,
@@ -196,7 +202,9 @@ You choose the covariates in the GLM with these settings:
 | Covariate | Setting |
 | --- | --- |
 | event kernels | `opts.events`: the events given a kernel, named as the kernels are, `"<line>_on"`, `"<line>_off"` and `"response_time"`, e.g. `["Stim_on" "RespWindow_on" "response_time"]`. Empty (the default) gives every line edge and `response_time` a kernel. An event a dataset lacks is left out of that dataset's fit, with a line printed that lists the events it has |
-| kernels per trial group | `opts.groupKernels`, on the browser's event line's onset, only when that event is in `opts.events` |
+| boxcar kernels | `opts.boxcars`: the lines given a kernel on their boxcar, 1 while the line is on, as the paper's motion stimulus: the kernel `<line>_box`. `""` (the default) is the browser's event line, `string.empty` none, else line names (`["Stim" "RespWindow"]`). A line a dataset lacks is left out, with a line printed |
+| kernel lengths | `opts.kernelMs` (500) for every kernel, and `opts.kernelMsOf`, a struct of the kernels with a length of their own, by name: `struct('Stim_box', 800, 'Platform_off', 2000)`. `opts.acausalMsOf`, likewise, gives events their own reach before them (`struct('response_time', 1500)`). The raised cosines keep their width: `opts.nBases` per `opts.kernelMs`. A name that is no kernel of a dataset is left out there, with a line printed |
+| kernels per trial group | `opts.groupKernels`, on the browser's event line: its boxcar when the line is in `opts.boxcars` (the paper's coherence-dependent kernels), else its onset when that is in `opts.events` |
 | kernels per response word | `opts.responses` on `opts.responseEvents`, only those in `opts.events` |
 | spike history | `opts.history` |
 | coupling | `opts.coupling` |
@@ -207,8 +215,8 @@ Every line stays in `glm{k}.expt` whatever `opts.events` holds, so the plots
 can still mark it. Decoding in a plot script needs the response kernels it
 swaps, e.g. `response_time` split by `Hit` and `Miss`.
 
-The fields of `opts` at the top of the script (`binMs`, `window`, `minTrials`, `minSpikes`, `events`, `kernelMs`,
-`acausal`, `acausalMs`, `groupKernels`, `responses`, `responseEvents`, `responseTime`,
+The fields of `opts` at the top of the script (`binMs`, `window`, `minTrials`, `minSpikes`, `events`, `boxcars`, `kernelMs`,
+`kernelMsOf`, `acausal`, `acausalMs`, `acausalMsOf`, `groupKernels`, `responses`, `responseEvents`, `responseTime`,
 `responseLine`, `responseEdge`, `responseAfter`, `history`, `historyMs`, `historyBases`, `coupling`, `withSignal`,
 `auxParts`, `fitMethod`, `ridge`, `workers`, `plots`, `outDir`) are the knobs; `opts.workers` (4; 0 =
 one unit after the other in MATLAB itself) fits the units on process workers
@@ -241,21 +249,39 @@ the split between the two kernels over the lags they share, which the ridge
 prior makes for you: read the two together, or name one of the pair in
 `opts.events`.
 
+A boxcar is in the same position when every pulse of its line has one
+length: it is then the line's onset smeared over that length, and tells
+nothing the onset kernel could not (the paper's stimulus varied from 500 to
+1000 ms). The script prints a line when such a line is in `opts.boxcars`
+while its onset or offset is in `opts.events`.
+
 ## Notes
 
-- **Against the paper.** The script's defaults are not the paper's analysis:
-  5-ms bins (`opts.binMs`; the paper 1 ms); one kernel length for every
-  event (`opts.kernelMs` 500 ms; the paper an event's own, 0.5 to 5.3 s);
-  every line an impulse at each edge (the paper's motion stimulus is a boxcar
-  of its duration, neuroGLM's `addCovariateBoxcar`); a spike-history filter
-  of `opts.historyBases` log-stretched raised cosines over `opts.historyMs`
-  (the paper ten 1-ms steps and ten such cosines over 265 ms); one split
-  with the last block of trials held out (the paper five random folds).
-  Decoding is not implemented.
+- **Against the paper.** As the paper, the script bins at 1 ms
+  (`opts.binMs`), gives a kernel its own length (`opts.kernelMsOf`,
+  `opts.acausalMsOf`; the paper's run from 0.5 to 5.3 s by event, and the
+  lengths are yours to set: every kernel is `opts.kernelMs` long until you
+  do) and models a line as a boxcar of its duration (`opts.boxcars`; the
+  paper's motion stimulus, with an 800-ms kernel per coherence). It still
+  differs in the spike-history filter, `opts.historyBases` log-stretched
+  raised cosines over `opts.historyMs` (the paper ten 1-ms steps and ten such
+  cosines over 265 ms), and in the test: one split with the last block of
+  trials held out (the paper five random folds). Decoding is not implemented.
+- **A boxcar's kernel** is not read as an event's. The boxcar is 1 in every
+  bin its line is on, so the kernel at lag t is the log gain that one bin of
+  the line being on adds t later. While the line stays on, the gains of the
+  bins behind add up: the sustained gain is the sum of the kernel, in log
+  units per bin, and the kernel's shape is how that gain builds up after the
+  onset and dies away after the offset. neuroGLM's own `addCovariateBoxcar`
+  takes one onset and one offset per trial; `designSpec` builds the boxcar
+  from every pulse that reaches into the trial instead.
 - **Bins and memory.** `fit` makes the design matrix full for the
   regression: bins × columns doubles. At 1 ms, 300 trials of 3 s and 100 columns are
-  720 MB; `BinMs=5` or `10` is usually plenty for event kernels and far
-  faster.
+  720 MB, and an hour of trials that tile the session with 60 columns is
+  1.7 GB, for each unit being fitted (`fitWorkers` counts four of them per
+  worker). The script bins at 1 ms, as the paper; `opts.binMs = 5` or `10`
+  is usually plenty for event kernels, several times faster, and a fraction
+  of the memory.
 - **The spike-history filter** covers the lags from one bin to `HistoryMs`
   after a spike, whatever the bin: its first raised cosine peaks one bin
   after the spike, so the refractory period and bursts are resolved only

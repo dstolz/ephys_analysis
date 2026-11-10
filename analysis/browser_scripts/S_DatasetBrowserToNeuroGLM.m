@@ -7,14 +7,18 @@
 %
 %   rate(t) = exp( sum over events of kernel_e * event_e(t) + h * spikes(t) )
 %
-% with a kernel per digital line edge (onset and offset), one per trial group
+% with a kernel per digital line edge (onset and offset), a kernel on the
+% boxcar of a line's pulses (the paper's motion stimulus), one per trial group
 % for the browser's event line (the paper's coherence-dependent kernels), a
 % spike-history filter, and optionally a signal as a continuous covariate.
 %
 % The covariates: opts.events names the events given a kernel (every line edge
-% and response_time when empty), opts.history the spike history, opts.coupling
-% the other units, opts.withSignal the signal and, for AUX, opts.auxParts its
-% columns. Every line stays in g.expt whatever opts.events holds.
+% and response_time when empty), opts.boxcars the lines given a kernel on
+% their boxcar (1 while the line is on; kernel <line>_box), opts.history the
+% spike history, opts.coupling the other units, opts.withSignal the signal and,
+% for AUX, opts.auxParts its columns. A kernel reaches opts.kernelMs after its
+% event, or its own length in opts.kernelMsOf. Every line stays in g.expt
+% whatever opts.events and opts.boxcars hold.
 %
 % Kernels are told apart by the trials on which the time between their events
 % differs (the paper; neuroGLM's documentation: of two perfectly correlated
@@ -59,15 +63,16 @@
 % .data log gain, F.kernelSE, F.bitsPerSpike, F.converged), P (the prediction
 % on the held-out trials).
 %
-% Against the paper: 5 ms bins here (opts.binMs), 1 ms there; one kernel length
-% for every event (opts.kernelMs), an event's own there (0.5 to 5.3 s); every
-% line an impulse at each edge, where the paper's motion stimulus is a boxcar
-% of its duration; the spike-history filter is opts.historyBases log-stretched
-% raised cosines over opts.historyMs, the paper's ten 1 ms steps and ten such
-% cosines over 265 ms; one split with the last block held out, the paper's
-% five random folds. neuroGLM builds the design a trial at a time: a kernel
-% stops at its trial's end and the spike history starts empty in each trial.
-% The paper's decoding is not here.
+% As the paper: 1 ms bins (opts.binMs), a kernel length per event
+% (opts.kernelMsOf, opts.acausalMsOf; the paper's run from 0.5 to 5.3 s, and
+% the lengths here are yours to set), a line as a boxcar of its duration
+% (opts.boxcars; the paper's motion stimulus, with an 800 ms kernel per
+% coherence). Against the paper: the spike-history filter is opts.historyBases
+% log-stretched raised cosines over opts.historyMs, the paper's ten 1 ms steps
+% and ten such cosines over 265 ms; one split with the last block held out,
+% the paper's five random folds. neuroGLM builds the design a trial at a
+% time: a kernel stops at its trial's end and the spike history starts empty
+% in each trial. The paper's decoding is not here.
 %
 % Plots (last section, opts.plots): of one unit, the kernels as gains with
 % their standard error, four held-out trials with the spikes, a smoothed rate
@@ -80,16 +85,19 @@ end
 opts = struct();                    % the settings, noted whole in each dataset's manifest
 opts.neuroGLMPath = 'c:\src\neuroGLM';   % added when neuroGLM is not on the path (the folder holding +buildGLM)
 opts.outDir = "";                        % a folder to save <dataset>_neuroglm.mat in (in a subfolder named after the browser's tags); "" keeps them in the workspace only
-opts.binMs = 5;                          % neuroGLM's bin (1 ms, as the paper); 5-10 ms fits much faster on long sessions
+opts.binMs = 1;                          % neuroGLM's bin, ms: 1, as the paper. The design matrix is bins x columns doubles for each unit: 5 or 10 ms fits several times faster in a fraction of the memory, and resolves the spike history only to the bin
 opts.window = [-0.5 Inf];                % s around TrialOnset; Inf = up to the next trial's start, so the trials tile the session and every event between trials (Trough_on mostly) is in one; a finite end leaves out the events after it
 opts.minTrials = 20;                     % a dataset with fewer trials fitted (the training block) is not fitted, with a line printed
 opts.minSpikes = 100;                    % a unit with fewer spikes in the trials fitted is not fitted, with a line printed
 opts.events = ["Platform_off","Stim_on"];%,"Trough_on"];              % the events given a kernel, named as the kernels are: "<line>_on", "<line>_off", "response_time", e.g. ["Stim_on" "RespWindow_on" "response_time"]; string.empty = every line edge and response_time. One a dataset lacks is left out, with a line printed
-opts.kernelMs = 500;                     % each event kernel's reach after the event
-opts.nBases = 8;                         % raised cosines per kernel
+opts.boxcars = "";                       % the lines given a kernel on their boxcar, 1 while the line is on (the paper's motion stimulus, a boxcar of its duration): the kernel <line>_box, e.g. ["Stim" "RespWindow"]. "" = the browser's event line (B.Settings.ref.line); string.empty = none. A boxcar tells more than the line's edges only when its pulses differ in length
+opts.kernelMs = 500;                     % a kernel's reach after its event, for every kernel without a length of its own
+opts.kernelMsOf = struct();              % the kernels with a length of their own, ms, by name: struct('Stim_box', 800, 'Platform_off', 2000) (the paper's run from 0.5 to 4 s, an event's own)
+opts.nBases = 8;                         % raised cosines per opts.kernelMs of kernel: a longer or shorter kernel keeps their width
 opts.acausal = string.empty;             % event variables whose kernel also precedes the event, e.g. "Resp_on" for the animal's response
 opts.acausalMs = 500;                   % how far those kernels and response_time's reach before the event; after it, opts.kernelMs
-opts.groupKernels = true;                % one kernel per trial group (B's groupBy) for the browser's event line's onset (B.Settings.ref.line)
+opts.acausalMsOf = struct();             % the events whose kernel reaches its own time before them, ms, by name: struct('response_time', 1500) (the paper's saccade kernels start 2.5 s before the saccade); they need not be in opts.acausal
+opts.groupKernels = true;                % one kernel per trial group (B's groupBy) for the browser's event line (B.Settings.ref.line): its boxcar when the line is in opts.boxcars, else its onset
 opts.responses = "Hit";%["Hit" "Miss" "CR" "FA"];    % the response words given their own kernels; string.empty = none (a trial with another word gets none on opts.responseEvents)
 opts.responseEvents = "response_time";   % the events split by response word; not one groupKernels also splits (B.Settings.ref.line's onset). One a fixed time from another event (RespWindow_on, RespWindow_off) cannot be told from its kernel, and swapping words to decode then fails
 opts.responseTime = true;                % the event response_time: the moment of the response, with kernels before and after it
@@ -197,23 +205,57 @@ try
                 error('%s has none of opts.events (%s).', name, strjoin(opts.events, ", "));
             end
         end
+        % the browser's event line: the first line when the dataset lacks it, as before
+        refLine = B.Settings.ref.line;
+        if refLine == "Trial", refLine = D.trialLine; end
+        refRow = find(info.lines.line == refLine, 1);
+        if isempty(refRow), refRow = 1; end
+
+        % the lines given a kernel on their boxcar: opts.boxcars, those of this dataset
+        boxLines = reshape(opts.boxcars, 1, []);
+        boxLines(boxLines == "") = info.lines.line(refRow);
+        boxLines(boxLines == "Trial") = D.trialLine;
+        boxLines = unique(boxLines, 'stable');
+        for ln = setdiff(boxLines, info.lines.line.', 'stable')
+            fprintf('%s: no boxcar kernel on %s (no such line; it has %s)\n', name, ln, strjoin(info.lines.line, ", "));
+        end
+        boxLines = intersect(boxLines, info.lines.line.', 'stable');
+        boxcars = strings(1, 0);                 % their variables, <line>_box
+        for ln = boxLines
+            boxcars(end + 1) = info.lines.box(info.lines.line == ln); %#ok<SAGROW>
+        end
+
+        % the kernels' own lengths: those of opts.kernelMsOf and opts.acausalMsOf that are kernels here
+        ownMs = opts.kernelMsOf;
+        for nm = setdiff(string(fieldnames(ownMs)).', [events boxcars], 'stable')
+            fprintf('%s: opts.kernelMsOf.%s is no kernel here (it has %s)\n', name, nm, strjoin([events boxcars], ", "));
+            ownMs = rmfield(ownMs, nm);
+        end
+        ownPreMs = opts.acausalMsOf;
+        for nm = setdiff(string(fieldnames(ownPreMs)).', events, 'stable')
+            fprintf('%s: opts.acausalMsOf.%s is no event kernel here (it has %s)\n', name, nm, strjoin(events, ", "));
+            ownPreMs = rmfield(ownPreMs, nm);
+        end
         acausal = reshape(opts.acausal, 1, []);
         if info.responseTime ~= "", acausal = [acausal, info.responseTime]; end %#ok<AGROW>
-        dsArgs = {'Events', events, 'KernelMs', opts.kernelMs, 'NBases', opts.nBases, 'Acausal', acausal, 'AcausalMs', opts.acausalMs, ...
+        acausal = unique([acausal, string(fieldnames(ownPreMs)).'], 'stable');
+        dsArgs = {'Events', events, 'Boxcars', boxcars, 'KernelMs', opts.kernelMs, 'KernelMsOf', ownMs, 'NBases', opts.nBases, ...
+            'Acausal', acausal, 'AcausalMs', opts.acausalMs, 'AcausalMsOf', ownPreMs, ...
             'History', opts.history, 'HistoryMs', opts.historyMs, 'HistoryBases', opts.historyBases, 'Coupling', opts.coupling};
         groupBy = string.empty(1, 0);
         groupEvents = {};
         if opts.groupKernels
-            % the paper's coherence-dependent kernels: the event the browser aligns to, split by trial group
-            refLine = B.Settings.ref.line;
-            if refLine == "Trial", refLine = D.trialLine; end
-            refOn = info.lines.on(info.lines.line == refLine);
-            if isempty(refOn), refOn = info.lines.on(1); end
-            if ismember(refOn, events)
+            % the paper's coherence-dependent kernels: the browser's event line split by trial group, its
+            % boxcar when it has one (as the paper's motion stimulus), else its onset
+            refOn = info.lines.on(refRow);
+            if ismember(info.lines.box(refRow), boxcars)
                 groupBy(end + 1) = "group"; %#ok<AGROW>
-                groupEvents{end + 1} = refOn.';
+                groupEvents{end + 1} = info.lines.box(refRow); %#ok<AGROW>
+            elseif ismember(refOn, events)
+                groupBy(end + 1) = "group"; %#ok<AGROW>
+                groupEvents{end + 1} = refOn.'; %#ok<AGROW>
             else
-                fprintf('%s: no kernels per trial group (%s is not in opts.events)\n', name, refOn);
+                fprintf('%s: no kernels per trial group (%s is not in opts.events, nor its line in opts.boxcars)\n', name, refOn);
             end
         end
         if ~isempty(opts.responses) && info.response ~= ""
@@ -248,12 +290,29 @@ try
 
         % events a fixed time apart on the trials fitted, closer than their kernels reach: there only the sum of
         % the two kernels is determined (the paper: the variable timing of events is what tells them apart)
-        locked = NeuroGLMExport.lockedEvents(expt, Events=events, Trials=train, WithinMs=opts.kernelMs + opts.acausalMs);
-        locked = locked(locked.lagMs < opts.kernelMs + opts.acausalMs * ismember(locked.second, acausal), :);
+        afterMs = arrayfun(@(ev) fieldOr(ownMs, ev, opts.kernelMs), events);          % each event kernel's reach after its event
+        beforeMs = arrayfun(@(ev) fieldOr(ownPreMs, ev, opts.acausalMs), events) .* ismember(events, acausal);   % and before it
+        locked = NeuroGLMExport.lockedEvents(expt, Events=events, Trials=train, WithinMs=max(afterMs) + max(beforeMs));
+        [~, iFirst] = ismember(locked.first, events);
+        [~, iSecond] = ismember(locked.second, events);
+        locked = locked(locked.lagMs < reshape(afterMs(iFirst) + beforeMs(iSecond), [], 1), :);
         for r = 1:height(locked)
             fprintf(['%s: %s is %g ms after %s (%.0f%% of its %d events, %.0f%% of the other''s %d): where the two kernels ' ...
                 'overlap, only their sum is determined\n'], name, locked.second(r), locked.lagMs(r), locked.first(r), ...
                 100 * locked.fractionSecond(r), locked.nSecond(r), 100 * locked.fractionFirst(r), locked.nFirst(r));
+        end
+        % a boxcar whose pulses all have one length is its onset kernel smeared over that length: with the
+        % line's edges in the model too, the split between them is the prior's (the paper's stimulus varied in duration)
+        for ln = boxLines
+            row = info.lines.line == ln;
+            len = diff(D.eventsContinuous.(ln), 1, 2) * 1000;      % ms, every pulse of the session
+            len = len(isfinite(len));
+            edges = intersect([info.lines.on(row), info.lines.off(row)], events, 'stable');
+            if numel(len) > 1 && max(len) - min(len) <= opts.binMs && ~isempty(edges)
+                fprintf(['%s: every %s pulse is %g ms long (%d in the session): its boxcar is its onset smeared over that ' ...
+                    'time, so only the sum of %s and %s is determined where they overlap\n'], name, ln, median(len), numel(len), ...
+                    info.lines.box(row), strjoin(edges, ", "));
+            end
         end
 
         % the units with enough spikes in the trials fitted
@@ -310,6 +369,7 @@ B.progressFinish(sprintf("%d units of %d dataset(s) fitted (%d passed over)", nF
 %   vertcat(g.fits.unit), arrayfun(@(f) f.P.bitsPerSpike, g.fits)   % every unit and its held-out bits/spike
 %   f.dspec.covariates                                        % the design: each kernel, its event, its trial group or response word
 %   f.F.kernels.Stim_on.tr, exp(f.F.kernels.Stim_on.data)     % a kernel as gain over ms after the event
+%   f.F.kernels.Stim_box__1                                   % a boxcar's kernel (trial group 1): the log gain a bin of the line being on adds, over the ms since
 %   exp(f.F.kernels.Stim_on.data + [-1 1] .* f.F.kernelSE.Stim_on.data)   % the gain a standard error either side
 %   plot(f.F.kernels.RespWindow_on__Hit.tr, exp([f.F.kernels.RespWindow_on__Hit.data, f.F.kernels.RespWindow_on__Miss.data]))   % Hit against Miss
 %   plot(f.F.kernels.response_time.tr, exp(f.F.kernels.response_time.data))   % the gain around the response (0 = the response)
@@ -339,7 +399,9 @@ function plotKernels(g, f, maxGain)
 % Every kernel of one fitted unit as a gain, exp(log gain), over the time from its event, with the gain a standard
 % error either side as thin lines (F.kernelSE; no thin line where it is NaN, where the data say nothing). The
 % kernels of an event split by trial group or response word share a tile, the groups in the browser's colors. A
-% continuous covariate has no time course: its weights, the log gain per unit of each column, with their errors.
+% boxcar's kernel is the gain one bin of the line being on adds, over the time since that bin: while the line stays
+% on, the gains of the bins behind multiply. A continuous covariate has no time course: its weights, the log gain
+% per unit of each column, with their errors.
 C = f.dspec.covariates;                 % label, source, kind, by, level
 K = f.F.kernels;
 SE = f.F.kernelSE;
@@ -347,8 +409,9 @@ groups = g.expt.param.groups;
 maxGain = max(maxGain, 2);
 fig = figure('Name', g.name + ", unit " + string(f.unit.label) + ": neuroGLM kernels", 'Color', 'w', 'Position', [100 100 1100 700]);
 tl = tiledlayout(fig, 'flow', 'TileSpacing', 'compact', 'Padding', 'compact');
-for src = reshape(unique(C.source(C.kind == "event"), 'stable'), 1, [])
-    r = find(C.kind == "event" & C.source == src);
+onEvents = C.kind == "event" | C.kind == "boxcar";
+for src = reshape(unique(C.source(onEvents), 'stable'), 1, [])
+    r = find(onEvents & C.source == src);
     ax = nexttile(tl);
     hold(ax, 'on');
     colors = lines(numel(r));
@@ -364,8 +427,13 @@ for src = reshape(unique(C.source(C.kind == "event"), 'stable'), 1, [])
         h(i) = drawGain(ax, K.(C.label(r(i))), SE.(C.label(r(i))), colors(i, :));
     end
     finishGainAxes(ax, h, maxGain);
-    title(ax, g.expt.desc.(src), 'Interpreter', 'none');
-    xlabel(ax, 'Time from the event (ms)');
+    if C.kind(r(1)) == "boxcar"
+        title(ax, string(g.expt.desc.(src)) + " (boxcar)", 'Interpreter', 'none');
+        xlabel(ax, 'Time since a bin with the line on (ms)');
+    else
+        title(ax, g.expt.desc.(src), 'Interpreter', 'none');
+        xlabel(ax, 'Time from the event (ms)');
+    end
     if numel(r) > 1; legend(ax, h, names, 'Location', 'best', 'Interpreter', 'none'); end
 end
 for kind = ["history" "coupling"]
@@ -535,6 +603,11 @@ groups = g.expt.param.groups;
 gi = find(groups.index == tr.(vars.variable(vars.column == "group")), 1);
 if ~isempty(gi); s = s + ", " + string(groups.label(gi)); end
 if g.info.response ~= "" && string(tr.(g.info.response)) ~= ""; s = s + ", " + string(tr.(g.info.response)); end
+end
+
+function v = fieldOr(S, name, default)
+% S.(name), or DEFAULT when the struct S has no such field
+if isfield(S, name); v = double(S.(name)); else; v = default; end
 end
 
 function w = heldWord(g)

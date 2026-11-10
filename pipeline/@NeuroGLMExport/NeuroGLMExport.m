@@ -11,13 +11,15 @@ classdef NeuroGLMExport
     %
     %   This class packages the pipeline's data into that experiment struct
     %   and runs the common steps around it:
-    %     experiment    whole-session spike times, event times, per-trial
-    %                   values and continuous signals, cut into trials over
-    %                   given spans           -> expt (buildGLM's struct)
+    %     experiment    whole-session spike times, event times, the periods
+    %                   lines are on, per-trial values and continuous
+    %                   signals, cut into trials over given spans
+    %                                         -> expt (buildGLM's struct)
     %     designSpec    a default design: a kernel per event (raised
-    %                   cosines), spike history, optional coupling, raw
-    %                   continuous covariates, kernels split by group
-    %                                         -> dspec
+    %                   cosines), each of its own length, kernels on the
+    %                   boxcar of a line's pulses, spike history, optional
+    %                   coupling, raw continuous covariates, kernels split
+    %                   by group              -> dspec
     %     fit           the design matrix, the binned response and a Poisson
     %                   GLM (glmfit, or matRegress + fminunc with a ridge
     %                   prior)                -> F (weights, kernels,
@@ -90,6 +92,13 @@ classdef NeuroGLMExport
             %                 trial)
             %     Values      table with nTrials rows: each column a
             %                 registered value (a string column stays string)
+            %     Intervals   struct: label -> [k x 2] [start stop] s, the
+            %                 periods something is on (a digital line's
+            %                 pulses); each a registered value holding, per
+            %                 trial, the [m x 2] periods inside it, ms from
+            %                 the trial's start, cut at the trial's edges
+            %                 (designSpec's Boxcars). Rows with a NaN or a
+            %                 stop not after its start are left out
             %     Continuous  struct: label -> struct(data=[N x d], fs=Hz),
             %                 row k at (k-1)/fs; each a registered continuous
             %                 variable of d dimensions, resampled to the bin
@@ -109,6 +118,7 @@ classdef NeuroGLMExport
                 opts.Spikes (1,1) struct = struct()
                 opts.Events (1,1) struct = struct()
                 opts.Values table = table()
+                opts.Intervals (1,1) struct = struct()
                 opts.Continuous (1,1) struct = struct()
                 opts.Id (1,1) string = ""
                 opts.Param = struct()
@@ -127,19 +137,31 @@ classdef NeuroGLMExport
             spikeLabels = string(fieldnames(opts.Spikes)).';
             eventLabels = string(fieldnames(opts.Events)).';
             valueLabels = string(opts.Values.Properties.VariableNames);
+            intervalLabels = string(fieldnames(opts.Intervals)).';
             contLabels  = string(fieldnames(opts.Continuous)).';
-            labs = [spikeLabels eventLabels valueLabels contLabels];
+            labs = [spikeLabels eventLabels valueLabels intervalLabels contLabels];
             bad = labs(~arrayfun(@isvarname, labs));
             if ~isempty(bad)
                 error('NeuroGLMExport:BadLabel', 'Not a valid variable name: %s (use matlab.lang.makeValidName).', strjoin(bad, ', '));
             end
             [~, first] = unique(labs, 'stable');
             if numel(first) ~= numel(labs)
-                error('NeuroGLMExport:DuplicateLabel', 'A label is used twice across Spikes, Events, Values and Continuous.');
+                error('NeuroGLMExport:DuplicateLabel', 'A label is used twice across Spikes, Events, Values, Intervals and Continuous.');
             end
             for lab = spikeLabels; expt = buildGLM.registerSpikeTrain(expt, char(lab), desc(lab)); end
             for lab = eventLabels; expt = buildGLM.registerTiming(expt, char(lab), desc(lab)); end
             for lab = valueLabels; expt = buildGLM.registerValue(expt, char(lab), desc(lab)); end
+            % the periods, as values (neuroGLM has no type for them): finite, each stop after its start
+            periods = struct();
+            for lab = intervalLabels
+                iv = double(opts.Intervals.(lab));
+                if isempty(iv); iv = zeros(0, 2); end
+                if ~ismatrix(iv) || size(iv, 2) ~= 2
+                    error('NeuroGLMExport:BadIntervals', 'Intervals.%s must be [k x 2] [start stop] s.', lab);
+                end
+                periods.(lab) = iv(all(isfinite(iv), 2) & iv(:, 2) > iv(:, 1), :);
+                expt = buildGLM.registerValue(expt, char(lab), desc(lab));
+            end
 
             % continuous signals, resampled to the bin rate once
             fsBin = 1000 / binMs;
@@ -200,6 +222,15 @@ classdef NeuroGLMExport
                     if iscell(v) && isscalar(v); v = v{1}; end
                     tr.(lab) = v;
                 end
+                % the periods that reach into the trial, cut at its edges; rounded and nudged as
+                % the times above, so a period starts in the bin of its onset event
+                for lab = intervalLabels
+                    iv = periods.(lab);
+                    iv = iv(iv(:, 1) < tEnd & iv(:, 2) > t0, :);
+                    rel = min(max(round((iv - t0) * 1e9), 0), round(dur * 1e6));
+                    rel = rel(rel(:, 2) > rel(:, 1), :);
+                    tr.(lab) = rel / 1e6 + 1e-6;
+                end
                 for lab = contLabels
                     x = cont.(lab);
                     r0 = round(t0 * fsBin) + 1;
@@ -230,14 +261,33 @@ classdef NeuroGLMExport
             %     Response     the spike train to model: its label, or its
             %                  index among the registered spike trains (1)
             %     Events       the timing variables given a kernel (all)
-            %     KernelMs     the kernel's length after an event, ms (500)
-            %     NBases       raised cosines per kernel (8)
-            %     Shape        "raised cosine" (default) | "boxcar"
+            %     Boxcars      the interval variables (experiment's
+            %                  Intervals) given a kernel on their boxcar: 1
+            %                  in the bins the period covers, 0 elsewhere,
+            %                  convolved with the kernel, as the paper's
+            %                  motion stimulus (none). The kernel is the
+            %                  change in log rate a bin of the period adds,
+            %                  over the time since that bin
+            %     KernelMs     a kernel's length after its event, ms (500)
+            %     KernelMsOf   struct: the kernels with a length of their
+            %                  own, ms, by event or boxcar label, e.g.
+            %                  struct('Stim_box', 800, 'Trial_on', 2000);
+            %                  the others have KernelMs (the paper's run
+            %                  from 0.5 to 4 s by event)
+            %     NBases       raised cosines per kernel of KernelMs (8). A
+            %                  kernel of another span keeps their width:
+            %                  round(NBases * span / KernelMs) of them
+            %     Shape        the basis functions: "raised cosine"
+            %                  (default) | "boxcar"
             %     Acausal      timing variables whose kernel also precedes
             %                  the event: it spans [-AcausalMs, KernelMs]
             %                  (none); e.g. a response the animal makes
             %     AcausalMs    an acausal kernel's reach before the event, ms
             %                  (KernelMs); its raised cosines keep their width
+            %     AcausalMsOf  struct: the events whose kernel reaches its own
+            %                  time before them, ms, by label, e.g.
+            %                  struct('response_time', 2500); such an event
+            %                  is acausal whether or not Acausal names it
             %     GroupBy      a value variable: the events in GroupEvents
             %                  get one kernel per distinct value, included
             %                  only on the trials with that value (""); e.g.
@@ -247,7 +297,9 @@ classdef NeuroGLMExport
             %                  split different events
             %     GroupEvents  the events split by GroupBy (Events); with
             %                  several GroupBy, a cell of them, one per
-            %                  variable. An event takes one split
+            %                  variable. An event takes one split. A name
+            %                  of Boxcars splits that boxcar's kernel (the
+            %                  paper's coherence-dependent kernels)
             %     History      a spike-history filter on the response (true)
             %     HistoryMs    its reach, ms (200): the filter covers the lags
             %                  from one bin to HistoryMs after a spike, at any
@@ -266,13 +318,17 @@ classdef NeuroGLMExport
             %   The design is dspec.covar; dspec.response holds the label
             %   fit regresses on, dspec.groupBy the variables and
             %   dspec.groupLevels their values, a cell with one per variable.
-            %   Kernels: covariate label = the event label; grouped kernels
-            %   "<event>__<value>"; history "hist"; coupling "coupling_<label>".
+            %   Kernels: covariate label = the event or boxcar label; grouped
+            %   kernels "<event>__<value>"; history "hist"; coupling
+            %   "coupling_<label>".
             %   dspec.covariates is a table with a row per covariate: label,
             %   source (the experiment's variable it is built on), kind
-            %   ("event" | "history" | "coupling" | "continuous"), by and
-            %   level (the GroupBy variable and its value; "" without).
-            %   Errors: NeuroGLMExport:NoSpikeTrain, :BadResponse, :BadEvent,
+            %   ("event" | "boxcar" | "history" | "coupling" |
+            %   "continuous"), by and level (the GroupBy variable and its
+            %   value; "" without).
+            %   Errors: NeuroGLMExport:NoSpikeTrain, :BadResponse, :BadEvent
+            %   (also a name of KernelMsOf or AcausalMsOf that is no
+            %   variable of the experiment), :BadBoxcar, :BadKernelMs,
             %   :BadContinuous, :BadGroupBy, :BadGroupEvents, :BadHistory
             %   (HistoryMs shorter than two bins, or fewer than two
             %   HistoryBases), :EmptyDesign.
@@ -280,11 +336,14 @@ classdef NeuroGLMExport
                 expt (1,1) struct
                 opts.Response = 1
                 opts.Events string = string.empty
+                opts.Boxcars string = string.empty
                 opts.KernelMs (1,1) double {mustBePositive} = 500
+                opts.KernelMsOf (1,1) struct = struct()
                 opts.NBases (1,1) double {mustBeInteger, mustBePositive} = 8
                 opts.Shape (1,1) string {mustBeMember(opts.Shape, ["raised cosine" "boxcar"])} = "raised cosine"
                 opts.Acausal string = string.empty
                 opts.AcausalMs double = []
+                opts.AcausalMsOf (1,1) struct = struct()
                 opts.GroupBy string = string.empty
                 opts.GroupEvents = string.empty
                 opts.History (1,1) logical = true
@@ -299,6 +358,7 @@ classdef NeuroGLMExport
             kind = @(t) labels(cellfun(@(l) strcmp(types.(l), t), cellstr(labels)));
             spikeLabels = kind('spike train');
             eventLabels = kind('timing');
+            valueLabels = kind('value');
             contLabels  = kind('continuous');
             if isempty(spikeLabels)
                 error('NeuroGLMExport:NoSpikeTrain', 'The experiment has no spike train to model.');
@@ -320,9 +380,32 @@ classdef NeuroGLMExport
             groupEvents = opts.GroupEvents;
             if ~iscell(groupEvents); groupEvents = {groupEvents}; end
             groupEvents = cellfun(@(g) reshape(string(g), 1, []), groupEvents, 'UniformOutput', false);
-            missing = setdiff([events opts.Acausal groupEvents{:}], eventLabels);
+            boxcars = reshape(opts.Boxcars, 1, []);
+            missing = setdiff(boxcars, valueLabels);
+            if ~isempty(missing)
+                error('NeuroGLMExport:BadBoxcar', 'Not a registered interval variable (experiment''s Intervals): %s.', strjoin(missing, ', '));
+            end
+            for lab = boxcars
+                if ~all(arrayfun(@(tr) isnumeric(tr.(lab)) && size(tr.(lab), 2) == 2, expt.trial))
+                    error('NeuroGLMExport:BadBoxcar', '%s does not hold [m x 2] periods in every trial (experiment''s Intervals).', lab);
+                end
+            end
+            ownPre = string(fieldnames(opts.AcausalMsOf)).';
+            missing = setdiff([events opts.Acausal ownPre], eventLabels);
             if ~isempty(missing)
                 error('NeuroGLMExport:BadEvent', 'Not a registered timing variable: %s.', strjoin(missing, ', '));
+            end
+            missing = setdiff([groupEvents{:}], [eventLabels boxcars]);
+            if ~isempty(missing)
+                error('NeuroGLMExport:BadEvent', 'Not a registered timing variable, nor one of Boxcars: %s.', strjoin(missing, ', '));
+            end
+            missing = setdiff(string(fieldnames(opts.KernelMsOf)).', [eventLabels valueLabels]);
+            if ~isempty(missing)
+                error('NeuroGLMExport:BadEvent', 'KernelMsOf names no variable of the experiment: %s.', strjoin(missing, ', '));
+            end
+            own = [struct2cell(opts.KernelMsOf); struct2cell(opts.AcausalMsOf)];
+            if ~all(cellfun(@(v) isnumeric(v) && isscalar(v) && isfinite(v) && v > 0, own))
+                error('NeuroGLMExport:BadKernelMs', 'KernelMsOf and AcausalMsOf hold one length each, ms, above 0.');
             end
             conts = opts.Continuous;
             if isempty(conts); conts = contLabels; end
@@ -362,15 +445,21 @@ classdef NeuroGLMExport
             preMs = opts.AcausalMs;
             if isempty(preMs); preMs = opts.KernelMs; end
             rows = strings(0, 5);      % dspec.covariates: label, source, kind, by, level
-            for lab = events
-                if ismember(lab, opts.Acausal)
-                    spanMs = preMs + opts.KernelMs;
-                    bs = basisFactory.makeSmoothTemporalBasis(char(opts.Shape), spanMs, round(opts.NBases * spanMs / opts.KernelMs), binfun);
-                    offset = -binfun(preMs);
-                else
-                    bs = basisFactory.makeSmoothTemporalBasis(char(opts.Shape), opts.KernelMs, opts.NBases, binfun);
-                    offset = 0;
+            for lab = [events boxcars]
+                % the kernel's span: its own length or KernelMs after the event and, for an acausal
+                % event, its own reach or AcausalMs before it; NBases raised cosines per KernelMs
+                isBox = ismember(lab, boxcars);
+                postMs = NeuroGLMExport.fieldOr(opts.KernelMsOf, lab, opts.KernelMs);
+                beforeMs = 0;
+                if ~isBox && (ismember(lab, opts.Acausal) || ismember(lab, ownPre))
+                    beforeMs = NeuroGLMExport.fieldOr(opts.AcausalMsOf, lab, preMs);
                 end
+                spanMs = beforeMs + postMs;
+                bs = basisFactory.makeSmoothTemporalBasis(char(opts.Shape), spanMs, max(1, round(opts.NBases * spanMs / opts.KernelMs)), binfun);
+                offset = 0;
+                if beforeMs > 0; offset = -binfun(beforeMs); end
+                covKind = "event";
+                if isBox; covKind = "boxcar"; end
                 iBy = find(cellfun(@(g) ismember(lab, g), groupEvents(1:numel(groupBy))), 1);
                 if ~isempty(iBy)
                     by = groupBy(iBy);
@@ -383,13 +472,13 @@ classdef NeuroGLMExport
                             tag = matlab.lang.makeValidName(char(L));
                         end
                         covLabel = char(lab + "__" + tag);
-                        dspec = buildGLM.addCovariateTiming(dspec, covLabel, char(lab), ...
-                            sprintf('%s (%s = %s)', expt.desc.(lab), by, string(L)), bs, offset, cond);
-                        rows(end + 1, :) = [string(covLabel), lab, "event", by, string(L)]; %#ok<AGROW>
+                        dspec = NeuroGLMExport.addKernel(dspec, covLabel, lab, ...
+                            sprintf('%s (%s = %s)', expt.desc.(lab), by, string(L)), bs, offset, cond, isBox);
+                        rows(end + 1, :) = [string(covLabel), lab, covKind, by, string(L)]; %#ok<AGROW>
                     end
                 else
-                    dspec = buildGLM.addCovariateTiming(dspec, char(lab), char(lab), expt.desc.(lab), bs, offset);
-                    rows(end + 1, :) = [lab, lab, "event", "", ""]; %#ok<AGROW>
+                    dspec = NeuroGLMExport.addKernel(dspec, char(lab), lab, expt.desc.(lab), bs, offset, [], isBox);
+                    rows(end + 1, :) = [lab, lab, covKind, "", ""]; %#ok<AGROW>
                 end
             end
             if opts.History || opts.Coupling
@@ -411,7 +500,7 @@ classdef NeuroGLMExport
                 rows(end + 1, :) = [lab, lab, "continuous", "", ""]; %#ok<AGROW>
             end
             if ~isfield(dspec, 'covar') || isempty(fieldnames(dspec.covar))
-                error('NeuroGLMExport:EmptyDesign', 'The design has no covariate: give Events, History, Coupling or Continuous.');
+                error('NeuroGLMExport:EmptyDesign', 'The design has no covariate: give Events, Boxcars, History, Coupling or Continuous.');
             end
             dspec.response = resp;
             dspec.groupBy = groupBy;
@@ -943,9 +1032,49 @@ classdef NeuroGLMExport
             F.dm.dspec.expt = [];
             part = struct('unit', unit, 'dspec', dspec, 'F', F, 'P', P);
         end
+
+        function stim = boxcarStim(periods, binMs, durMs)
+            %boxcarStim  A trial's boxcar: 1 in the bins its periods cover, 0 in the others (designSpec's Boxcars).
+            %   stim = NeuroGLMExport.boxcarStim(periods, binMs, durMs):
+            %   periods is [m x 2] [start stop] ms from the trial's start,
+            %   as experiment's Intervals makes them (cut at the trial's
+            %   edges, each time nudged past the bin edge it sits on); stim
+            %   is [durMs / binMs x 1]. A period covers the bin its start
+            %   falls in and every bin up to the one its stop falls in,
+            %   that one left out: the bins from its onset event's to the
+            %   one before its offset event's, (stop - start) / binMs of
+            %   them when both are on bin edges, and no fewer than one.
+            nT = round(durMs / binMs);
+            stim = zeros(nT, 1);
+            for k = 1:size(periods, 1)
+                first = max(ceil(periods(k, 1) / binMs), 1);
+                last = min(max(first, ceil(periods(k, 2) / binMs) - 1), nT);
+                stim(first:last) = 1;
+            end
+        end
     end
 
     methods (Static, Access = private)
+        function dspec = addKernel(dspec, covLabel, source, desc, bs, offset, cond, isBox)
+            %addKernel  One kernel of designSpec: on the impulses of a timing variable, or on the boxcar of an interval variable.
+            %   COND ([] = every trial) keeps the covariate to the trials it
+            %   is true for. The boxcar's handle holds the bin size and the
+            %   label only, not the experiment.
+            if isBox
+                binMs = dspec.expt.binSize;
+                src = char(source);
+                stim = @(trial, ~) NeuroGLMExport.boxcarStim(trial.(src), binMs, trial.duration);
+                dspec = buildGLM.addCovariate(dspec, covLabel, desc, stim, bs, offset, cond);
+            else
+                dspec = buildGLM.addCovariateTiming(dspec, covLabel, char(source), desc, bs, offset, cond);
+            end
+        end
+
+        function v = fieldOr(S, name, default)
+            %fieldOr  S.(name) as a double, or DEFAULT when S has no such field.
+            if isfield(S, name); v = double(S.(name)); else; v = default; end
+        end
+
         function hb = historyBasis(nBases, binMs, reachMs)
             %historyBasis  neuroGLM's log-stretched raised cosines for a spike-history or coupling filter that ends reachMs after a spike.
             %   hb = historyBasis(nBases, binMs, reachMs) is

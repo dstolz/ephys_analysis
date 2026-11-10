@@ -29,6 +29,14 @@ says how to cut a release.
   one unit's kernels as gains with their standard error, four held-out trials (the spikes and the model's rate under
   one 100 ms boxcar, the lines' onsets marked) and the held-out PSTH per trial group. `opts.plots` turns them off. The
   unit is the first dataset's with the most spikes, and the trials are evenly spaced through the held-out block.
+- neuroGLM connector, three things the paper does and the script did not. **Boxcar covariates**:
+  `NeuroGLMExport.designSpec`'s `Boxcars=` gives an interval variable a kernel on its boxcar, 1 while the line is on, as
+  the paper's motion stimulus; `NeuroGLMExport.experiment`'s `Intervals=` cuts periods into the trials, and
+  `sessionDataNeuroGLM` registers every line's pulses as `<line>_box` (`info.lines.box`). In the script, `opts.boxcars`
+  (the browser's event line by default), whose kernel `opts.groupKernels` now splits by trial group in place of the
+  line's onset. **A kernel length per event**: `KernelMsOf=` and `AcausalMsOf=`, structs by kernel name
+  (`opts.kernelMsOf`, `opts.acausalMsOf`, both empty until set), the raised cosines keeping their width. **1-ms bins**:
+  `opts.binMs = 1` in the script (it was 5), at several times the fitting time and memory.
 - `NeuroGLMExport.lockedEvents`: the pairs of events a fixed time apart on nearly every trial (a line's onset and
   offset when its pulse has one length), whose kernels cannot be told apart where they overlap, as the paper and
   neuroGLM's documentation warn. The script prints them per dataset and keeps them in `glm{k}.lockedEvents`.

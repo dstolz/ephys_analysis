@@ -62,7 +62,7 @@ opts.window = [-0.5 Inf];                % s around TrialOnset; Inf = up to the 
 opts.minTrials = 20;                     % a dataset with fewer trials fitted (the training block) is not fitted, with a line printed
 opts.minSpikes = 100;                    % a unit with fewer spikes in the trials fitted is not fitted, with a line printed
 opts.events = ["Platform_off","Stim_on"];%,"Trough_on"];              % the events given a kernel, named as the kernels are: "<line>_on", "<line>_off", "response_time", e.g. ["Stim_on" "RespWindow_on" "response_time"]; string.empty = every line edge and response_time. One a dataset lacks is left out, with a line printed
-opts.kernelMs = 500;                     % each event kernel's reach after the event
+opts.kernelMs = 1000;                     % each event kernel's reach after the event
 opts.nBases = 8;                         % raised cosines per kernel
 opts.acausal = string.empty;             % event variables whose kernel also precedes the event, e.g. "Resp_on" for the animal's response
 opts.acausalMs = 500;                   % how far those kernels and response_time's reach before the event; after it, opts.kernelMs
@@ -72,9 +72,9 @@ opts.responseEvents = "response_time";   % the events split by response word; no
 opts.responseTime = true;                % the event response_time: the moment of the response, with kernels before and after it
 opts.responseLine = "Platform"; opts.responseEdge = "offset";   % that moment: this line's edge (leaving the platform)...
 opts.responseAfter = "RespWindow";       % ...the first one after this line's onset, before the next trial (digital lines only)
-opts.history = true; opts.historyMs = 500;    % the spike-history filter
+opts.history = false; opts.historyMs = 500;    % the spike-history filter
 opts.coupling = false;                   % a coupling filter from every other unit of the dataset (slow with many units)
-opts.withSignal = "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
+opts.withSignal = "";% "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
 opts.auxParts = ["magnitude" "axes" "slow"];   % withSignal "AUX": the columns, each z-scored: "magnitude" (of the axes less their 2 s running mean), "axes" (those, signed), "slow" (the 2 s running means)
 opts.fitMethod = "matRegress";           % "matRegress": neuroGLM's route (fminunc, ridge prior; the paper's) | "glmfit": maximum likelihood
 opts.ridge = "evidence";                 % matRegress: the ridge prior's precision, or "evidence" to pick it by the marginal likelihood (the paper)

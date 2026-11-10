@@ -152,6 +152,7 @@ has plots is version 1: [below](#loading-a-version-1-config)).
 | `NamePattern` | `EphysDataset.DefaultNamePattern` (`"{SubjectID}_{Date:yyMMdd}_{Time:HHmmss}"`) | [dataset-name tokens](EphysPipeline.md#dataset-name-tokens), as in the pipeline config |
 | `Recordings` | `"concatenate"` | what an Open Ephys session with several recordings is (`"concatenate"`, `"separate"`, `"single"`), as in the pipeline config's `Acquisition.OpenEphys.Recordings`: with `"separate"` the datasets are the part folders |
 | `Downsample` | every field `[]` | the rate, Hz, each signal is brought to before any figure reads it: a field per signal (`LFP`, `MUA`, `SPIKE`, `AUX`), `[]` = the rate on file. Low-pass filtered first, so nothing aliases ([Downsampled signals](#downsampled-signals)) |
+| `SignalFilter` | every field off | the filter each signal is read through by every figure: a field per signal (`LFP`, `MUA`, `SPIKE`, `AUX`), each a [`SignalFilter`](#filtered-signals) (`enabled false` = none). Each channel's whole recording is filtered before the epochs are cut ([Filtered signals](#filtered-signals)) |
 | `Selection` | `"all"` | project mode: `"all"` datasets under the root, or the `"list"` in `Datasets` |
 | `Datasets` | none | root-relative [dataset keys](EphysPipeline.md#dataset-keys) for `"list"`. A key not found is warned about (`EphysAnalysisRunner:UnknownDataset`) and skipped |
 | `Folders` | none | dataset output folders (`"folders"` mode) |
@@ -205,6 +206,71 @@ A spectrum, spectrogram or coherence whose `fpass` runs past 0.38 × a
 layer's rate would show the anti-aliasing filter's roll-off as if it were
 the signal's own: `validate` warns (at `<figure>.<panel>.options.fpass`) and
 names the rate that would keep `fmax`.
+
+### Filtered signals
+
+A signal can be filtered before any figure computes from it: a band-pass
+for an EEG band (theta, gamma, ...), a notch for line noise, a low-pass or
+a high-pass. **Each channel's whole recording is filtered first, and then
+cut into epochs**, so no epoch has an edge of its own and a long filter
+reaches into the samples before and after each window. Two places set one:
+
+- `Source.SignalFilter.<signal>`: every figure reads that signal through it
+  (the app's Data tab, **Filter...**).
+- a panel's `options.filter`: that panel's signal layers are read through
+  it, after the signal's own (the continuous, heat map, spectrum,
+  spectrogram and coherence panels; [Panel options](#panel-options)). A
+  figure can so draw one channel raw in one panel and its theta band in
+  another.
+
+```matlab
+cfg.Source.SignalFilter.LFP = SignalFilter.preset("notch60");   % every figure: the LFP without 60 Hz line noise
+k = cfg.figureIndex("lfp");
+f = SignalFilter.preset("theta");                                % 4-8 Hz, Butterworth order 4, zero-phase
+f.phase = "causal";                                               % or forward only, as a recording system filters
+cfg.Figures(k).panels(1).options.filter = f;
+```
+
+A filter is a struct ([`SignalFilter`](../pipeline/SignalFilter.m)):
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | `false`: no filter (its settings are kept) |
+| `name` | `""` | the preset or saved filter it came from, in words (`"Theta"`); nothing is computed from it |
+| `type` | `"bandpass"` | what it passes: `"bandpass"`, `"bandstop"`, `"lowpass"` or `"highpass"` |
+| `cutoff` | `[4 8]` | Hz: `[low high]` for a band-pass or band-stop, one value for a low-pass or high-pass |
+| `design` | `"butter"` | `"butter"` (Butterworth: a flat passband, the cutoffs at −3 dB for one pass), `"cheby1"` (Chebyshev I: a steeper edge, ripple in the passband, the cutoffs at the passband edge), `"cheby2"` (Chebyshev II: ripple in the stopband, the cutoffs where it is `attenuation` down), `"ellip"` (elliptic: the steepest edge, ripple in both) or `"fir"` (a linear-phase FIR from a Hamming window, the cutoffs at −6 dB) |
+| `order` | 4 | an IIR design's order, 1 to 20 (a band-pass or band-stop has twice as many poles, as `butter`'s `n`); an FIR's order (its taps less one, made even; 0 = automatic: 3 cycles at the lowest cutoff, or at the band's width when that is narrower, so a notch is as sharp as its band) |
+| `ripple` | 1 | dB, the passband ripple of `"cheby1"` and `"ellip"` |
+| `attenuation` | 40 | dB, the stopband attenuation of `"cheby2"` and `"ellip"` |
+| `phase` | `"zero"` | `"zero"`: zero-phase, acausal. An IIR filter runs forward then backward (`filtfilt`), so nothing shifts in time and its gain is squared (−6 dB at a Butterworth's cutoffs); an FIR runs once and its delay is taken out. `"causal"`: forward only, as a recording system filters: each sample depends on the past alone, so the signal comes out delayed (`SignalFilter.delay`) and its phase shifted |
+
+`SignalFilter.presets()` lists the built-in filters, each a Butterworth,
+zero-phase: *Delta* 1–4 Hz, *Theta* 4–8 Hz, *Alpha* 8–13 Hz, *Beta* 13–30
+Hz, *Low gamma* 30–60 Hz, *High gamma* 60–150 Hz and *Ripple* 150–250 Hz
+(order 4), and the line-noise notches *60 Hz line noise* (58–62 Hz
+band-stop) and *50 Hz line noise* (48–52 Hz), order 2. Band edges differ
+between fields and species (rodent hippocampal theta runs about 6–10 Hz):
+change a preset's cutoffs and keep it with `SignalFilter.save(name, f)`.
+Your saved filters live with your preferences, so every config and both
+apps list them (`SignalFilter.saved()`, `SignalFilter.remove(name)`); a
+config holds the whole filter, not its name, so it runs the same anywhere.
+
+What reads it: [`figureFor`](#resolving-a-figure) gives each signal layer
+its `filters` (the signal's, then the panel's, the enabled ones), and the
+layer reads its columns through them (`selectChannels(src, signal,
+Channels=cols, Rate=r, Filter=F)`, [`DatasetOutputs.prepared`](DatasetOutputs.md)):
+at the rate the signal is read at, after [downsampling](#downsampled-signals),
+each filtered column kept while the outputs cache their data, so another
+panel or redraw with the same filter filters nothing again. A layer's
+result keeps the chain as `R.filters`. A filter whose cutoff is at or above
+the Nyquist frequency of that rate skips the layer with the reason (*The
+filter's band (60-150 Hz) reaches the Nyquist frequency (125 Hz) of a signal
+at 250 Hz ...*); with `Source.Downsample` set, `validate` says so before
+the run, and warns when a cutoff runs past the 0.38 × rate the
+anti-aliasing filter keeps unchanged. Spike layers are not filtered. The
+preview script reads a channel figure's signal through
+`Source.SignalFilter` too.
 
 ## Defaults
 
@@ -2206,6 +2272,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `psth` | `colormap` | `""` | `display "heatmap"`: `""` is the style's `HeatColormap`, else the design's heat colormap (an auROC: its diverging one); or a colormap function (`"turbo"`, `"hot"`, `"blueWhiteRed"`). A name that is no function is a validation warning and takes the default |
 | `psth` | `cLim` | `[]` | `display "heatmap"`: the color limits; `[]` = the drawn item's own range (an auROC: 0 to 1) |
 | `psth` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
+| `continuous`, `heatmap`, `spectrum`, `spectrogram`, `coherence` | `filter` | off | the [filter](#filtered-signals) the panel's signal layers are read through, after `Source.SignalFilter`'s: each channel's whole recording filtered before the epochs are cut. A [shared option](#copying-options-between-panels) of these types; spike layers are not filtered |
 | `continuous` | `baseline` | `Mode "none"`, `Window [-0.2 0]` | `Mode` `"none"` or `"subtract"` (each epoch's mean over `Window`, per channel). The window must overlap the panel's window |
 | `continuous` | `statistic` | `"mean"` | `"mean"` or `"median"` over the epochs at each sample |
 | `continuous` | `transform` | `"none"` | `"none"`, `"rectify"` (each epoch's absolute value, before the statistic) or `"magnitude"` (the layer's channels as one: their vector magnitude in each epoch, after the baseline) |
@@ -2255,7 +2322,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `tuning` | `errorType`, `errorResamples` | `"sem"`, 1000 | the error bars over the epochs of each value, as the PSTH's band (`"off"`: none) |
 | `tuning` | `yLimMode`, `yLim` | `"auto"`, `[]` | the rate axis, or a stack's rows' scale ([Y limits](#y-limits)) |
 | `tuning` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
-| `spectrum`, `spectrogram`, `coherence` | | | the [Chronux options](#spectral-panels), above; none but `stack` and `stackSpacing` is a shared option |
+| `spectrum`, `spectrogram`, `coherence` | | | the [Chronux options](#spectral-panels), above; none but `stack`, `stackSpacing` and `filter` is a shared option |
 | `eventTrace` | | | the [event-trace options](#event-traces), above; none is a shared option |
 | `trialDist`, `trialHist`, `trialScatter` | | | the [trial-measure options](#trial-measures), above; the series, summary, error, tests and scales are shared among the three |
 | `legend` | `orientation` | `"auto"` | `"auto"` (horizontal when the rect is wider than tall, else vertical), `"vertical"` or `"horizontal"` |
@@ -2273,12 +2340,12 @@ options a type has, in order:
 | --- | --- |
 | `raster` | `maskAfterStop`, `waveform` |
 | `psth` | `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop`, `waveform`, `stack`, `stackSpacing` |
-| `continuous` | `baseline`, `stack`, `stackSpacing` |
-| `heatmap` | `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop`, `stack`, `stackSpacing` |
+| `continuous` | `baseline`, `stack`, `stackSpacing`, `filter` |
+| `heatmap` | `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop`, `stack`, `stackSpacing`, `filter` |
 | `corrmap` | `bins`, `baseline` |
 | `rate` | `measure`, `baseline`, `waveform` |
 | `tuning` | `measure`, `baseline`, `waveform`, `stack`, `stackSpacing` |
-| `spectrum`, `spectrogram`, `coherence` | `stack`, `stackSpacing` (a spectrogram's `baseline` is `chronuxNormalize`'s) |
+| `spectrum`, `spectrogram`, `coherence` | `stack`, `stackSpacing`, `filter` (a spectrogram's `baseline` is `chronuxNormalize`'s) |
 | `trialDist` | `series`, `seriesParam`, `seriesBins`, `summary`, `errorType`, `errorResamples`, `test`, `testPairs`, `adjust`, `testAlpha`, `testShow`, `yScale`, `yLimMode` |
 | `trialHist` | the same but `yScale` and `yLimMode`, with `xScale` |
 | `trialScatter` | the same with `xScale`, `yScale` and `yLimMode` |
@@ -2463,7 +2530,10 @@ compute and the render take:
   `""` where the type does not draw the source), its `units.source` set to its
   `source`, and its `downsample` added: the rate in
   [`Source.Downsample`](#downsampled-signals) for its signal (`LFP`, `MUA`,
-  `SPIKE`, `AUX`), `[]` for the rate on file and for any other source.
+  `SPIKE`, `AUX`), `[]` for the rate on file and for any other source; and
+  its `filters`: the [filters](#filtered-signals) its signal is read
+  through, `Source.SignalFilter`'s then the panel's `options.filter`, the
+  enabled ones (1×0 for none and for any other source).
 
 A panel of an unknown type keeps empty options, with `aligned` and `sharesTime`
 false (validate reports the type).
@@ -3780,6 +3850,8 @@ With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` wi
 | Source | Mode is project / folders. Project mode: Root set and existing (CheckPaths), Selection all / list, NamePattern parses, Recordings is one of the three modes. Folders mode: at least one folder, and each exists (CheckPaths) | error |
 | Source | a "list" selection with no datasets; an OutputRoot that does not exist | warning |
 | Source | each `Downsample` rate is `[]` or one rate above 0 (Field `Downsample.<signal>`) | error |
+| Source, Figures | an enabled `SignalFilter.<signal>` or panel `options.filter` whose settings `SignalFilter.problems` refuses (Field `SignalFilter.<signal>.<field>`, `<figure>.<panel>.options.filter.<field>`); a cutoff at or above the Nyquist frequency of the rate `Source.Downsample` reads its signal at ([Filtered signals](#filtered-signals)) | error |
+| Source, Figures | a filter's cutoff past 0.38 × the rate `Source.Downsample` reads its signal at (the anti-aliasing filter cuts its band); a panel's filter on a panel with no signal layer | warning |
 | Figures | a spectrum, spectrogram or coherence panel's `fpass` runs past 0.38 × the rate a signal layer is downsampled to ([Downsampled signals](#downsampled-signals)) | warning |
 | Defaults, Figures | the event reference, window and selection are valid: known values, `n` a whole number >= 1, `0 <= minDurationSec <= maxDurationSec`, `timeRange` ordered, a finite `offsetSec`, `offsetParamUnit` ms or s, each sequence step's relation, line, edge, `n`, positive `maxGapSec` and lengths, an `alignStep` of 0, `Inf` or a followedBy step (the stop's and each raster-mark sequence's too), finite `pre` and `post`, `pre <= post` in a fixed window, a stop event in a `"between"` window, known response words and pairing flags, at most 2 distinct `groupBy` parameters, `maxGroups` and `trials` whole numbers >= 1 | error |
 | Defaults, Figures | a filter that does not parse | warning (it is checked against each dataset's trials when it runs) |

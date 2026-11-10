@@ -8,7 +8,11 @@ function [X, lay] = figureChronuxLayer(src, L, lay, ctx)
 %         layer's columns copied (at its downsample rate when it has one
 %         below the rate on file: figureFor's, Source.Downsample;
 %         selectChannels' Rate, anti-aliased, each column kept once
-%         made, X.D.fs and X.nRows then the lower rate's): X.kind "signal", X.D (chronuxBlockOf: the
+%         made, X.D.fs and X.nRows then the lower rate's; then through its
+%         filters, figureFor's L.filters: Source.SignalFilter's and the
+%         panel's options.filter, the whole recording filtered at the rate
+%         read, selectChannels' Filter, X.filters that chain; a filter
+%         that cannot run at the rate skips the layer with the reason): X.kind "signal", X.D (chronuxBlockOf: the
 %         whole recording of those columns, D.channels = 1:n), X.cols (the
 %         extract's columns), X.nRows, X.names ("LFP ch 12": the recording
 %         channel, else the column's label), X.keys (what each item is,
@@ -29,7 +33,8 @@ function [X, lay] = figureChronuxLayer(src, L, lay, ctx)
 %   See also computeSpectrumPanel, computeSpectrogramPanel, computeCoherencePanel,
 %   figureLayerItems, chronuxBlockOf, chronuxTrainsOf.
 X = struct('kind', "", 'D', [], 'SP', [], 'cols', zeros(1, 0), 'unitIds', zeros(1, 0), 'nRows', NaN, ...
-    'names', strings(1, 0), 'keys', strings(1, 0), 'lastSpike', NaN, 'source', L.source);
+    'names', strings(1, 0), 'keys', strings(1, 0), 'lastSpike', NaN, 'source', L.source, ...
+    'filters', repmat(SignalFilter.defaults(), 1, 0));
 ctx.checkpoint();
 if ismember(L.source, EphysAnalysisConfig.SignalSources)
     try
@@ -49,11 +54,12 @@ if ismember(L.source, EphysAnalysisConfig.SignalSources)
     end
     metaC = metaAll(cols, :);
     rate = figureLayerRate(L);
+    F = figureLayerFilters(L);
     at = cols;   % the layer's columns in Y
-    if ~isempty(rate) && rate < fs   % those columns at the lower rate, anti-aliased (each kept once made)
+    if (~isempty(rate) && rate < fs) || ~isempty(F)   % those columns at the lower rate, anti-aliased, then filtered (each kept once made)
         ctx.checkpoint();
         try
-            [Y, fs] = selectChannels(src, L.source, Channels=cols, Rate=rate);
+            [Y, fs] = selectChannels(src, L.source, Channels=cols, Rate=rate, Filter=F);
         catch ME
             lay.skip = figureLayerError(ME);
             return
@@ -71,6 +77,7 @@ if ismember(L.source, EphysAnalysisConfig.SignalSources)
         end
     end
     X.kind = "signal";
+    X.filters = F;
     X.cols = cols;
     X.nRows = size(Y, 1);
     lay.meta = metaC;

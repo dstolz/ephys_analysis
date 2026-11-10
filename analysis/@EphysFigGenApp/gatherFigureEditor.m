@@ -317,6 +317,9 @@ if isfield(op, 'stack')   % the stack, one row for every type that stacks
     op.stack = string(E.stack.Value);
     op.stackSpacing = E.stackSpacing.Value;
 end
+if isfield(op, 'filter') && isstruct(E.filterText.UserData)   % a signal panel's filter (editPanelFilter keeps it there)
+    op.filter = SignalFilter.normalize(E.filterText.UserData);
+end
 if p.type == "continuous"
     op.statistic = string(E.statistic.Value);
     op.transform = string(E.transform.Value);

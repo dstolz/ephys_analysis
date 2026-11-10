@@ -62,6 +62,7 @@ switch section
             'NamePattern', EphysDataset.DefaultNamePattern, ...
             'Recordings',  "concatenate", ...       % Open Ephys sessions with several recordings: "concatenate" | "separate" | "single" (the pipeline config's Acquisition.OpenEphys.Recordings)
             'Downsample',  downsampleDefaults(), ... % the rate (Hz) each signal is brought to before any figure reads it; [] = the rate on file (selectChannels' Rate: anti-aliased, resampleSignal)
+            'SignalFilter', signalFilterDefaults(), ... % the filter each signal is read through by every figure, the whole recording before the epochs are cut (a SignalFilter each; enabled false = none; selectChannels' Filter)
             'Selection',   "all", ...               % "all" | "list"
             'Datasets',    string.empty(1,0), ...   % root-relative keys when "list"
             'Folders',     string.empty(1,0), ...   % output folders (Mode "folders")
@@ -498,6 +499,15 @@ function d = downsampleDefaults()
 d = struct();
 for s = DatasetOutputs.SignalTypes
     d.(s) = [];
+end
+end
+
+
+function d = signalFilterDefaults()
+%signalFilterDefaults  Source.SignalFilter: a field per signal (DatasetOutputs.SignalTypes), each SignalFilter.defaults() (off).
+d = struct();
+for s = DatasetOutputs.SignalTypes
+    d.(s) = SignalFilter.defaults();
 end
 end
 

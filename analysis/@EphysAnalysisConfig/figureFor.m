@@ -23,7 +23,11 @@ function spec = figureFor(obj, id)
 %     its downsample added: Source.Downsample's rate (Hz) for its signal
 %     (LFP / MUA / SPIKE / AUX), [] for the rate on file and for any
 %     other source (figureSignalLayer and figureChronuxLayer read the
-%     signal at it: selectChannels' Rate)
+%     signal at it: selectChannels' Rate), and its filters: the
+%     SignalFilter chain its signal is read through, Source.SignalFilter's
+%     for its signal then the panel's options.filter, the enabled ones
+%     alone (SignalFilter.chain: 1x0 for none and for any other source;
+%     selectChannels' Filter, at the rate read)
 %   A panel of an unknown type keeps its empty options, with aligned and
 %   sharesTime false. Error: EphysAnalysisConfig:NoFigure.
 %
@@ -56,7 +60,9 @@ spec.observe = o;
 T = EphysAnalysisConfig.panelTypes();
 rates = struct();   % none: a config made before Source.Downsample existed in this session (until clear classes)
 if isfield(obj.Source, 'Downsample'); rates = obj.Source.Downsample; end
-layer0 = resolvedLayer(EphysAnalysisConfig.defaults("Layer"), "psth", unitDef, rates);
+filters = struct();   % none: (as rates) a config made before Source.SignalFilter existed in this session
+if isfield(obj.Source, 'SignalFilter'); filters = obj.Source.SignalFilter; end
+layer0 = resolvedLayer(EphysAnalysisConfig.defaults("Layer"), "psth", unitDef, rates, filters, []);
 panel0 = EphysAnalysisConfig.defaults("Panel");
 panel0.layers = repmat(layer0, 1, 0);
 panel0.aligned = false;
@@ -78,9 +84,11 @@ for j = 1:numel(fig.panels)
             p.sharesTime = linked && p.options.overTime && p.options.timeBase == "aligned";
         end
     end
+    own = [];   % the panel's filter (the types that draw signals: options.filter)
+    if isfield(p.options, 'filter'); own = p.options.filter; end
     L = repmat(layer0, 1, 0);
     for i = 1:numel(p.layers)
-        L(1, i) = resolvedLayer(p.layers(i), p.type, unitDef, rates);
+        L(1, i) = resolvedLayer(p.layers(i), p.type, unitDef, rates, filters, own);
     end
     p.layers = L;
     panels(1, j) = p;
@@ -89,14 +97,21 @@ spec.panels = panels;
 end
 
 
-function L = resolvedLayer(L, type, unitDef, rates)
-%resolvedLayer  A layer with its category, a complete UnitSelection (units.source = its source) and its signal's rate.
+function L = resolvedLayer(L, type, unitDef, rates, filters, own)
+%resolvedLayer  A layer with its category, a complete UnitSelection (units.source = its source), its signal's rate and filters.
 %   RATES is Source.Downsample: a signal layer's downsample is its signal's rate ([] = the rate on file); any other
-%   layer's is [].
+%   layer's is []. FILTERS is Source.SignalFilter and OWN the panel's options.filter ([] = none): a signal layer's
+%   filters are its signal's filter then OWN, the enabled ones (SignalFilter.chain); any other layer's none.
 u = L.units;
 u.source = L.source;
 L.units = orderfields(u, unitDef);
 L.category = EphysAnalysisConfig.categoryOf(L.source, type);
 L.downsample = [];
 if isfield(rates, L.source); L.downsample = rates.(L.source); end
+F = [];
+if ismember(L.source, EphysAnalysisConfig.SignalSources)
+    if isfield(filters, L.source); F = SignalFilter.normalize(filters.(L.source)); end
+    if ~isempty(own); F = [F, SignalFilter.normalize(own)]; end
+end
+L.filters = SignalFilter.chain(F);
 end

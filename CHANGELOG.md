@@ -29,6 +29,27 @@ says how to cut a release.
   `selectChannels` option `Rate` and `DatasetOutputs.resampled` (each resampled column kept with `CacheData`); a
   layer's `R.fsFile` is the rate on file. `validate` refuses a bad rate and warns when a spectral panel's `fpass` runs
   past the band a downsampled signal keeps; the preview script reads a channel figure's signal at its rate.
+- Analysis app: filtered signals. **Filter...** on the Data tab filters a signal (LFP, MUA, SPIKE, AUX) for every
+  figure, and **Filter...** in the figure editor's Analysis section filters a continuous, heat map, spectrum,
+  spectrogram or coherence panel's signal layers, after the signal's own. Each channel's whole recording is filtered
+  before it is cut into epochs, at the rate it is read at (after **Downsample...**). The window (new `FilterDialog`)
+  starts from the EEG bands (delta, theta, alpha, beta, low and high gamma), sharp-wave ripples, the 60 and 50 Hz
+  line-noise notches or your saved filters (Save under a name, Delete), and sets the type (band-pass, band-stop,
+  low-pass, high-pass), cutoffs, design (Butterworth, Chebyshev I and II, elliptic, FIR) with its order, ripple and
+  attenuation, and phase: zero-phase (acausal: an IIR filter forward and back, an FIR with its delay taken out) or
+  causal. It draws the gain as applied over a log frequency axis and the impulse response (symmetric when acausal),
+  and says a causal filter's delay. New `SignalFilter` (pipeline): the filter's settings, `presets`, your saved
+  filters (`save`, `saved`, `remove`, kept with the apps' preferences), `design`, `apply` (column by column, IIR as
+  second-order sections, FIR by FFT, NaN runs bridged), `response`, `impulse` and `delay`. Config:
+  `Source.SignalFilter` (a filter per signal) and `options.filter` on those five panel types, a shared option
+  (Apply to all panels copies it); `figureFor` gives each signal layer its `filters`, which `figureSignalLayer` and
+  `figureChronuxLayer` read through, and a layer's result keeps them (`R.filters`). New `selectChannels` option
+  `Filter` and `DatasetOutputs.prepared` (each filtered column kept with `CacheData`, the last 6 filter chains). A
+  filter that cannot run at a layer's rate skips it with the reason (`SignalFilter:Unusable`); `validate` refuses
+  bad settings and, with `Source.Downsample` set, a cutoff at or above its Nyquist frequency (a warning past the band
+  the anti-aliasing filter keeps). The preview script reads a channel figure's signal through
+  `Source.SignalFilter`. `figureSignals` (the signals the figures read) is shared by the Downsample and Filter
+  dialogs.
 - Analysis app: special characters in a figure's text. A figure's title, a panel's title, X and Y axis labels and text
   note (drawn as typed), a layer's name (the legend) and a trial measure's label print TeX character names as the
   characters they name: *Amplitude (\muV)* draws *Amplitude (µV)*, `\pm` ±, `\Delta` Δ, `^\circ` °, any of MATLAB's

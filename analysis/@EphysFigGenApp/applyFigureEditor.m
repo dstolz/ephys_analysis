@@ -38,6 +38,7 @@ if k < 1 || k > numel(obj.Config.Figures)
     obj.FigureEditorPanel.Title = "Figure";
     showFigureId(obj);
     closeTrialMeasureDialog(obj);
+    closePanelFilterDialog(obj);
     obj.syncFigureEditor();
     return
 end
@@ -69,6 +70,7 @@ else
     overlayList(E, repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), 0);
 end
 closeTrialMeasureDialog(obj);   % a Trial measure window open on a layer not shown now goes
+closePanelFilterDialog(obj);   % ... and a Filter window open on a panel not shown now
 obj.syncFigureEditor();
 end
 
@@ -284,6 +286,11 @@ if isfield(op, 'colormap'); offerItems(E.panelColormap, string(E.panelColormap.I
 if isfield(op, 'stack')   % the type's stack values (stackModes)
     stackChoices(E.stack, p.type, op.stack);
     if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.stackSpacing.Value = op.stackSpacing; else; E.stackSpacing.Value = 1.1; end
+end
+if isfield(op, 'filter')   % a signal panel's filter (the Filter row: its UserData)
+    showPanelFilter(E, op.filter);
+else
+    showPanelFilter(E, SignalFilter.defaults());
 end
 if p.type == "continuous"
     E.statistic.Value = char(pickFrom(op.statistic, string(E.statistic.ItemsData), "mean"));

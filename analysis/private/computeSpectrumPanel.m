@@ -13,7 +13,9 @@ function P = computeSpectrumPanel(src, panel, E, G, ctx)
 %     units / detected          chronuxSpikeSpectrum (SP: the layer's trains)
 %   R is the chronux function's result (f, S [nF x nItems x nGroups], Slo /
 %   Shi, labels, nTrials, groups, units; a spike spectrum's rate) with
-%   names (the items' names), layer (its index), epochs (E) and dataset. A
+%   names (the items' names), filters (figureChronuxLayer's: the filters
+%   a signal was read through, 1x0 for none), layer (its index), epochs
+%   (E) and dataset. A
 %   missing Chronux ("Chronux is not on the path"), no trial left, or
 %   settings chronuxSettings refuses skip the layer with the reason
 %   (figureLayerError). options.scale and yLim are the draw function's.
@@ -44,6 +46,7 @@ for j = 1:numel(P.layers)
         continue
     end
     R.names = X.names;
+    R.filters = X.filters;   % the filters a signal was read through (1x0: none, and for spikes)
     R.layer = j;
     R.epochs = E;
     R.dataset = src.name;

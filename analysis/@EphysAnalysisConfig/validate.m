@@ -8,7 +8,12 @@ function issues = validate(obj, opts)
 %     Source    Mode; Root exists (project) or every folder does (folders);
 %               NamePattern parses; a "list" selection names datasets;
 %               Filter.TagMode is "any" or "all"; each Downsample rate is
-%               empty or one rate above 0 (Field "Downsample.<signal>")
+%               empty or one rate above 0 (Field "Downsample.<signal>");
+%               each enabled SignalFilter's settings (SignalFilter.problems,
+%               Field "SignalFilter.<signal>.<field>"), and its cutoffs
+%               below the Nyquist frequency of the rate Downsample reads
+%               its signal at (a warning above the 0.38 x rate the
+%               anti-aliasing filter keeps unchanged)
 %     Defaults  the event reference, window and selection are valid (a
 %               filter that does not parse is a warning: it is checked
 %               against each dataset's trials when it runs)
@@ -119,7 +124,11 @@ function issues = validate(obj, opts)
 %               keeps unchanged, Source.Downsample), a coherence panel's two enabled layers (seed,
 %               partner; a warning for a fixed seed of several items), a
 %               spectrogram's signal or spike layer and its freqScale
-%               ("linear" or "log"); an event-trace
+%               ("linear" or "log"); an enabled options.filter of a
+%               continuous, heat map or spectral panel (its settings at
+%               "<...>.options.filter.<field>", its cutoffs against each
+%               of its signals' Downsample rate as Source's are, a
+%               warning when the panel draws no signal layer); an event-trace
 %               panel's display, trials, colorBy,
 %               height, alpha, line styles and positive widths and
 %               rowSpacing, with warnings for an edge or baseline color
@@ -257,6 +266,16 @@ for sig = reshape(string(fieldnames(ds)), 1, [])
     if ~isempty(v) && ~(isscalar(v) && isfinite(v) && v > 0)
         add("Source", "Downsample." + sig, "error", "Downsample." + sig + " must be empty (the rate on file) or one rate in Hz above 0.");
     end
+end
+sf = struct();   % none: a config made before Source.SignalFilter existed in this session (until clear classes)
+if isfield(S, 'SignalFilter'); sf = S.SignalFilter; end
+for sig = reshape(string(fieldnames(sf)), 1, [])
+    f = SignalFilter.normalize(sf.(sig));
+    if ~f.enabled; continue; end
+    for iss = SignalFilter.problems(f)
+        add("Source", "SignalFilter." + sig + "." + iss.field, "error", "SignalFilter." + sig + ": " + iss.message);
+    end
+    checkFilterRate(f, sig, "Source", "SignalFilter." + sig + ".cutoff");
 end
 
 % --- Defaults ------------------------------------------------------------------------
@@ -617,6 +636,7 @@ for k = 1:numel(obj.Figures)
             firstSrc = firstOn.source;
             firstSignal = ismember(firstSrc, EphysAnalysisConfig.SignalSources);
         end
+        if isfield(op, 'filter'); checkPanelFilter(op.filter, Lp(on), o0); end
         switch pj.type
             case "raster"
                 checkRasterSort(op, o0);
@@ -1248,6 +1268,49 @@ issues = table(Section, Field, Severity, Message);
             add("Figures", hO0 + ".fpass", "warning", "fpass runs " + hWhat + ", past the 0-" + round(hPass, 3, "significant") + ...
                 " Hz that " + hSig + " keeps unchanged at " + hR + " Hz (Source.Downsample." + hSig + "): above that the " + ...
                 "anti-aliasing filter lowers the power. Set fmax to " + round(hPass, 3, "significant") + " Hz or less, " + hFix + ".");
+        end
+    end
+
+    function checkPanelFilter(hF, hL, hO0)
+        %checkPanelFilter  A panel's options.filter (a SignalFilter) when enabled: its settings, a warning when the panel
+        %   draws no signal layer (HL: its enabled layers), and its cutoffs against the rate each of its signals is read at.
+        hF = SignalFilter.normalize(hF);
+        if ~hF.enabled; return; end
+        for hI = SignalFilter.problems(hF)
+            add("Figures", hO0 + ".filter." + hI.field, "error", hI.message);
+        end
+        hSrc = strings(1, 0);
+        if ~isempty(hL); hSrc = [hL.source]; end
+        hSig = reshape(unique(hSrc(ismember(hSrc, EphysAnalysisConfig.SignalSources)), 'stable'), 1, []);   % a row (for loops over columns: a 0x1 would run once)
+        if ~isempty(hL) && isempty(hSig)
+            add("Figures", hO0 + ".filter", "warning", "The panel's filter (" + SignalFilter.describe(hF, Short=true) + ...
+                ") filters signal layers (LFP, MUA, SPIKE, AUX); this panel draws none, so nothing is filtered.");
+        end
+        for hS = hSig
+            checkFilterRate(hF, hS, "Figures", hO0 + ".filter.cutoff");
+        end
+    end
+
+    function checkFilterRate(hF, hSig, hSec, hField)
+        %checkFilterRate  Filter HF's cutoffs against the rate Source.Downsample reads signal HSIG at: an error at or above
+        %   its Nyquist frequency (the layer would be skipped), a warning above the 0.38 x rate the anti-aliasing filter
+        %   keeps unchanged (the filter's band is then cut by it). Nothing when HSIG is read at its rate on file (not
+        %   known before the data is read: the layer is skipped then, with the reason).
+        if ~isfield(obj.Source, 'Downsample') || ~isfield(obj.Source.Downsample, hSig); return; end
+        hR = obj.Source.Downsample.(hSig);
+        if ~(isscalar(hR) && isfinite(hR) && hR > 0) || ~isempty(SignalFilter.problems(hF)); return; end
+        hTop = max(hF.cutoff);
+        hPass = DownsampleDialog.PassFraction * hR;
+        hWhat = "The filter " + SignalFilter.describe(hF, Short=true);
+        if hTop >= hR / 2
+            add(hSec, hField, "error", hWhat + " reaches the Nyquist frequency (" + hR / 2 + " Hz) of " + hSig + " read at " + hR + ...
+                " Hz (Source.Downsample." + hSig + "): set its cutoffs below " + round(hPass, 3, "significant") + ...
+                " Hz, or downsample " + hSig + " to at least " + ceil(hTop / DownsampleDialog.PassFraction) + " Hz.");
+        elseif hTop > hPass
+            add(hSec, hField, "warning", hWhat + " runs past the 0-" + round(hPass, 3, "significant") + " Hz that " + hSig + ...
+                " keeps unchanged at " + hR + " Hz (Source.Downsample." + hSig + "): the anti-aliasing filter lowers what lies " + ...
+                "above. Set its cutoffs to " + round(hPass, 3, "significant") + " Hz or less, or downsample " + hSig + ...
+                " to at least " + ceil(hTop / DownsampleDialog.PassFraction) + " Hz.");
         end
     end
 

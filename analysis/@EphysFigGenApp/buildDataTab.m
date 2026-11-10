@@ -1,13 +1,13 @@
 function buildDataTab(obj)
-%buildDataTab  Config name, where the datasets are, the rates the signals are read at, the datasets table and the active dataset.
+%buildDataTab  Config name, where the datasets are, the rates and filters the signals are read at, the datasets table and the active dataset.
 g = uigridlayout(obj.TabData, [1 2]);
 g.ColumnWidth = {'3x', '2x'};
 g.Padding = [8 8 8 8];
 changed = @(~,~) obj.onConfigChanged("source");
 
-left = uigridlayout(g, [11 4]);
+left = uigridlayout(g, [12 4]);
 left.Padding = [0 0 0 0];
-left.RowHeight = {24, 30, 24, 24, 24, 56, 26, 20, 64, '1x', 20};
+left.RowHeight = {24, 30, 24, 24, 24, 56, 26, 26, 20, 64, '1x', 20};
 left.ColumnWidth = {110, '1x', '1x', 90};
 
 lab(left, "Config name:", 1, 1);
@@ -63,10 +63,18 @@ ds.Layout.Row = 7; ds.Layout.Column = [2 4];
 obj.DownsampleLabel = uilabel(ds, "Text", "", "FontColor", [0.35 0.35 0.35]);
 obj.DownsampleButton = uibutton(ds, "Text", "Downsample...", "ButtonPushedFcn", @(~,~) obj.onDownsample());
 
+% Source.SignalFilter: the filter each signal is read through by every figure, its whole recording before the epochs are
+% cut (onSignalFilter; showSignalFilter words it here and colors the button)
+lab(left, "Filters:", 8, 1);
+sf = uigridlayout(left, [1 2], "ColumnWidth", {'1x', 'fit'}, "RowHeight", {'1x'}, "Padding", [0 0 0 0]);
+sf.Layout.Row = 8; sf.Layout.Column = [2 4];
+obj.SignalFilterLabel = uilabel(sf, "Text", "", "FontColor", [0.35 0.35 0.35]);
+obj.SignalFilterButton = uibutton(sf, "Text", "Filter...", "ButtonPushedFcn", @(~,~) obj.onSignalFilter());
+
 obj.ScanLabel =uilabel(left, "Text", "Scan to list the datasets.", "FontColor", [0.35 0.35 0.35]);
-obj.ScanLabel.Layout.Row = 8; obj.ScanLabel.Layout.Column = [1 2];
+obj.ScanLabel.Layout.Row = 9; obj.ScanLabel.Layout.Column = [1 2];
 obj.FilterLabel = uilabel(left, "Text", "", "FontColor", [0.35 0.35 0.35], "HorizontalAlignment", "right");
-obj.FilterLabel.Layout.Row = 8; obj.FilterLabel.Layout.Column = [3 4];
+obj.FilterLabel.Layout.Row = 9; obj.FilterLabel.Layout.Column = [3 4];
 
 % The filter, as the DatasetBrowser has it: Subject (and "not" these), Search,
 % Tags (any / all of, and "not" these) in two rows (refreshDatasetsTable
@@ -75,7 +83,7 @@ obj.FilterLabel.Layout.Row = 8; obj.FilterLabel.Layout.Column = [3 4];
 % shows (onTickDatasets). The filter is the config's Source.Filter
 % (gatherSourceSection): a change is a config edit.
 fb = uigridlayout(left, [2 1]);
-fb.Layout.Row = 9; fb.Layout.Column = [1 4];
+fb.Layout.Row = 10; fb.Layout.Column = [1 4];
 fb.RowHeight = {30, 30};
 fb.RowSpacing = 4;
 fb.Padding = [0 0 0 0];
@@ -124,12 +132,12 @@ uimenu(obj.DatasetsTable.ContextMenu, "Text", "Variables...", "Separator", "on",
 uimenu(obj.DatasetsTable.ContextMenu, "Text", "View manifest...", ...
     "Tooltip", "Open the active dataset's manifest in the manifest viewer: how it was processed, its variables and their history.", ...
     "MenuSelectedFcn", @(~,~) obj.onViewManifest());
-obj.DatasetsTable.Layout.Row = 10; obj.DatasetsTable.Layout.Column = [1 4];
+obj.DatasetsTable.Layout.Row = 11; obj.DatasetsTable.Layout.Column = [1 4];
 hint = uilabel(left, "Text", "Tick Run for the datasets to run, ★ to star one, ✎ for its notes, a Variables cell to record values on it; click a row to make it the active dataset. Right-click the table for more.", ...
     "FontColor", [0.35 0.35 0.35], "Tooltip", "Tick Run for the datasets to run, ★ to star one (a favorite), click ✎ for its notes; " + ...
     "click a Variables cell to record values on it (probe depth, dose...); click a row to make it the active dataset (Alignment and Figures preview it). " + ...
     "Right-click the table to clear its sort, edit the variables of the selected rows or view the manifest.");
-hint.Layout.Row = 11; hint.Layout.Column = [1 4];
+hint.Layout.Row = 12; hint.Layout.Column = [1 4];
 
 right = uipanel(g, "Title", "Active dataset");
 rg = uigridlayout(right, [6 1]);

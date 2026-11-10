@@ -357,7 +357,13 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   downsamples a signal for the dataset browser's **Downsample...**
   (`epochMatrix`, `sessionData`) and the analysis app's figures
   (**Downsample...** on its Data tab, the config's `Source.Downsample`:
-  `selectChannels`' `Rate`, `DatasetOutputs.resampled`)).
+  `selectChannels`' `Rate`, `DatasetOutputs.resampled`); `butter`, `cheby1`,
+  `cheby2`, `ellip`, `fir1`, `hamming`, `zp2sos`, `filtfilt`, `sosfilt`,
+  `fftfilt`, `freqz` and `impzlength` in `SignalFilter`, the band-pass,
+  band-stop, low- and high-pass filters of the analysis app's **Filter...**
+  windows (the config's `Source.SignalFilter` and a panel's
+  `options.filter`: `selectChannels`' `Filter`, `DatasetOutputs.prepared`),
+  their responses drawn by `FilterDialog`).
 - Statistics and Machine Learning Toolbox (`mad` in automatic
   derived-signal bad-channel detection, a robust z of each channel's RMS,
   made before the common reference so the channels it flags are left out of

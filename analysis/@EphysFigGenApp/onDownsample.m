@@ -61,19 +61,3 @@ else
     obj.setStatus("Signals: the figures read " + words + " (anti-aliased).");
 end
 end
-
-
-function sigs = figureSignals(cfg)
-%figureSignals  The signals (LFP, MUA, SPIKE, AUX) the enabled figures read: their enabled layers' and what they observe.
-sigs = strings(1, 0);
-for f = reshape(cfg.Figures, 1, [])
-    if ~f.enabled; continue; end
-    sigs = [sigs, string(f.observe.data)]; %#ok<AGROW>
-    for p = reshape(f.panels, 1, [])
-        if isempty(p.layers); continue; end
-        on = [p.layers.enabled];
-        sigs = [sigs, reshape([p.layers(on).source], 1, [])]; %#ok<AGROW>
-    end
-end
-sigs = intersect(EphysAnalysisConfig.SignalSources, sigs, 'stable');
-end

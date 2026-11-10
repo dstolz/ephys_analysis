@@ -180,6 +180,9 @@ T.onsetLine = o(["raster" "psth"], "");
 T.trialCount = o("psth", "");
 T.heatRows = o("heatmap", "");
 for f = ["contTrials" "statistic"]; T.(f) = o("continuous", ""); end
+for f = ["filterText" "filterEdit"]
+    T.(f) = o(["continuous" "heatmap" "spectrum" "spectrogram" "coherence"], "on a heat map, one of a signal (its first layer LFP, MUA, SPIKE or AUX)");
+end
 T.errorType = o(["psth" "continuous" "rate" "tuning" EphysAnalysisConfig.TrialPanelTypes], "on a PSTH with Draw as: trace");
 T.errFace = o(["psth" "continuous" "spectrum" "coherence" "waveforms" "probemap"], ...
     "on a PSTH with Draw as: trace, on a coherence panel unless drawn over time");

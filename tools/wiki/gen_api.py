@@ -1104,6 +1104,7 @@ def main(do_splice=True):
         "DatasetVariables": pdir("pipeline", "DatasetVariables.m"),
         "VariableDialog": pdir("pipeline", "VariableDialog.m"),
         "SyntheticDesign": pdir("pipeline", "SyntheticDesign.m"),
+        "SignalFilter": pdir("pipeline", "SignalFilter.m"),
         "EphysAnalysisConfig": pdir("analysis", "@EphysAnalysisConfig"),
         "EphysAnalysisRunner": pdir("analysis", "@EphysAnalysisRunner"),
         "EphysAnalysisScript": pdir("analysis", "@EphysAnalysisScript"),

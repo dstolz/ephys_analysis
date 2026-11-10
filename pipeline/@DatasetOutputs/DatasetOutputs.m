@@ -82,10 +82,11 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   has(kind) checks first. load(kind, vars...) loads selected variables
     %   only, readUnits(Name=Value) forwards unit-reading options,
     %   readWaveforms(unitId) cuts a sorted unit's spikes from the sorted
-    %   data, and resampled(signal, rate, cols) brings a signal's columns to
-    %   a lower rate, anti-aliased (resampleSignal).
-    %   Set CacheData=true to keep loaded data in memory, resampled columns
-    %   too (clearCache frees it).
+    %   data, resampled(signal, rate, cols) brings a signal's columns to
+    %   a lower rate, anti-aliased (resampleSignal), and prepared(signal,
+    %   cols, Rate=, Filter=) also filters them (SignalFilter).
+    %   Set CacheData=true to keep loaded data in memory, resampled and
+    %   filtered columns too (clearCache frees it).
     %
     %   See also EphysDataset.outputs, EphysPipeline.outputsFor, DatasetTracker,
     %   EphysDataset.toMat, EphysDataset.spikesToMat, EphysDataset.behaviorToMat,
@@ -149,6 +150,11 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             'manifest', string.empty(1,0), 'artifacts', string.empty(1,0))
         Cache = []
         InfoSignals = []   % combined extract file -> the signal types its info holds (signalFile)
+        Filtered (1,:) string = strings(1, 0)   % the filtered columns kept (prepared): their key bases, the least recently used first
+    end
+
+    properties (Constant)
+        MaxFiltered = 6   % prepared keeps the filtered columns of this many filter chains (signal, rate, filters) at most
     end
 
     methods
@@ -501,6 +507,87 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             if isempty(parts); Y = zeros(0, 0, class(X)); end
         end
 
+        function [Y, fs] = prepared(obj, kind, cols, opts)
+            %prepared  Columns of a signal as an analysis reads them: at a lower rate (anti-aliased) and filtered; with CacheData each column is kept once made.
+            %   [Y, FS] = out.prepared(SIGNAL, COLS, Rate=R, Filter=F) is
+            %   columns COLS (1-based, [] = all) of SIGNAL ("LFP" | "MUA" |
+            %   "SPIKE" | "AUX"), the whole recording of each: brought to R
+            %   Hz first when R is below the rate on file (resampled:
+            %   resampleSignal's anti-aliasing, FS the rate reached; [] = the
+            %   rate on file), then filtered by F (SignalFilter: one filter
+            %   or a chain, applied in order at FS; its disabled filters
+            %   skipped). No filter enabled: resampled's columns (as they
+            %   are at the rate on file). Y is [nSamples x numel(COLS)] in
+            %   the signal's class.
+            %   With CacheData each filtered column is kept (by the signal's
+            %   files, R, the chain's SignalFilter.key and the column), so a
+            %   column read again with the same filters is not filtered
+            %   again; the columns of the MaxFiltered chains used last are
+            %   kept, an older chain's dropped (each new band tried in the
+            %   analysis app would keep a copy of the signal otherwise).
+            %   clearCache frees them with the rest.
+            %   Errors: DatasetOutputs:BadSignal, DatasetOutputs:BadColumns,
+            %   SignalFilter:Unusable (a cutoff at or above the Nyquist
+            %   frequency of FS, a recording too short for the filter).
+            arguments
+                obj (1,1) DatasetOutputs
+                kind (1,1) string
+                cols (1,:) double = []
+                opts.Rate double {mustBeScalarOrEmpty, mustBePositive} = []
+                opts.Filter = []
+            end
+            kind = upper(kind);
+            rate = opts.Rate;
+            if isempty(rate); rate = Inf; end   % (resampled: at or above the rate on file, the columns as they are)
+            F = SignalFilter.chain(opts.Filter);
+            if isempty(F)
+                [Y, fs] = obj.resampled(kind, rate, cols);
+                return
+            end
+            if ~ismember(kind, DatasetOutputs.SignalTypes)
+                error('DatasetOutputs:BadSignal', 'Signals must be among %s.', strjoin(DatasetOutputs.SignalTypes, ", "));
+            end
+            S = obj.load(kind);
+            nCol = size(S.Y.(kind), 2);
+            fsIn = double(S.info.(kind).Fs);
+            cls = class(S.Y.(kind));
+            if isempty(cols); cols = 1:nCol; end
+            if any(cols < 1 | cols > nCol | cols ~= round(cols))
+                error('DatasetOutputs:BadColumns', '%s %s has %d column(s); asked for %s.', obj.Name, kind, nCol, mat2str(cols));
+            end
+            at = "file";
+            if rate < fsIn; at = string(rate); end
+            base = strjoin(["filtered" kind obj.signalFile(kind) at SignalFilter.key(F)], "|") + "|";
+            parts = cell(1, numel(cols));
+            fs = NaN;
+            if obj.CacheData
+                for i = 1:numel(cols)
+                    key = char(base + cols(i));
+                    if isKey(obj.Cache, key)
+                        c = obj.Cache(key);
+                        parts{i} = c.y;
+                        fs = c.fs;
+                    end
+                end
+            end
+            todo = cellfun(@isempty, parts);
+            if any(todo)
+                need = unique(cols(todo), 'stable');
+                [Z, fs] = obj.resampled(kind, rate, need);
+                Z = SignalFilter.apply(Z, fs, F);
+                [~, where] = ismember(cols(todo), need);
+                parts(todo) = num2cell(Z(:, where), 1);
+                if obj.CacheData
+                    for j = 1:numel(need)
+                        obj.Cache(char(base + need(j))) = struct('y', Z(:, j), 'fs', fs);
+                    end
+                end
+            end
+            if obj.CacheData; obj.keepFiltered(base); end
+            Y = [parts{:}];
+            if isempty(parts); Y = zeros(0, 0, cls); end
+        end
+
         function f = probeFile(obj)
             %probeFile  The probe .json this dataset was sorted with ("" when none is there).
             %   The manifest's probe.file, the path on the machine that wrote
@@ -692,6 +779,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             if ~isempty(obj.Cache)
                 remove(obj.Cache, keys(obj.Cache));
             end
+            obj.Filtered = strings(1, 0);
         end
 
         %% --- path properties -------------------------------------------------
@@ -739,6 +827,18 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     end
 
     methods (Access = private)
+        function keepFiltered(obj, base)
+            %keepFiltered  BASE (a filter chain's key base, prepared) is the one used last; the filtered columns of the chains past MaxFiltered are dropped.
+            obj.Filtered = [obj.Filtered(obj.Filtered ~= base), base];
+            while numel(obj.Filtered) > DatasetOutputs.MaxFiltered
+                old = obj.Filtered(1);
+                obj.Filtered(1) = [];
+                k = string(keys(obj.Cache));
+                k = k(startsWith(k, old));
+                if ~isempty(k); remove(obj.Cache, cellstr(k)); end
+            end
+        end
+
         function [f, src] = resolve(obj, kind)
             %resolve  Path(s) in effect for KIND and where they came from.
             kind = DatasetOutputs.checkKind(kind);

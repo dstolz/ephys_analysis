@@ -253,6 +253,15 @@ function test_EphysAnalysisFigures(opts)
 %   200 Hz against evokedPotential on the resampled column, its panel at
 %   the rate on file not reused; a spectrum at 200 Hz against the one at
 %   the rate on file (5-50 Hz); the preview script's Rate.
+%   Filtered signals (19), on the "clean" fixture: Source.SignalFilter's
+%   and options.filter's defaults (the five signal types, shared) and save
+%   / load; figureFor's layer filters (the signal's, then the panel's);
+%   selectChannels' Filter against SignalFilter.apply (kept, after Rate,
+%   a filter off, a band past Nyquist refused); a continuous LFP layer
+%   through a notch and theta against evokedPotential on the filtered
+%   column, its unfiltered panel not reused; a ripple band at 200 Hz
+%   skipped with the reason; a spectrum through theta (20-50 Hz against
+%   5-7 Hz); validate's errors and warnings; the preview script's Filter.
 %
 %   The sections run on their own after the setup (TestSections): 1-6, 12 and 13 need
 %   no data, 7, 9, 11, 14, 15, 16, 17 and 18 build the "clean" fixture once (fixtureA), 8 needs
@@ -648,12 +657,12 @@ if S.sec("1", "config: defaults and the tables")
     cfo = @EphysAnalysisConfig.sharedFieldsOf;
     stk = ["stack" "stackSpacing"];
     check(isequal(cfo("raster"), ["maskAfterStop" "waveform"]) && isequal(cfo("psth"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform" stk "yLimMode"]) ...
-        && isequal(cfo("continuous"), ["baseline" stk "yLimMode"]) && isequal(cfo("heatmap"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" stk]) ...
+        && isequal(cfo("continuous"), ["baseline" stk "yLimMode" "filter"]) && isequal(cfo("heatmap"), ["bins" "measure" "baseline" "auroc" "maskAfterStop" stk "filter"]) ...
         && isequal(cfo("rate"), ["measure" "baseline" "waveform" "yLimMode"]) && isequal(cfo("tuning"), ["measure" "baseline" "waveform" stk "yLimMode"]) ...
-        && isequal(cfo("waveforms"), "yLimMode") && isequal(cfo("corrmap"), ["bins" "baseline"]) && isequal(cfo("spectrogram"), stk) ...
-        && isequal(cfo("spectrum"), [stk "yLimMode"]) ...
+        && isequal(cfo("waveforms"), "yLimMode") && isequal(cfo("corrmap"), ["bins" "baseline"]) && isequal(cfo("spectrogram"), [stk "filter"]) ...
+        && isequal(cfo("spectrum"), [stk "yLimMode" "filter"]) ...
         && isempty(cfo("probemap")) && isempty(cfo("violin")), ...
-        'sharedFieldsOf(type): the options several types share (a waveforms panel''s waveform is its own, not an inset; the spectral types share the stack alone)');
+        'sharedFieldsOf(type): the options several types share (a waveforms panel''s waveform is its own, not an inset; the spectral types share the stack and the filter)');
     cbm = @EphysAnalysisConfig.baselineModes;
     check(isequal(cbm("psth"), ["none" "subtract" "zscore" "percent" "auroc"]) && isequal(cbm("heatmap"), cbm("psth")) ...
         && isequal(cbm("heatmap", "units"), cbm("psth")) && isequal(cbm("heatmap", "LFP"), ["none" "subtract"]) ...
@@ -671,9 +680,9 @@ if S.sec("1", "config: defaults and the tables")
         && Osp.errP == 0.05 && Osp.detrend == cxs.detrend && Osp.scale == "db" && Osp.spikeFs == 1000 && isequal(Osp.yLim, []) ...
         && ~isfield(Osg, 'timeBase') && isequal(Osg.movingwin, cxs.movingwin) && Osg.baseline.Mode == "none" && isequal(Osg.baseline.Window, [-0.5 0]) ...
         && Osg.group == 1 && isequal(Osg.cLim, []) && ~Och.overTime && Och.showPhase && isequal(Och.movingwin, cxs.movingwin) && ~isfield(Och, 'scale') ...
-        && Och.group == 1 && isequal(cfo("spectrum"), ["stack" "stackSpacing" "yLimMode"]) && isequal(cfo("spectrogram"), ["stack" "stackSpacing"]) ...
-        && isequal(cfo("coherence"), ["stack" "stackSpacing" "yLimMode"]), ...
-        'the spectral types'' DefaultOptions are chronuxSettings'' defaults (a spectrogram''s baseline a {Mode, Window}); none but the stack and yLimMode is a shared option');
+        && Och.group == 1 && isequal(cfo("spectrum"), ["stack" "stackSpacing" "yLimMode" "filter"]) && isequal(cfo("spectrogram"), ["stack" "stackSpacing" "filter"]) ...
+        && isequal(cfo("coherence"), ["stack" "stackSpacing" "yLimMode" "filter"]), ...
+        'the spectral types'' DefaultOptions are chronuxSettings'' defaults (a spectrogram''s baseline a {Mode, Window}); none but the stack, yLimMode and the filter is a shared option');
     check(catOf("LFP", "spectrum") == "continuous" && catOf("units", "spectrum") == "point" && catOf("events", "spectrum") == "" ...
         && catOf("LFP", "spectrogram") == "continuous" && catOf("units", "spectrogram") == "point" && catOf("events", "spectrogram") == "point" ...
         && catOf("detected", "coherence") == "point" && catOf("AUX", "coherence") == "continuous" && catOf("events", "coherence") == "", ...
@@ -7137,6 +7146,170 @@ if S.sec("18", "downsampled signals: Source.Downsample, figureFor's layer rates,
     pv0 = EphysAnalysisScript.preview(cfg, "ct", Datasets=rn.Keys(1));
     check(contains(pv, "selectChannels(src, ""LFP"", Channels=spec.observe.channels, Rate=200)") && ~contains(pv0, "Rate="), ...
         'the preview script reads the channel figure''s LFP at 200 Hz, as its layers do; without a rate, at the rate on file');
+end
+
+%% ============================================================================ filtered signals
+if S.sec("19", "filtered signals: Source.SignalFilter and a panel's options.filter, figureFor's layer filters, selectChannels' Filter, a continuous and a spectral layer filtered, a filter past Nyquist, validate, JSON, the preview script")
+    fixtureA();
+    % the config: a filter per signal, each off; options.filter (off) on the five signal types, a shared option of theirs
+    f0 = EphysAnalysisConfig().Source.SignalFilter;
+    T = EphysAnalysisConfig.panelTypes();
+    sigTypes = ["continuous" "heatmap" "spectrum" "spectrogram" "coherence"];
+    hasF = false(1, height(T));
+    for q = 1:height(T); hasF(q) = isfield(T.DefaultOptions{q}, 'filter'); end
+    sharesF = true;
+    for t = sigTypes; sharesF = sharesF && ismember("filter", EphysAnalysisConfig.sharedFieldsOf(t)); end
+    check(isequal(string(fieldnames(f0)).', DatasetOutputs.SignalTypes) && ~any(structfun(@(f) f.enabled, f0)) ...
+        && isequal(sort(T.Type(hasF)).', sort(sigTypes)) && sharesF ...
+        && isequal(T.DefaultOptions{T.Type == "continuous"}.filter, SignalFilter.defaults()), ...
+        ['Source.SignalFilter: a field per signal, each off; options.filter (off) on the continuous, heat map and spectral ' ...
+        'types, a shared option of theirs']);
+    cfg = EphysAnalysisConfig();
+    cfg.Source.Root = FX.proj;
+    cfg.Defaults.EventRef.line = "Stim";
+    cfg.Defaults.Window = struct('mode', "fixed", 'pre', -0.2, 'post', 0.8, 'stop', []);
+    cfg = cfg.addFigure("continuous", Id="ct");
+    cfg = cfg.addFigure("rasterPsth", Id="rp");
+    cfg = cfg.addFigure("spectrum", Id="sp");
+    lfpSp = layerOf("continuous");   % the template's spectrum is of the unit's spikes: a fixed LFP column instead
+    lfpSp.binding = "fixed";
+    lfpSp.channels = 1;
+    kSp = cfg.figureIndex("sp");
+    cfg.Figures(kSp).panels(1).layers = lfpSp;
+    kCt = cfg.figureIndex("ct");
+    jC = find([cfg.Figures(kCt).panels.type] == "continuous", 1);
+    pid = cfg.Figures(kCt).panels(jC).id;
+    theta = SignalFilter.preset("theta");
+    notch = SignalFilter.preset("notch60");
+    cF = cfg;
+    cF.Source.SignalFilter.LFP = notch;
+    cF.Figures(kCt).panels(jC).options.filter = theta;
+    fj = fullfile(root, 'filters.json');
+    cF.save(fj);
+    cJ = EphysAnalysisConfig.load(fj);
+    check(cF.isequalConfig(cJ) && isequal(cJ.Source.SignalFilter.LFP, notch) && isequal(cJ.Figures(kCt).panels(jC).options.filter, theta) ...
+        && ~cJ.Source.SignalFilter.AUX.enabled && isempty(cJ.LoadWarnings), ...
+        'the filters survive save / load: the LFP''s notch, the continuous panel''s theta band; the others off');
+
+    % figureFor: a signal layer reads its signal's filter, then its panel's; spike layers none
+    sCt = cF.figureFor("ct");
+    lC = sCt.panels(jC).layers(1);
+    noFilters = @(spec) all(arrayfun(@(p) all(arrayfun(@(L) isempty(L.filters), p.layers)), spec.panels));
+    check(lC.source == "LFP" && isequal(lC.filters, [notch theta]) && noFilters(cF.figureFor("rp")) && noFilters(cfg.figureFor("ct")) ...
+        && isequal(cF.figureFor("sp").panels(1).layers(1).filters, notch), ...
+        ['figureFor: a signal layer reads the signal''s filter then its panel''s (the notch, then theta); the spectrum''s LFP ' ...
+        'the notch alone; spike layers, and a config without filters, none']);
+
+    % selectChannels' Filter: the columns through SignalFilter.apply, over the whole recording, at the rate read, each kept once made
+    rn = EphysAnalysisRunner(cF, LogFcn=[]);
+    src = rn.source(1);
+    fsL = src.signalFs.LFP;
+    YL = selectChannels(src, "LFP");
+    [Y2, fs2] = selectChannels(src, "LFP", Channels=[2 1], Filter=theta);
+    Yw = SignalFilter.apply(YL(:, [2 1]), fsL, theta);
+    [Y3, fs3] = selectChannels(src, "LFP", Channels=1, Filter=theta);   % again: the column kept (CacheData)
+    [Yr, fsr] = selectChannels(src, "LFP", Channels=1, Rate=200, Filter=[notch theta]);
+    Yrw = SignalFilter.apply(selectChannels(src, "LFP", Channels=1, Rate=200), 200, [notch theta]);
+    [Yo, fso] = src.outputs.prepared("LFP", 1, Filter=SignalFilter.defaults());
+    check(fs2 == fsL && isequal(Y2, Yw) && isa(Y2, 'single') && isequal(Y3, Y2(:, 2)) && fs3 == fsL ...
+        && fsr == 200 && isequal(Yr, Yrw) && fso == fsL && isequal(Yo, YL(:, 1)) ...
+        && strcmp(errorId(@() selectChannels(src, "LFP", Channels=1, Rate=200, Filter=SignalFilter.preset("ripple"))), 'SignalFilter:Unusable'), ...
+        sprintf(['selectChannels Filter=: the columns through SignalFilter.apply over the whole recording (%g Hz), the same when ' ...
+        'read again; with Rate=200 filtered at 200 Hz after the downsampling; a filter off reads the column as it is; a band ' ...
+        'past the Nyquist frequency is refused'], fsL));
+
+    % a continuous layer read through its filters: the epochs' mean of the filtered column; the panel cached unfiltered computes again
+    Tc = figureObservations(src, sCt);
+    obsC = Tc(1, :);
+    [F0, K0] = figureCompute(src, cfg.figureFor("ct"), Observation=obsC);
+    [FF, KF] = figureCompute(src, sCt, Observation=obsC, Reuse=K0);
+    R0 = F0.panels(jC).layers(1).R;
+    RF = FF.panels(jC).layers(1).R;
+    oC = sCt.panels(jC).options;
+    wC = sCt.panels(jC).window;
+    bC = [];
+    if oC.baseline.Mode ~= "none"; bC = oC.baseline.Window; end
+    Yf = selectChannels(src, "LFP", Channels=obsC.column, Filter=[notch theta]);
+    RO = evokedPotential(Yf, fsL, FF.epochs, Window=[wC.pre wC.post], Channels=1, Baseline=bC, Groups=FF.groups, ...
+        Rectify=oC.transform == "rectify", Magnitude=oC.transform == "magnitude", Statistic=oC.statistic);
+    made = KF([KF.kind] == "panel");
+    check(isempty(R0.filters) && isequal(RF.filters, [notch theta]) && RF.fs == fsL && isequal(size(RF.mean), size(RO.mean)) ...
+        && max(abs(RF.mean(:) - RO.mean(:))) <= 1e-6 * max(abs(RO.mean(:))) && ~isequal(RF.mean, R0.mean) ...
+        && ~isempty(made) && all([made.from] == 0), ...
+        ['a continuous LFP layer read through the notch, then theta: its epochs'' mean as evokedPotential gives on the ' ...
+        'filtered column (the whole recording filtered, then cut); R.filters the chain; the panel cached unfiltered computed again']);
+
+    % a filter that cannot run at the layer's rate: the layer skipped with the reason; validate says it before the run
+    cN = cfg;
+    cN.Figures(kCt).panels(jC).options.filter = SignalFilter.preset("ripple");   % 150-250 Hz
+    cN.Source.Downsample.LFP = 200;
+    FN = figureCompute(src, cN.figureFor("ct"), Observation=obsC);
+    LN = FN.panels(jC).layers(1);
+    check(contains(LN.skip, "Nyquist frequency (100 Hz)") && isempty(LN.R) && has(cN, "ct." + pid + ".options.filter.cutoff", "error"), ...
+        sprintf(['a ripple band (150-250 Hz) on an LFP read at 200 Hz: the layer skipped ("%s"); validate refuses it at ' ...
+        'its options.filter.cutoff'], LN.skip));
+
+    % a spectrum read through theta (Chronux: the bundled copy, on the path for these checks only)
+    cxAdded = "";
+    if ~ChronuxDataset.hasChronux() && isfolder(fullfile(repo, 'toolboxes', 'chronux'))
+        cxAdded = string(genpath(fullfile(repo, 'toolboxes', 'chronux')));
+        addpath(cxAdded);
+    end
+    cxBack = onCleanup(@() rmpathQuiet(cxAdded));
+    if ChronuxDataset.hasChronux()
+        c0S = cfg;
+        c0S.Figures(kSp).panels(1).options.fpass = [0 60];
+        cS = c0S;
+        cS.Figures(kSp).panels(1).options.filter = theta;
+        sS = cS.figureFor("sp");
+        Tsp = figureObservations(src, sS);
+        FSf = figureCompute(src, sS, Observation=Tsp(1, :));
+        FS0 = figureCompute(src, c0S.figureFor("sp"), Observation=Tsp(1, :));
+        Lf = FSf.panels(1).layers(1);
+        L0 = FS0.panels(1).layers(1);
+        inBand = @(R) R.f >= 5 & R.f <= 7;
+        above = @(R) R.f >= 20 & R.f <= 50;
+        rel = @(R) mean(R.S(above(R), :), 'all') / mean(R.S(inBand(R), :), 'all');
+        drop = rel(L0.R) / rel(Lf.R);
+        check(Lf.skip == "" && L0.skip == "" && isequal(Lf.R.filters, theta) && isempty(L0.R.filters) && drop > 30, ...
+            sprintf('a spectrum of the LFP read through theta: the power at 20-50 Hz against 5-7 Hz falls %.3g-fold', drop));
+    else
+        fprintf('  (Chronux not found: the filtered spectrum is not checked)\n');
+    end
+    clear cxBack
+
+    % validate: bad settings (Source and a panel); a cutoff past the band a downsampled signal keeps; a filter with no signal layer
+    cB = cfg;
+    badS = theta;
+    badS.cutoff = [8 4];
+    cB.Source.SignalFilter.AUX = badS;
+    badP = theta;
+    badP.order = 40;
+    cB.Figures(kCt).panels(jC).options.filter = badP;
+    IB = cB.validate(CheckPaths=false);
+    cW = cfg;
+    cW.Source.Downsample.LFP = 350;   % flat to 133 Hz
+    cW.Source.SignalFilter.LFP = SignalFilter.preset("highGamma");   % 60-150 Hz
+    IW = cW.validate(CheckPaths=false);
+    cU = cfg.addFigure("spectrum", Id="su");   % the template's: the unit's spikes
+    kSu = cU.figureIndex("su");
+    cU.Figures(kSu).panels(1).options.filter = theta;
+    pSu = cU.Figures(kSu).panels(1);
+    I0 = cfg.validate(CheckPaths=false);
+    check(any(IB.Section == "Source" & IB.Field == "SignalFilter.AUX.cutoff" & IB.Severity == "error") ...
+        && any(IB.Section == "Figures" & IB.Field == "ct." + pid + ".options.filter.order" & IB.Severity == "error") ...
+        && any(IW.Section == "Source" & IW.Field == "SignalFilter.LFP.cutoff" & IW.Severity == "warning") ...
+        && ~any(IW.Section == "Source" & IW.Severity == "error") ...
+        && pSu.layers(1).source == "units" && has(cU, "su." + pSu.id + ".options.filter", "warning") ...
+        && ~any(startsWith(I0.Field, "SignalFilter") | contains(I0.Field, ".options.filter")), ...
+        ['validate: a band-pass''s cutoffs reversed (Source) and an order of 40 (a panel) are errors; high gamma on an LFP ' ...
+        'downsampled to 350 Hz warns (past the 133 Hz it keeps flat); a spectrum of spikes with a filter warns; no filter, no issue']);
+
+    % the preview script reads the channel figure's signal through Source.SignalFilter, written out
+    pv = EphysAnalysisScript.preview(cF, "ct", Datasets=rn.Keys(1));
+    pv0 = EphysAnalysisScript.preview(cfg, "ct", Datasets=rn.Keys(1));
+    check(contains(pv, "Filter=struct(") && contains(pv, """60 Hz line noise""") && ~contains(pv0, "Filter="), ...
+        'the preview script reads the channel figure''s LFP through the notch (Source.SignalFilter, written out); without one, as recorded');
 end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);

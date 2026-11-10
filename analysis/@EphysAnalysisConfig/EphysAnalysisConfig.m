@@ -757,6 +757,9 @@ classdef EphysAnalysisConfig
             %   spectrogram, coherence): stack, stackSpacing and (spectrum,
             %   coherence) yLimMode only (their Chronux settings are their
             %   own; a spectrogram's baseline is chronuxNormalize's). The
+            %   types that draw signals (continuous, heatmap, spectrum,
+            %   spectrogram, coherence) also share filter, last (the
+            %   SignalFilter their signal layers are read through). The
             %   stack options and yLimMode mean the same on every type
             %   (stackModes, YLimModes); yLim itself (in the type's units)
             %   goes only to panels of the same type. The trial panels
@@ -772,9 +775,9 @@ classdef EphysAnalysisConfig
             T = EphysAnalysisConfig.panelTypes();
             row = T.Type == string(type);
             if ~any(row); return; end
-            names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform" "stack" "stackSpacing" "yLimMode"];
+            names = ["bins" "measure" "baseline" "auroc" "maskAfterStop" "waveform" "stack" "stackSpacing" "yLimMode" "filter"];
             if ismember(string(type), ["waveforms" "probemap"]); names(names == "waveform") = []; end
-            if ismember(string(type), ["spectrum" "spectrogram" "coherence"]); names = ["stack" "stackSpacing" "yLimMode"]; end
+            if ismember(string(type), ["spectrum" "spectrogram" "coherence"]); names = ["stack" "stackSpacing" "yLimMode" "filter"]; end
             if ismember(string(type), EphysAnalysisConfig.TrialPanelTypes)
                 names = ["series" "seriesParam" "seriesBins" "summary" "errorType" "errorResamples" "test" "testPairs" ...
                     "adjust" "testAlpha" "testShow" "xScale" "yScale" "yLimMode"];

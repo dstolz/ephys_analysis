@@ -19,7 +19,10 @@ classdef EphysFigGenApp < handle
     %                Downsample... (onDownsample: DownsampleDialog) sets the
     %                rate each signal (LFP, MUA, SPIKE, AUX) is brought to,
     %                anti-aliased, before any figure reads it
-    %                (Source.Downsample)
+    %                (Source.Downsample); Filter... (onSignalFilter:
+    %                FilterDialog) the filter each signal is read through by
+    %                every figure, its whole recording filtered before the
+    %                epochs are cut (Source.SignalFilter)
     %     Alignment  the config's Defaults: the event reference (any digital
     %                line or "Trial", onset / offset, first / last / all / nth,
     %                trial or recording scope, and a sequence of events that
@@ -71,7 +74,9 @@ classdef EphysFigGenApp < handle
     %                trial selection ("Use default" for the Alignment tab's),
     %                the panel's own event and window ("Same as the figure"),
     %                its layers (each follows the observation or is fixed),
-    %                the type's options, the panel's text note and overlays,
+    %                the type's options (a continuous, heat map or spectral
+    %                panel's Filter...: editPanelFilter, FilterDialog, its
+    %                options.filter), the panel's text note and overlays,
     %                appearance and remembered looks, and Sessions (the
     %                figure drawn once across the ticked or picked datasets:
     %                a session figure, its facet, colors, error band, unit
@@ -262,6 +267,8 @@ classdef EphysFigGenApp < handle
         RecordingsDropDown matlab.ui.control.DropDown   % Source.Recordings (Open Ephys recording mode)
         DownsampleLabel    matlab.ui.control.Label      % Source.Downsample in words ("LFP 250 Hz, AUX 100 Hz"; showDownsample)
         DownsampleButton   matlab.ui.control.Button     % Downsample... (onDownsample: DownsampleDialog); amber while a rate is set
+        SignalFilterLabel  matlab.ui.control.Label      % Source.SignalFilter in words ("LFP Theta 4-8 Hz"; showSignalFilter)
+        SignalFilterButton matlab.ui.control.Button     % Filter... (onSignalFilter: FilterDialog); amber while a filter is on
         FoldersArea        matlab.ui.control.TextArea
         AddFolderButton    matlab.ui.control.Button
         ScanButton         matlab.ui.control.Button
@@ -395,6 +402,9 @@ classdef EphysFigGenApp < handle
         NotePadWindow = []                  % the notepad (NotePad), while open (openNotePad)
         VariableDialog = []                 % the variable dialog (VariableDialog), while open (onEditVariables)
         DownsampleWindow = []               % the Downsample signals dialog (DownsampleDialog), while open (onDownsample)
+        SignalFilterWindow = []             % the signals' Filter dialog (FilterDialog), while open (onSignalFilter)
+        PanelFilterWindow = []              % a panel's Filter dialog (FilterDialog), while open (editPanelFilter; what it edits: PanelFilterTarget)
+        PanelFilterTarget = struct('FigureId', "", 'PanelId', "")   % the figure and panel the panel's Filter dialog edits
         NotePadFollows (1,1) string = ""    % what the notepad follows: "dataset" (the active one), "observation" (the one picked), "" (the note it was opened on)
         NoteSearchWindow = []               % the Search notes window (NoteSearch), while open (onSearchNotes)
         DatasetUnits = []                   % sorted units per dataset, read when it is opened: containers.Map, "<key>|<sort folder>" -> table unitId, class, channel, depth (refreshDatasetLabels; labels the Favorites)
@@ -586,6 +596,9 @@ classdef EphysFigGenApp < handle
         v = onViewManifest(obj, idx)
         dlg = onDownsample(obj)
         showDownsample(obj, rates)
+        dlg = onSignalFilter(obj)
+        showSignalFilter(obj, filters)
+        dlg = editPanelFilter(obj)
         onDatasetsSorted(obj, evt)
         clearDatasetsSort(obj)
         selectDataset(obj, idx)

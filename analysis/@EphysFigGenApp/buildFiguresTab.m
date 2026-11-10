@@ -1080,6 +1080,16 @@ Sa = formSection(eg, 11, "analysis", "Analysis", Color=tint("analysis"));
 E.optApplyAll = applyAllButton(obj, Sa, "analysis", "Copy this panel's Analysis rows (bins, smoothing, measure, baseline with " + ...
     "its window and auROC settings, mask, signal, error and the rest of what is computed) to every other panel that has them " + ...
     "(the baseline only where the type takes its mode), the others to the other panels of its type.");
+% the signal panels' (continuous, heat map, spectral) filter: their signal layers' whole recording filtered before the
+% epochs are cut (options.filter, kept in filterText's UserData: showPanelFilter; editPanelFilter opens FilterDialog)
+[Sa, r] = formRow(Sa, ["filterText" "filterEdit"], "Filter:");
+flg = subgrid(Sa.Body, r, {'1x', 70});
+E.filterText = uilabel(flg, "Text", "none");
+E.filterEdit = uibutton(flg, "Text", "Filter...", "ButtonPushedFcn", @(~,~) obj.editPanelFilter(), ...
+    "Tooltip", "Filter the panel's signal layers (LFP, MUA, SPIKE, AUX) before anything is computed: an EEG band " + ...
+    "(delta, theta, alpha, beta, low or high gamma), a line-noise notch, your own band or one you saved; zero-phase " + ...
+    "or causal. Each channel's whole recording is filtered, then cut into epochs. Spike layers are not filtered.");
+showPanelFilter(E, SignalFilter.defaults());
 [Sa, r] = formRow(Sa, "binMs", "Bin width (ms):");
 E.binMs = uieditfield(Sa.Body, "numeric", "Value", 10, "Limits", [0.001 Inf], "ValueChangedFcn", changed);
 place(E.binMs, r, 2);
@@ -2422,6 +2432,7 @@ function f = sectionOptionFields(section)
 %   Axes section's sides go to every panel; the box, labels and what the
 %   axes show stay each panel's own.
 T = {
+    "analysis"  "filter"                         % Filter (a signal panel's)
     "analysis"  "group"                          % Trial group drawn
     "analysis"  "bins"                           % Bin width, Smoothing SD
     "analysis"  "measure"

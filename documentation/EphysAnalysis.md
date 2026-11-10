@@ -410,6 +410,29 @@ config sets [`Source.Downsample`](EphysAnalysisConfig.md#downsampled-signals):
 [Y, fs] = selectChannels(src, "AUX", Channels=1:3, Rate=100);   % 100 Hz, flat to 38 Hz
 ```
 
+`Filter=F` filters each column over the whole recording before anything is
+cut into epochs, at the rate read (after `Rate`): `F` is a
+[`SignalFilter`](EphysAnalysisConfig.md#filtered-signals), or a list of them
+applied in order, and each filtered column is kept in the outputs' cache
+(`DatasetOutputs.prepared`). A filter whose cutoff is at or above the Nyquist
+frequency of that rate raises `SignalFilter:Unusable`. The figures read their
+signals so when the config sets `Source.SignalFilter` or a panel's
+`options.filter`. On data already in memory, `SignalFilter.apply` does the
+same:
+
+```matlab
+theta = SignalFilter.preset("theta");                            % 4-8 Hz, Butterworth order 4, zero-phase
+[Yt, fs] = selectChannels(src, "LFP", Channels=12, Filter=theta);   % the whole recording, filtered
+R = evokedPotential(Yt, fs, E, Window=[-0.5 1]);                 % then cut into epochs
+f = theta; f.design = "fir"; f.order = 0; f.phase = "causal";    % or an FIR, automatic order, forward only
+Y2 = SignalFilter.apply(Y, fs, [SignalFilter.preset("notch60") f]);   % a chain: the notch, then the band
+```
+
+`SignalFilter.presets()` lists the EEG bands and line-noise notches,
+`SignalFilter.saved()` the filters saved in the app's Filter window, and
+`SignalFilter.response(f, fs, freq)` and `SignalFilter.impulse(f, fs)` what
+a filter does at a rate (what the window draws).
+
 ## Time base
 
 - Continuous signals: row `k` is at `t = (k-1)/Fs`, at every rate; spike
@@ -2050,7 +2073,7 @@ variables to analyze, then calls `figureCompute` and `renderFigure` into a
 | `E`, `G` | the preview's epochs and trial groups (`figureEpochs`): a row per epoch with `t0`, `t0Continuous` (the event on the spikes' clock), `tStart`, `tStop`, `trial` (a row of `trials`), `groupIndex` and `group`. Every trial group: a **Per trial group** observation draws one of them |
 | `spikesIn` | `{epoch, unit}`: each unit's spikes in each epoch's window, s from its event (`epochSpikes`) |
 | `onsets`, `offsets` | `onsets.(line){e}`: the line's onsets in epoch `e`, s from its event (`epochEvents`) |
-| `signalIn`, `signalTime`, `channels`, `fs` | a figure of channels only: its signal's channels (`selectChannels`, `observe.channels`; at the figure's rate, `Rate=`, when [`Source.Downsample`](EphysAnalysisConfig.md#downsampled-signals) sets one) cut into the epochs over the widest window (`evokedPotential`, `KeepEpochs`): `[time x channel x epoch]`, NaN outside the recording |
+| `signalIn`, `signalTime`, `channels`, `fs` | a figure of channels only: its signal's channels (`selectChannels`, `observe.channels`; at the figure's rate, `Rate=`, when [`Source.Downsample`](EphysAnalysisConfig.md#downsampled-signals) sets one; through the signal's filter, `Filter=`, written out, when [`Source.SignalFilter`](EphysAnalysisConfig.md#filtered-signals) sets one) cut into the epochs over the widest window (`evokedPotential`, `KeepEpochs`): `[time x channel x epoch]`, NaN outside the recording |
 
 For a figure across sessions, `Datasets=` lists the sessions' keys: the
 script builds their `sessionTable` and sources, finds the observation in

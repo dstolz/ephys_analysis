@@ -27,6 +27,7 @@ end
 obj.SearchFilterField.Value = char(F.Search);
 obj.syncSourceEnable();
 obj.showDownsample(sourceRates(S));   % the Signals row: the rates in words
+obj.showSignalFilter(sourceFilters(S));   % the Filters row: the filters in words
 if ~isempty(obj.Runner) && ~isequal(filterState(obj), before); obj.refreshDatasetsTable(); end
 end
 

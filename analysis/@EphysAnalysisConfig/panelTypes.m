@@ -160,6 +160,16 @@ function T = panelTypes()
 %   phase under the magnitude. Spectrum and coherence take timeBase "range":
 %   segments of the whole recording clear of its artifact periods, not
 %   the figure's epochs.
+%   The types that draw signals (continuous, heatmap, spectrum,
+%   spectrogram, coherence) take options.filter, a SignalFilter (enabled
+%   false, the default: none): their signal layers (LFP, MUA, SPIKE, AUX)
+%   are read through it, the whole recording filtered before the epochs
+%   are cut (selectChannels' Filter), after the config's
+%   Source.SignalFilter for that signal and at the rate the signal is read
+%   at (Source.Downsample). A band-pass, band-stop, low-pass or high-pass;
+%   Butterworth, Chebyshev I or II, elliptic or FIR; zero-phase (acausal)
+%   or causal. Spike layers are not filtered. It is shared by those types
+%   (sharedFieldsOf), so Apply to all panels copies it.
 %   An "eventTrace" panel draws digital or derived lines as a logic
 %   analyzer does, on the figure's time axis: each events layer (one line)
 %   a row of its own, its intervals from onset to offset, clipped at the
@@ -227,6 +237,7 @@ firstSpike = EphysAnalysisConfig.defaults("FirstSpike");       % raster: the fir
 latencyBox = EphysAnalysisConfig.defaults("LatencyBox");       % psth: the latency box plot's look (enabled false = none)
 auroc = EphysAnalysisConfig.defaults("Auroc");                % psth / heatmap of spikes: baseline Mode "auroc"
 band = EphysAnalysisConfig.defaults("ErrorBand");             % psth / continuous / spectrum / coherence / waveforms / probemap: the bands' look
+signalFilter = SignalFilter.defaults();                       % continuous / heatmap / spectral: the filter its signal layers are read through (off)
 
 opts = struct();
 opts.raster = struct( ...
@@ -268,6 +279,7 @@ opts.psth = struct( ...
     'cLim',          [], ...            % display "heatmap": [] = the unit's own range (auROC: [0 1]), else [lo hi]
     'waveform',      waveform);
 opts.continuous = struct( ...
+    'filter',     signalFilter, ...     % its signal layers (LFP, MUA, SPIKE, AUX) filtered over the whole recording before the epochs are cut (SignalFilter; enabled false = none)
     'baseline',     baseline, ...       % Mode "none" | "subtract"
     'statistic',    "mean", ...         % "mean" | "median" over the epochs, at each sample
     'transform',    "none", ...         % "none" | "rectify" (each epoch's absolute value, before the statistic) | "magnitude" (a layer's channels as one: their vector magnitude in each epoch, after the baseline)
@@ -281,6 +293,7 @@ opts.continuous = struct( ...
     'yLimMode',     "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',         []);
 opts.heatmap = struct( ...
+    'filter',     signalFilter, ...     % its signal layers (LFP, MUA, SPIKE, AUX) filtered over the whole recording before the epochs are cut (SignalFilter; enabled false = none)
     'bins',          bins, ...
     'measure',       "rate", ...
     'baseline',      baseline, ...      % spikes: Mode "none" | "subtract" | "zscore" | "percent" | "auroc"; a signal: "none" | "subtract"
@@ -341,6 +354,7 @@ opts.tuning = struct( ...
     'waveform',    waveform);           % the unit's waveform inset
 % the Chronux spectral types (chronuxSettings' fields and defaults; none is a shared option)
 opts.spectrum = struct( ...
+    'filter',     signalFilter, ...     % its signal layers (LFP, MUA, SPIKE, AUX) filtered over the whole recording before the epochs are cut (SignalFilter; enabled false = none)
     'timeBase',   "aligned", ...        % "aligned" (the panel's epochs) | "range" (segments of the recording, clear of artifact periods)
     'range',      [0 Inf], ...          % range: [from to] s on the continuous clock (to Inf = the end)
     'segmentSec', 2, ...                % range: each segment (a trial), s
@@ -362,6 +376,7 @@ opts.spectrum = struct( ...
     'yLimMode',   "auto", ...  % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',       []);
 opts.spectrogram = struct( ...
+    'filter',     signalFilter, ...     % its signal layers (LFP, MUA, SPIKE, AUX) filtered over the whole recording before the epochs are cut (SignalFilter; enabled false = none)
     'taperMode',  "TWK", ...
     'TW',         3, ...
     'K',          5, ...
@@ -380,6 +395,7 @@ opts.spectrogram = struct( ...
     'stack',      "off", ...            % "off" (one group) | "groups" (an image row per trial group, the first on top, on one time axis)
     'stackSpacing', 1.1);               % stack: the block step, x the block's height (below 1 counts as 1)
 opts.coherence = struct( ...
+    'filter',     signalFilter, ...     % its signal layers (LFP, MUA, SPIKE, AUX) filtered over the whole recording before the epochs are cut (SignalFilter; enabled false = none)
     'timeBase',   "aligned", ...
     'range',      [0 Inf], ...
     'segmentSec', 2, ...

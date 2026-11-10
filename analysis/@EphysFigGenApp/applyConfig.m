@@ -51,7 +51,7 @@ end
 clear restore
 if ~isempty(obj.Runner)
     obj.Runner.Config = cfg;
-    if ~isequaln(withoutFilter(cfg.Source), withoutFilter(obj.ScannedSource))   % the filter only shows some of the datasets scanned; the rates are read after
+    if ~isequaln(withoutFilter(cfg.Source), withoutFilter(obj.ScannedSource))   % the filter only shows some of the datasets scanned; the rates and signal filters are read after
         obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
     end
 end
@@ -71,8 +71,8 @@ end
 
 
 function S = withoutFilter(S)
-%withoutFilter  Source without what a scan does not read: the filter and the signals' rates (Downsample).
-S = rmfield(S, intersect({'Filter', 'Downsample'}, fieldnames(S)));
+%withoutFilter  Source without what a scan does not read: the filter and the signals' rates and filters (Downsample, SignalFilter).
+S = rmfield(S, intersect({'Filter', 'Downsample', 'SignalFilter'}, fieldnames(S)));
 end
 
 

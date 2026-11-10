@@ -28,7 +28,8 @@ function P = computeCoherencePanel(src, panel, E, G, ctx)
 %   Clo / Chi, confC, pairs, labels, nTrials, groups; a coherogram's t and
 %   C [nT x nF x nPairs x nGroups]) with its pairs labeled "<seed> x
 %   <partner>" (R.pairs.label, R.labels, R.names), layer, partnerLayer,
-%   epochs and dataset; the partner layer's R is a marker (kind
+%   filters and partnerFilters (the filters each layer's signal was read
+%   through, 1x0 for none), epochs and dataset; the partner layer's R is a marker (kind
 %   "coherencePartner", seedLayer). Any other number of enabled layers, a
 %   skipped one, rates no resample ratio matches, a partner that is only
 %   the seed, a missing Chronux or settings chronuxSettings refuses skip
@@ -78,6 +79,8 @@ if why ~= ""
 end
 R.layer = a;
 R.partnerLayer = b;
+R.filters = X1.filters;          % the filters the seed's signal was read through (1x0: none, and for spikes)
+R.partnerFilters = X2.filters;   % ... and the partner's
 R.epochs = E;
 R.dataset = src.name;
 P.layers(a).R = R;

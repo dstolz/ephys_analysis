@@ -298,7 +298,9 @@ classdef EphysAnalysisScript
             %   its signal cut into the epochs (signalIn, signalTime,
             %   channels, fs; at the rate its layers read it, when the
             %   config's Source.Downsample brings that signal lower:
-            %   selectChannels' Rate), then figureCompute and renderFigure into a
+            %   selectChannels' Rate; through the config's
+            %   Source.SignalFilter for that signal, when one is on:
+            %   selectChannels' Filter, the filter written out), then figureCompute and renderFigure into a
             %   figure() window of Size= px in the design Design= ("" = the
             %   user's design when the script runs).
             %   A figure across sessions (sessions.enabled) is drawn over the
@@ -452,7 +454,7 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "";
 
             % --- the data, in the preview's epochs ------------------------------------------
-            L = [L; EphysAnalysisScript.dataLines(spec, across)];
+            L = [L; EphysAnalysisScript.dataLines(spec, across, S)];
             L(end+1, 1) = "";
 
             % --- compute and draw --------------------------------------------------------
@@ -511,8 +513,9 @@ classdef EphysAnalysisScript
             end
         end
 
-        function L = dataLines(spec, across)
+        function L = dataLines(spec, across, S)
             %dataLines  The preview script's data section: the dataset's events, trials and spike trains, each cut into the figure's epochs.
+            %   S is the config's Source (its SignalFilter: the filter a channel figure's signal is read through).
             %   For one dataset (src, obsT) plain variables: events, lineNames,
             %   trials, artifacts, spikes and units (every unit of the figure's
             %   source, units.observed marking those the figure is drawn for;
@@ -560,12 +563,24 @@ classdef EphysAnalysisScript
             if ob.kind == "channel"
                 sig = upper(ob.data);
                 rate = signalRate(spec, sig);
-                if isempty(rate)
-                    B(end+1, 1) = "[Y, fs, channels] = selectChannels(src, " + lit(sig) + ", Channels=spec.observe.channels);   % the figure's " + ...
+                chain = SignalFilter.chain([]);   % the Data tab's filter of the signal (Source.SignalFilter): every layer reads it so
+                if isfield(S, 'SignalFilter') && isfield(S.SignalFilter, sig); chain = SignalFilter.chain(S.SignalFilter.(sig)); end
+                args = "Channels=spec.observe.channels";
+                how = "";
+                if ~isempty(rate)   % downsampled as the figure's layers read it (Source.Downsample)
+                    args = args + ", Rate=" + lit(rate);
+                    how = " at " + rate + " Hz (anti-aliased)";
+                end
+                if ~isempty(chain)   % filtered as the figure's layers read it (Source.SignalFilter; a panel's own filter is in spec)
+                    args = args + ", Filter=" + lit(chain);
+                    how = how + ", filtered " + SignalFilter.describe(chain, Short=true);
+                end
+                if how == ""
+                    B(end+1, 1) = "[Y, fs, channels] = selectChannels(src, " + lit(sig) + ", " + args + ");   % the figure's " + ...
                         sig + " channels: Y(k, :) at (k-1)/fs s";
-                else   % downsampled as the figure's layers read it (Source.Downsample)
-                    B(end+1, 1) = "[Y, fs, channels] = selectChannels(src, " + lit(sig) + ", Channels=spec.observe.channels, Rate=" + lit(rate) + ...
-                        ");   % the figure's " + sig + " channels at " + rate + " Hz (anti-aliased), as its layers read them: Y(k, :) at (k-1)/fs s";
+                else
+                    B(end+1, 1) = "[Y, fs, channels] = selectChannels(src, " + lit(sig) + ", " + args + ");   % the figure's " + ...
+                        sig + " channels" + how + ", as its layers read them: Y(k, :) at (k-1)/fs s";
                 end
                 B(end+1, 1) = "R = evokedPotential(Y, fs, E, Window=[min(E.tStart - E.t0) max(E.tStop - E.t0)], KeepEpochs=true, Incomplete=""nan"", Meta=channels);";
                 B(end+1, 1) = "signalIn = R.data;   % [time x channel x epoch], single: NaN outside the recording";

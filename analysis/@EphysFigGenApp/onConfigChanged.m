@@ -3,7 +3,9 @@ function onConfigChanged(obj, what, src)
 %   WHAT says which part changed: "name", "source", "ticks", "filter"
 %   (the Data tab's filter: Source.Filter, its table already filtered),
 %   "downsample" (Source.Downsample, set by onDownsample: the Signals row
-%   says it and the preview follows; no scan needed), "defaults"
+%   says it and the preview follows; no scan needed), "signalfilter"
+%   (Source.SignalFilter, set by onSignalFilter: the Filters row says it
+%   and the preview follows; no scan needed), "defaults"
 %   (the Alignment tab), "figure" (the Figures tab's editor), "figuresize"
 %   (its Size rows: a "figure" edit that changes how the figure is drawn,
 %   not what it is computed from) or "export" (the Layout section's
@@ -79,6 +81,9 @@ switch what
         obj.showDownsample();
         obj.refreshDatasetInfo();   % the active dataset's signals: the rate the figures read each at
         obj.autoFigurePreview();   % the figures that read a signal whose rate changed compute again (figureFor's layer rates)
+    case "signalfilter"
+        obj.showSignalFilter();
+        obj.autoFigurePreview();   % the figures that read a signal whose filter changed compute again (figureFor's layer filters)
     case "defaults"
         AlignControls.syncEnable(obj.AlignControls);
         obj.refreshAlignPreview();
@@ -119,6 +124,6 @@ end
 
 
 function S = scanned(S)
-%scanned  What of Source a scan reads: without the ticks (Selection, Datasets), the filter and the signals' rates.
-S = rmfield(S, intersect({'Selection', 'Datasets', 'Filter', 'Downsample'}, fieldnames(S)));
+%scanned  What of Source a scan reads: without the ticks (Selection, Datasets), the filter and the signals' rates and filters.
+S = rmfield(S, intersect({'Selection', 'Datasets', 'Filter', 'Downsample', 'SignalFilter'}, fieldnames(S)));
 end

@@ -9,7 +9,9 @@ function dlg = onEditVariables(obj, idx)
 %   manifest in effect, else the dataset's own; every change is logged with
 %   the time and the user in variable_history), the sources loaded already
 %   take the new values (src.variables, src.variableInfo), the table
-%   follows and the status bar says what was done. Variables are not part
+%   follows, the figure preview too (autoFigurePreview: a label naming a
+%   variable, {probeDepth}, prints its value; figureViewKey holds the
+%   active dataset's values) and the status bar says what was done. Variables are not part
 %   of the config: an edit never marks it unsaved. With a dialog open
 %   already, that one comes to the front. DLG is the dialog ([] when none
 %   opened).
@@ -41,21 +43,10 @@ if isempty(idx)
     AppDialog.alert(obj.Fig, "Select rows in the Data table, or click a dataset to make it the active one.", "Variables");
     return
 end
-sets = arrayfun(@(k) currentSet(r, k), 1:numel(r.Outputs), 'UniformOutput', false);
+sets = obj.datasetVariableSets();   % each dataset's: its loaded source's, else its manifest's
 dlg = VariableDialog(sets(idx), DatasetVariables.vocabulary(sets), Labels=reshape(r.Names(idx), 1, []), ...
     Parent=obj.Fig, Visible=obj.Fig.Visible == "on", OnDone=@(res) applyVariables(obj, idx, res));
 obj.VariableDialog = dlg;
-end
-
-
-function s = currentSet(r, k)
-%currentSet  Dataset K's variables: its loaded source's, else its manifest's (outputVariables).
-key = char(r.Keys(k));
-if isKey(r.Sources, key) && isfield(r.Sources(key), 'variableInfo')
-    s = DatasetVariables.fromInfo(r.Sources(key).variableInfo);
-else
-    s = outputVariables(r.Outputs(k));
-end
 end
 
 
@@ -97,6 +88,7 @@ for j = 1:numel(idx)
     end
 end
 obj.refreshDatasetsTable();
+if any(changed); obj.autoFigurePreview(); end   % a label naming a dataset variable ({probeDepth}) prints the new value
 if ~isempty(failed)
     obj.setStatus("Variables not written: " + strjoin(failed, "; "));
 else

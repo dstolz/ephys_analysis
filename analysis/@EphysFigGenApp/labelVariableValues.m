@@ -4,14 +4,18 @@ function T = labelVariableValues(obj)
 %   Value column for the Figures tab's selected figure (Config.figureFor)
 %   as its preview last computed it (FigurePreviewResult, when it is that
 %   figure's), at its selected panel (SelectedPanel; 0 or none: the
-%   figure's own alignment and trials). With no figure, or one that cannot
+%   figure's own alignment and trials). Its rows end with the dataset
+%   variables in use on the scanned datasets (datasetVariableSets: Topic
+%   "Dataset variables"), each valued from the previewed figure's dataset
+%   (blank when that dataset has none). With no figure, or one that cannot
 %   be resolved, the Values are blank; without a preview the
-%   observation's, the dataset's and the epochs' are "<Name>". The "{x}"
-%   buttons' menus (labelVariableButton) and the list (onLabelVariables)
-%   show them.
+%   observation's, the dataset's, the epochs' and the dataset variables'
+%   are "<Name>". The "{x}" buttons' menus (labelVariableButton) and the
+%   list (onLabelVariables) show them.
 %
-%   See also figureLabelVariables, onLabelVariables.
-T = figureLabelVariables();
+%   See also figureLabelVariables, onLabelVariables, datasetVariableSets.
+sets = obj.datasetVariableSets();
+T = figureLabelVariables(Variables=sets);
 T.Value = strings(height(T), 1);
 k = obj.SelectedFigure;
 if isempty(obj.Config) || k < 1 || k > numel(obj.Config.Figures); return; end
@@ -27,7 +31,7 @@ end
 p = obj.SelectedPanel;
 if p < 0 || p > numel(spec.panels); p = 0; end
 try
-    T = figureLabelVariables(spec, F, Panel=p);
+    T = figureLabelVariables(spec, F, Panel=p, Variables=sets);
 catch
 end
 end

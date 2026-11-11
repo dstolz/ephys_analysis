@@ -17,12 +17,17 @@ function key = figureViewKey(obj, k)
 %                  (Source.SignalFilter of those signals alone, a field
 %                  each; a panel's own filter is in the figure)
 %     generation   FigurePreviewGeneration (a scan reads the data again)
+%     variables    the values of the active dataset's variables (a cell
+%                  of DatasetVariables.values, datasetVariableSets: the
+%                  labels that name them print them); {} for a figure
+%                  across sessions
 %   refreshFigurePreview keeps the key it drew with (FigurePreviewDrawn,
 %   FigureViews.Drawn); previewFigureView and markFigureTree compare. So
 %   an edit of one figure leaves the others' previews current, an edit of
 %   the defaults reaches the figures that use them, a signal's new rate
 %   or filter the figures that read that signal, another dataset or a
-%   scan every figure, and an edit undone makes a preview current again.
+%   scan every figure, a dataset's variables edited the figures drawn
+%   from it, and an edit undone makes a preview current again.
 %   The design is not in it: choosing one redraws every drawn preview in
 %   place, the hidden ones too (PlotDesign.redrawAll).
 %
@@ -36,11 +41,13 @@ if isequal(fig.ref, "default");       fig.ref = D.EventRef;        end
 if isequal(fig.window, "default");    fig.window = D.Window;       end
 if isequal(fig.selection, "default"); fig.selection = D.Selection; end
 data = "";
+vars = {};
 if ~isempty(obj.Runner)
-    if fig.sessions.enabled
+    if fig.sessions.enabled   % (drawn on Preview alone: its datasets' variables are not read on each edit)
         data = reshape(string(obj.Runner.Keys(obj.tickedDatasetIndices())), 1, []);
     elseif obj.ActiveIdx >= 1 && obj.ActiveIdx <= numel(obj.Runner.Keys)
         data = string(obj.Runner.Keys(obj.ActiveIdx));
+        vars = cellfun(@DatasetVariables.values, obj.datasetVariableSets(obj.ActiveIdx), 'UniformOutput', false);
     end
 end
 obs = "";
@@ -48,7 +55,8 @@ if isa(obj.FigureObservation, 'containers.Map') && isKey(obj.FigureObservation, 
     obs = string(obj.FigureObservation(char(fig.id)));
 end
 key = struct('figure', fig, 'data', data, 'observation', obs, 'downsample', signalRates(fig, sourceRates(obj.Config.Source)), ...
-    'signalFilter', signalRates(fig, sourceFilters(obj.Config.Source)), 'generation', obj.FigurePreviewGeneration);
+    'signalFilter', signalRates(fig, sourceFilters(obj.Config.Source)), 'generation', obj.FigurePreviewGeneration, ...
+    'variables', {vars});
 end
 
 

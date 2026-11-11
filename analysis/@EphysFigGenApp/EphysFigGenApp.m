@@ -598,6 +598,7 @@ classdef EphysFigGenApp < handle
         onDatasetCellSelection(obj, evt)
         onDatasetNoteClicked(obj, evt)
         dlg = onEditVariables(obj, idx)
+        sets = datasetVariableSets(obj, idx)
         v = onViewManifest(obj, idx)
         dlg = onDownsample(obj)
         showDownsample(obj, rates)

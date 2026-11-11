@@ -29,7 +29,8 @@ function T = panelTypes()
 %                     (bins, measure, baseline, histStyle, rasterSort, ...)
 %
 %   Per-panel y and color limits (options.yLim, options.cLim: [] =
-%   automatic, else [lo hi]) live in the options because one figure holds
+%   automatic, else [lo hi]; cLim also text whose ends name the data,
+%   "0 max" or "min 80%max": colorLimits) live in the options because one figure holds
 %   different axes; a figure's Style.YLim / Style.CLim are not used. Every
 %   type with a y axis of values (PSTH, continuous, waveforms, rate,
 %   tuning, spectrum, coherence, itpc, trial distribution and scatter)
@@ -287,7 +288,7 @@ opts.psth = struct( ...
     'yLimMode',      "auto", ...  % "auto" (each axis, each stacked row, fits itself) | "rows" (a stack's rows share one scale) | "batch" (one range for every observation of a run) | "fixed" (yLim)
     'yLim',          [], ...            % yLimMode "fixed": [lo hi]
     'colormap',      "", ...            % display "heatmap": "" (the design's heat colormap, Style.HeatColormap) | a colormap function
-    'cLim',          [], ...            % display "heatmap": [] = the unit's own range (auROC: [0 1]), else [lo hi]
+    'cLim',          [], ...            % display "heatmap": [] = the unit's own range (auROC: [0 1]), else [lo hi] or text ("0 max": colorLimits)
     'waveform',      waveform);
 opts.continuous = struct( ...
     'filter',     signalFilter, ...     % its signal layers (LFP, MUA, SPIKE, AUX) filtered over the whole recording before the epochs are cut (SignalFilter; enabled false = none)

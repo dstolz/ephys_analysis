@@ -17,6 +17,9 @@ function [s, unknown] = normalizeSection(section, in)
 %   - an EventRef's sequence is a list of SequenceStep structs, a panel's
 %     overlays a list of Overlays (a struct array, a cell or one struct in;
 %     a 1 x n struct array out)
+%   - a panel's options.cLim and a Style's CLim are [], numbers, or text
+%     whose ends name the data ("0 max", "min 80%max"), tidied by
+%     colorLimits; text of two numbers is [lo hi]
 %
 %   See also EphysAnalysisConfig.defaults, EphysAnalysisConfig.normalizeFigure.
 

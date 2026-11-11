@@ -6,6 +6,9 @@ function h = renderCorrMap(R, target, opts)
 %   title gives its group, the epochs used and the mean pairwise r. A
 %   result made with FisherZ draws Fisher's z (R.z) instead, its color
 %   scale +-the largest |z| (at least 1) unless Style.CLim is set.
+%   Style.CLim is [lo hi] or text whose ends name the data ("-max max",
+%   "min 80%max": colorLimits), whose min and max are the unit pairs'
+%   (the diagonal left out).
 %
 %   Units are ordered by Style.SortShank / Style.SortDepth (by shank, then
 %   top of the probe first; neither = as listed) and labeled with their
@@ -30,14 +33,14 @@ end
 nU = size(R.r, 1);
 nG = size(R.r, 3);
 order = probeOrder(R.meta, nU, style);
-clim0 = style.CLim;
 useZ = isfield(R, 'fisherZ') && R.fisherZ;
-if ~(numel(clim0) == 2 && clim0(2) > clim0(1))
-    clim0 = [-1 1];
-    if useZ   % Fisher z is unbounded: symmetric about 0, to the largest |z| (at least 1)
-        clim0 = [-1 1] * max([1; abs(R.z(isfinite(R.z)))]);
-    end
+clim0 = [-1 1];
+if useZ   % Fisher z is unbounded: symmetric about 0, to the largest |z| (at least 1)
+    clim0 = [-1 1] * max([1; abs(R.z(isfinite(R.z)))]);
 end
+if useZ; M = R.z; else; M = R.r; end
+M(repmat(logical(eye(nU)), 1, 1, nG)) = NaN;   % a fixed scale's min and max: the pairs, not a unit with itself
+clim0 = colorLimits(style.CLim, M, clim0);
 if style.HeatColormap == ""
     cmap = designColormap(style, "diverging", "blueWhiteRed");
 else

@@ -164,7 +164,11 @@ function test_EphysFigGenApp(opts)
 %   the figure, its menu's items by topic with their values now, an item
 %   picked added to an X axis label and a note as one named edit and
 %   filled in on the preview; the list item and Help > Label variables
-%   opening the list, a row clicked copying its variable);
+%   opening the list, a row clicked copying its variable; the Export
+%   tab's "{x}" buttons beside the figure Folder and File names and the
+%   report's Title and Folder, their tokens with their values now, a token
+%   added after a _, as a subfolder, a whole folder at the start, after a
+%   space);
 %   Arrange over the preview (5h.arrange: the overlay and a box per panel,
 %   the outline hidden; a drag's step snapped with the guides and the
 %   fields, the figure untouched; its release one undo step, laid out in
@@ -3213,6 +3217,15 @@ if S.sec("5d.psth", "a PSTH's Stack row, auROC rows, Display and Y limits mode; 
     check(heatShown && oH.display == "heatmap" && oH.colormap == "hot" && isequal(oH.cLim, [0 30]) && app.FigurePreviewState == "drawn" ...
         && isscalar(imH) && isequal(clim(ancestor(imH, 'axes')), [0 30]), ...
         'a PSTH''s Draw as "heat map": Colormap and Color limits shown (Trace, Fill, Stack, Y limits hidden), reaching the options and the preview''s image');
+    FE.cLim.Value = '0 50% OF MAX';
+    app.onConfigChanged("figure");
+    app.refreshFigurePreview(Force=true);
+    oH2 = app.Config.Figures(1).panels(2).options;
+    imH2 = findall(app.FigurePreviewPanel, 'Type', 'image');
+    vH2 = [];
+    if isscalar(imH2); vH2 = imH2.CData(isfinite(imH2.CData)); end
+    check(isequal(oH2.cLim, "0 50%max") && ~isempty(vH2) && max(vH2) > 0 && isequal(clim(ancestor(imH2, 'axes')), [0 0.5 * max(vH2)]), ...
+        'Color limits typed as text naming the data ("0 50% OF MAX"): kept tidied ("0 50%max"), the preview''s scale from the unit''s rows');
     FE.psthDisplay.Value = "trace";
     FE.panelColormap.Value = "auto";
     FE.cLim.Value = '';
@@ -6464,7 +6477,7 @@ if S.sec("5v", "a figure on the probe: the Probe layout section's rows wired to 
     clear restore5v
 end
 
-if S.sec("5w", "label variables: the {x} button beside each label's text, its menu adding one as a named edit, filled in on the preview; the list and Help > Label variables")
+if S.sec("5w", "label variables: the {x} button beside each label's text, its menu adding one as a named edit, filled in on the preview; the list and Help > Label variables; the Export tab's {x} buttons and their tokens")
     noFigures();
     app.selectTab(app.TabFigures);
     app.FigureAutoSlider.Value = 1;
@@ -6530,6 +6543,99 @@ if S.sec("5w", "label variables: the {x} button beside each label's text, its me
         sprintf('the menu''s last item and Help > Label variables open one list (%d variables, their values now); a row clicked: "%s"', ...
         height(D5w), note5w));
     delete(w5w2);
+    % dataset variables: the menu's "Dataset variables", each with the active dataset's value; one picked prints it on the
+    % preview, and a new value is drawn again (figureViewKey holds the dataset's values)
+    key5w = char(app.Runner.Keys(app.ActiveIdx));
+    srcV5w = app.Runner.Sources(key5w);
+    keepV5w = srcV5w;
+    setV5w = struct('probeDepth', DatasetVariables.entry("Probe Depth", 1234, Units="um"));
+    srcV5w.variables = DatasetVariables.values(setV5w);
+    srcV5w.variableInfo = DatasetVariables.info(setV5w);
+    app.Runner.Sources(key5w) = srcV5w;
+    restoreV5w = onCleanup(@() setSource(app, key5w, keepV5w));
+    app.refreshFigurePreview(Force=true);   % its result takes the dataset's variables (figureCompute: F.variables)
+    FE.panelXLabel.Value = 'Depth';
+    app.onConfigChanged("figure", FE.panelXLabel);
+    bx.ButtonPushedFcn(bx, []);
+    cmV5w = getappdata(bx, 'LabelVariableMenu');
+    topsV5w = string(get(cmV5w.Children, 'Text'));
+    itemV5w = findobj(cmV5w, 'Tag', 'probeDepth');
+    textV5w = "";
+    if isscalar(itemV5w); textV5w = string(itemV5w.Text); end
+    pickLabelVariable(bx, "probeDepth");
+    axV5w = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    gotV5w = strjoin(string(axV5w.XLabel.String), " ");
+    srcV5w.variables.probeDepth = 1500;   % as the variable dialog's OK leaves it (onEditVariables), then autoFigurePreview
+    srcV5w.variableInfo.Value{1} = 1500;
+    app.Runner.Sources(key5w) = srcV5w;
+    app.autoFigurePreview();
+    axV5w = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    newV5w = strjoin(string(axV5w.XLabel.String), " ");
+    check(ismember("Dataset variables", topsV5w) && contains(textV5w, "{probeDepth}") && contains(textV5w, "Probe Depth (um)") ...
+        && contains(textV5w, "(now: 1234)") && string(FE.panelXLabel.Value) == "Depth {probeDepth}" ...
+        && gotV5w == "Depth 1234" && newV5w == "Depth 1500", ...
+        sprintf(['the {x} menu lists the dataset variables ("%s"); {probeDepth} picked prints the dataset''s value ' ...
+        '("%s"), and its new value once edited ("%s")'], textV5w, gotV5w, newV5w));
+    clear restoreV5w
+    % the Export tab: a {x} button beside the figure Folder and File names and the report's Title and Folder; its
+    % menu the pattern's tokens (figureFileTokens) with their values now, the one picked added as the pattern takes it
+    XC5w = app.ExportControls;
+    RC5w = app.ReportControls;
+    ex5w = {XC5w.varButton.Folder, XC5w.Folder; XC5w.varButton.FilenamePattern, XC5w.FilenamePattern; ...
+        RC5w.varButton.Title, RC5w.Title; RC5w.varButton.Folder, RC5w.Folder};
+    check(all(cellfun(@(b, f) isvalid(b) && string(b.Text) == "{x}" && isequal(b.UserData, f), ex5w(:, 1), ex5w(:, 2))), ...
+        'a {x} button beside the Export tab''s figure Folder and File names, and the report''s Title and Folder');
+    keep5w = {XC5w.Folder.Value, XC5w.FilenamePattern.Value, RC5w.Title.Value};
+    XC5w.FilenamePattern.Value = '{Name}';
+    app.onConfigChanged("export");
+    bf5w = XC5w.varButton.FilenamePattern;
+    bf5w.ButtonPushedFcn(bf5w, []);
+    cmF5w = getappdata(bf5w, 'LabelVariableMenu');
+    TO5w = app.FigureObservations;
+    i5w = app.FigureObservationDropDown.Value;
+    unit5w = figureOutputName("{Unit}", app.Runner.Names(app.ActiveIdx), app.Config.Figures(1), TO5w(i5w, :), i5w, height(TO5w));
+    plot5w = regexprep(app.Config.Figures(1).id, '[^\w\-\.]', '_');
+    tagsF5w = string(get(cmF5w.Children, 'Tag'));
+    itemU5w = findobj(cmF5w, 'Tag', 'Unit');
+    itemP5w = findobj(cmF5w, 'Tag', 'Plot');
+    check(isempty(setxor(tagsF5w, figureFileTokens("file").Name)) && isscalar(itemU5w) && isscalar(itemP5w) ...
+        && contains(string(itemU5w.Text), "(now: " + unit5w + ")") && contains(string(itemP5w.Text), "(now: " + plot5w + ")"), ...
+        sprintf('the File names'' {x} menu lists its tokens, no topics and no list item, with their values on the figure and observation picked (%s)', ...
+        strjoin(tagsF5w, ", ")));
+    pickLabelVariable(bf5w, "Plot");
+    check(string(XC5w.FilenamePattern.Value) == "{Name}_{Plot}" && app.Config.Export.FilenamePattern == "{Name}_{Plot}", ...
+        sprintf('a token picked is added to the file names after a _ ("%s")', string(XC5w.FilenamePattern.Value)));
+    XC5w.Folder.Value = char("{OutputRoot}" + filesep + "analysis");
+    app.onConfigChanged("export");
+    bd5w = XC5w.varButton.Folder;
+    bd5w.ButtonPushedFcn(bd5w, []);
+    itemO5w = string(get(findobj(getappdata(bd5w, 'LabelVariableMenu'), 'Tag', 'OutputFolder'), 'Text'));   % read now: the next press makes the menu again
+    folder5w = app.Runner.datasetFolder(app.ActiveIdx);
+    pickLabelVariable(bd5w, "OutputFolder");
+    bd5w.ButtonPushedFcn(bd5w, []);
+    pickLabelVariable(bd5w, "Name");
+    want5w = "{OutputFolder}" + filesep + "analysis" + filesep + "{Name}";
+    gotFolder5w = string(XC5w.Folder.Value);
+    XC5w.Folder.Value = char(fullfile(tempdir, "x5w"));
+    bd5w.ButtonPushedFcn(bd5w, []);
+    pickLabelVariable(bd5w, "OutputRoot");
+    check(isscalar(itemO5w) && contains(itemO5w, "(now: " + folder5w + ")") && gotFolder5w == want5w ...
+        && string(XC5w.Folder.Value) == "{OutputRoot}" && app.Config.Export.Folder == "{OutputRoot}", ...
+        sprintf(['the Folder''s {x}: {OutputFolder} (now: the active dataset''s) in place of {OutputRoot} at the start, ' ...
+        '{Name} a subfolder at the end ("%s"), a whole folder in place of a full path ("%s")'], gotFolder5w, string(XC5w.Folder.Value)));
+    RC5w.Title.Value = '{Name}';
+    app.onConfigChanged("export");
+    bt5w = RC5w.varButton.Title;
+    bt5w.ButtonPushedFcn(bt5w, []);
+    itemN5w = findobj(getappdata(bt5w, 'LabelVariableMenu'), 'Tag', 'Name');
+    pickLabelVariable(bt5w, "Date");
+    check(isscalar(itemN5w) && (app.Config.Name == "" || contains(string(itemN5w.Text), "(now: " + app.Config.Name + ")")) ...
+        && string(RC5w.Title.Value) == "{Name} {Date}" && app.Config.Report.Title == "{Name} {Date}", ...
+        sprintf('the report Title''s {x}: {Name} the config''s name, a token added after a space ("%s")', string(RC5w.Title.Value)));
+    XC5w.Folder.Value = keep5w{1};
+    XC5w.FilenamePattern.Value = keep5w{2};
+    RC5w.Title.Value = keep5w{3};
+    app.onConfigChanged("export");
     noFigures();
     clear restore5w
     app.Tabs.SelectedTab = app.TabData;
@@ -6596,6 +6702,12 @@ src = app.Runner.Sources(key);
 was = src.tags;
 src.tags = tags;
 app.Runner.Sources(key) = src;
+end
+
+
+function setSource(app, key, src)
+%setSource  Put SRC back as the loaded source KEY (a section that changed it in memory: its variables).
+if isvalid(app); app.Runner.Sources(key) = src; end
 end
 
 

@@ -26,6 +26,20 @@ function [T, V] = figureLabelVariables(spec, F, opts)
 %   Epochs, Unit, Observation, Channel, Shank, Depth) "<Name>" even with
 %   F: a report's heading for a figure drawn for many observations.
 %
+%   Dataset variables (DatasetVariables: values recorded on a dataset, such
+%   as probeDepth = 1200) are label variables too, named as themselves:
+%   {probeDepth} prints the figure's dataset's value ("1200"; a number as
+%   DatasetVariables.valueText writes it, without its units). One whose
+%   name is a variable's below (a dataset variable named Depth) is
+%   {var_Depth}. F holds them: F.variables (figureCompute's, a probe
+%   figure's) or, for a figure merged across sessions, the var_ columns of
+%   F.sessions, the values of the sessions merged joined ", " ("1200,
+%   1400"). A dataset without the variable leaves its name as typed, as a
+%   name not on the list. T lists them (Topic "Dataset variables", Meaning
+%   the label and units, Example the values in use) with Variables=SETS,
+%   a cell of the datasets' sets (DatasetVariables; outputVariables reads
+%   one from a manifest), and with F those F holds.
+%
 %   The variables
 %     Alignment    Line, Edge (the event the epochs are aligned to; with a
 %                  sequence, the step aligned to), Event (eventRefLabel:
@@ -48,17 +62,23 @@ function [T, V] = figureLabelVariables(spec, F, opts)
 %                  trialMeasureLabel of its first enabled trials layer's;
 %                  for the figure's own text, K = 0, its first trial
 %                  panel's; blank without one), Date (today, yyyy-MM-dd)
+%     Dataset variables  one per variable recorded on the datasets
+%                  (probeDepth, cohort, ...: see above)
 %
-%   See also figureFileName, renderFigure, eventRefLabel.
+%   See also figureFileName, renderFigure, eventRefLabel, DatasetVariables.
 
 arguments
     spec = []
     F = []
     opts.Panel (1,1) double {mustBeInteger, mustBeNonnegative} = 0
     opts.PerObservation (1,1) logical = true
+    opts.Variables = {}   % a cell of sets ([]: none)
 end
 
 T = listOf();
+builtIn = T.Name;
+dv = datasetValues(F);
+T = [T; datasetRows(opts.Variables, dv, builtIn)];
 if nargout < 2 && isempty(spec); return; end
 if ~isstruct(spec)
     error('figureLabelVariables:BadSpec', 'SPEC is a figure (EphysAnalysisConfig.figureFor), or [] for the list alone.');
@@ -67,9 +87,16 @@ V = valuesOf(spec, F, opts.Panel);
 if ~opts.PerObservation
     for n = ["Group" "Epochs" "Unit" "Observation" "Channel" "Shank" "Depth"]; V.(n) = "<" + n + ">"; end
 end
+for n = string(fieldnames(dv)).'
+    V.(datasetLabelName(n, builtIn)) = dv.(n);
+end
 T.Value = strings(height(T), 1);
 for i = 1:height(T)
-    T.Value(i) = V.(T.Name(i));
+    if isfield(V, T.Name(i))
+        T.Value(i) = V.(T.Name(i));
+    elseif ~isstruct(F)
+        T.Value(i) = "<" + T.Name(i) + ">";   % a dataset variable, not computed yet
+    end   % (a dataset variable the figure's dataset lacks: blank, and its name stays as typed)
 end
 end
 
@@ -105,6 +132,89 @@ rows = {
 T = cell2table(rows, 'VariableNames', {'Name', 'Topic', 'Meaning', 'Example'});
 for v = ["Name" "Topic" "Meaning" "Example"]
     T.(v) = string(T.(v));
+end
+end
+
+
+function R = datasetRows(sets, dv, builtIn)
+%datasetRows  The list's rows for the dataset variables: those of SETS (a cell of sets), then those DV holds (datasetValues: the figure's) that SETS lacks.
+%   Name is the label variable's (datasetLabelName), Topic "Dataset
+%   variables", Meaning the label with its units (and the description,
+%   cut short), Example the values in use (at most three).
+R = table('Size', [0 4], 'VariableTypes', repmat("string", 1, 4), 'VariableNames', ["Name" "Topic" "Meaning" "Example"]);
+topic = "Dataset variables";
+if ~iscell(sets); sets = {}; end
+sets = cellfun(@DatasetVariables.fromInfo, reshape(sets, 1, []), 'UniformOutput', false);
+voc = DatasetVariables.vocabulary(sets);
+listed = strings(1, 0);
+for i = 1:numel(voc)
+    n = string(voc(i).name);
+    inUse = strings(1, 0);
+    for k = 1:numel(sets)
+        if isfield(sets{k}, n); inUse(end+1) = DatasetVariables.valueText(sets{k}.(n).value); end %#ok<AGROW>
+    end
+    R(end+1, :) = {datasetLabelName(n, builtIn), topic, meaningOf(voc(i)), examplesOf(inUse)}; %#ok<AGROW>
+    listed(end+1) = n; %#ok<AGROW>
+end
+for n = setdiff(string(fieldnames(dv)).', listed, 'stable')
+    R(end+1, :) = {datasetLabelName(n, builtIn), topic, DatasetVariables.suggestLabel(n), dv.(n)}; %#ok<AGROW>
+end
+end
+
+
+function m = meaningOf(v)
+%meaningOf  A dataset variable's meaning: "Probe Depth (µm)", with its description after a colon (at most 60 characters).
+m = DatasetVariables.displayLabel(v.label, v.units);
+d = strtrim(string(v.description));
+if d == ""; return; end
+if strlength(d) > 60; d = strtrim(extractBefore(d, 58)) + "..."; end
+m = m + ": " + d;
+end
+
+
+function s = examplesOf(t)
+%examplesOf  The values in use as one text: the first three, then "...".
+s = "";
+if isempty(t); return; end
+t = unique(t, 'stable');
+s = strjoin(t(1:min(end, 3)), ", ");
+if numel(t) > 3; s = s + ", ..."; end
+end
+
+
+function n = datasetLabelName(n, builtIn)
+%datasetLabelName  The label variable a dataset variable is: its own name, or var_<name> when that is a built-in variable's (Depth).
+if ismember(n, builtIn); n = DatasetVariables.ColumnPrefix + n; end
+end
+
+
+function dv = datasetValues(F)
+%datasetValues  The dataset variables of a computed figure F as text, a field per variable (as the dataset names it); struct() for none or no F.
+%   F.variables (figureCompute's, a probe figure's: the dataset's values),
+%   or for a figure merged across sessions the var_ columns of F.sessions
+%   over the sessions merged (status "done"), their values joined ", ".
+dv = struct();
+if ~(isstruct(F) && isscalar(F)); return; end
+S = field(F, 'sessions');
+if istable(S)
+    keep = true(height(S), 1);
+    if ismember("status", string(S.Properties.VariableNames)); keep = string(S.status) == "done"; end
+    prefix = DatasetVariables.ColumnPrefix;
+    for c = string(S.Properties.VariableNames)
+        if ~startsWith(c, prefix); continue; end
+        x = S.(c)(keep);
+        x = x(~ismissing(x));
+        if isempty(x); continue; end
+        t = strings(1, numel(x));
+        for k = 1:numel(x); t(k) = DatasetVariables.valueText(x(k)); end
+        dv.(extractAfter(c, strlength(prefix))) = strjoin(unique(t, 'stable'), ", ");
+    end
+    return
+end
+v = field(F, 'variables');
+if ~(isstruct(v) && isscalar(v)); return; end
+for n = string(fieldnames(v)).'
+    dv.(n) = DatasetVariables.valueText(v.(n));
 end
 end
 

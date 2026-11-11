@@ -3,7 +3,9 @@ function h = renderHeatmap(R, target, opts)
 %   H = renderHeatmap(R, TARGET, Order=, Style=) draws a spikePSTH result
 %   (rows = units, rate) or an evokedPotential result (rows = channels, mean)
 %   as an image per group, on one color scale (Style.CLim, else the range
-%   of every tile) with Style.HeatColormap ("" = parula).
+%   of every tile) with Style.HeatColormap ("" = parula). Style.CLim is
+%   [lo hi] or text whose ends name the data ("0 max", "min 80%max":
+%   colorLimits).
 %
 %   Order
 %     "probe"    (default) as Style.SortShank / Style.SortDepth say: by shank,
@@ -87,13 +89,11 @@ if isfield(R, 'sessions') && istable(R.meta) && height(R.meta) == nR && ismember
     session = session(order);
 end
 labels = siteLabels(shortUnitLabels(R.labels), R.meta, style);
-clim0 = style.CLim;
-if ~(numel(clim0) == 2 && clim0(2) > clim0(1))
-    v = V(isfinite(V));
-    if isempty(v); clim0 = [0 1]; else; clim0 = [min(v) max(v)]; end
-    if clim0(2) <= clim0(1); clim0 = clim0 + [-0.5 0.5]; end
-    if auroc; clim0 = [0 1]; end
-end
+v = V(isfinite(V));
+if isempty(v); clim0 = [0 1]; else; clim0 = [min(v) max(v)]; end
+if clim0(2) <= clim0(1); clim0 = clim0 + [-0.5 0.5]; end
+if auroc; clim0 = [0 1]; end
+clim0 = colorLimits(style.CLim, v, clim0);   % fixed, or ends from the rows drawn ("0 max")
 if opts.Stack
     h = drawStacked(R, target, V, t, order, session, labels, clim0, auroc, style, opts);
     return

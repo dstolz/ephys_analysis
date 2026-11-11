@@ -2378,7 +2378,7 @@ it, validation says so.
   (`Analysis.Report`): the step writes these whatever the analysis config's
   own Export / Report **Enabled** says. Where they go, their formats and
   file names come from its Export and Report settings, for example
-  `{OutputFolder}\analysis\{Name}_{Plot}.png` and
+  `{OutputRoot}\analysis\{Name}_{Plot}.png` and
   `{OutputRoot}\analysis\analysis_report.html`. With both off, the plots are
   only drawn.
 - The targets table lists one row per dataset and enabled figure
@@ -3840,7 +3840,7 @@ preference: its settings live in its own file, which its Windows task reads.
 | `<outputFolder>/<Name>_artifacts.json` | Artifacts (cache) |
 | `<outputFolder>/<Name>_envelope_<what>.dat` (a `.partial` file while it is built) | Visualize, in the background, the first time it shows a signal: the min / max that wide views and the overview strip draw ([format](file-formats.md#signal-envelope-name_envelope_whatdat)) |
 | `<Name>_extract_<TYPE>.mat` (or `<Name>_extract.mat`), `<Name>_spikes.mat`, `<Name>.nwb` (+ `<Name>_nwbinspector.json`) | Signals, Spikes, Export |
-| the analysis config's figure files (by default `<outputFolder>/analysis/<Name>_<Plot>.png` / `.svg`), its report (by default `<output root, else project root>/analysis/analysis_report.html`) and `<report folder>/analysis_runs/<runId>_<name>.json` | Analysis (a dry run writes nothing) |
+| the analysis config's figure files (by default `<output root, else project root>/analysis/<Name>_<Plot>.png` / `.svg`), its report beside them (by default `<output root, else project root>/analysis/analysis_report.html`) and `<report folder>/analysis_runs/<runId>_<name>.json` | Analysis (a dry run writes nothing) |
 | `cluster_notes.tsv`, `quality_metrics.json`, `quality_report.html` in the sorted-output folder | a Review **Notes** edit; loading a sort on the Review tab (the metrics' cache); Review **QC report** |
 | probe `.json` in the probe folder | Import, Designer save, Notes edit |
 | `<probe>.ks4.json` next to a probe map | **Optimize for probe**, when it generates the file |

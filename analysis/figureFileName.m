@@ -18,11 +18,13 @@ function name = figureFileName(pattern, tokens, opts)
 %   of VALUES becomes its value as it is; any other brace (a name not on
 %   the list, TeX's x^{2}) is left as typed, and nothing is an error.
 %
+%   figureFileTokens lists the tokens of each kind, with what each means.
+%
 %   Errors: figureFileName:UnknownToken (a token this kind does not have),
 %   figureFileName:MissingToken (no value given), figureFileName:BadPattern
 %   (an unmatched brace, or a file name holding \ / : * ? " < > |).
 %
-%   See also exportFigure, EphysAnalysisConfig.validate, figureLabelVariables.
+%   See also figureFileTokens, exportFigure, EphysAnalysisConfig.validate, figureLabelVariables.
 
 arguments
     pattern (1,1) string
@@ -41,13 +43,9 @@ if opts.Kind == "label"
     end
     return
 end
-if opts.Kind == "file"
-    allowed = ["Name" "Plot" "Kind" "Group" "Unit" "Index" "Date"];
-    pathTokens = string.empty(1, 0);
-else
-    allowed = ["OutputFolder" "OutputRoot" "Root" "Name" "Date"];
-    pathTokens = ["OutputFolder" "OutputRoot" "Root"];
-end
+T = figureFileTokens(opts.Kind);   % the tokens this kind takes, and which are whole folders
+allowed = reshape(T.Name, 1, []);
+pathTokens = reshape(T.Name(T.Path), 1, []);
 if ~isfield(tokens, 'Date')
     tokens.Date = string(datetime('now', 'Format', 'yyyyMMdd'));
 end

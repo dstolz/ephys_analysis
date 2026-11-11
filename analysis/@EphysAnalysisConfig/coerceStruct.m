@@ -27,6 +27,8 @@ for f = string(fieldnames(in)).'
     elseif f == "sequence" || f == "overlays"
         [out.(f), u] = coerceList(f, v, path + "." + f);
         unknown = [unknown, u]; %#ok<AGROW>
+    elseif f == "cLim" || f == "CLim"
+        out.(f) = coerceColorLimits(v);
     elseif isstruct(d)
         [out.(f), u] = EphysAnalysisConfig.coerceStruct(d, v, path + "." + f);
         unknown = [unknown, u]; %#ok<AGROW>
@@ -77,6 +79,19 @@ for k = 1:numel(v)
     [out(1, k), u] = EphysAnalysisConfig.coerceStruct(def, v{k}, path + "(" + k + ")"); %#ok<AGROW>
     unknown = [unknown, u]; %#ok<AGROW>
 end
+end
+
+
+function v = coerceColorLimits(v)
+%coerceColorLimits  A panel's cLim or a Style's CLim: [], [lo hi], or text whose ends name the data ("0 max": colorLimits).
+%   Numbers (or text of two numbers) become a 1 x n double, text naming
+%   the data its tidy string; text colorLimits does not take is kept as
+%   one string, for validate to report.
+if isnumeric(v) || islogical(v)
+    if ~isempty(v); v = reshape(double(v), 1, []); end
+    return
+end
+v = colorLimits(v);
 end
 
 

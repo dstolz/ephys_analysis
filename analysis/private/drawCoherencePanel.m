@@ -33,7 +33,8 @@ function hk = drawCoherencePanel(ax, P, look)
 %   stays overlaid. HK.yExtent: a stack's reach, for a run's batch range.
 %   A coherogram (R.kind "chronuxCohgram", options.overTime; of signals or spike trains) is an image
 %   of the first pair's coherence over time and frequency for the trial
-%   group options.group, 0 to 1 (options.cLim) in the heat colormap, with
+%   group options.group, 0 to 1 (options.cLim: fixed, or ends from the
+%   coherence drawn, colorLimits) in the heat colormap, with
 %   a color bar ("Coherence") and the event's line; on the epochs it
 %   shares the figure's time axis (renderFigure), on the range time base
 %   its x is the recording's time. With options.stack "groups" every group
@@ -240,19 +241,19 @@ if stacked
         hk.legendLabels(end+1) = string(R.groups.label(q));
         hk.legendGroup(end+1) = true;
     end
+    drawn = Z;
 else
     x = R.C(:, :, 1, g).';
     fY = f;
     if logF; [fY, x, fRow] = logFrequencyRows(f, x); end
+    drawn = x;
     hIm = tagPart(imagesc(ax, R.t, fY, x, 'AlphaData', double(isfinite(x))), "image", name);
     if logF; setappdata(hIm, 'RowLabels', compose("%.3g Hz", fRow)); end   % (the data tips: a row's frequency)
 end
 tagPart(ax, "axes", "", look.panelId);   % after imagesc
 set(ax, 'YDir', 'normal', 'Layer', 'top');
 colormap(ax, designColormap(style, "heat", "parula"));
-cl = o.cLim;
-if ~(numel(cl) == 2 && cl(2) > cl(1)); cl = [0 1]; end
-clim(ax, cl);
+clim(ax, colorLimits(o.cLim, drawn, [0 1]));   % fixed, or ends from the coherence drawn ("0 max")
 if R.aligned && style.ShowZeroLine
     hold(ax, 'on');
     tagPart(xline(ax, 0, ':', 'Color', [0.2 0.2 0.2], 'LineWidth', 1, 'HandleVisibility', 'off'), "zeroLine");

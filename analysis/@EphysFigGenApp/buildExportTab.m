@@ -7,6 +7,11 @@ function buildExportTab(obj)
 %   tab, and the dataset's figures, as an HTML report in a temporary folder.
 %   Workers (beside Cancel; preference ReportWorkers) is how many process
 %   workers a run draws and writes its pages on (EphysAnalysisRunner.Workers).
+%   The figure Folder and File names, and the report's Title and Folder,
+%   each have a "{x}" button at their right (labelVariableButton; in
+%   ExportControls.varButton and ReportControls.varButton by field name):
+%   a menu of the pattern's tokens (figureFileTokens), each with its value
+%   now, the one picked added as the pattern takes it (addToken).
 g = uigridlayout(obj.TabExport, [1 2]);
 g.ColumnWidth = {470, '1x'};
 g.Padding = [8 8 8 8];
@@ -52,8 +57,11 @@ X.Width = uieditfield(xg, "numeric", "Limits", [2 200], "Value", 18, "ValueChang
 place(X.Width, 6, 2);
 X.Height = uieditfield(xg, "numeric", "Limits", [2 200], "Value", 12, "ValueChangedFcn", changed, "Tooltip", "Figure height.");
 place(X.Height, 6, 3);
-tok = uilabel(xg, "Text", "e.g. {OutputFolder}\analysis  and  {Name}_{Plot}", "FontColor", [0.35 0.35 0.35]);
+tok = uilabel(xg, "Text", "e.g. {OutputRoot}\analysis  and  {Name}_{Plot}", "FontColor", [0.35 0.35 0.35]);
 place(tok, 7, [1 4]);
+X.varButton = struct();
+X.varButton.Folder = tokenButton(obj, X.Folder, "folder");
+X.varButton.FilenamePattern = tokenButton(obj, X.FilenamePattern, "file");
 obj.ExportControls = X;
 
 % --- Report -------------------------------------------------------------------
@@ -112,6 +120,9 @@ P.PageSize = uidropdown(pg, "Items", ["Letter" "A4"], "ItemsData", ["letter" "a4
 P.PageOrientation = uidropdown(pg, "Items", ["Best fit" "Portrait" "Landscape"], ...
     "ItemsData", ["auto" "portrait" "landscape"], "ValueChangedFcn", changed, ...
     "Tooltip", "Best fit: portrait or landscape, whichever draws a sheet's pages larger.");
+P.varButton = struct();
+P.varButton.Title = tokenButton(obj, P.Title, "title");
+P.varButton.Folder = tokenButton(obj, P.Folder, "folder");
 obj.ReportControls = P;
 
 % --- run ------------------------------------------------------------------------
@@ -166,6 +177,127 @@ place(og, 6, [1 6]);
 obj.OpenReportButton = uibutton(og, "Text", "Open report", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenReport());
 obj.OpenFolderButton = uibutton(og, "Text", "Open figure folder", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenExportFolder(), ...
     "Tooltip", "The first dataset's figure folder of the last run. The session figures' files go to the sessions folder (Export.SessionsFolder).");
+end
+
+
+function b = tokenButton(obj, field, kind)
+%tokenButton  The "{x}" button at the right of FIELD, a KIND pattern ("file", "folder", "title"): its tokens' menu.
+switch kind
+    case "file"
+        tip = "Add a token, such as {Plot} or {Unit}, to the file names: each file written fills it in " + ...
+            "({Name}_{Plot} gives <dataset>_<figure id>). Each one is added after a _. The menu says what each " + ...
+            "one is and its value now: the active dataset, and the figure and observation picked on the Figures tab.";
+    case "folder"
+        tip = "Add a token to the folder: each dataset's run fills it in. {OutputFolder}, {OutputRoot} and {Root} " + ...
+            "are whole folders: one goes at the start, in place of the one there (or of a full path). {Name} and " + ...
+            "{Date} are added as a subfolder at the end. The menu says what each one is and its value now, for the active dataset.";
+    otherwise
+        tip = "Add a token to the title: {Name} is the config's name, {Date} today's date.";
+end
+b = labelVariableButton(field, Values=@() tokenValues(obj, kind), Insert=@(t, name) addToken(t, name, kind), Tooltip=tip);
+end
+
+
+function T = tokenValues(obj, kind)
+%tokenValues  The tokens of a KIND pattern (figureFileTokens) with their values now (blank where unknown).
+%   A folder's: the active dataset's. A file name's: as a run fills them for
+%   the figure in the Figures tab's editor and the observation picked over
+%   its preview. The title's: the config's name and today.
+T = figureFileTokens(kind);
+T.Value = strings(height(T), 1);
+V = struct();
+try
+    r = obj.Runner;
+    k = obj.ActiveIdx;
+    known = ~isempty(r) && k >= 1 && k <= numel(r.Names);
+    switch kind
+        case "title"
+            V.Name = obj.Config.Name;
+            V.Date = string(datetime('now', 'Format', 'yyyy-MM-dd'));
+        case "folder"
+            V.Root = obj.Config.Source.Root;
+            V.Date = string(datetime('now', 'Format', 'yyyyMMdd'));
+            if ~isempty(r); V.OutputRoot = r.outputRoot(); end
+            if known
+                V.OutputFolder = r.datasetFolder(k);
+                V.Name = figureFileName("{Name}", struct('Name', r.Names(k)), Kind="folder");   % as a run fills it
+            end
+        case "file"
+            if known; V = fileTokenValues(obj, T.Name); end
+    end
+catch
+end
+for i = 1:height(T)
+    if isfield(V, T.Name(i)); T.Value(i) = string(V.(T.Name(i))); end
+end
+end
+
+
+function V = fileTokenValues(obj, names)
+%fileTokenValues  The file-name tokens NAMES as a run fills them for the figure in the editor and the observation picked.
+%   The names a run would write (figureOutputName; a session figure's:
+%   EphysAnalysisRunner.sessionOutputName, as onExportPreview names them)
+%   for a pattern of every token joined by spaces, then split: a filled
+%   token holds no space. A struct, empty when there is no figure or
+%   observation (or a session figure not previewed).
+V = struct();
+cfg = obj.Config;
+k = obj.SelectedFigure;
+T = obj.FigureObservations;
+if isempty(cfg) || k < 1 || k > numel(cfg.Figures) || ~istable(T) || height(T) < 1; return; end
+i = obj.FigureObservationDropDown.Value;
+if ~(isnumeric(i) && isscalar(i) && i >= 1 && i <= height(T)); return; end
+pattern = strjoin("{" + reshape(names, 1, []) + "}", " ");
+spec = cfg.Figures(k);
+if spec.sessions.enabled
+    K = obj.FigureSessionResults;
+    if ~(isstruct(K) && isfield(K, 'res') && isfield(K, 'label')); return; end
+    e = K.res(find(string({K.res.label}) == K.label, 1));
+    if isempty(e); return; end
+    f = EphysAnalysisRunner.sessionOutputName(pattern, K.spec, T(i, :), e.facet, e.group, i, height(T));
+else
+    f = figureOutputName(pattern, obj.Runner.Names(obj.ActiveIdx), spec, T(i, :), i, height(T));
+end
+v = split(f, " ");
+if numel(v) ~= numel(names); return; end
+for j = 1:numel(names)
+    V.(names(j)) = v(j);
+end
+end
+
+
+function t = addToken(t, name, kind)
+%addToken  The text T with the token NAME ("{Plot}") added as a KIND pattern takes it.
+%   A file name's: at the end, after a "_". A folder's: {Name} and {Date}
+%   at the end as a subfolder; a whole folder ({OutputFolder}, {OutputRoot},
+%   {Root}: figureFileTokens' Path) at the start, in place of the one there,
+%   or of a full path ("D:\out"), else before the text. A title's: at the
+%   end, after a space.
+t = strtrim(t);
+switch kind
+    case "file"
+        if t ~= "" && ~endsWith(t, ["_" "-" "."]); t = t + "_"; end
+        t = t + name;
+    case "folder"
+        T = figureFileTokens("folder");
+        roots = "{" + T.Name(T.Path) + "}";
+        if ismember(name, roots)
+            lead = roots(arrayfun(@(x) startsWith(t, x), roots));
+            if ~isempty(lead)
+                t = name + extractAfter(t, strlength(lead(1)));
+            elseif t == "" || ~isempty(regexp(t, '^([A-Za-z]:|[\\/])', 'once'))   % nothing, or a full path: the token is the folder
+                t = name;
+            else
+                t = name + filesep + t;
+            end
+        else
+            if t ~= "" && ~endsWith(t, ["\" "/"]); t = t + filesep; end
+            t = t + name;
+        end
+    otherwise
+        if t ~= "" && ~endsWith(t, " "); t = t + " "; end
+        t = t + name;
+end
 end
 
 

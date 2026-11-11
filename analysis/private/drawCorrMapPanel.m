@@ -27,8 +27,7 @@ R = P.layers(j).R;
 st = style;
 st.XLim = [];
 st.YLim = [];
-st.CLim = [];
-if numel(o.cLim) == 2 && o.cLim(2) > o.cLim(1); st.CLim = o.cLim; end
+st.CLim = o.cLim;   % renderCorrMap resolves it (colorLimits) on the pairs it draws
 h = renderCorrMap(figSliceGroup(R, o.group), ax, Style=st);
 hk.axes = h.axes(1);
 tagPart(hk.axes, "axes", "", look.panelId);

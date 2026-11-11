@@ -279,7 +279,9 @@ if ~yUsed
     addNote(sprintf("YLim %s is not used: no panel of this figure takes y limits from the plot.", mat2str(yLim)));
 end
 if ~cUsed
-    addNote(sprintf("CLim %s is not used: no panel of this figure takes color limits.", mat2str(cLim)));
+    cText = """" + string(cLim) + """";   % text whose ends name the data ("0 max": colorLimits)
+    if isnumeric(cLim); cText = mat2str(cLim); end
+    addNote(sprintf("CLim %s is not used: no panel of this figure takes color limits.", cText));
 end
 % the text note and the overlays: onto the panels they border or are drawn on
 nP = numel(P);

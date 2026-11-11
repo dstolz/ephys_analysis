@@ -13,7 +13,8 @@ function test_EphysAnalysisConfig()
 %   version 3, no version), a version-1 file migrated on load (its plots
 %   and session plots as figures of the same ids, the converter's notes as
 %   LoadWarnings, saved as version 2; test_ConfigMigration checks the
-%   conversion itself) and figureFileName.
+%   conversion itself), figureFileName and figureFileTokens (the tokens
+%   it takes, by kind).
 %
 %   Usage:  test_EphysAnalysisConfig
 
@@ -434,6 +435,16 @@ check(strcmp(errorId(@() figureFileName("{Name}_{Bogus}", struct('Name', "a"))),
     && strcmp(errorId(@() figureFileName("{Name}_{Plot}", struct('Name', "a"))), 'figureFileName:MissingToken') ...
     && strcmp(errorId(@() figureFileName("{Name", struct('Name', "a"))), 'figureFileName:BadPattern'), ...
     'unknown and missing tokens, unmatched braces');
+Tf = figureFileTokens("file");
+Td = figureFileTokens("folder");
+Tt = figureFileTokens("title");
+fillTok = @(n, v, kind) figureFileName("{" + n + "}", struct(char(n), v), Kind=kind);
+check(isequal(reshape(Tf.Name, 1, []), ["Name" "Plot" "Kind" "Group" "Unit" "Index" "Date"]) && ~any(Tf.Path) ...
+    && isequal(reshape(Td.Name(Td.Path), 1, []), ["OutputFolder" "OutputRoot" "Root"]) && isequal(reshape(Tt.Name, 1, []), ["Name" "Date"]) ...
+    && all(arrayfun(@(n) fillTok(n, "a b", "file") == "a_b", Tf.Name)) ...
+    && all(arrayfun(@(n) fillTok(n, "D:\a b", "folder") == "D:\a b", Td.Name(Td.Path))) ...
+    && all(arrayfun(@(n) fillTok(n, "a b", "folder") == "a_b", Td.Name(~Td.Path))) && all([Tf.Meaning; Td.Meaning; Tt.Meaning] ~= ""), ...
+    'figureFileTokens lists the tokens figureFileName takes, each kind''s; a folder''s whole folders are used as they are');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

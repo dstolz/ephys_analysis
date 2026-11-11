@@ -11,7 +11,8 @@ function hk = drawSpectrogramPanel(ax, P, look)
 %   "db" or "log") or as is ("linear") in the design's heat colormap; a
 %   baseline-normalized one (baseline Mode db, percent, zscore: signed;
 %   ratio as log2) in its units on the diverging colormap centered on no
-%   change. Color limits options.cLim, else the 1st to 99th percentile
+%   change. Color limits options.cLim (fixed, or ends from the bins
+%   drawn: colorLimits), else the 1st to 99th percentile
 %   (chronuxAutoLimits; symmetric when signed). Style.ShowZeroLine draws
 %   the event's line; a color bar (role "colorbar") names the units,
 %   inside the axes at their right edge when another time panel shares the
@@ -100,12 +101,8 @@ end
 tagPart(ax, "axes", "", look.panelId);   % after imagesc, which resets a replaced axes' properties
 set(ax, 'YDir', 'normal', 'Layer', 'top');
 colormap(ax, cmap);
-cl = o.cLim;
-if ~(numel(cl) == 2 && cl(2) > cl(1))
-    v = Zc(isfinite(Zc));
-    cl = chronuxAutoLimits(v, signed);
-end
-clim(ax, cl);
+v = Zc(isfinite(Zc));
+clim(ax, colorLimits(o.cLim, v, chronuxAutoLimits(v, signed)));
 if style.ShowZeroLine
     hold(ax, 'on');
     tagPart(xline(ax, 0, ':', 'Color', [0.2 0.2 0.2], 'LineWidth', 1, 'HandleVisibility', 'off'), "zeroLine");

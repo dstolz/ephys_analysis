@@ -1148,6 +1148,13 @@ result (see [Chronux analyses](#chronux-analyses)):
 | `renderCorrMap` | a `unitCorrelation` result: a square units × units matrix per group on `[-1 1]` (`CLim` overrides) in `blueWhiteRed` (`HeatColormap` overrides), titled with the epochs used and the mean r (a `FisherZ` result draws z, on a scale symmetric about 0); units in the style's sort order and labels (`SortShank`, `SortDepth`, `LabelShank`, `LabelDepth`). `blueWhiteRed(n)` is that diverging color map, for any axes: `colormap(gca, blueWhiteRed(256))` |
 | `renderWaveforms` | the units' waveforms (`unitWaveforms`) as the [waveform settings](EphysAnalysisConfig.md#waveforms-panels) say: `Layout="grid"`, a tile per unit (`MaxTiles` per page, `Page=`), or `"probe"`, each unit's glyph at its place on the probe |
 
+`renderHeatmap`, `renderProbeMap` and `renderCorrMap` take `Style.CLim` as
+`[lo hi]` or as text whose ends follow the data drawn: `min`, `max`, a
+percentage of either, or a number (`Style=struct('CLim', "0 max")`,
+`"min 80%max"`, `"-max max"`; [Color limits](EphysAnalysisConfig.md#color-limits)).
+`colorLimits(spec, values, auto)` resolves such a spec for any image of your
+own: `clim(ax, colorLimits("0 90%max", M, [0 1]))`.
+
 `figureCaption(spec, T, Dataset=, Auroc=)` makes the one-sentence caption the
 reports print under a figure, e.g. *unit_card: 12 observations (sorted units:
 su, mua) of RAT1_260918; panels: raster, PSTH; aligned to Stim onset; window
@@ -1652,6 +1659,12 @@ which depth or cohort it came from.
   summary table (a row per variable: *Probe Depth (um)*) and the per-trial data
   table of a trial panel (`TrialDataExport`) have them. A report also prints
   the variables beside the tags on each dataset's heading.
+- **In a figure's labels** a variable's name in braces prints its value: a
+  title or axis label `"Depth {probeDepth} µm"` draws *Depth 1200 µm*
+  (`renderFigure` fills it from `F.variables`; a figure across sessions
+  prints the merged sessions' values, *1200, 1400*). A dataset without the
+  variable leaves the name as typed. See [label
+  variables](EphysAnalysisConfig.md#label-variables).
 - **Without loading a source**: `vars = outputVariables(out)` reads a
   `DatasetOutputs`' manifest and gives the set (a struct with a field per
   variable, each with `label`, `value`, `units`, ...; `struct()` when none),
@@ -1718,6 +1731,11 @@ close(fig)
 - `figureFileName(pattern, tokens)` fills `{Name} {Plot} {Kind} {Group}
   {Unit} {Index} {Date}` (values sanitized to `[A-Za-z0-9_.-]`);
   `Kind="folder"` fills `{OutputFolder} {OutputRoot} {Root} {Name} {Date}`.
+  `figureFileTokens(kind)` lists the tokens of a `"file"` or `"folder"`
+  pattern, or of the report's `"title"`: a table of `Name`, `Meaning`,
+  `Example` and `Path` (true for `{OutputFolder}`, `{OutputRoot}` and
+  `{Root}`, whole folders used as they are). `figureFileName` takes these
+  tokens and no others.
   `figureOutputName(pattern, name, spec, obs, i, n)` fills the file pattern for
   observation `i` of `n` of a [figure](#figures) (`{Plot}` its id, `{Kind}`
   `figure`, `{Unit}` the observation's short label, `{Index}` its number), and

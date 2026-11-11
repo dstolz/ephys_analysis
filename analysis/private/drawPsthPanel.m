@@ -390,8 +390,9 @@ function yName = drawHeat(ax, d, layerName, look, o, style, cnt)
 %drawHeat  One item's PSTH as an image: a row per trial group, the first on top, colored on that item's own range.
 %   D is the item (drawPsthPanel's D(1): its rates after measure, smoothing,
 %   baseline and normalize, d.m [nBins x nGroups]). The color limits are
-%   options.cLim, else the range of this item's rows (an auROC: 0 to 1),
-%   never another unit's; the colormap is heatColormap's. The rows are
+%   options.cLim (colorLimits: its min and max are this item's rows'),
+%   else the range of this item's rows (an auROC: 0 to 1), never another
+%   unit's; the colormap is heatColormap's. The rows are
 %   labeled with the groups' values on the y axis (rowLabels; YNAME: their
 %   parameters); a color bar in the rows' unit (d.units) is the scale, kept
 %   inside the axes when the panel shares a column with other time panels
@@ -412,8 +413,7 @@ v = M(isfinite(M));
 cl = [0 1];
 if ~isempty(v) && ~auroc; cl = [min(v) max(v)]; end
 if cl(2) <= cl(1); cl = cl + [-0.5 0.5]; end
-if numel(o.cLim) == 2 && o.cLim(2) > o.cLim(1); cl = o.cLim; end
-clim(ax, cl);
+clim(ax, colorLimits(o.cLim, v, cl));
 hold(ax, 'on');
 if style.ShowZeroLine; tagPart(xline(ax, 0, '--', 'Color', [1 1 1], 'LineWidth', 1, 'HandleVisibility', 'off'), "zeroLine"); end
 if style.ShowStop && isfield(R, 'stopMean')

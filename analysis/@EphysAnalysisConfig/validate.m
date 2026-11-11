@@ -108,7 +108,9 @@ function issues = validate(obj, opts)
 %               settings (a raster's, PSTH's, rate's or tuning panel's
 %               inset, a waveforms panel's own: mode; while drawn its
 %               location, width and height, maxSpikes, time span, and
-%               ampLim with the fixed amplitude scale), y / color limits, the stack (stackModes:
+%               ampLim with the fixed amplitude scale), y / color limits
+%               (color: also text whose ends name the data, "0 max":
+%               colorLimits), the stack (stackModes:
 %               off, groups, a continuous panel's items; a warning on a
 %               heat map of trials, which does not use it) and a
 %               positive stackSpacing on every type that stacks, the
@@ -166,7 +168,8 @@ function issues = validate(obj, opts)
 %               warning for a name in braces in the figure's title, a
 %               panel's title, xLabel, yLabel or note text or a layer's
 %               name that is no label variable (figureLabelVariables;
-%               it is drawn as typed), saying the variable it likely
+%               it is drawn as typed) nor, with DatasetVariables=, a
+%               variable of the datasets, saying the variable it likely
 %               meant (one differing only in case; in a TeX note only
 %               such a one is reported); the
 %               style; sessions
@@ -211,13 +214,22 @@ function issues = validate(obj, opts)
 %               landscape; Dpi; FileName; the folder pattern
 %
 %   Options: CheckPaths (default true) also checks that folders exist.
+%   DatasetVariables (a cell of the datasets' variable sets, DatasetVariables;
+%   default: not known) makes their names label variables too
+%   ({probeDepth}), so only a name that is neither warns. Without it a
+%   name that is no label variable warns that it is drawn as typed unless
+%   it names a dataset variable.
 %
 %   See also EphysAnalysisConfig, EphysAnalysisRunner.plan, figureFileName.
 
 arguments
     obj (1,1) EphysAnalysisConfig
     opts.CheckPaths (1,1) logical = true
+    opts.DatasetVariables = []
 end
+knowsDatasets = iscell(opts.DatasetVariables);   % the datasets' variables given: a name that is none of them is reported as such
+labelNames = figureLabelVariables().Name;
+if knowsDatasets; labelNames = figureLabelVariables(Variables=opts.DatasetVariables).Name; end
 
 Section = strings(0, 1); Field = strings(0, 1); Severity = strings(0, 1); Message = strings(0, 1);
     function add(sec, field, sev, msg)
@@ -1188,7 +1200,12 @@ issues = table(Section, Field, Severity, Message);
     end
 
     function checkFigLim(hLim, hField, hWhat)
-        %checkFigLim  A panel's y or color limits: [] (automatic) or an ascending pair.
+        %checkFigLim  A panel's y or color limits: [] (automatic) or an ascending pair; color limits also text naming the data ("0 max": colorLimits).
+        if hWhat == "color"
+            [~, hMsg] = colorLimits(hLim);
+            if hMsg ~= ""; add("Figures", hField, "error", hMsg); end
+            return
+        end
         if ~(isempty(hLim) || (numel(hLim) == 2 && all(isfinite(hLim)) && hLim(2) > hLim(1)))
             add("Figures", hField, "error", "The " + hWhat + " limits are [] (automatic) or [lo hi] with lo < hi.");
         end
@@ -1575,12 +1592,16 @@ issues = table(Section, Field, Severity, Message);
         if ~contains(hTxt, "{"); return; end
         hFound = regexp(hTxt, '\{(\w+)\}', 'tokens');
         if isempty(hFound); return; end
-        hNames = figureLabelVariables().Name;
+        hNames = labelNames;
         for hName = reshape(unique(string(cellfun(@(c) c{1}, hFound, 'UniformOutput', false)), 'stable'), 1, [])
             if ismember(hName, hNames); continue; end
             hMeant = hNames(lower(hNames) == lower(hName));
             if hTex && isempty(hMeant); continue; end
-            hMsg = "{" + hName + "} is no label variable, so it is drawn as typed";
+            if knowsDatasets
+                hMsg = "{" + hName + "} is no label variable nor a variable of the datasets, so it is drawn as typed";
+            else
+                hMsg = "{" + hName + "} is no label variable, so it is drawn as typed unless it names a dataset variable";
+            end
             if ~isempty(hMeant)
                 hMsg = hMsg + ": did you mean {" + hMeant(1) + "}? (Names are case-sensitive.)";
             else

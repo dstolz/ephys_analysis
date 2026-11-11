@@ -1716,8 +1716,9 @@ E.panelColormap = uidropdown(Sx.Body, "Editable", "on", "Items", ["auto" "parula
     "the design's heat colormap (an auROC: its diverging one); or the name of a colormap function.");
 place(E.panelColormap, r, 2);
 [Sx, r] = formRow(Sx, "cLim", "Color limits:");
-E.cLim = uieditfield(Sx.Body, "text", "Placeholder", "automatic, or lo hi", "ValueChangedFcn", changed, ...
-    "Tooltip", "This panel's color scale: two ascending values. Blank: automatic.");
+E.cLim = uieditfield(Sx.Body, "text", "Placeholder", "automatic, or lo hi (0 max)", "ValueChangedFcn", changed, ...
+    "Tooltip", "This panel's color scale: low then high. Each end is a number, or min or max (the smallest or " + ...
+    "largest value drawn), or a percentage of either: 0 max, min 0.5, min 80%max, -max max. Blank: automatic.");
 place(E.cLim, r, 2);
 sec(end+1) = Sx;
 

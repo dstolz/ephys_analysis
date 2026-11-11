@@ -1116,6 +1116,15 @@ scale), *Shared by batch* (every observation of a **Generate selected figure** o
 preview draws its own range, and its status line says so) or *Fixed* (the two
 values typed: `yLimMode`, `yLim`; [Y limits](EphysAnalysisConfig.md#y-limits)).
 
+**Color limits** (every panel drawn as an image or colored map) sets the color
+scale: blank is automatic, else two ends, low then high. Each end is a number,
+`min` or `max` (the smallest or largest value the panel draws), or a
+percentage of either: `0 max`, `min 0.5`, `min 80%max` (the top fifth
+saturates), `-max max` (symmetric about 0). The ends follow the data, so every
+unit or channel of a run fills its own scale from the same rule. Ends that come
+out in the wrong order (`min 0` on data all above 0) draw the automatic scale
+([Color limits](EphysAnalysisConfig.md#color-limits)).
+
 **Stack** draws a panel's trial groups in rows of their own instead of
 overlaid, the first on top (as a raster lists them): a PSTH's, a continuous
 panel's (or its channels: *One row per channel*), a heat map's, a tuning
@@ -1156,7 +1165,7 @@ per trial group, the first on top, labeled with the groups' values, each bin
 colored by its rate (after measure, smoothing, baseline and normalize). The
 colors span that unit's rows only, not the other units', so each unit's
 preview fills the scale; **Color limits** fixes the scale (an auROC is on 0
-to 1) and **Colormap** picks the colors (*auto*: **Heat colors** in
+to 1) or sets it from the unit's rows (`0 max`, `min 80%max`) and **Colormap** picks the colors (*auto*: **Heat colors** in
 Style, else the design's; or a colormap function's name). A color bar
 in the measure's unit is the legend. With several units or layers the first
 is drawn and the others are noted on the panel. Switch back to *trace* to
@@ -1917,28 +1926,42 @@ legend) and the **Text note**, and in the right-click **Edit label text...**.
 | `{Figure}`, `{Panel}` | the figure's and the panel's id |
 | `{Bin}`, `{Smooth}` | the panel's bin width and smoothing, ms (blank for a type without bins) |
 | `{Date}` | today, *2026-11-04* |
+| `{probeDepth}`, `{cohort}`, ... | a [dataset variable](#data-tab): the value recorded on the figure's dataset, *1200* (without its units: type them after it, **Depth {probeDepth} µm**) |
+
+**Dataset variables.** Every variable recorded on the scanned datasets (the
+Data tab's **Variables** column) is a label variable too, named as the
+variable is: **{probeDepth}** prints the dataset's value. A figure across
+sessions prints the values of the sessions it merges, *1200, 1400*. A
+dataset without the variable leaves **{probeDepth}** as typed, so the gap
+shows. A variable named as one of the variables above (one named *Depth*) is
+**{var_Depth}**. Edit a value (**Variables...**) and the preview prints the
+new one.
 
 Each panel's texts take its own values: a panel with an event, window or trial
 selection of its own names its own `{Line}` or `{Response}`; the figure's title
 takes the figure's. Names are case-sensitive, and a name not on the list is
 drawn as typed, so TeX braces in a note (`x^{2}`, `f{word}`) are safe; in a TeX
 note the values are escaped (an `_` stays an underscore). The Export tab's
-**Validate** warns of a name that is no variable (*{line} ... did you mean
-{Line}?*; a double-click on the issue goes to the field). A title that names `{Unit}` or `{Observation}` keeps the top-left
+**Validate** warns of a name that is no variable nor a variable of the scanned
+datasets (*{line} ... did you mean {Line}?*; a double-click on the issue goes
+to the field). A title that names `{Unit}` or `{Observation}` keeps the top-left
 panel from naming the observation again, and one that names `{Group}` gets no
 *· group* after it. In the report, where one heading serves every page of a
 figure, the observation's variables stay as *&lt;Unit&gt;*.
 
 **Finding them.** A **{x}** button sits at the right of each of these fields.
 It opens a menu of the variables by topic (Alignment, Trials, Observation,
-Data, Figure), each item saying what it means and its value on the figure
-previewed now (*{Line} ... (now: Stim)*), at the selected panel. An item picked
+Data, Figure, and Dataset variables: those in use on the scanned datasets,
+each with its label and units), each item saying what it means and its value
+on the figure previewed now (*{Line} ... (now: Stim)*, *{probeDepth} Probe
+Depth (µm) (now: 1200)*), at the selected panel. An item picked
 is added at the end of the text (the note's: of its last line), one step of the
 undo history. The menu's last item, **What each one means, with its value
 now...**, and **Help → Label variables** open the full list in a window: each
 variable, what it means, an example and its value now; a click on a row copies
-the variable to the clipboard. The list is `figureLabelVariables`; the
-renderers fill the texts in with `figureLabelFill`.
+the variable to the clipboard. The list is `figureLabelVariables` (with
+`Variables=`, the datasets' variables: `datasetVariableSets`); the renderers
+fill the texts in with `figureLabelFill`.
 
 <a name="special-characters"></a>
 
@@ -2218,8 +2241,8 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | --- | --- | --- |
 | **Write figure files** | export each [figure's](#figures-tab) observations (`Enabled`) | on |
 | **Formats** | any of `png`, `eps`, `svg`, `pdf` | png, svg |
-| **Folder**, **Browse...** | a folder pattern with `{OutputFolder}` (each dataset's output folder), `{OutputRoot}`, `{Root}`, `{Name}`, `{Date}` | `{OutputFolder}\analysis` |
-| **File names** | a file-name pattern with `{Name}` `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`. A figure writes a file set per observation ([Exported figure names](file-formats.md#exported-figure-names)): `{Plot}` is its id, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`), `{Index}` its number, and `_<Unit>` is added when the pattern names neither ([Figures in an export](EphysAnalysisConfig.md#figures-in-an-export)) | `{Name}_{Plot}` |
+| **Folder**, **{x}**, **Browse...** | a folder pattern with `{OutputFolder}` (each dataset's output folder), `{OutputRoot}`, `{Root}`, `{Name}`, `{Date}`. The default is the report's folder, so the figure files and the report are together. **{x}** adds a token ([below](#tokens-from-the-x-button)) | `{OutputRoot}\analysis` |
+| **File names**, **{x}** | a file-name pattern with `{Name}` `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`. A figure writes a file set per observation ([Exported figure names](file-formats.md#exported-figure-names)): `{Plot}` is its id, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`), `{Index}` its number, and `_<Unit>` is added when the pattern names neither ([Figures in an export](EphysAnalysisConfig.md#figures-in-an-export)). **{x}** adds a token | `{Name}_{Plot}` |
 | **Resolution (dpi, PNG)** | the PNG resolution (`Export.Dpi`) | 150 |
 | **Overwrite existing** | off: a page whose files all exist is not written again | on |
 | **Size (cm)** | the figure's width and height (a page of many tiles is made taller; a figure's page is this size as it is, however many panels it holds); a figure with a [size of its own](#the-page-a-figure-is-exported-on) keeps that | 18 × 12 |
@@ -2229,13 +2252,33 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | Control | Meaning | Default |
 | --- | --- | --- |
 | **Write a report**, format | *HTML (one self-contained file)*, *PDF (multi-page)* or *HTML and PDF* | on, HTML |
-| **Title** | `{Name}` = the config's name, `{Date}` = today | `{Name}` |
-| **Folder**, **Browse...** | folder tokens as above | `{OutputRoot}\analysis` |
+| **Title**, **{x}** | `{Name}` = the config's name, `{Date}` = today. **{x}** adds one | `{Name}` |
+| **Folder**, **{x}**, **Browse...** | folder tokens as above | `{OutputRoot}\analysis` |
 | **File name**, **One per dataset** | `.html` / `.pdf` is added; one report per dataset is named `<FileName>_<dataset>` | `analysis_report`, off |
 | **HTML images**, **Resolution (dpi)** | PNG (base64) or inline SVG in the HTML; the PNG resolution, for a page whose PNG the figure files do not hold (with png ticked above, the HTML embeds that PNG, at its dpi, rather than write the page again) | png, 110 |
 | **Summary tables**, **Figure parameters**, **The config** | what the report holds besides the figures | all on |
 | **Order** | *By figure (a figure's units together)*: each figure with all its observations in turn; *By unit (a unit's figures together)*: each unit, channel or the dataset under a heading, with all the figures drawn for it in turn ([Report order](EphysAnalysisConfig.md#report-order)) | by figure |
 | **Per page**, paper, orientation | figure pages on one sheet, 1 to 16; *Letter* or *A4*; *Best fit*, *Portrait* or *Landscape*. 1 gives each page its own, at the size it was drawn. More puts up to that many on each sheet of the PDF, in the rows and orientation that draw them largest, all at one scale and never enlarged, and sets them side by side in the HTML ([Figures per page](EphysAnalysisConfig.md#figures-per-page)) | 1, Letter, Best fit |
+
+#### Tokens from the {x} button
+
+The figure **Folder** and **File names**, and the report's **Title** and
+**Folder**, each have a **{x}** button at their right, as the Figures tab's
+labels do ([label variables](#label-variables)). It opens a menu of the
+tokens that field takes (`figureFileTokens`), each with what it is and its
+value now: a folder's for the active dataset, a file name's for the figure in
+the Figures tab's editor and the observation picked over its preview, as a run
+would fill them (*{Unit}   The unit's or channel's short label   (now: su12)*).
+The one picked goes into the text where that field takes it, and counts as
+typed:
+
+| Field | Where a token goes |
+| --- | --- |
+| **File names** | at the end, after a `_`: `{Name}` and **{Plot}** give `{Name}_{Plot}` |
+| **Folder** (both) | `{Name}` and `{Date}` at the end, as a subfolder: `{OutputRoot}\analysis\{Name}`. `{OutputFolder}`, `{OutputRoot}` and `{Root}` are whole folders: one goes at the start, in place of the one there (`{OutputRoot}\analysis` becomes `{OutputFolder}\analysis`), or in place of a full path such as `D:\out` |
+| **Title** | at the end, after a space: `{Name} {Date}` |
+
+The report's **File name** takes no tokens, so it has no button.
 
 **Running**:
 
@@ -2495,7 +2538,8 @@ a run has written a report or figures. The icons are
 A run writes, for each ticked dataset and enabled figure:
 
 - **Figure files**: one file per observation and format in the Export folder, by
-  default `<output folder>\analysis\<Name>_<figure id>_<unit>.png` (and `.svg`);
+  default `<output root>\analysis\<Name>_<figure id>_<unit>.png` (and `.svg`),
+  beside the report;
   a figure with one observation, such as a dataset's heat map, is
   `<Name>_<figure id>.png`. Each page is drawn into an invisible classic figure of
   the export size, as tall as the figure's rows need.
@@ -3068,7 +3112,10 @@ Figure, each with its value on the preview at the selected panel (*{Line} ... (n
 on the PSTH's X axis make *Time (s) re {Line} {Edge}* in the field and the config, an undo step, and the
 preview's x label shows it filled in; in the Text note the variable goes at the end of the last line. The menu's
 last item and **Help → Label variables** open one list window, its rows the variables with their values now, and
-a row clicked says it copied its variable.
+a row clicked says it copied its variable. With a dataset variable on the active dataset's loaded source
+(*probeDepth* = 1234), the menu has *Dataset variables* with *{probeDepth} Probe Depth (um) (now: 1234)*; picked
+into the X axis it draws *Depth 1234*, and a new value (1500) set on the source, then `autoFigurePreview`, draws
+*Depth 1500*.
 
 Its section 5h drives the figure tree and a panel's note and overlays, from no figure (it, too, sets the Auto slider to 1
 for its length). Three figures (two rasters over PSTHs, one continuous

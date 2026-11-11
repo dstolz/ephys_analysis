@@ -243,8 +243,11 @@ function test_EphysAnalysisFigures(opts)
 %   name (the top-left panel untitled under a title naming {Unit}); the
 %   right-click editor's text as typed (ownLabels, typedLabel) and an
 %   in-place label edit; {Group} in a per-group title; a TeX note's values
-%   escaped; validate's warnings for names that are no variable; the
-%   report's heading and caption.
+%   escaped; validate's warnings for names that are no variable; dataset
+%   variables (listed with Variables=, valued from F.variables or a merged
+%   figure's sessions, {var_Depth} for a built-in's name, one the dataset
+%   lacks left as typed; validate's DatasetVariables=); the report's
+%   heading and caption.
 %   Downsampled signals (18), on the "clean" fixture: Source.Downsample's
 %   defaults and save / load; validate (a bad rate; a spectrum's fpass
 %   past the band a downsampled LFP keeps flat warns); figureFor's layer
@@ -1020,6 +1023,35 @@ if S.sec("4", "config: a JSON round trip")
     txt = fileread(f);
     c2 = EphysAnalysisConfig.load(f);
     check(cfg.isequalConfig(c2) && isempty(c2.LoadWarnings), 'a config with figures survives save / load exactly');
+    % color limits that follow the data (colorLimits): text ends min, max, a percentage of either, a number
+    vC = [2 -1 NaN 4 Inf];
+    gotC = {colorLimits([], vC, [0 1]), colorLimits([1 3], vC, [0 1]), colorLimits("0 max", vC, [0 1]), ...
+        colorLimits("min 0.5", vC, [0 1]), colorLimits("MIN 50% of max", vC, [0 1]), colorLimits("-max, max", vC, [0 1]), ...
+        colorLimits("25%min 75%max", vC, [0 1]), colorLimits([0 "max"], vC, [0 1]), colorLimits("max min", vC, [0 1]), ...
+        colorLimits("0 max", [NaN Inf], [0 1]), colorLimits("0 mx", vC, [0 1]), colorLimits("min 0", [2 4], [])};
+    wantC = {[0 1], [1 3], [0 4], [-1 0.5], [-1 2], [-4 4], [-0.25 3], [0 4], [0 1], [0 1], [0 1], []};
+    check(isequal(gotC, wantC), sprintf(['colorLimits: [] automatic, [lo hi], "0 max", "min 0.5", a percentage ("50%% of max"), ' ...
+        '"-max max", "25%%min 75%%max", a string array; the automatic scale when the ends are not ascending, no value is finite or ' ...
+        'an end is unknown (got %s)'], strjoin(cellfun(@mat2str, gotC, 'UniformOutput', false), " ")));
+    [sC1, mC1] = colorLimits("Min 80% of MAX");
+    [sC2, mC2] = colorLimits('0, 30');
+    [sC3, mC3] = colorLimits("");
+    [~, mC4] = colorLimits("0 mx");
+    [~, mC5] = colorLimits("max");
+    [~, mC6] = colorLimits([2 1]);
+    [~, mC7] = colorLimits("30 0");
+    check(sC1 == "min 80%max" && mC1 == "" && isequal(sC2, [0 30]) && mC2 == "" && isnumeric(sC3) && isempty(sC3) && mC3 == "" ...
+        && contains(mC4, """mx""") && mC5 ~= "" && mC6 ~= "" && mC7 ~= "", ...
+        'colorLimits(spec) tidies text ("min 80%max"), takes two numbers as [lo hi] and blank as []; an unknown end, one end and descending numbers have a reason');
+    cCt = EphysAnalysisConfig().addFigure("heatmap", Id="hm_text");
+    cCt.Figures(1).panels.options.cLim = "Min 80% of MAX";
+    cCn = cCt; cCn.Figures(1).panels.options.cLim = "0, 30";
+    fCt = fullfile(root, 'clim_text.json');
+    cCt.save(fCt);
+    cCl = EphysAnalysisConfig.load(fCt);
+    check(cCt.Figures(1).panels.options.cLim == "min 80%max" && cCl.isequalConfig(cCt) && isempty(cCl.LoadWarnings) ...
+        && isequal(cCn.Figures(1).panels.options.cLim, [0 30]), ...
+        'a panel''s color limits as text: kept tidied ("min 80%max") through save / load; text of two numbers is [lo hi]');
     fn = string(fieldnames(cfg.toStruct())).';
     check(isequal(fn, ["schema" "version" "name" "description" "Source" "Defaults" "Figures" "Export" "Report"]) ...
         && contains(txt, '"Figures"') && contains(txt, '"rect"') && contains(txt, '"boxesMean"') && ~contains(txt, '"Plots"') ...
@@ -1722,6 +1754,12 @@ if S.sec("6", "config: validate")
     b.Figures(2).panels.options.cLim = [2 1];
     o = "hm.heatmap_1.options.";
     check(has(b, o + "order", "error") && has(b, o + "group", "error") && has(b, o + "cLim", "error"), 'heatmap: order, group, cLim');
+    okC = arrayfun(@(t) ~has(withCLim(base.addFigure("heatmap", Id="hm"), t), o + "cLim", "error"), ...
+        ["0 max" "min 80% of max" "-max max" "10%min 0.5"]);
+    badC = arrayfun(@(t) has(withCLim(base.addFigure("heatmap", Id="hm"), t), o + "cLim", "error"), ...
+        ["0 mx" "max" "30, 0" "0 max 1"]);
+    check(all(okC) && all(badC), sprintf(['heatmap: cLim text naming the data is valid (0 max, min 80%% of max, -max max, ' ...
+        '10%%min 0.5: %s); an unknown end, one end, descending numbers, three ends are errors (%s)'], mat2str(okC), mat2str(badC)));
     b = base.addFigure("heatmap", Id="hm"); b.Figures(2).panels.options.baseline.Mode = "auroc"; b.Figures(2).panels.options.order = "modulation";
     b2 = b; b2.Figures(2).panels.layers.source = "LFP";
     check(~has(b, o + "order", "error") && ~has(b, o + "baseline.Mode", "error") && has(b2, o + "baseline.Mode", "error") ...
@@ -4564,6 +4602,18 @@ if S.sec("8", "render: renderFigure, its layout, the draw functions")
     hc3 = renderFigure(F1, sc3, fig);
     check(isequal(cl3, [0 5]) && isequal(cm3, gray(256)) && ~isequal(hc3.axes(2).Colormap, gray(256)) ...
         && size(hc3.axes(2).Colormap, 2) == 3, 'a PSTH heat map''s colormap and color limits are honored; a name that is no colormap takes the design''s');
+    sc4 = sh;
+    sc4.panels(2).options.cLim = "0 max";
+    cl4 = clim(renderFigure(F1, sc4, fig).axes(2));
+    sc4.panels(2).options.cLim = "10%max 90%max";
+    cl5 = clim(renderFigure(F1, sc4, fig).axes(2));
+    sc4.panels(2).options.cLim = "max min";
+    cl6 = clim(renderFigure(F1, sc4, fig).axes(2));
+    sc4.panels(2).options.cLim = "0 max";
+    cl7 = clim(renderFigure(F1b, sc4, fig).axes(2));
+    check(isequal(cl4, [0 cl1(2)]) && isequal(cl5, [0.1 0.9] * cl1(2)) && isequal(cl6, cl1) && isequal(cl7, [0 cl2(2)]), ...
+        sprintf(['a PSTH heat map''s color limits from its data: "0 max" [0 %.3g] (another unit: [0 %.3g]), "10%%max 90%%max", ' ...
+        'and "max min" (not ascending) its automatic range'], cl1(2), cl2(2)));
     ex = exportFigure(fig, string(tempname), Format=["png" "svg"]);
     check(numel(ex) == 2 && all(isfile(ex)), 'a PSTH heat map exports (PNG, SVG)');
     for f = reshape(ex(isfile(ex)), 1, []); delete(f); end
@@ -7099,6 +7149,40 @@ if S.sec("17", "label variables: the list, their values, filled in by renderFigu
         && isscalar(mn) && contains(mn, "did you mean {Epochs}") && isempty(mx) && ~has(cfg, "rp.title", "warning"), ...
         'validate: {line} and {Foo} warn (did you mean {Line}?); in a TeX note only a variable''s name in the wrong case; {Bin} is fine');
 
+    % dataset variables: listed with Variables= (one named as a built-in is var_<name>), each valued from F's dataset; a
+    % merged figure's sessions' values joined; a dataset without one leaves it as typed; validate knows them with DatasetVariables=
+    setA = struct('probeDepth', DatasetVariables.entry("Probe Depth", 1200, Units="um"), 'Depth', DatasetVariables.entry("Depth", 3));
+    setB = struct('probeDepth', DatasetVariables.entry("Probe Depth", 1400, Units="um"), 'cohort', DatasetVariables.entry("Cohort", "A"));
+    Ld = figureLabelVariables(Variables={setA, setB});
+    rD = Ld(Ld.Topic == "Dataset variables", :);
+    Fd = F;
+    Fd.variables = struct('probeDepth', 1200, 'Depth', 3);   % (figureCompute: F.variables, the dataset's values)
+    [Td, Vd] = figureLabelVariables(sv, Fd, Variables={setA, setB});
+    [Tdn, Vdn] = figureLabelVariables(sv, [], Variables={setA, setB});
+    Fm = Fd;   % a figure merged across sessions: the sessions merged ("done"), their values joined
+    Fm.sessions = table(["done"; "done"; "error"], [1200; 1400; 900], 'VariableNames', {'status', 'var_probeDepth'});
+    [~, Vdm] = figureLabelVariables(sv, Fm);
+    sd = sr;
+    sd.title = "Depth {probeDepth} um, {cohort} {var_Depth}";
+    sdF = figureLabelFill(Fd, sd);
+    check(height(figureLabelVariables()) == 24 && isequal(rD.Name, ["probeDepth"; "var_Depth"; "cohort"]) ...
+        && rD.Meaning(1) == "Probe Depth (um)" && rD.Example(1) == "1200, 1400" && rD.Example(3) == "A" ...
+        && Vd.probeDepth == "1200" && Vd.var_Depth == "3" && Vd.Depth == V.Depth && ~isfield(Vd, 'cohort') ...
+        && Td.Value(Td.Name == "probeDepth") == "1200" && Td.Value(Td.Name == "cohort") == "" ...
+        && Tdn.Value(Tdn.Name == "probeDepth") == "<probeDepth>" && ~isfield(Vdn, 'probeDepth') ...
+        && Vdm.probeDepth == "1200, 1400" && ~isfield(Vdm, 'var_Depth') && sdF.title == "Depth 1200 um, {cohort} 3", ...
+        sprintf(['dataset variables: listed with Variables= (Depth as {var_Depth}), {probeDepth} prints the dataset''s ' ...
+        'value, a merged figure''s sessions'' values joined, one the dataset lacks left as typed (title: "%s")'], sdF.title));
+    cdv = cfg;
+    cdv.Figures(k).title = "{probeDepth} {probedepth}";
+    Ia = cdv.validate(CheckPaths=false);
+    Ib = cdv.validate(CheckPaths=false, DatasetVariables={setA});
+    ma = Ia.Message(Ia.Field == "rp.title");
+    mb = Ib.Message(Ib.Field == "rp.title");
+    check(numel(ma) == 2 && all(contains(ma, "unless it names a dataset variable")) && isscalar(mb) ...
+        && contains(mb, "{probedepth}") && contains(mb, "did you mean {probeDepth}") && contains(mb, "nor a variable of the datasets"), ...
+        'validate: without the datasets a name may be a dataset variable''s; with DatasetVariables= {probeDepth} is fine, {probedepth} meant it');
+
     % the report: one entry for every observation, so the observation's variables stay "<Unit>"
     sc = spec;
     sc.title = "{Line} {Unit} {Name}";
@@ -7641,6 +7725,12 @@ end
 
 function cfg = setFigures(cfg, f)
 cfg.Figures = f;
+end
+
+
+function cfg = withCLim(cfg, c)
+%withCLim  The config with its last figure's (one-panel) color limits set to C.
+cfg.Figures(end).panels.options.cLim = c;
 end
 
 

@@ -23,7 +23,8 @@ function hk = drawItpcPanel(ax, P, look)
 %     over time (options.overTime true)   an image of the first channel's
 %       ITPC over time from the event (x, the panel's window: it shares
 %       the figure's time axis) and frequency (y) for the trial group
-%       options.group, 0 to 1 (options.cLim) in the design's heat colormap,
+%       options.group, 0 to 1 (options.cLim: fixed, or ends from the ITPC
+%       drawn, colorLimits) in the design's heat colormap,
 %       with a color bar ("ITPC"; inside the axes at their right edge when
 %       another time panel shares the column) and the event's line
 %       (Style.ShowZeroLine); options.stack "groups" draws every group as
@@ -200,9 +201,7 @@ end
 tagPart(ax, "axes", "", look.panelId);   % after imagesc, which resets a replaced axes' properties
 set(ax, 'YDir', 'normal', 'Layer', 'top');
 colormap(ax, designColormap(style, "heat", "parula"));
-cl = o.cLim;
-if ~(numel(cl) == 2 && cl(2) > cl(1)); cl = [0 1]; end
-clim(ax, cl);
+clim(ax, colorLimits(o.cLim, Z, [0 1]));   % fixed, or ends from the ITPC drawn ("0 max")
 if style.ShowZeroLine
     hold(ax, 'on');
     tagPart(xline(ax, 0, ':', 'Color', [0.2 0.2 0.2], 'LineWidth', 1, 'HandleVisibility', 'off'), "zeroLine");

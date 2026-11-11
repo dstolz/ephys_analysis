@@ -106,7 +106,7 @@ distinct as file names: `{Plot}` replaces every character outside
                   { "id": "psth_1", "type": "psth", "rect": [0, 0.3, 1, 0.3], "...": "..." },
                   { "id": "continuous_1", "type": "continuous", "rect": [0, 0, 1, 0.3], "...": "..." } ],
       "style": { "...": "..." }, "aesthetics": [] } ],
-  "Export": { "Enabled": true, "Formats": ["png", "svg"], "Folder": "{OutputFolder}\\analysis",
+  "Export": { "Enabled": true, "Formats": ["png", "svg"], "Folder": "{OutputRoot}\\analysis",
               "FilenamePattern": "{Name}_{Plot}", "Dpi": 150, "FigureSizeCm": [18, 12], "Overwrite": true,
               "SessionsFolder": "{OutputRoot}\\analysis\\sessions",
               "Data": { "Enabled": false, "Folder": "{OutputRoot}\\analysis\\data",
@@ -483,7 +483,7 @@ A figure's `observe.units` and a fixed layer's `units` (the source is the figure
 | `HeatColormap` | `""` | heatmaps, probe maps and unit correlations; `""` = parula, or `blueWhiteRed` for corrmap |
 | `FontSize` | 9 | |
 | `SiteSize` | 8 | probe map: the sites' marker size, points |
-| `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic); two ascending values, low then high. A figure does not use them: each panel has its own `options.yLim` / `cLim`, and the time panels show the epoch window. The automatic color limits are the range of the map, `[0 1]` for an auROC heat map and `[-1 1]` for a unit correlation |
+| `YLim`, `XLim`, `CLim` | `[]` | fixed limits (`[]` = automatic); two ascending values, low then high. A figure does not use them: each panel has its own `options.yLim` / `cLim`, and the time panels show the epoch window. The automatic color limits are the range of the map, `[0 1]` for an auROC heat map and `[-1 1]` for a unit correlation; `CLim` also takes text whose ends name the data (`"0 max"`: [Color limits](#color-limits)) |
 | `Grid`, `Legend` | `true` | |
 | `LegendLocation` | `"auto"` | where the legend goes; it never shrinks a plot area. `"auto"`: in the figure's [legend panel](#panel-types) when it has one, else floating in the page's largest free space (`freeRect`) when the legend fits there, else inside the first panel; `"inside"`: in the first panel; `"none"`: no legend. A stacked PSTH has no legend |
 | `LegendOrientation` | `"auto"` | the legend inside a panel or floating: `"vertical"` or `"horizontal"` entries (`"auto"`: vertical). A legend panel has its own `options.orientation` |
@@ -574,6 +574,39 @@ quantities. **Apply to all panels** copies `yLimMode` to every panel that has
 one (`yLim`, in the type's units, only to panels of the same type; a
 `"fixed"` mode is kept out of a panel with no `yLim` of its own). Validate:
 `yLimMode` one of the four; `"fixed"` needs `yLim`.
+
+### Color limits
+
+Every panel drawn as an image or a colored map (a PSTH drawn as a heat map,
+heat map, probe map, unit correlation, spectrogram, and a coherence or
+phase coherence panel over time) takes `options.cLim`, its color scale:
+
+| `cLim` | Color scale |
+| --- | --- |
+| `[]` (default) | automatic: the type's own (the map's range; an auROC, a coherence and an ITPC 0 to 1; a unit correlation `[-1 1]`; a spectrogram its 1st to 99th percentile) |
+| `[lo hi]` | those two numbers, `lo < hi` |
+| text `"lo hi"` | two ends, low then high, each a number or a word for the data the panel draws: `min` or `max` (the smallest or largest finite value), a percentage of either (`80%max`: 0.8 × the largest), or its negative (`-max`) |
+
+| Example | Scale |
+| --- | --- |
+| `"0 max"` | 0 to the largest value drawn |
+| `"min 0.5"` | the smallest value to 0.5 |
+| `"min 80%max"` | the smallest value to 80 % of the largest (the top 20 % saturates) |
+| `"10%max max"` | 10 % of the largest to the largest |
+| `"-max max"` | symmetric about 0, to the largest value |
+
+The data are the values the panel draws: a PSTH heat map's one item, a heat
+map's rows (every group of a stack), a probe map's values, a unit
+correlation's pairs (the diagonal left out), a spectrogram's or
+coherogram's bins (every group of a stack). Letter case, a comma between the
+ends and a space or `of` after the `%` (`80% of max`) do not matter; the
+config keeps the ends tidied (`"min 80%max"`), and text of two numbers
+(`"0 30"`) is kept as `[0 30]`. When the two ends do not come out ascending
+(`"min 0"` on data all above 0), or the panel has no finite value, it is drawn
+at its automatic scale. The renderers take the same text in `Style.CLim`
+(`renderHeatmap`, `renderProbeMap`, `renderCorrMap`), and `colorLimits(spec,
+values, auto)` resolves one for any image. Validate: `[]`, an ascending pair,
+or text of two ends of these kinds.
 
 ### auROC
 
@@ -1306,6 +1339,14 @@ keeps the text as typed. `figureLabelVariables()` lists them (a table of `Name`,
 | Observation | `{Unit}` (the short label of the files' `{Unit}`: `su12`, `ch7`, `dataset`, `probe`), `{Observation}` (its label), `{Channel}`, `{Shank}`, `{Depth}` (blank where unknown) |
 | Data | `{Name}` (`F.dataset`), `{Subject}` (`F.subject`, the subjects merged for a session figure), `{Sessions}` (`F.nSessions`, else 1) |
 | Figure | `{Figure}`, `{Panel}` (ids), `{Bin}`, `{Smooth}` (the panel's `options.bins` in ms; blank without), `{Measure}` (a [trial panel's](#trial-measures) measure: `trialMeasureLabel` of its first enabled trials layer's, *Stim onset → Platform offset (ms)*; the figure's own text: its first trial panel's; blank without), `{MeasureX}` (a trial scatter's x measure; blank elsewhere), `{Date}` (today, `yyyy-MM-dd`) |
+| Dataset variables | one per [dataset variable](EphysAnalysis.md#dataset-variables), named as it is: `{probeDepth}` prints the value recorded on the figure's dataset (`F.variables`; `DatasetVariables.valueText`: `"1200"`, without its units). A figure across sessions prints the values of the sessions merged (the `var_` columns of `F.sessions`, status `"done"`), joined `", "`. One named as a variable above (`Depth`) is `{var_Depth}`. A dataset without the variable leaves its name as typed |
+
+Unlike the others, the dataset variables depend on the datasets:
+`figureLabelVariables(Variables=sets)` adds a row for each variable in use in
+`sets` (a cell of the datasets' sets, as `outputVariables` reads them; `Topic`
+`"Dataset variables"`, `Meaning` the label and units, `Example` the values in
+use), and with `F` also those `F` holds. The analysis app passes the scanned
+datasets' sets.
 
 `[T, V] = figureLabelVariables(spec, F, Panel=k)` gives each one's value for
 panel `k` of `spec` (a `figureFor` spec; `0`, the default, is the figure's own:
@@ -1320,7 +1361,10 @@ figure's own that names `{Unit}` or `{Observation}` keeps the top-left panel
 from naming the observation; one that names `{Group}` gets no `· <group>`. The
 report's heading and caption of a figure fill its title with
 `PerObservation=false`: one heading serves every observation. Validate warns of
-a name in braces that is no variable ([Validating figures](#validating-figures)).
+a name in braces that is no variable ([Validating figures](#validating-figures));
+`validate(DatasetVariables=sets)` counts the datasets' variables as variables
+(the app passes the scanned datasets'), and without it the warning says the
+name may still be a dataset variable's.
 
 ### Special characters
 
@@ -1817,7 +1861,7 @@ reports its message at `<figure>.<panel>.options` (the tapers, `fpass`, `err`
 and `errP`, `detrend`, `scale`, `spikeFs`, the moving window, the range and
 segment, a spectrogram's baseline `Mode` and its `Window` inside the panel's
 window, which must therefore be a fixed one unless the panel is on the range
-base), `yLim` and `cLim` `[]` or ascending, `group` a whole number, and a spectrogram's or coherence panel's `freqScale`
+base), `yLim` `[]` or ascending, `cLim` as [Color limits](#color-limits) says, `group` a whole number, and a spectrogram's or coherence panel's `freqScale`
 `"linear"` or `"log"` (at `<figure>.<panel>.options.freqScale`). Layers
 are errors at `<figure>.<panel>.layers`: a coherence panel without exactly two
 enabled layers, a spectrogram without a signal or spike layer (events marks
@@ -2312,7 +2356,8 @@ and *Scatter trials*.
 
 A panel's `options` are the type's (`panelTypes().DefaultOptions`); a field
 that is not the type's is dropped on load (and listed in `LoadWarnings`). `yLim` and `cLim` are
-`[]` (automatic) or an ascending `[lo hi]` and belong to the panel, because one
+`[]` (automatic) or an ascending `[lo hi]` (`cLim` also text whose ends name the
+data, `"0 max"`: [Color limits](#color-limits)) and belong to the panel, because one
 figure holds different axes; the figure's `Style.YLim` and `CLim` are not used.
 The options named `bins`, `measure`, `baseline`, `auroc`, `maskAfterStop` and
 `waveform` (an inset) are the ones several types share: **Apply to all panels** copies
@@ -3095,7 +3140,8 @@ Errors:
   panel never `off`; `ampScale` `unit`, `common` or `fixed`; while drawn: location,
   `width` and `height` in (0, 3], whole `maxSpikes >= 1`, `timeMs` `[]` or ascending
   (`-Inf` / `Inf` allowed), and with `fixed` an ascending `ampLim`);
-  `yLim` and `cLim` `[]` or ascending; `yLimMode` one of `auto`, `rows`, `batch`,
+  `yLim` `[]` or ascending, `cLim` `[]`, ascending or text of two ends
+  ([Color limits](#color-limits)); `yLimMode` one of `auto`, `rows`, `batch`,
   `fixed`, and `fixed` with a `yLim`; on every type that stacks ([Stacks](#stacks))
   a `stack` the type takes (`stackModes`: `off` or `groups`, a continuous panel's
   `items` too) and a positive `stackSpacing` (a heat map of trials' `stack` other
@@ -3119,6 +3165,8 @@ Errors:
   is a warning at `<...>.measure.to.which` (the first value per trial is paired);
 - a name in braces in the figure's `title`, a panel's `title`, `xLabel`, `yLabel`
   or `note.text`, or a layer's `name`, that is no [label variable](#label-variables)
+  (with `DatasetVariables=sets`, nor a variable of those datasets; without it the
+  warning says it may be a dataset variable's)
   is a warning at that field (it is drawn as typed), naming the variable it likely
   meant when one differs only in case (*{line} ... did you mean {Line}?*); in a
   TeX note only such a near miss is reported (its braces group);
@@ -3728,7 +3776,7 @@ and layout), apart from what the plot itself held that was invalid.
 | --- | --- | --- |
 | `Enabled` | `true` | write figure files (the runner's default for `run(Export=)`) |
 | `Formats` | `["png" "svg"]` | any of `png`, `eps`, `svg`, `pdf` |
-| `Folder` | `{OutputFolder}\analysis` | a [folder pattern](#file-name-tokens) |
+| `Folder` | `{OutputRoot}\analysis` | a [folder pattern](#file-name-tokens). The default is the report's folder (`Report.Folder`), so a run's figure files and its report are together, the datasets' files told apart by `{Name}` in `FilenamePattern`; `{OutputFolder}\analysis` puts each dataset's files in its own output folder instead |
 | `FilenamePattern` | `{Name}_{Plot}` | a [file-name pattern](#file-name-tokens): `{Name}` (dataset) `{Plot}` (the figure's id) `{Kind}` (`figure`) `{Group}` `{Unit}` `{Index}` `{Date}`. A [figure](#figures) writes a file set per observation: [below](#figures-in-an-export) |
 | `Dpi` | 150 | PNG resolution |
 | `FigureSizeCm` | `[18 12]` | figure size `[width height]`: a figure's page (its panels' rects are parts of it), unless the figure has a size of its own; a probe figure's page is made taller for its rows of tiles |
@@ -3885,7 +3933,9 @@ size.
 
 ## File-name tokens
 
-`figureFileName` fills the patterns, of two kinds:
+`figureFileName` fills the patterns, of two kinds (`figureFileTokens(kind)`
+lists each kind's tokens, with what each means; the analysis app's Export tab
+offers them from a **{x}** button beside each pattern):
 
 | Pattern | Tokens |
 | --- | --- |
@@ -3916,8 +3966,8 @@ size.
 
 With the defaults, the figure `unit_card` of dataset `SYNTH-01_260918_101500` with
 20 units is written as
-`<output folder>\analysis\SYNTH-01_260918_101500_unit_card_su1.png`,
-`..._su2.png`, ... (and `.svg`), and the report as
+`<output root>\analysis\SYNTH-01_260918_101500_unit_card_su1.png`,
+`..._su2.png`, ... (and `.svg`), and the report beside them as
 `<output root>\analysis\analysis_report.html`.
 
 ## Validation

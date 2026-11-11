@@ -42,7 +42,7 @@ if isempty(obj.Runner)
 end
 cfg = opts.Config;
 if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.gatherConfig(); end
-issues = cfg.validate();
+issues = cfg.validate(DatasetVariables=obj.datasetVariableSets());   % the datasets' variables are label variables
 if any(issues.Severity == "error")
     obj.IssuesTable.Data = issues;
     bad = issues(issues.Severity == "error", :);

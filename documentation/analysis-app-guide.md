@@ -116,7 +116,9 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
      **Design and looks** (LOOK, in the settings column). After a change it draws again on
      its own when that is quick enough for the **Auto** slider left of it.
 4. **Export.** Tick the formats (png, svg, pdf), press **Run**, then **Open
-   report**.
+   report**. The figure files and the report go to one **analysis** folder,
+   in the Data tab's **Output root**, or in the project folder when that is
+   blank (**Open figure folder** opens it).
 5. **File → Save config** keeps it all: the alignment, the figures and the
    export settings.
 
@@ -134,11 +136,13 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | draw a small figure at every unit's place on the probe | in the figure's Observations section, set **Pages** to *On the probe*; its settings are in the Probe layout section that appears |
 | keep only the units that respond to the event | in the figure's Observations section, tick **Responsive only**. Its settings (windows, correction, auROC) are in the **Response test** group under it: click **▸ Response test** to open it. The section colors tell the scope: blue sections are about the whole figure, green about the selected panel, violet about the look of every panel. Can't find a setting? Type its name in the search field above the editor |
 | check one unit's figures before a long run | Export tab: **Test report** |
+| choose how the figure files and folders are named (by recording, figure, unit or date) | Export tab: click the **{x}** button at the right of **File names** or **Folder** and pick a token, such as **{Plot}** (the figure) or **{Unit}**. Each item shows what it fills in now. In a file name the token goes after a `_`; in a folder, **{Name}** and **{Date}** become a subfolder. The report's **Title** and **Folder** have one too (see [Tokens from the {x} button](EphysFigGenApp.md#tokens-from-the-x-button)) |
 | make previews faster and figure files smaller by lowering a signal's sampling rate (an AUX recorded at 30 kHz, say) | Data tab: press **Downsample...** and type a rate for that signal, such as *250* for the LFP or *100* for the AUX; leave a field blank to keep the rate on file. Press **OK**: every figure now reads that signal at the lower rate, and the button turns amber. The signal is filtered first, so no false low frequencies appear. The window shows the band each rate keeps unchanged: choose a rate at least 2.6 times the highest frequency you look at (see [Downsampling signals](EphysFigGenApp.md#downsampling-signals)) |
 | see whether the LFP's phase lines up with the event from trial to trial (inter-trial phase coherence, ITPC) | **New panel...** → *Phase coherence (ITPC)*. Set **Frequency (Hz)**. Under **View**, pick *ITPC by frequency* for one line per trial group, or *time/frequency coherogram* for an image over time and frequency. The value runs from 0 (the phase is random from trial to trial) to 1 (every trial has the same phase). The dashed line is the level that random phases stay under, so values above it are locked to the event. To switch views later, tick or clear **Over time** in the panel's **Analysis** section. Fewer tapers (**TW, K** of *1, 1*) give the classic single-taper ITPC (see [Phase coherence panels](EphysAnalysisConfig.md#phase-coherence-panels)) |
 | look at one EEG band of the LFP, such as theta or gamma | select the panel (a continuous signal, heat map, spectrum, spectrogram, coherence or phase coherence panel) and press **Filter...**, the first row of its **Analysis** section. Pick a band under **Start from**: *Theta*, *Alpha*, *Beta*, *Low gamma*, *High gamma* and others. The plots show what the filter keeps. Press **OK**: the panel now shows that band. The whole recording is filtered first and then cut into trials, so the trial edges are clean. To compare, draw the same channel in a second panel with no filter (see [A panel's filter](EphysFigGenApp.md#a-panels-filter)) |
 | make your own filter and use it again later | in the **Filter** window, set **Cutoffs (Hz)**, **Design** and **Order**, type a name under **Save the settings as one of yours** and press **Save**. Your filter is now listed under **Start from**, in every config. *Zero-phase* (the default) shifts nothing in time; choose *Causal* to filter as a recording system would, with its delay |
 | remove line noise, or filter a signal for every figure | Data tab: press **Filter...**, pick the signal (**Signal**, such as *LFP*) and a filter, such as *60 Hz line noise*. Press **OK**: every figure now reads that signal filtered, and the button turns amber. A panel's own filter runs after it (see [Filtering signals](EphysFigGenApp.md#filtering-signals)) |
+| set the color scale of a heat map, spectrogram or other image | select the panel and type two values in **Color limits**, low then high, such as **0 30**. Use **min** and **max** for the smallest and largest value drawn, so each unit gets its own scale: **0 max** starts the colors at zero, **min 0.5** stops them at 0.5. Put a percentage before either for part of it: **min 80%max** makes the top fifth of the values the brightest color. Leave it blank for the automatic scale (see [Color limits](EphysAnalysisConfig.md#color-limits)) |
 | choose when the preview redraws after a change | drag the **Auto** slider left of the preview. Left end: never, press **Preview**. Right end: after every change, however slow. In between, the further right, the slower a redraw it starts on its own (the middle: under 2 s; point at the slider to see its limit). A change of colors, fonts or labels only redraws, so it is quick even when computing the figure is slow. **Ctrl+T** turns Auto off and on |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
 | move or resize a panel | press **Arrange** above the preview and drag the panel's box (a corner or an edge resizes it); after a click on the preview the arrow keys nudge it. Or pick it (Ctrl+Click it in the preview) and type its **Position** and **Size** in the Panel section; **Units** (in Layout) picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [Arranging panels on the preview](EphysFigGenApp.md#arranging-panels-on-the-preview)) |
@@ -201,6 +205,10 @@ unit or event. Type a variable in braces, and each figure fills it in:
 - **{Unit}: {Response}** as a title shows *su12: Hit*, a different unit on
   every page.
 - **n = {Epochs}** in a note shows how many trials were drawn.
+- **Depth {probeDepth} µm** shows *Depth 1200 µm*: a value you recorded on
+  the dataset (its **Variables** on the Data tab) prints on each dataset's
+  figure. The **{x}** menu lists your variables under *Dataset variables*.
+  A dataset without that variable shows the name in braces.
 
 Click the **{x}** button at the right of a title, axis label, layer name or
 note to pick one from a menu; each item says what it means and what it shows

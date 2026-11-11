@@ -33,8 +33,7 @@ R = P.layers(j).R;
 st = style;
 st.XLim = [];
 st.YLim = [];
-st.CLim = [];
-if numel(o.cLim) == 2 && o.cLim(2) > o.cLim(1); st.CLim = o.cLim; end
+st.CLim = o.cLim;   % renderProbeMap resolves it (colorLimits) on the values it draws
 W = [];
 if isfield(R, 'waveforms'); W = R.waveforms; end
 h = renderProbeMap(R, [], ax, Style=st, Band=o.band, UnitLabels=o.unitLabels, Waveforms=W, Waveform=o.waveform, ColorWaveforms=o.waveColor);

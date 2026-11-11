@@ -61,7 +61,8 @@ function h = renderProbeMap(values, probe, target, opts)
 %                 EphysAnalysisConfig.defaults("ErrorBand"); default struct():
 %                 the defaults)
 %     Style       EphysAnalysisConfig.defaults("Style") fields (HeatColormap, SiteSize,
-%                 CLim, FontSize)
+%                 CLim, FontSize); CLim [lo hi] or text whose ends name
+%                 the values drawn ("0 max", "min 80%max": colorLimits)
 %
 %   H: layout (tiled layout or []), axes, colorbar (empty when none),
 %   glyph ([width height] of a unit's glyph, um; [0 0] for dots).
@@ -117,8 +118,8 @@ if isCount; fin = fin & P.value > 0; end   % a site with no unit is drawn as one
 v = P.value(fin);
 if onUnits; fin = false(size(P.x)); end   % then no site has one
 counts = isCount && ~isempty(v) && all(v == round(v)) && max(v) - min(v) <= 12;
-clim0 = style.CLim;
-fixed = numel(clim0) == 2 && clim0(2) > clim0(1);
+clim0 = colorLimits(style.CLim, v, []);   % fixed, or ends from the values drawn ("0 max"); [] = automatic
+fixed = ~isempty(clim0);
 nColors = 256;
 if ~fixed
     if isempty(v)

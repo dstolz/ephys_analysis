@@ -1445,8 +1445,10 @@ Every field, its type and default: [EphysAnalysisConfig](EphysAnalysisConfig.md)
 (`png`, `eps`, `svg`, `pdf`) for each observation of a figure (a sorted unit, a
 channel of a signal, or the dataset). The folder pattern takes
 `{OutputFolder}` (the dataset's output folder), `{OutputRoot}`, `{Root}`,
-`{Name}` and `{Date}`; the default is `{OutputFolder}\analysis`, next to the
-dataset's other outputs. The file-name pattern takes `{Name}` (the dataset),
+`{Name}` and `{Date}`; the default is `{OutputRoot}\analysis`, the report's
+folder, so a run's figure files and its report are together
+(`{OutputFolder}\analysis` would put them next to each dataset's other
+outputs). The file-name pattern takes `{Name}` (the dataset),
 `{Plot}` (the figure's id), `{Kind}` (`figure`), `{Group}` (the trial group's
 label of a per-group observation, else `all`), `{Unit}` (the observation's short
 label: `su12`, `ch7`, `dataset`), `{Index}` (the observation's number) and
@@ -1456,10 +1458,10 @@ with several observations gets `_<Unit>` unless its pattern names `{Unit}` or
 pattern names `{Group}` or `{Index}`. With the default `{Name}_{Plot}`,
 
 ```
-<outputFolder>/analysis/SYNTH-01_260918_101500_unit_card_su12.png
-<outputFolder>/analysis/SYNTH-01_260918_101500_unit_card_su14.png
-<outputFolder>/analysis/SYNTH-01_260918_101500_heat.svg                a dataset figure keeps <Name>_<id>
-<outputFolder>/analysis/SYNTH-01_260918_101500_unit_card_su12_Depth___0.5.png   observe.perGroup, group "Depth = 0.5"
+<outputRoot>/analysis/SYNTH-01_260918_101500_unit_card_su12.png
+<outputRoot>/analysis/SYNTH-01_260918_101500_unit_card_su14.png
+<outputRoot>/analysis/SYNTH-01_260918_101500_heat.svg                a dataset figure keeps <Name>_<id>
+<outputRoot>/analysis/SYNTH-01_260918_101500_unit_card_su12_Depth___0.5.png   observe.perGroup, group "Depth = 0.5"
 ```
 
 **Session figures' pages** (a [figure](EphysAnalysisConfig.md#session-figures)

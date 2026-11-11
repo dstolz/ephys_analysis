@@ -1,12 +1,13 @@
 function b = labelVariableButton(field, opts)
-%labelVariableButton  A "{x}" button beside a label's text field that inserts a label variable ({Line}, {Response}, ...).
+%labelVariableButton  A "{x}" button beside a text field that inserts a variable ({Line}, {Response}, ...) or a token ({Plot}, ...).
 %   B = labelVariableButton(FIELD, Values=FCN, List=FCN2) puts FIELD (a
 %   text field or text area whose text labels a figure: a title, an axis
 %   label, a layer's name, a note) in a one-row grid of its own where it
 %   was, in its grid, with the button B (Tag "labelVariables", UserData
 %   FIELD) at its right, as colorSwatch does. Pressing it opens a menu of
-%   the label variables (figureLabelVariables) by topic, each item "{Name}
-%   what it means (now: its value)", the values from Values (FCN() returns
+%   the label variables (figureLabelVariables) by topic, the datasets'
+%   variables last (Values' rows of Topic "Dataset variables"), each item
+%   "{Name}   what it means   (now: its value)", the values from Values (FCN() returns
 %   figureLabelVariables' table with its Value column: the figure
 %   previewed), and a last item that opens the list of them all (List,
 %   FCN2()). An item picked adds "{Name}" at the end of the text (after a
@@ -15,11 +16,25 @@ function b = labelVariableButton(field, opts)
 %   is kept on the button (appdata "LabelVariableMenu") until the next
 %   press, so a test can pick an item.
 %
-%   See also figureLabelVariables, colorSwatch, EphysFigGenApp.onLabelVariables.
+%   Other lists (the Export tab's patterns: figureFileTokens):
+%     Values=FCN    FCN() may return any table with Name and Meaning
+%                   (Value optional); without a Topic column the items
+%                   are in the menu itself, not under topics
+%     List=[]       no last item
+%     Insert=FCN3   FCN3(TEXT, "{Name}") returns the field's new text
+%                   (default: added at the end after a space); a text
+%                   area's goes at the end of its last line as ever
+%     Tooltip=TXT   the button's tooltip
+%
+%   See also figureLabelVariables, figureFileTokens, colorSwatch, EphysFigGenApp.onLabelVariables.
 arguments
     field (1,1)
     opts.Values (1,1) function_handle = @() figureLabelVariables()
     opts.List = []
+    opts.Insert (1,1) function_handle = @appendSpaced
+    opts.Tooltip (1,1) string = "Insert a variable, such as {Line}, {Response}, {Unit} or a dataset variable ({probeDepth}): " + ...
+        "it is filled in for each figure drawn (""Time (s) re {Line} {Edge}"", ""{Response} trials"", " + ...
+        """Depth {probeDepth} µm""). The menu's last item lists what each one means."
 end
 parent = field.Parent;
 heights = parent.RowHeight;    % a new child may grow the grid: put it back
@@ -36,9 +51,7 @@ field.Layout.Column = 1;
 parent.RowHeight = heights;
 parent.ColumnWidth = widths;
 b = uibutton(g, "Text", "{x}", "Tag", "labelVariables", "UserData", field, "FontSize", 11, ...
-    "ButtonPushedFcn", @(s, ~) openMenu(s, opts), ...
-    "Tooltip", "Insert a variable, such as {Line}, {Response} or {Unit}: it is filled in for each figure drawn " + ...
-    "(""Time (s) re {Line} {Edge}"", ""{Response} trials""). The menu's last item lists what each one means.");
+    "ButtonPushedFcn", @(s, ~) openMenu(s, opts), "Tooltip", opts.Tooltip);
 b.Layout.Row = 1;
 b.Layout.Column = 2;
 end
@@ -56,13 +69,16 @@ end
 T = opts.Values();
 if ~ismember("Value", string(T.Properties.VariableNames)); T.Value = strings(height(T), 1); end
 cm = uicontextmenu(fig);
-for topic = reshape(unique(T.Topic, 'stable'), 1, [])
-    sub = uimenu(cm, 'Text', char(topic));
-    for i = reshape(find(T.Topic == topic), 1, [])
-        name = "{" + T.Name(i) + "}";
-        txt = name + "   " + T.Meaning(i);
-        if T.Value(i) ~= "" && ~startsWith(T.Value(i), "<"); txt = txt + "   (now: " + T.Value(i) + ")"; end
-        uimenu(sub, 'Text', char(txt), 'Tag', char(T.Name(i)), 'MenuSelectedFcn', @(~, ~) insertVariable(f, name));
+if ismember("Topic", string(T.Properties.VariableNames))
+    for topic = reshape(unique(T.Topic, 'stable'), 1, [])
+        sub = uimenu(cm, 'Text', char(topic));
+        for i = reshape(find(T.Topic == topic), 1, [])
+            addItem(sub, T(i, :), f, opts.Insert);
+        end
+    end
+else   % a short list: its items in the menu itself
+    for i = 1:height(T)
+        addItem(cm, T(i, :), f, opts.Insert);
     end
 end
 if ~isempty(opts.List)
@@ -78,6 +94,15 @@ try
     open(cm, xy(1), xy(2));
 catch   % (no screen: the menu is built, a test picks from it)
 end
+end
+
+
+function addItem(parent, row, f, insert)
+%addItem  The menu item of one variable (ROW of the table): "{Name}   what it means   (now: its value)".
+name = "{" + row.Name + "}";
+txt = name + "   " + row.Meaning;
+if row.Value ~= "" && ~startsWith(row.Value, "<"); txt = txt + "   (now: " + row.Value + ")"; end
+uimenu(parent, 'Text', char(txt), 'Tag', char(row.Name), 'MenuSelectedFcn', @(~, ~) insertVariable(f, name, insert));
 end
 
 
@@ -97,21 +122,18 @@ xy = min(max(xy, 1), fp(3:4) - 1);
 end
 
 
-function insertVariable(f, name)
-%insertVariable  NAME ("{Line}") added at the end of the field's text, then its ValueChangedFcn as if typed.
+function insertVariable(f, name, insert)
+%insertVariable  NAME ("{Line}") put in the field's text (INSERT; a text area: at the end of its last line), then its ValueChangedFcn as if typed.
 if ~isvalid(f); return; end
 before = f.Value;
 if iscell(before) || isa(f, 'matlab.ui.control.TextArea')   % a text area: at the end of its last line
     L = string(before);
     if isempty(L); L = ""; end
     L = reshape(L, [], 1);
-    if L(end) ~= "" && ~endsWith(L(end), " "); L(end) = L(end) + " "; end
-    L(end) = L(end) + name;
+    L(end) = appendSpaced(L(end), name);
     f.Value = cellstr(L);
 else
-    t = string(before);
-    if t ~= "" && ~endsWith(t, " "); t = t + " "; end
-    f.Value = char(t + name);
+    f.Value = char(insert(string(before), name));
 end
 evt = struct('Value', f.Value, 'PreviousValue', before, 'Source', f, 'EventName', 'ValueChanged');
 if ~isempty(f.ValueChangedFcn); feval(f.ValueChangedFcn, f, evt); end
@@ -119,4 +141,11 @@ try
     focus(f);
 catch
 end
+end
+
+
+function t = appendSpaced(t, name)
+%appendSpaced  NAME added at the end of the text T, after a space.
+if t ~= "" && ~endsWith(t, " "); t = t + " "; end
+t = t + name;
 end

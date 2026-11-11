@@ -353,7 +353,7 @@ if isfield(op, 'metric')
 end
 if isfield(op, 'yLim'); op.yLim = limits(E.yLim.Value); end
 if isfield(op, 'yLimMode'); op.yLimMode = string(E.yLimMode.Value); end
-if isfield(op, 'cLim'); op.cLim = limits(E.cLim.Value); end
+if isfield(op, 'cLim'); op.cLim = colorLimitsText(E.cLim.Value); end
 if isfield(op, 'taperMode')   % a spectral panel's Chronux rows
     op.taperMode = string(E.spTaperMode.Value);
     op.TW = E.spTW.Value;
@@ -641,6 +641,13 @@ function v = limits(t)
 %limits  Two ascending values, else [] (automatic).
 v = parseList(t);
 if numel(v) ~= 2 || v(2) <= v(1); v = []; end
+end
+
+
+function v = colorLimitsText(t)
+%colorLimitsText  Color limits as typed: [lo hi], text whose ends name the data ("0 max": colorLimits), else [] (automatic).
+[v, msg] = colorLimits(t);
+if msg ~= ""; v = []; end
 end
 
 

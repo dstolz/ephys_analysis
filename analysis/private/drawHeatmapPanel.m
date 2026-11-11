@@ -8,7 +8,8 @@ function hk = drawHeatmapPanel(ax, P, look)
 %   evokedPotential result: every group computed), is cut to the group
 %   options.group (clipped to the groups there are; figSliceGroup) and
 %   drawn by renderHeatmap into AX (Order = options.order, Style.CLim =
-%   options.cLim): an image of the rows by time, titled with the group and
+%   options.cLim, fixed or from the data: colorLimits): an image of the
+%   rows by time, titled with the group and
 %   its epochs, with its color bar. A panel that shares the figure's time
 %   axis with other time panels in its column keeps the color bar inside
 %   the axes, at their right edge, so its time axis lines up with theirs.
@@ -57,8 +58,7 @@ stacked = isfield(o, 'stack') && o.stack == "groups" && height(R.groups) > 1;   
 st = style;
 st.XLim = [];
 st.YLim = [];
-st.CLim = [];
-if numel(o.cLim) == 2 && o.cLim(2) > o.cLim(1); st.CLim = o.cLim; end
+st.CLim = o.cLim;   % renderHeatmap resolves it (colorLimits) on the rows it draws
 if stacked
     g = 1:height(R.groups);
     h = renderHeatmap(R, ax, Order=o.order, Style=st, Stack=true, Spacing=o.stackSpacing, Colors=look.colors);
@@ -121,8 +121,7 @@ v = M(isfinite(M));
 cl = [0 1];
 if ~isempty(v); cl = [min(v) max(v)]; end
 if cl(2) <= cl(1); cl = cl + [-0.5 0.5]; end
-if numel(o.cLim) == 2 && o.cLim(2) > o.cLim(1); cl = o.cLim; end
-clim(ax, cl);
+clim(ax, colorLimits(o.cLim, v, cl));
 hold(ax, 'on');
 if nG > 1   % each epoch's group: a thin strip of its color along the left edge
     w = 0.025 * diff(W);

@@ -2,9 +2,10 @@ function issues = onValidate(obj)
 %onValidate  Check the working config and list its problems.
 %   The Export tab's table lists them (Section, Field, Severity, Message);
 %   a double click on a row goes to the setting it is about
-%   (onIssueActivated).
+%   (onIssueActivated). The scanned datasets' variables
+%   (datasetVariableSets) count as label variables ({probeDepth}).
 cfg = obj.gatherConfig();
-issues = cfg.validate();
+issues = cfg.validate(DatasetVariables=obj.datasetVariableSets());
 obj.IssuesTable.Data = issues;
 nE = nnz(issues.Severity == "error");
 nW = nnz(issues.Severity == "warning");

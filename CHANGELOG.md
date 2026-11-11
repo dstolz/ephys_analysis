@@ -10,6 +10,32 @@ says how to cut a release.
 
 ### Added
 
+- Dataset variables in figure labels. A figure's title, a panel's title, X and Y axis labels and text note, and a
+  layer's name may name a dataset variable in braces, `"Depth {probeDepth} µm"`, which prints the value recorded on
+  the figure's dataset (*Depth 1200 µm*; a figure across sessions, the merged sessions' values, *1200, 1400*). A
+  dataset without the variable leaves the name as typed; one named as a built-in variable (`Depth`) is
+  `{var_Depth}`. In the analysis app the **{x}** button's menu lists the variables in use on the scanned datasets
+  under **Dataset variables**, each with its label, units and value on the preview, as does **Help → Label
+  variables**; **Validate** takes them as known names, and editing a value (**Variables...**) redraws the preview.
+  `figureLabelVariables` gains `Variables=` (the datasets' sets, listed as rows of Topic `"Dataset variables"`) and
+  fills them from `F.variables` or a merged figure's `F.sessions`; `EphysAnalysisConfig.validate` gains
+  `DatasetVariables=`.
+- Analysis app, Export tab: a **{x}** button at the right of the figure **Folder** and **File names**, and of the
+  report's **Title** and **Folder**, as the Figures tab's labels have. Its menu lists the tokens that field takes,
+  each with what it is and its value now: the active dataset's, and for a file name, the values a run would fill
+  for the figure in the editor and the observation picked. The one picked is added where the pattern takes it: in
+  a file name after a `_`; in a folder `{Name}` and `{Date}` as a subfolder at the end, and `{OutputFolder}`,
+  `{OutputRoot}` or `{Root}` at the start, in place of the one there or of a full path; in the title after a
+  space. New public `figureFileTokens(kind)` lists the tokens of a `"file"` or `"folder"` pattern, or of the
+  report's `"title"` (`Name`, `Meaning`, `Example`, `Path`); `figureFileName` takes its tokens from it.
+- Color limits that follow the data. A panel's **Color limits** (`options.cLim`: a PSTH heat map, heat map, probe map,
+  unit correlation, spectrogram, coherogram, phase coherence over time) takes text whose two ends, low then high, are
+  each a number, `min` or `max` (the smallest or largest finite value the panel draws), a percentage of either
+  (`80%max`) or its negative (`-max`): `"0 max"`, `"min 0.5"`, `"min 80%max"`, `"-max max"`. Ends that do not come
+  out ascending draw the automatic scale. A unit correlation's min and max leave the diagonal out. The config keeps
+  the text tidied (`coerceStruct`; text of two numbers is `[lo hi]`) and `validate` names a bad end. `renderHeatmap`,
+  `renderProbeMap` and `renderCorrMap` take the same text in `Style.CLim`. New public `colorLimits(spec, values,
+  auto)` resolves a spec on any image's values; `colorLimits(spec)` checks and tidies one.
 - Analysis app: a **Phase coherence (ITPC)** panel type (`itpc`): the inter-trial phase coherence of a signal over the
   epochs, how alike each frequency's phase is from trial to trial (0 random, 1 the same phase in every trial). By
   frequency, a trace per channel and trial group with the jackknife band and a dashed line at the level random phases
@@ -115,6 +141,10 @@ says how to cut a release.
 
 ### Changed
 
+- Analysis exports: the figure files go where the report goes. `Export.Folder` defaults to `{OutputRoot}\analysis`,
+  the report's folder (`Report.Folder`), instead of `{OutputFolder}\analysis` in each dataset's output folder, so a
+  run's figure files and its report are together; the file names' `{Name}` keeps the datasets' files apart. A saved
+  config keeps the folder it holds: set the Export tab's **Folder** to `{OutputRoot}\analysis` to move its files.
 - `S_ExampleChronuxSpikes.m` takes its baseline by the analysis app's rule: `chronuxNormalize`, now public, over the
   moving windows that lie wholly inside `baselineSec` (it took every window centered there, so one reaching past the
   baseline's end, even past the event, counted). `chronuxSettings` checks the baseline before any dataset is loaded.

@@ -85,12 +85,12 @@ end
 opts = struct();                    % the settings, noted whole in each dataset's manifest
 opts.neuroGLMPath = 'c:\src\neuroGLM';   % added when neuroGLM is not on the path (the folder holding +buildGLM)
 opts.outDir = "";                        % a folder to save <dataset>_neuroglm.mat in (in a subfolder named after the browser's tags); "" keeps them in the workspace only
-opts.binMs = 1;                          % neuroGLM's bin, ms: 1, as the paper. The design matrix is bins x columns doubles for each unit: 5 or 10 ms fits several times faster in a fraction of the memory, and resolves the spike history only to the bin
+opts.binMs = 5;                          % neuroGLM's bin, ms: 1, as the paper. The design matrix is bins x columns doubles for each unit: 5 or 10 ms fits several times faster in a fraction of the memory, and resolves the spike history only to the bin
 opts.window = [-0.5 Inf];                % s around TrialOnset; Inf = up to the next trial's start, so the trials tile the session and every event between trials (Trough_on mostly) is in one; a finite end leaves out the events after it
 opts.minTrials = 20;                     % a dataset with fewer trials fitted (the training block) is not fitted, with a line printed
 opts.minSpikes = 100;                    % a unit with fewer spikes in the trials fitted is not fitted, with a line printed
-opts.events = ["Platform_off","Stim_on"];%,"Trough_on"];              % the events given a kernel, named as the kernels are: "<line>_on", "<line>_off", "response_time", e.g. ["Stim_on" "RespWindow_on" "response_time"]; string.empty = every line edge and response_time. One a dataset lacks is left out, with a line printed
-opts.boxcars = "";                       % the lines given a kernel on their boxcar, 1 while the line is on (the paper's motion stimulus, a boxcar of its duration): the kernel <line>_box, e.g. ["Stim" "RespWindow"]. "" = the browser's event line (B.Settings.ref.line); string.empty = none. A boxcar tells more than the line's edges only when its pulses differ in length
+opts.events = ["Platform_on","Platform_off","Trough_on"];              % the events given a kernel, named as the kernels are: "<line>_on", "<line>_off", "response_time", e.g. ["Stim_on" "RespWindow_on" "response_time"]; string.empty = every line edge and response_time. One a dataset lacks is left out, with a line printed
+opts.boxcars = "Stim";                       % the lines given a kernel on their boxcar, 1 while the line is on (the paper's motion stimulus, a boxcar of its duration): the kernel <line>_box, e.g. ["Stim" "RespWindow"]. "" = the browser's event line (B.Settings.ref.line); string.empty = none. A boxcar tells more than the line's edges only when its pulses differ in length
 opts.kernelMs = 500;                     % a kernel's reach after its event, for every kernel without a length of its own
 opts.kernelMsOf = struct();              % the kernels with a length of their own, ms, by name: struct('Stim_box', 800, 'Platform_off', 2000) (the paper's run from 0.5 to 4 s, an event's own)
 opts.nBases = 8;                         % raised cosines per opts.kernelMs of kernel: a longer or shorter kernel keeps their width
@@ -106,13 +106,13 @@ opts.responseAfter = "RespWindow";       % ...the first one after this line's on
 opts.history = true; opts.historyMs = 500;    % the spike-history filter and its reach: the lags from one bin to this long after a spike (the paper's spans 265 ms)
 opts.historyBases = 10;                  % its log-stretched raised cosines
 opts.coupling = false;                   % a coupling filter from every other unit of the dataset (slow with many units)
-opts.withSignal = "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
+opts.withSignal = "";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
 opts.auxParts = ["magnitude" "axes" "slow"];   % withSignal "AUX": the columns, each z-scored: "magnitude" (of the axes less their 2 s running mean), "axes" (those, signed), "slow" (the 2 s running means); named in g.expt.param.channels. LFP and MUA go in as they are, in uV
 opts.fitMethod = "matRegress";           % "matRegress": neuroGLM's route (fminunc, ridge prior; the paper's) | "glmfit": maximum likelihood
 opts.ridge = "evidence";                 % matRegress: the ridge prior's precision, or "evidence" to pick it by the marginal likelihood (the paper)
 opts.trainFraction = 0.8;                % trials fitted; the last block of consecutive trials (about 1 - this) is held out for the prediction (NeuroGLMExport.split); 1 = test on the fit
 opts.workers = 4;                        % process workers fitting units at once (Parallel Computing Toolbox), fewer when memory is short; 0 = one unit after the other here
-opts.plots = true;                       % the three figures of the last section
+opts.plots = false;                       % the three figures of the last section
 
 auxKnown = ["magnitude" "axes" "slow"];
 if opts.withSignal == "AUX" && (isempty(opts.auxParts) || ~all(ismember(opts.auxParts, auxKnown)))

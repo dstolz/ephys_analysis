@@ -106,7 +106,8 @@ ends a trial where the next trial of `D.trials` begins (its onset + pre), the
 last at the end of the recording, so the trials tile the session. Trials
 running off the recording are dropped (`info.nDroppedEdge`), and those whose
 span touches an erased period (`D.artifacts`) unless `DropArtifacts=false`
-(`info.nDroppedArtifact`). With `Signal=`, the trials the signal does not
+(`info.nDroppedArtifact`); `MinArtifactSec=` counts only the periods at least
+that long (0: every one). With `Signal=`, the trials the signal does not
 cover are dropped too (`info.nDroppedSignal`).
 
 | Registered | From | Label |
@@ -138,7 +139,10 @@ from 0.5 s before each trial's onset to 0.5 s before the next one's), so an even
 between trials, such as `Trough_on`, is in a trial and has its kernel; a finite
 `opts.window(2)` leaves out every event after it. It prints where the trials went: how many the
 browser's trial selection keeps, how many fall off the recording, on erased periods
-or off the signal, and how many are fitted and held out. A dataset with fewer than
+or off the signal, and how many are fitted and held out. A trial is left out for an
+erased period only when the trial selection's **Artifacts: Exclude epochs** is ticked,
+and only for periods at least its **at least (s)** long; a dataset with no trial left
+is passed over with a line printed. A dataset with fewer than
 `opts.minTrials` (20) trials fitted is passed over, and so is a unit with fewer than
 `opts.minSpikes` (100) spikes in those trials, each with a line printed. For every
 other unit it fits the GLM on the

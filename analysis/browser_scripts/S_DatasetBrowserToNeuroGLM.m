@@ -52,6 +52,9 @@
 %
 % Each dataset prints where its trials went (the browser's selection, the
 % recording's edges, erased periods, the signal) and how many are fitted. A
+% trial is left out for an erased period only with the browser's Artifacts:
+% Exclude epochs ticked, and only for periods at least its "at least (s)"
+% long; a dataset with no trial left is passed over with a line printed. A
 % unit's line says so when its fit did not converge, or when the ridge the
 % evidence picked is at an end of its grid.
 %
@@ -92,9 +95,10 @@ opts.minSpikes = 100;                    % a unit with fewer spikes in the trial
 opts.events = ["Platform_on","Platform_off","Trough_on"];              % the events given a kernel, named as the kernels are: "<line>_on", "<line>_off", "response_time", e.g. ["Stim_on" "RespWindow_on" "response_time"]; string.empty = every line edge and response_time. One a dataset lacks is left out, with a line printed
 opts.boxcars = "Stim";                       % the lines given a kernel on their boxcar, 1 while the line is on (the paper's motion stimulus, a boxcar of its duration): the kernel <line>_box, e.g. ["Stim" "RespWindow"]. "" = the browser's event line (B.Settings.ref.line); string.empty = none. A boxcar tells more than the line's edges only when its pulses differ in length
 opts.kernelMs = 500;                     % a kernel's reach after its event, for every kernel without a length of its own
-opts.kernelMsOf = struct();              % the kernels with a length of their own, ms, by name: struct('Stim_box', 800, 'Platform_off', 2000) (the paper's run from 0.5 to 4 s, an event's own)
+% opts.kernelMsOf = struct();              % the kernels with a length of their own, ms, by name: struct('Stim_box', 800, 'Platform_off', 2000) (the paper's run from 0.5 to 4 s, an event's own)
+opts.kernelMsOf = struct('Stim_box', 1000, 'Platform_off', 1000);              % the kernels with a length of their own, ms, by name: struct('Stim_box', 800, 'Platform_off', 2000) (the paper's run from 0.5 to 4 s, an event's own)
 opts.nBases = 8;                         % raised cosines per opts.kernelMs of kernel: a longer or shorter kernel keeps their width
-opts.acausal = string.empty;             % event variables whose kernel also precedes the event, e.g. "Resp_on" for the animal's response
+opts.acausal = "Platform_off";           % event variables whose kernel also precedes the event, e.g. "Resp_on" for the animal's response
 opts.acausalMs = 500;                   % how far those kernels and response_time's reach before the event; after it, opts.kernelMs
 opts.acausalMsOf = struct();             % the events whose kernel reaches its own time before them, ms, by name: struct('response_time', 1500) (the paper's saccade kernels start 2.5 s before the saccade); they need not be in opts.acausal
 opts.groupKernels = true;                % one kernel per trial group (B's groupBy) for the browser's event line (B.Settings.ref.line): its boxcar when the line is in opts.boxcars, else its onset
@@ -103,9 +107,10 @@ opts.responseEvents = "response_time";   % the events split by response word; no
 opts.responseTime = true;                % the event response_time: the moment of the response, with kernels before and after it
 opts.responseLine = "Platform"; opts.responseEdge = "offset";   % that moment: this line's edge (leaving the platform)...
 opts.responseAfter = "RespWindow";       % ...the first one after this line's onset, before the next trial (digital lines only)
-opts.history = true; opts.historyMs = 500;    % the spike-history filter and its reach: the lags from one bin to this long after a spike (the paper's spans 265 ms)
+opts.history = false; opts.historyMs = 250;    % the spike-history filter and its reach: the lags from one bin to this long after a spike (the paper's spans 265 ms)
 opts.historyBases = 10;                  % its log-stretched raised cosines
 opts.coupling = false;                   % a coupling filter from every other unit of the dataset (slow with many units)
+% opts.withSignal = "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
 opts.withSignal = "";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
 opts.auxParts = ["magnitude" "axes" "slow"];   % withSignal "AUX": the columns, each z-scored: "magnitude" (of the axes less their 2 s running mean), "axes" (those, signed), "slow" (the 2 s running means); named in g.expt.param.channels. LFP and MUA go in as they are, in uV
 opts.fitMethod = "matRegress";           % "matRegress": neuroGLM's route (fminunc, ridge prior; the paper's) | "glmfit": maximum likelihood
@@ -192,7 +197,20 @@ try
                 fprintf('%s: no response-time kernel (no line %s or %s)\n', name, opts.responseLine, opts.responseAfter);
             end
         end
-        [expt, info] = sessionDataNeuroGLM(D, 'Window', opts.window, 'BinMs', opts.binMs, args{:});
+        % the browser's Artifacts: Exclude epochs drops the trials on an erased period at least "at least (s)" long
+        sel = B.Settings.selection;
+        args = [args, {'DropArtifacts', sel.excludeArtifacts, 'MinArtifactSec', sel.minArtifactSec}]; %#ok<AGROW>
+        nWithSpikes = nnz(~cellfun(@isempty, D.spikes));
+        try
+            [expt, info] = sessionDataNeuroGLM(D, 'Window', opts.window, 'BinMs', opts.binMs, args{:});
+        catch ME
+            if ME.identifier ~= "sessionDataNeuroGLM:NoTrials", rethrow(ME); end
+            hint = "";
+            if sel.excludeArtifacts, hint = "; Artifacts: untick Exclude epochs, or raise its at least (s), to keep trials on erased periods"; end
+            fprintf('%s: not fitted (%s%s)\n', name, ME.message, hint);
+            nDone = nDone + nWithSpikes;
+            continue
+        end
 
         % the events given a kernel: opts.events, those of this dataset (all of them in the order registered)
         events = [reshape([info.lines.on, info.lines.off].', 1, []), info.responseTime(info.responseTime ~= "")];
@@ -278,7 +296,6 @@ try
         % to each other share drift and spike history, so scattered held-out trials would be tested
         % on what the fit has seen of their neighbors
         [train, test] = NeuroGLMExport.split(expt, TestFraction=1 - opts.trainFraction);
-        nWithSpikes = nnz(~cellfun(@isempty, D.spikes));
         fprintf(['%s: %d trials, %d kept by the browser''s trial selection; left out: %d off the recording, ' ...
             '%d on erased periods, %d off the signal; %d fitted, %d held out\n'], name, height(D.trials), nnz(D.kept), ...
             info.nDroppedEdge, info.nDroppedArtifact, info.nDroppedSignal, numel(train), numel(test));

@@ -41,7 +41,11 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %                 second Load whole sessions), its channels as a continuous
 %                 variable ([])
 %     DropArtifacts   drop the trials whose span touches an erased period
-%                 (D.artifacts; true)
+%                 (D.artifacts; true). The browser's trial selection
+%                 (Artifacts: Exclude epochs) is selection.excludeArtifacts
+%     MinArtifactSec  only erased periods at least this long count for
+%                 DropArtifacts (0: every one; the selection's
+%                 minArtifactSec, "at least (s)")
 %     Responses   the response words (respCodeBits) a trial's "response" can
 %                 be, the first that matches wins; "" on a trial with none
 %                 (["Hit" "Miss" "CR" "FA" "Abort"])
@@ -80,6 +84,7 @@ arguments
     opts.Units double = []
     opts.Signal = []
     opts.DropArtifacts (1,1) logical = true
+    opts.MinArtifactSec (1,1) double {mustBeNonnegative} = 0
     opts.Responses string = ["Hit" "Miss" "CR" "FA" "Abort"]
     opts.ResponseLine (1,1) string = ""
     opts.ResponseEdge (1,1) string {mustBeMember(opts.ResponseEdge, ["onset" "offset"])} = "onset"
@@ -122,9 +127,11 @@ inside = start >= 0 & stop <= endSec & stop > start;
 nDroppedEdge = nnz(~inside);
 idx = idx(inside); start = start(inside); stop = stop(inside);
 nDroppedArtifact = 0;
-if opts.DropArtifacts && ~isempty(D.artifacts)
+art = D.artifacts;
+if ~isempty(art); art = art(art(:, 2) - art(:, 1) >= opts.MinArtifactSec, :); end
+if opts.DropArtifacts && ~isempty(art)
     % the span is [start, stop); overlapsIntervals takes closed windows, so stop less two of its 1 ns tolerances
-    touch = EphysDataset.overlapsIntervals(start, stop - 2e-9, D.artifacts);
+    touch = EphysDataset.overlapsIntervals(start, stop - 2e-9, art);
     nDroppedArtifact = nnz(touch);
     idx = idx(~touch); start = start(~touch); stop = stop(~touch);
 end

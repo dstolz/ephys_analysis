@@ -580,6 +580,12 @@ says how to cut a release.
 
 ### Fixed
 
+- `S_DatasetBrowserToNeuroGLM` ignored the browser's **Artifacts: Exclude epochs**: it always left out every trial
+  touching an erased period, so on a dataset with many short erased periods (spikes erased every second or so) the
+  session-tiling trials all touched one and the run stopped with "no trial is left". It now passes the trial
+  selection's **Exclude epochs** and **at least (s)** to `sessionDataNeuroGLM` (new `MinArtifactSec=`: only periods
+  at least that long count), and a dataset with no trial left is passed over with a line printed instead of ending
+  the run.
 - A spectrogram baseline exactly one moving window long (the defaults: `[-0.5 0]` s with a 0.5 s window) normalized
   nothing: `chronuxNormalize` took a window to reach half a sample past its first and last samples, so the one
   starting on the baseline's start never fit and the panel was not drawn. A window now lies inside when its samples

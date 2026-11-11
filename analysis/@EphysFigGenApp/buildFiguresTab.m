@@ -38,7 +38,10 @@ function buildFiguresTab(obj)
 %           for; Pages: one page per observation, across datasets or on the
 %           probe, the last two showing the Sessions or Probe layout
 %           section; Starred only, the Signal channels, the unit filter
-%           (with On channels), the response test (folded: Windows, Parameter, Correction and alpha), Per trial group: one
+%           (with Shanks and On channels; each Channels row here, in Layers
+%           and in Probe layout has a Probe... button at its right that picks
+%           the shanks and channels by clicking the active dataset's probe:
+%           probeButton, pickChannels, ProbePickDialog), the response test (folded: Windows, Parameter, Correction and alpha), Per trial group: one
 %           figure per observation and group), Alignment (the figure's
 %           Event reference, Epoch window and Trial selection, each under a
 %           sub-heading with its "Use default" box: the Alignment tab's
@@ -405,7 +408,8 @@ E.obsStarred = uicheckbox(S.Body, "Text", "Starred only", "ValueChangedFcn", cha
 place(E.obsStarred, r, 2);
 [S, r] = formRow(S, "obsChannels", "Signal channels:");
 E.obsChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
-    "Tooltip", "The extract's columns observed, e.g. 1 3 5 (blank = all).");
+    "Tooltip", "The extract's columns observed, e.g. 1 3 5 (blank = all). Probe...: pick them by clicking the " + ...
+    "active dataset's probe (a shank: all its channels).");
 place(E.obsChannels, r, 2);
 [S, ~] = formSubheading(S, "unitFilter", "Unit filter");
 [S, r] = formRow(S, "obsClasses", "Unit classes:");
@@ -440,11 +444,14 @@ E.obsMaxUnits = uieditfield(S.Body, "text", "Value", "Inf", "ValueChangedFcn", c
     "Tooltip", "The most units observed (Inf = all), in probe order.");
 place(E.obsMaxUnits, r, 2);
 [S, r] = formRow(S, "obsShanks", "Shanks:");
-E.obsShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed);
+E.obsShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "The probe shanks (kcoords) whose units are observed, e.g. 1 3 (blank = all). Probe... on the row " + ...
+    "below picks them on the probe.");
 place(E.obsShanks, r, 2);
 [S, r] = formRow(S, "obsUnitChannels", "On channels:");
 E.obsUnitChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
-    "Tooltip", "The recording channels whose units are observed, e.g. 1:8.");
+    "Tooltip", "The recording channels whose units are observed, e.g. 1:8 (blank = all). Probe...: pick the " + ...
+    "shanks and channels by clicking the active dataset's probe.");
 place(E.obsUnitChannels, r, 2);
 [S, ~] = formSubheading(S, "responseTest", "Response test", Collapsible=true, Callback=subToggle);
 [S, r] = formRow(S, ["obsRespBaseFrom" "obsRespBaseTo" "obsRespFrom" "obsRespTo"], "Windows (s):");
@@ -674,11 +681,13 @@ place(E.prbLanes, r, 2);
 [S, ~] = formSubheading(S, "sites", "Sites laid out");
 [S, r] = formRow(S, "prbShanks", "Shanks:");
 E.prbShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
-    "Tooltip", "The probe shanks (kcoords) whose sites are laid out, e.g. 1 2 (blank = all).");
+    "Tooltip", "The probe shanks (kcoords) whose sites are laid out, e.g. 1 2 (blank = all). Probe... on the " + ...
+    "row below picks them on the probe.");
 place(E.prbShanks, r, 2);
 [S, r] = formRow(S, "prbChannels", "Channels:");
 E.prbChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
-    "Tooltip", "The recording channels whose sites are laid out, e.g. 1:16 (blank = all).");
+    "Tooltip", "The recording channels whose sites are laid out, e.g. 1:16 (blank = all). Probe...: pick the " + ...
+    "shanks and channels by clicking the active dataset's probe.");
 place(E.prbChannels, r, 2);
 [S, r] = formRow(S, "prbDepth", "Depth range (µm):");
 E.prbDepth = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
@@ -980,15 +989,19 @@ E.layerResponse = uicheckbox(qg, "Text", "Responsive only", "ValueChangedFcn", c
 E.layerMaxUnits = uieditfield(S.Body, "text", "Value", "Inf", "ValueChangedFcn", changed);
 place(E.layerMaxUnits, r, 2);
 [S, r] = formRow(S, "layerShanks", "Shanks:");
-E.layerShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed);
+E.layerShanks = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
+    "Tooltip", "The probe shanks (kcoords) whose units the layer keeps (blank = all). Probe... on the row below " + ...
+    "picks them on the probe.");
 place(E.layerShanks, r, 2);
 [S, r] = formRow(S, "layerUnitChannels", "On channels:");
 E.layerUnitChannels = uieditfield(S.Body, "text", "Placeholder", "all", "ValueChangedFcn", changed, ...
-    "Tooltip", "The recording channels whose units the layer keeps.");
+    "Tooltip", "The recording channels whose units the layer keeps (blank = all). Probe...: pick the shanks and " + ...
+    "channels by clicking the active dataset's probe.");
 place(E.layerUnitChannels, r, 2);
 [S, r] = formRow(S, "layerChannels", "Signal channels:");
 E.layerChannels = uieditfield(S.Body, "text", "Placeholder", "all, e.g. 3 5 8", "ValueChangedFcn", changed, ...
-    "Tooltip", "The extract's columns the layer draws (blank = all).");
+    "Tooltip", "The extract's columns the layer draws (blank = all). Probe...: pick them by clicking the active " + ...
+    "dataset's probe (a shank: all its channels).");
 place(E.layerChannels, r, 2);
 [S, r] = formRow(S, "layerAggregate", "Aggregate:");
 E.layerAggregate = uidropdown(S.Body, "Items", ["each one" "their mean"], "ItemsData", ["each" "mean"], "ValueChangedFcn", changed, ...
@@ -1985,6 +1998,14 @@ end
 E.varButton = struct();
 for f = ["title" "panelTitle" "panelXLabel" "panelYLabel" "layerName" "annText"]
     E.varButton.(f) = labelVariableButton(E.(f), Values=@() obj.labelVariableValues(), List=@() obj.onLabelVariables());
+end
+% a "Probe..." button beside each Channels row: its shanks and channels picked by clicking the active dataset's probe
+% (probeButton, pickChannels: a ProbePickDialog on the Observations', the layer's or the Probe layout's rows)
+E.probeButton = struct();
+for f = ["obsUnitChannels" "obsChannels" "layerUnitChannels" "layerChannels" "prbChannels"]
+    where = "observe";
+    if startsWith(f, "layer"); where = "layer"; elseif startsWith(f, "prb"); where = "probe"; end
+    E.probeButton.(f) = probeButton(E.(f), @() obj.pickChannels(where));
 end
 obj.FigureEditor = E;
 obj.FigureSections = sec;

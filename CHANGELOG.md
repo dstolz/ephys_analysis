@@ -10,6 +10,17 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app: a **Probe...** button beside each Channels row of the Figures tab's editor (Observations' **On
+  channels** and **Signal channels**, a fixed layer's, Probe layout's **Channels**) opens a window that draws the
+  active dataset's probe, as the dataset browser's Channels tab does: a click on a site picks or drops its channel, a
+  click on a shank the shank, with the Shanks and Channels fields yoked to it, **All**, a count of the sites kept and
+  the picks this probe lacks. **OK** writes the rows and the figure as one named undo step; Cancel changes nothing. A
+  signal's channels have no shank filter, so there a click on a shank picks all its channels. AUX, which has no
+  probe, keeps its button grayed out. New `ProbePickDialog` (the window) and `ProbePicker`'s `ShankPick "channels"`
+  (a shank click toggles its sites' channels); new public `parseNumbers` and `numbersText`, the dataset browser's
+  list reading and writing, now shared (`numbersText` writes each run of 3 or more as `a:b`: *1:16 33:48*, *1:4 7*);
+  the editor's shank and channel rows show their lists so.
+
 - Analysis app: a **Phase coherence (ITPC)** panel type (`itpc`): the inter-trial phase coherence of a signal over the
   epochs, how alike each frequency's phase is from trial to trial (0 random, 1 the same phase in every trial). By
   frequency, a trace per channel and trial group with the jackknife band and a dashed line at the level random phases

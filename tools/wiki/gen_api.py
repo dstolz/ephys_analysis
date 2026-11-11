@@ -1032,6 +1032,7 @@ ANALYSIS_GROUPS = [
                                             "selectTrials", "epochWindow", "epochTable", "epochSpikes"]),
     ("Raster event marks", ["epochEvents", "eventMarkRef", "rasterMarkLabels", "rasterMarkLooks"]),
     ("Units and channels", ["selectUnits", "selectChannels", "unitWaveforms", "probeOrder", "groupDetected"]),
+    ("Lists of numbers as typed (channels, shanks, ids)", ["parseNumbers", "numbersText"]),
     ("Unit mapping across datasets", ["readUnitMapping", "writeUnitMapping"]),
     ("Compute", ["spikePSTH", "firingRate", "tuningCurve", "evokedPotential", "unitCorrelation",
                  "unitSummary", "probeMapValues"]),

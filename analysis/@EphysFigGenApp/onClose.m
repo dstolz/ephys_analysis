@@ -46,7 +46,7 @@ end
 if ~isempty(obj.DownsampleWindow) && isvalid(obj.DownsampleWindow)
     delete(obj.DownsampleWindow);   % closed as canceled: the rates stay as they were
 end
-for w = {obj.SignalFilterWindow, obj.PanelFilterWindow}   % the Filter dialogs: closed as canceled
+for w = {obj.SignalFilterWindow, obj.PanelFilterWindow, obj.ProbePickWindow}   % the Filter and Probe... dialogs: closed as canceled
     if ~isempty(w{1}) && isvalid(w{1}); delete(w{1}); end
 end
 O = obj.FigureArrangeOverlay;

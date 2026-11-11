@@ -14,7 +14,8 @@ classdef ProbePicker < handle
     %   and SH shanks (kcoords values), [] = all. A site is kept when both
     %   hold it, the rule of selectUnits and epochMatrix: kept sites are
     %   filled, a site in CH on a shank SH leaves out is ringed, the rest
-    %   are gray. With SH set, the bodies of its shanks are tinted.
+    %   are gray. With SH set, the bodies of its shanks are tinted (with
+    %   ShankPick "channels": the shanks whose every site CH holds).
     %
     %   Clicking a site toggles its channel in CH; clicking a shank's body
     %   or name toggles that shank in SH. A click on a blank CH (SH: all)
@@ -24,11 +25,18 @@ classdef ProbePicker < handle
     %   what it took. P.click("site", CH) and P.click("shank", K) do what a
     %   click does (scripts, tests). With Enable "off" clicks do nothing.
     %
-    %   See also DatasetBrowser, probeColumns, probeSites, selectUnits, epochMatrix.
+    %   P.ShankPick = "channels" is for a pick that has channels only (a
+    %   signal's columns): a click on a shank then picks every channel of
+    %   its sites into CH, or drops them all when CH holds every one of
+    %   them already; SH stays as it is (blank). The default, "shanks",
+    %   toggles the shank in SH.
+    %
+    %   See also DatasetBrowser, ProbePickDialog, probeColumns, probeSites, selectUnits, epochMatrix.
 
     properties
         OnPick = []                                % OnPick(CH, SH) after a click
         Enable matlab.lang.OnOffSwitchState = "on" % "off": clicks do nothing
+        ShankPick (1,1) string {mustBeMember(ShankPick, ["shanks" "channels"])} = "shanks"   % what a shank click toggles: the shank, or its sites' channels
     end
 
     properties (SetAccess = private)
@@ -156,11 +164,16 @@ classdef ProbePicker < handle
         end
 
         function click(P, kind, value)
-            %click  What a click does: KIND "site" toggles recording channel VALUE, "shank" shank VALUE; then OnPick.
+            %click  What a click does: KIND "site" toggles recording channel VALUE, "shank" shank VALUE (or, ShankPick "channels", its sites' channels); then OnPick.
             if P.Enable == "off"; return; end
             switch string(kind)
                 case "site";  P.Channels = ProbePicker.toggle(P.Channels, value);
-                case "shank"; P.Shanks = ProbePicker.toggle(P.Shanks, value);
+                case "shank"
+                    if P.ShankPick == "channels"
+                        P.Channels = ProbePicker.toggleAll(P.Channels, P.Sites.channel(P.Sites.shank == value));
+                    else
+                        P.Shanks = ProbePicker.toggle(P.Shanks, value);
+                    end
                 otherwise
                     error('ProbePicker:BadKind', 'click takes "site" or "shank" (got "%s").', kind);
             end
@@ -189,7 +202,12 @@ classdef ProbePicker < handle
             set(P.Ringed, "XData", S.x(ring), "YData", S.y(ring));
             set(P.Off, "XData", S.x(off), "YData", S.y(off));
             for c = 1:numel(P.Bodies)
-                if ~isempty(P.Shanks) && ismember(P.BodyShank(c), P.Shanks)
+                k = P.BodyShank(c);
+                picked = ~isempty(P.Shanks) && ismember(k, P.Shanks);
+                if P.ShankPick == "channels"   % a shank whose every site is picked
+                    picked = ~isempty(P.Channels) && any(S.shank == k) && all(ismember(S.channel(S.shank == k), P.Channels));
+                end
+                if picked
                     set(P.Bodies(c), "FaceColor", 0.80 + 0.20 * P.Pick, "EdgeColor", P.Pick);
                 else
                     set(P.Bodies(c), "FaceColor", 0.86 + 0.14 * P.Steel, "EdgeColor", 0.55 + 0.45 * P.Steel);
@@ -216,6 +234,17 @@ classdef ProbePicker < handle
                 v = v(v ~= x);
             else
                 v = sort([v x]);
+            end
+        end
+
+        function v = toggleAll(v, xs)
+            %toggleAll  Every one of XS taken off V when V holds them all, else XS added; a blank V (all) starts with XS.
+            xs = reshape(double(xs), 1, []);
+            if isempty(xs); return; end
+            if all(ismember(xs, v))
+                v = v(~ismember(v, xs));
+            else
+                v = unique([reshape(v, 1, []) xs]);
             end
         end
 

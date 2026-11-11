@@ -264,6 +264,7 @@ v.obsRaMethod = respAuroc; v.obsRaWinMs = respAuroc; v.obsRaCutoff = respAuroc;
 v.obsRaTest = respAuroc && ismember(string(E.obsRaCutoff.Value), ["test" "shuffle"]);   % shuffle: its n
 v.obsIds = unit; v.obsMaxUnits = unit; v.obsShanks = unit; v.obsUnitChannels = unit;
 v.obsChannels = kind == "channel";
+en(E.probeButton.obsChannels, fig.observe.data ~= "AUX");   % Probe...: AUX has no probe
 % across datasets (Pages): the Sessions section shows, with every row; the keys with "These datasets", the mapping file
 % with match "mapping", the band and the faint sessions when the sessions are averaged (a color per subject, or none)
 pages = string(E.pages.Value);
@@ -394,6 +395,7 @@ if hasPanel
         v.layerIds = fixed && isSpike; v.layerQuality = v.layerIds; v.layerMaxUnits = v.layerIds;
         v.layerShanks = v.layerIds; v.layerUnitChannels = v.layerIds;
         v.layerChannels = fixed && isSignal;
+        en(E.probeButton.layerChannels, L.source ~= "AUX");   % Probe...: AUX has no probe
         v.layerAggregate = fixed && (isSpike || isSignal) && numel(lc.Aggregates) > 1;
         v.evLine = L.source == "events"; v.evEdge = v.evLine; v.evSeqText = v.evLine; v.evDrawAs = v.evLine;
         v.evMarker = marks; v.evColor = marks || span; v.evSpanStyle = span;

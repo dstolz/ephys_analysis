@@ -18,7 +18,10 @@ function test_EphysFigGenApp(opts)
 %   Nyquist refused, OK into Source.SignalFilter and the runner, Cancel,
 %   a config opened with a filter); a panel's Filter... (5d.sigfilter:
 %   the row by type, OK one undo step into options.filter, the preview
-%   read through it, closed with another panel); grouping by
+%   read through it, closed with another panel); the Probe... buttons
+%   beside the Channels rows (5d.probepick: the window on the figure's
+%   pick and the active dataset's probe, OK one named undo step, Cancel,
+%   a fixed LFP layer's channels only, AUX off); grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
 %   the toolbar's Preview drawing the selected figure on the Figures tab;
 %   the header's column of buttons and the rows right of them;
@@ -250,7 +253,7 @@ needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d
     "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.multi" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
     "5d.quick" "5d.layers"; "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
     "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.trialmeasure" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; ...
-    "5d.saveprefs" "5d.remove"; "1e" "1"; "1f" "1"; "1g" "1"; "5d.sigfilter" "5d.layers"];
+    "5d.saveprefs" "5d.remove"; "1e" "1"; "1f" "1"; "1g" "1"; "5d.sigfilter" "5d.layers"; "5d.probepick" "5d.layers"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
 timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a failure on the way
 
@@ -2028,6 +2031,79 @@ if S.sec("5d.sigfilter", "a signal panel's Filter row: hidden on a raster, shown
     app.onUndoRedo("undo");
     check(~app.Config.Figures(kf).panels(3).options.filter.enabled && string(FE.filterText.Text) == "none", ...
         'Undo: the panel unfiltered again, the row says none');
+end
+
+if S.sec("5d.probepick", "the Probe... buttons beside the Channels rows: the window on the figure's pick and the active dataset's probe, clicks and OK one named undo step, Cancel; a fixed LFP layer's channels only, a shank picking its channels; AUX off; closed with another panel")
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
+    app.selectTab(app.TabFigures);   % (run alone: the editor's rows are shown on the Figures tab only)
+    app.onFigureSelected(1);
+    if ~app.FigureSupers(1).Expanded; app.onFigureSuperToggled("figure"); end
+    if ~secOf("observations").Expanded; app.onFigureSectionToggled("observations"); end
+    kf = app.SelectedFigure;
+    nUndo0 = numel(app.FigureHistory.Undo);
+    src = app.Runner.source(app.ActiveIdx);
+    nSites = numel(src.probe.chanMap);
+    b = FE.probeButton.obsUnitChannels;
+    check(app.Config.Figures(kf).observe.data == "units" && shown(b) && string(b.Text) == "Probe..." && b.Enable == "on" ...
+        && isequal(b.UserData, FE.obsUnitChannels) && isequal(b.Parent, FE.obsUnitChannels.Parent) ...
+        && all(isfield(FE.probeButton, {'obsChannels', 'layerUnitChannels', 'layerChannels', 'prbChannels'})), ...
+        'a Probe... button at the right of On channels (and of every other Channels row)');
+    b.ButtonPushedFcn(b, []);
+    dlg = app.ProbePickWindow;
+    check(isa(dlg, 'ProbePickDialog') && app.pickChannels("observe") == dlg && height(dlg.Picker.Sites) == nSites ...
+        && isfield(dlg.Ctl, 'Shanks') && isempty(dlg.Channels) && isempty(dlg.Shanks) && contains(string(dlg.Ctl.Note.Text), src.name) ...
+        && contains(string(dlg.Fig.Name), app.Config.Figures(kf).id) ...
+        && contains(string(dlg.Ctl.Channels.Tooltip), "observe.units.channels"), ...
+        'Probe... opens the window on the figure''s pick (all) and the active dataset''s probe; the same one while open');
+    nUndo = numel(app.FigureHistory.Undo);
+    dlg.click("site", 2);
+    dlg.click("site", 3);
+    dlg.click("site", 4);
+    dlg.ok();
+    u = app.Config.Figures(kf).observe.units;
+    check(isequal(u.channels, 2:4) && isempty(u.shanks) && string(FE.obsUnitChannels.Value) == "2:4" && isempty(app.ProbePickWindow) ...
+        && ~dlg.isOpen() && numel(app.FigureHistory.Undo) == nUndo + 1 && string(app.UndoMenu.Text) == "Undo On channels", ...
+        'OK: the channels clicked into observe.units.channels and the row ("2:4"), one undo step named after the row');
+    dlg = app.pickChannels("observe");
+    dlg.click("shank", src.probe.kcoords(1));
+    dlg.cancel();
+    check(isempty(app.Config.Figures(kf).observe.units.shanks) && isequal(app.Config.Figures(kf).observe.units.channels, 2:4) ...
+        && numel(app.FigureHistory.Undo) == nUndo + 1, 'Cancel changes nothing');
+    app.onUndoRedo("undo");
+    check(isempty(app.Config.Figures(kf).observe.units.channels) && string(FE.obsUnitChannels.Value) == "", ...
+        'Undo: every channel observed again, the row blank');
+    % a fixed LFP layer: channels only, a click on the shank picks every channel of its sites
+    app.onPanelSelected(3);   % the continuous LFP panel (5d.layers)
+    app.onLayerSelected(1);
+    FE.layerBinding.Value = "fixed";
+    app.onConfigChanged("figure", FE.layerBinding);
+    bL = FE.probeButton.layerChannels;
+    check(shown(bL) && bL.Enable == "on" && ~shown(FE.probeButton.layerUnitChannels), ...
+        'a fixed LFP layer: Probe... beside its Signal channels');
+    bL.ButtonPushedFcn(bL, []);
+    dlg = app.ProbePickWindow;
+    check(isa(dlg, 'ProbePickDialog') && ~isfield(dlg.Ctl, 'Shanks') && dlg.Picker.ShankPick == "channels" ...
+        && contains(string(dlg.Fig.Name), "layer") && contains(string(dlg.Ctl.Channels.Tooltip), "Script name: channels"), ...
+        'the layer''s window picks channels only (a signal''s columns have no shank filter)');
+    dlg.click("shank", src.probe.kcoords(1));   % the fixture's probe: one shank, all its sites
+    dlg.click("site", 1);
+    dlg.ok();
+    L = app.Config.Figures(kf).panels(3).layers(1);
+    check(isequal(L.channels, 2:nSites) && string(FE.layerChannels.Value) == "2:" + nSites && L.binding == "fixed", ...
+        'a shank click picks all its channels, a site click drops one: the layer''s channels and its row');
+    dlg = app.pickChannels("layer");
+    app.onPanelSelected(1);
+    check(~dlg.isOpen() && isempty(app.ProbePickWindow) && isequal(app.Config.Figures(kf).panels(3).layers(1).channels, 2:nSites), ...
+        'another panel shown closes the window, as canceled');
+    app.onPanelSelected(3);
+    app.onLayerSelected(1);
+    FE.layerSource.Value = "AUX";
+    app.onConfigChanged("figure", FE.layerSource);
+    check(app.Config.Figures(kf).panels(3).layers(1).source == "AUX" && bL.Enable == "off" && isempty(app.pickChannels("layer")), ...
+        'AUX has no probe: its Probe... is off and opens nothing');
+    while numel(app.FigureHistory.Undo) > nUndo0; app.onUndoRedo("undo"); end   % the figure as the section found it
+    L = app.Config.Figures(kf).panels(3).layers(1);
+    check(L.source == "LFP" && L.binding == "observation" && isempty(L.channels), 'Undo: the layer as it was');
 end
 
 if S.sec("5d.type", "a type change: the PSTH's bins, a heat map and its rows, back to a PSTH; a layer's binding")

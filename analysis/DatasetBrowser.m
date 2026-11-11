@@ -3222,17 +3222,18 @@ classdef DatasetBrowser < handle
             if name == "Data"; S.data = reshape(string(v), 1, []); return; end   % the kinds: none ticked is refused by the check
             if name == "Classes"; S.units.classes = classesTicked(v, S.units.classes); return; end
             if iscell(v); v = v{1}; end
+            num = @(t, what) parseNumbers(t, what, ErrorId="DatasetBrowser:BadValue");   % a number field typed
             switch name
                 case "Normalize"; S.normalize.method = string(v);
-                case "NormBaseline"; S.normalize.baseline = parseNumbers(v, "Normalize baseline");
+                case "NormBaseline"; S.normalize.baseline = num(v, "Normalize baseline");
                 case "NormScope"; S.normalize.scope = string(v);
                 case "Merge";    S.units.merge.enabled = logical(v);
-                case "Shanks";   S = withPick(S, "shanks", parseNumbers(v, "Shanks"));
-                case "Channels"; S = withPick(S, "channels", parseNumbers(v, "Channels"));
+                case "Shanks";   S = withPick(S, "shanks", num(v, "Shanks"));
+                case "Channels"; S = withPick(S, "channels", num(v, "Channels"));
                 case "Measure";  S.measure = string(v);
                 case "Bin";      S.binSec = double(v) / 1000;   % the form is in ms
-                case "Baseline"; S.baseline = parseNumbers(v, "auROC baseline");
-                case "SigBaseline"; S.signal.baseline = parseNumbers(v, "Baseline");
+                case "Baseline"; S.baseline = num(v, "auROC baseline");
+                case "SigBaseline"; S.signal.baseline = num(v, "Baseline");
                 case "Statistic"; S.signal.statistic = string(v);
                 case {"Detrend", "Rectify", "Magnitude"}; S.signal.(lower(name)) = logical(v);
                 case "KeepEpochs"; S.keepEpochs = logical(v);
@@ -4246,43 +4247,6 @@ function setDrop(dd, text)
 %setDrop  A filter drop-down's value: TEXT, or '(any)' when blank.
 if text == ""; text = "(any)"; end
 dd.Value = char(text);
-end
-
-
-function v = parseNumbers(txt, name)
-%parseNumbers  Numbers typed as "1:4", "1 3", "[-1 -0.5]", "1, 2" (blank = []); never eval.
-t = strtrim(string(txt));
-v = [];   % blank: [] (= all / none), as a settings file gives it back
-if t == ""; return; end
-v = zeros(1, 0);
-t = regexprep(t, '[\[\]\(\)]', ' ');
-t = regexprep(t, '[,;]', ' ');
-t = regexprep(t, '\s*:\s*', ':');
-parts = split(strtrim(t));
-for p = reshape(parts(parts ~= ""), 1, [])
-    q = split(p, ":");
-    x = str2double(q);
-    if any(isnan(x)) || numel(q) > 3
-        error('DatasetBrowser:BadValue', '%s: "%s" is not a number or a range a:b.', name, p);
-    end
-    switch numel(q)
-        case 1; v = [v x]; %#ok<AGROW>
-        case 2; v = [v x(1):x(2)]; %#ok<AGROW>
-        case 3; v = [v x(1):x(2):x(3)]; %#ok<AGROW>
-    end
-end
-end
-
-
-function s = numbersText(v)
-%numbersText  Numbers as the form shows them: "1:4" for a run of 3 or more whole numbers, else "1 3".
-v = reshape(double(v), 1, []);
-if isempty(v); s = ""; return; end
-if numel(v) > 2 && all(v == round(v)) && all(diff(v) == 1)
-    s = sprintf("%g:%g", v(1), v(end));
-else
-    s = strjoin(compose("%g", v), " ");
-end
 end
 
 

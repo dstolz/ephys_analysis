@@ -73,7 +73,10 @@ classdef EphysFigGenApp < handle
     %                spreadPanelEdit; each one is outlined), the figure's event reference, epoch window and
     %                trial selection ("Use default" for the Alignment tab's),
     %                the panel's own event and window ("Same as the figure"),
-    %                its layers (each follows the observation or is fixed),
+    %                its layers (each follows the observation or is fixed;
+    %                the Probe... button beside a Channels row picks the
+    %                shanks and channels on the active dataset's probe:
+    %                pickChannels, ProbePickDialog),
     %                the type's options (a continuous, heat map or spectral
     %                panel's Filter...: editPanelFilter, FilterDialog, its
     %                options.filter), the panel's text note and overlays,
@@ -405,6 +408,8 @@ classdef EphysFigGenApp < handle
         SignalFilterWindow = []             % the signals' Filter dialog (FilterDialog), while open (onSignalFilter)
         PanelFilterWindow = []              % a panel's Filter dialog (FilterDialog), while open (editPanelFilter; what it edits: PanelFilterTarget)
         PanelFilterTarget = struct('FigureId', "", 'PanelId', "")   % the figure and panel the panel's Filter dialog edits
+        ProbePickWindow = []                % a Channels row's Probe... window (ProbePickDialog), while open (pickChannels; what it picks for: ProbePickTarget)
+        ProbePickTarget = struct('Where', "", 'FigureId', "", 'PanelId', "", 'Layer', 0, 'Shanks', "", 'Channels', "")   % the rows the Probe... window picks for (pickChannels)
         NotePadFollows (1,1) string = ""    % what the notepad follows: "dataset" (the active one), "observation" (the one picked), "" (the note it was opened on)
         NoteSearchWindow = []               % the Search notes window (NoteSearch), while open (onSearchNotes)
         DatasetUnits = []                   % sorted units per dataset, read when it is opened: containers.Map, "<key>|<sort folder>" -> table unitId, class, channel, depth (refreshDatasetLabels; labels the Favorites)
@@ -599,6 +604,7 @@ classdef EphysFigGenApp < handle
         dlg = onSignalFilter(obj)
         showSignalFilter(obj, filters)
         dlg = editPanelFilter(obj)
+        dlg = pickChannels(obj, where)
         onDatasetsSorted(obj, evt)
         clearDatasetsSort(obj)
         selectDataset(obj, idx)

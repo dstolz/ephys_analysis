@@ -39,6 +39,7 @@ if k < 1 || k > numel(obj.Config.Figures)
     showFigureId(obj);
     closeTrialMeasureDialog(obj);
     closePanelFilterDialog(obj);
+    closeProbePickDialog(obj);
     obj.syncFigureEditor();
     return
 end
@@ -71,6 +72,7 @@ else
 end
 closeTrialMeasureDialog(obj);   % a Trial measure window open on a layer not shown now goes
 closePanelFilterDialog(obj);   % ... and a Filter window open on a panel not shown now
+closeProbePickDialog(obj);   % ... and a Probe... window open on another figure or layer
 obj.syncFigureEditor();
 end
 
@@ -105,9 +107,9 @@ offerItems(E.obsRespParam, ["" params], rs.param);
 E.obsRespCorrection.Value = char(pickFrom(rs.correction, string(E.obsRespCorrection.ItemsData), "bh"));
 E.obsRespAlpha.Value = min(1, max(eps, rs.alpha));
 aurocTo(E, "obsRa", rs.auroc);
-E.obsShanks.Value = listText(u.shanks);
-E.obsUnitChannels.Value = listText(u.channels);
-E.obsChannels.Value = listText(o.channels);
+E.obsShanks.Value = char(numbersText(u.shanks));
+E.obsUnitChannels.Value = char(numbersText(u.channels));
+E.obsChannels.Value = char(numbersText(o.channels));
 E.obsStarred.Value = logical(o.starred);
 E.obsPerGroup.Value = logical(o.perGroup);
 E.pages.Value = char(pagesOf(fig));   % (Pages: across datasets or on the probe, else one per observation)
@@ -131,8 +133,8 @@ pr = fig.probe;
 E.prbLayout.Value = char(pickFrom(pr.layout, string(E.prbLayout.ItemsData), "schematic"));
 E.prbOverlap.Value = char(pickFrom(pr.overlap, string(E.prbOverlap.ItemsData), "nudge"));
 E.prbLanes.Value = max(1, round(pr.lanes));
-E.prbShanks.Value = listText(pr.shanks);
-E.prbChannels.Value = listText(pr.channels);
+E.prbShanks.Value = char(numbersText(pr.shanks));
+E.prbChannels.Value = char(numbersText(pr.channels));
 E.prbDepth.Value = listText(pr.depthRange);
 E.prbMaxTiles.Value = max(1, round(pr.maxTiles));
 E.prbPerSite.Value = max(1, round(pr.maxPerSite));
@@ -486,9 +488,9 @@ E.layerIds.Value = listText(u.ids);
 E.layerQuality.Value = logical(u.quality.enabled);
 E.layerResponse.Value = logical(u.response.enabled);
 E.layerMaxUnits.Value = char(string(u.maxUnits));
-E.layerShanks.Value = listText(u.shanks);
-E.layerUnitChannels.Value = listText(u.channels);
-E.layerChannels.Value = listText(L.channels);
+E.layerShanks.Value = char(numbersText(u.shanks));
+E.layerUnitChannels.Value = char(numbersText(u.channels));
+E.layerChannels.Value = char(numbersText(L.channels));
 setChoices(E.layerAggregate, ch.AggregateLabels, ch.Aggregates, pickFrom(L.aggregate, ch.Aggregates, "each"));
 ev = L.event;
 offerItems(E.evLine, lines, ev.line);

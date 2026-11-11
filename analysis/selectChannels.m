@@ -13,6 +13,25 @@ function [Y, fs, meta] = selectChannels(src, signal, opts)
 %            "V")
 %   CH lists 1-based columns of the signal ([] = all).
 %
+%   Rate=R (Hz; [] = the rate on file, the default) brings the columns to
+%   the lower rate R first (DatasetOutputs.resampled: resampleSignal's
+%   anti-aliasing low-pass, zero phase, so content up to 0.38 x FS passes
+%   unchanged and nothing above the new Nyquist folds back into it); FS is
+%   then the rate reached and Y a new array of those columns. With the
+%   outputs' CacheData each column is resampled once and kept. R at or
+%   above the rate on file changes nothing. The figures read their
+%   signals so (EphysAnalysisConfig's Source.Downsample).
+%
+%   Filter=F (a SignalFilter, or a list applied in order; [] = none, the
+%   default) filters each column over the whole recording, at the rate
+%   read (after Rate), before anything is cut into epochs
+%   (DatasetOutputs.prepared: SignalFilter.apply). Y is then a new array
+%   of those columns; with the outputs' CacheData each column is filtered
+%   once and kept. A filter that cannot run at that rate (a cutoff at or
+%   above its Nyquist frequency) raises SignalFilter:Unusable. The
+%   figures read their signals so (the config's Source.SignalFilter, then
+%   a panel's options.filter).
+%
 %   The whole signal is read once per dataset (a MUA at 2 kHz x 64 channels
 %   x 1 h is ~1.8 GB in single), so load one signal at a time and clear the
 %   outputs' cache between datasets (EphysAnalysisRunner does). With every
@@ -21,12 +40,14 @@ function [Y, fs, meta] = selectChannels(src, signal, opts)
 %
 %   Errors: selectChannels:NoSignal, selectChannels:BadChannels.
 %
-%   See also loadAnalysisSource, evokedPotential, DatasetOutputs.
+%   See also loadAnalysisSource, evokedPotential, DatasetOutputs, resampleSignal, SignalFilter.
 
 arguments
     src (1,1) struct
     signal (1,1) string
     opts.Channels (1,:) double = []
+    opts.Rate double {mustBeScalarOrEmpty, mustBePositive} = []
+    opts.Filter = []
 end
 
 signal = upper(signal);
@@ -47,7 +68,11 @@ if any(ch < 1 | ch > nCh | ch ~= round(ch))
     error('selectChannels:BadChannels', '%s %s has %d channel(s); Channels asks for %s.', ...
         src.name, signal, nCh, mat2str(ch));
 end
-if ~isequal(ch, 1:nCh)
+if ~isempty(SignalFilter.chain(opts.Filter))   % filtered (after the rate), a column at a time, kept with CacheData
+    [Y, fs] = src.outputs.prepared(signal, ch, Rate=opts.Rate, Filter=opts.Filter);
+elseif ~isempty(opts.Rate) && opts.Rate < fs   % anti-aliased, a column at a time, kept with CacheData
+    [Y, fs] = src.outputs.resampled(signal, opts.Rate, ch);
+elseif ~isequal(ch, 1:nCh)
     Y = Y(:, ch);   % indexing copies: only for a real subset or reorder
 end
 if signal == "AUX"

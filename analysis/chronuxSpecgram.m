@@ -84,7 +84,7 @@ if aligned
         end
         if ~isempty(opts.Check); opts.Check(); end
     end
-    [P, bu] = chronuxNormalize(P, t, S.baseline, S.baselineWindow, mw(1));
+    [P, bu] = chronuxNormalize(P, t, S.baseline, S.baselineWindow, mw(1), fs);
     base = struct('mode', S.baseline, 'window', S.baselineWindow, 'units', bu);
 else
     step = nStep / fs;

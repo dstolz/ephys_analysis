@@ -84,7 +84,7 @@ function syncFigureEditor(obj)
 %                    errorTypeItems; grayed out on a rate panel but with
 %                    bars, its resamples but with the bootstrap CI), and
 %                    Band fill and Band edge on a PSTH, continuous,
-%                    spectrum, coherence (not over time), waveforms or
+%                    spectrum, coherence or ITPC (not over time), waveforms or
 %                    probe map panel (grayed out while its Error is Off;
 %                    the edge's style and width while the edge is none);
 %                    a continuous panel's single trials (and at most, enabled
@@ -102,7 +102,10 @@ function syncFigureEditor(obj)
 %                    spectrum or spectrogram; a spectrogram's moving window,
 %                    baseline, color limits and group; a coherence panel's
 %                    over-time box, its phase box or, over time, the moving
-%                    window, color limits and group); an event-trace
+%                    window, color limits and group; a phase coherence
+%                    (ITPC) panel's as a coherence panel's, with the error
+%                    and its p-value and the frequency axis, no phase box);
+%                    an event-trace
 %                    panel's rows (the bar outline with bars, the level
 %                    line with a line, the group bands with a sub-row per
 %                    epoch, the row line's look with a row line); a
@@ -321,13 +324,13 @@ v.panelXShow = false;
 layerKeys = ["layerList" "layerAdd" "layerNote" "layerName" "layerSource" "layerBinding" "layerFollows" "layerClasses" ...
     "layerIds" "layerQuality" "layerMaxUnits" "layerShanks" "layerUnitChannels" "layerChannels" "layerAggregate" "evLine" ...
     "evEdge" "evSeqText" "evDrawAs" "evMarker" "evColor" "evSpanStyle" "trMeasure" "trXMeasure" "layerColor" "layerLineStyle"];
-optionKeys = ["binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "tickWidth" "backColor" ...
+optionKeys = ["filterText" "filterEdit" "binMs" "smoothMs" "measure" "baselineMode" "baseFrom" "rasterSort" "sortLine" "sortSeqText" "rasterByGroup" "yTicks" "tickColor" "tickWidth" "backColor" ...
     "firstSpike" "latencyBox" "onsetLine" "trialCount" ...
     "maskAfterStop" "psthDisplay" "histStyle" "fill" "smoothLine" "normalize" "statistic" "errorType" "errFace" "errEdge" "order" ...
     "value" "unitLabels" "waveColor" "metric" "correlation" "fisherZ" "detrend" "yLim" "cLim" "panelColormap" ...
     "auMethod" "auWinMs" "auModFrom" "auCutoff" "auTest" "auMarks" "stack" "param" "rateDisplay" "waveLayout" ...
     "contTrials" "heatRows" "spTimeBase" "spRangeFrom" "spSegment" "spTaperMode" "spTW" "spW" "spPad" "spFmin" "spErr" ...
-    "spDetrend" "spScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
+    "spDetrend" "spScale" "spFreqScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
     "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing" "legOrient" "legAlign" ...
     "trCategories" "trSeries" "trSummary" "trTest" "trAdjust" "trTestShow" "trDisplay" "trMarker" "trShowSummary" ...
     "trHistDisplay" "trBins" "trOpacity" "trFit" "trCorr" "trMarginals" "trXScale" "trXLim"];
@@ -461,7 +464,7 @@ if hasPanel
     en([E.auMarks E.auModOnly], string(E.auCutoff.Value) ~= "none");
     en(E.stackSpacing, stackNow ~= "off");
     en(E.yLim, string(E.yLimMode.Value) == "fixed");   % the limits are typed only for Fixed
-    lineStack = stackNow ~= "off" && ismember(t, ["psth" "continuous" "spectrum" "coherence" "tuning"]) && ~overTime;
+    lineStack = stackNow ~= "off" && ismember(t, ["psth" "continuous" "spectrum" "coherence" "itpc" "tuning"]) && ~overTime;
     en(E.panelYSide, ~lineStack);   % a stacked line panel has a y axis on each side
     en(E.fillAlpha, E.fill.Value);
     en([E.smoothLineMs E.smoothLineLegend], E.smoothLine.Value);
@@ -729,6 +732,8 @@ v.contTrials = t == "continuous";
 v.maskAfterStop = ismember(t, ["raster" "psth"]) || pointHeat;
 v.histStyle = t == "psth" && ~psthHeat; v.fill = v.histStyle; v.smoothLine = v.histStyle; v.normalize = t == "psth";
 v.statistic = t == "continuous";
+v.filterText = ismember(t, ["continuous" "spectrum" "spectrogram" "coherence" "itpc"]) || (t == "heatmap" && ~pointHeat);   % its signal layers' filter
+v.filterEdit = v.filterText;
 v.errorType = ismember(t, ["psth" "continuous" "rate" "tuning" EphysAnalysisConfig.TrialPanelTypes]) && ~psthHeat;   % the panel's own error (its items by type; a trial panel's summary's)
 v.order = t == "heatmap" && ~trialHeat;
 et = t == "eventTrace";   % an event-trace panel's rows
@@ -752,22 +757,23 @@ v.trHistDisplay = isHist; v.trBins = isHist;
 v.trFit = isScat; v.trCorr = isScat; v.trMarginals = isScat;
 v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram"]) || psthHeat;
 v.panelColormap = psthHeat;
-% the spectral panels: the Chronux tab's rows
-spectral = ismember(t, ["spectrum" "spectrogram" "coherence"]);
-overTime = t == "coherence" && val.overTime;   % a coherogram: an image of one group over time
+% the spectral panels: the Chronux tab's rows (a phase coherence panel's multitaper settings are the same rows)
+spectral = ismember(t, ["spectrum" "spectrogram" "coherence" "itpc"]);
+overTime = ismember(t, ["coherence" "itpc"]) && val.overTime;   % a coherogram: an image of one group over time
 v.spTimeBase = ismember(t, ["spectrum" "coherence"]);
 ranged = v.spTimeBase && val.timeBase == "range";
 v.spRangeFrom = ranged; v.spSegment = ranged && ~overTime;
 v.spTaperMode = spectral; v.spTW = spectral; v.spW = spectral; v.spPad = spectral; v.spFmin = spectral; v.spDetrend = spectral;
-v.spErr = ismember(t, ["spectrum" "coherence"]) && ~overTime;
-v.errFace = ismember(t, ["psth" "continuous" "spectrum" "coherence" "waveforms" "probemap"]) && ~psthHeat && ~overTime;   % the bands' look
+v.spErr = ismember(t, ["spectrum" "coherence" "itpc"]) && ~overTime;
+v.errFace = ismember(t, ["psth" "continuous" "spectrum" "coherence" "itpc" "waveforms" "probemap"]) && ~psthHeat && ~overTime;   % the bands' look
 v.errEdge = v.errFace;
 v.spScale = ismember(t, ["spectrum" "spectrogram"]);
+v.spFreqScale = ismember(t, ["spectrogram" "coherence" "itpc"]);
 v.spSpikeFs = spectral && ~isempty(p.layers) && any(ismember([p.layers.source], EphysAnalysisConfig.SpikeSources));
-v.spOverTime = t == "coherence";
+v.spOverTime = ismember(t, ["coherence" "itpc"]);
 v.spWin = t == "spectrogram" || overTime;
 v.spShowPhase = t == "coherence" && ~overTime;
-if t == "coherence"
+if ismember(t, ["coherence" "itpc"])
     v.yLim = ~overTime;
     v.cLim = overTime;
     v.group = overTime;

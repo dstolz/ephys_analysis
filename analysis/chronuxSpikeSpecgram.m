@@ -97,7 +97,7 @@ for u = 1:nU
     end
     if ~isempty(opts.Check); opts.Check(); end
 end
-[P, bu] = chronuxNormalize(P, t, S.baseline, S.baselineWindow, mw(1));
+[P, bu] = chronuxNormalize(P, t, S.baseline, S.baselineWindow, mw(1), sfs);
 base = struct('mode', S.baseline, 'window', S.baselineWindow, 'units', bu);
 R = struct('kind', "chronuxSpikeSpecgram", 't', t, 'f', f, 'S', P, 'rate', rate, 'labels', SP.labels, 'index', SP.index, ...
     'source', SP.source, 'nTrials', nTr, 'zerosp', zs, 'groups', G, 'params', params, 'tapers', tap, 'movingwin', mw, ...

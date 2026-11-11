@@ -19,7 +19,9 @@ function h = renderChronux(R, target, opts)
 %                      scale) or as is ("linear"); a baseline-normalized
 %                      one in its own units on a diverging colormap
 %                      centered on no change. One color scale for the
-%                      page (clim, else from its tiles), the event at 0
+%                      page (clim, else from its tiles), the event at 0.
+%                      freqScale "log": a logarithmic frequency axis (the
+%                      0 Hz bin left out; ticks at 2, 5, 10, 20 ... Hz)
 %     chronuxSpikeSpecgram  the same, a spike train in place of a channel
 %     chronuxCoherence, chronuxSpikeField, chronuxUnitCoherence
 %                      layout "grid": a tile per pair, the groups overlaid,
@@ -236,12 +238,15 @@ end
 [idx, nr, nc] = pageItems(n, page, d.maxTiles);
 [tl, ax0] = renderLayout(target, nr, nc, style);
 if ~isempty(ax0); idx = idx(1:min(1, end)); end
+logF = isfield(d, 'freqScale') && d.freqScale == "log" && any(R.f > 0);   % (a result from before freqScale: linear)
+drawn = true(1, numel(R.f));   % the frequencies drawn: on a log axis, those above 0
+if logF; drawn = reshape(R.f, 1, []) > 0; end
 cl = d.clim;
 if isempty(cl)
     v = [];
     for k = idx
         [c, g] = ind2sub([nC nG], k);
-        x = Z(:, :, c, g);
+        x = Z(:, drawn, c, g);
         v = [v; x(isfinite(x))]; %#ok<AGROW>
     end
     cl = chronuxAutoLimits(v, signed);
@@ -254,13 +259,16 @@ for j = 1:numel(idx)
     if nG > 1; name = name + " | " + R.groups.label(g); end
     tagPart(ax, "axes", "", name);
     x = Z(:, :, c, g).';
-    tagPart(imagesc(ax, R.t, R.f, x, 'AlphaData', double(isfinite(x))), "image", name);
+    y = R.f;
+    if logF; [y, x] = logFrequencyRows(R.f, x); end   % rows evenly spaced in log10 Hz, labeled in Hz below
+    tagPart(imagesc(ax, R.t, y, x, 'AlphaData', double(isfinite(x))), "image", name);
     set(ax, 'YDir', 'normal', 'CLim', cl, 'Layer', 'top');
     colormap(ax, cmap);
     if R.aligned && style.ShowZeroLine
         tagPart(xline(ax, 0, ':', 'Color', [0.2 0.2 0.2], 'LineWidth', 1, 'HandleVisibility', 'off'), "zeroLine");
     end
     axis(ax, 'tight');
+    if logF; logFrequencyTicks(ax); end
     ax.FontSize = style.FontSize;
     box(ax, 'on');
     ttl = name;

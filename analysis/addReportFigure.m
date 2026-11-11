@@ -43,7 +43,7 @@ if isempty(report.datasets)
 end
 kind = "figure";
 if isfield(spec, 'kind'); kind = string(spec.kind); end
-ttl = string(spec.title);   % its label variables filled in as one entry has them: its pages' observations left "<Unit>"
+ttl = figureLabelSymbols(string(spec.title));   % its special characters ("\mu": µ) and label variables filled in as one entry has them: its pages' observations left "<Unit>"
 if contains(ttl, "{")
     [~, V] = figureLabelVariables(spec, F, PerObservation=false);
     ttl = figureFileName(ttl, V, Kind="label");

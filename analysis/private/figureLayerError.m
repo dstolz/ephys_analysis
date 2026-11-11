@@ -3,10 +3,13 @@ function reason = figureLayerError(ME)
 %   REASON = figureLayerError(ME) is the message of ME when it says the
 %   dataset lacks what a layer or a panel's own epochs need (no unit left
 %   after the selection, no event of a line, no column, no value, no
-%   probe map, a signal's baseline with no sample in the window; for the
+%   probe map, a signal's baseline with no sample in the window, a signal
+%   filter that cannot run at the rate the signal is read at; for the
 %   Chronux panels no trial or segment left, a pair or field channel not
 %   at hand, a moving window longer than the epoch, a result over its
-%   limit, settings chronuxSettings refuses, ...; for the trial panels a
+%   limit, settings chronuxSettings refuses, ...; for a phase coherence
+%   panel a moving window longer than the epoch, no frequency in fpass,
+%   a result over its limit; for the trial panels a
 %   trial selection that cannot be applied, a measure with no value or
 %   whose trial parameter is missing or not numeric): the
 %   layer (or the panel) is skipped with it and the
@@ -22,12 +25,13 @@ skippable = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLef
     "resolveEvents:NoEvents" "resolveEvents:NoLine" "resolveEvents:NoTrials" "resolveEvents:NoParam" "resolveEvents:BadParam" ...
     "epochEvents:NoLine" "epochEvents:NoTrials" "epochIntervals:NoOffsets" "epochTable:NoEpochs" "epochTable:NoColumn" ...
     "probeMapValues:NoProbe" "spikePSTH:BadWindow" "spikePSTH:NoneModulated" "tuningCurve:NoValues" ...
-    "evokedPotential:BadBaseline" ...
+    "evokedPotential:BadBaseline" "SignalFilter:Unusable" ...   % a filter's cutoff at or above the Nyquist frequency of the rate read
     "chronuxCoherence:BadPair" "chronuxSpikeField:NoField" "chronuxUnitCoherence:BadPair" "chronuxSpecgram:Short" ...
     "chronuxSpecgram:TooLarge" "chronuxSpikeSpecgram:Short" "chronuxSpikeSpecgram:TooLarge" ...
     "chronuxSpikeField:Short" "chronuxSpikeField:TooLarge" "chronuxUnitCoherence:Short" "chronuxUnitCoherence:TooLarge" "chronuxCoherence:Short" "chronuxCoherence:TooLarge" "chronuxTimeBase:NoTrials" ...
     "chronuxTimeBase:BadValue" "chronuxSettings:BadValue" "chronuxSettings:Baseline" ...
-    "chronuxNormalize:NoBaseline" "chronuxParams:Fpass" ...   % no window centered in the baseline; fpass above the layer's Nyquist
+    "chronuxNormalize:NoBaseline" "chronuxParams:Fpass" ...   % no window wholly inside the baseline; fpass above the layer's Nyquist
+    "phaseCoherence:Short" "phaseCoherence:Fpass" "phaseCoherence:TooLarge" ...   % a phase coherence panel's
     "selectTrials:NoTrials" "selectTrials:NoParam" "selectTrials:NoRespCode" "selectTrials:TooManyGroups" ...
     "trialSelection:BadFilter" "trialMeasure:NoValues" "trialMeasure:NoParam" "trialMeasure:BadParam"];   % a trial panel's selection and measures
 if string(ME.identifier) == "ChronuxDataset:NoChronux"   % the spectral panels: the toolbox, not the data

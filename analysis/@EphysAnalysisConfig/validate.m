@@ -7,7 +7,13 @@ function issues = validate(obj, opts)
 %   Checked
 %     Source    Mode; Root exists (project) or every folder does (folders);
 %               NamePattern parses; a "list" selection names datasets;
-%               Filter.TagMode is "any" or "all"
+%               Filter.TagMode is "any" or "all"; each Downsample rate is
+%               empty or one rate above 0 (Field "Downsample.<signal>");
+%               each enabled SignalFilter's settings (SignalFilter.problems,
+%               Field "SignalFilter.<signal>.<field>"), and its cutoffs
+%               below the Nyquist frequency of the rate Downsample reads
+%               its signal at (a warning above the 0.38 x rate the
+%               anti-aliasing filter keeps unchanged)
 %     Defaults  the event reference, window and selection are valid (a
 %               filter that does not parse is a warning: it is checked
 %               against each dataset's trials when it runs)
@@ -113,9 +119,19 @@ function issues = validate(obj, opts)
 %               fpass, err, errP, detrend, scale, spikeFs, the moving
 %               window, the range time base's range and segment, a
 %               spectrogram's baseline Mode and its window inside the
-%               panel's), a coherence panel's two enabled layers (seed,
+%               panel's; a warning at "<...>.options.fpass" when fmax
+%               runs past the 0.38 x rate a downsampled signal layer
+%               keeps unchanged, Source.Downsample), a coherence panel's two enabled layers (seed,
 %               partner; a warning for a fixed seed of several items), a
-%               spectrogram's signal or spike layer; an event-trace
+%               spectrogram's signal or spike layer, a spectrogram's,
+%               coherence's or phase coherence (itpc) panel's freqScale
+%               ("linear" or "log"), a phase coherence panel's moving
+%               window (a warning when longer than its window, over
+%               time); an enabled options.filter of a
+%               continuous, heat map or spectral panel (its settings at
+%               "<...>.options.filter.<field>", its cutoffs against each
+%               of its signals' Downsample rate as Source's are, a
+%               warning when the panel draws no signal layer); an event-trace
 %               panel's display, trials, colorBy,
 %               height, alpha, line styles and positive widths and
 %               rowSpacing, with warnings for an edge or baseline color
@@ -245,6 +261,24 @@ else
 end
 if ~ismember(S.Filter.TagMode, ["any" "all"])
     add("Source", "Filter.TagMode", "error", "Filter.TagMode must be ""any"" or ""all"".");
+end
+ds = struct();   % none: a config made before Source.Downsample existed in this session (until clear classes)
+if isfield(S, 'Downsample'); ds = S.Downsample; end
+for sig = reshape(string(fieldnames(ds)), 1, [])
+    v = ds.(sig);
+    if ~isempty(v) && ~(isscalar(v) && isfinite(v) && v > 0)
+        add("Source", "Downsample." + sig, "error", "Downsample." + sig + " must be empty (the rate on file) or one rate in Hz above 0.");
+    end
+end
+sf = struct();   % none: a config made before Source.SignalFilter existed in this session (until clear classes)
+if isfield(S, 'SignalFilter'); sf = S.SignalFilter; end
+for sig = reshape(string(fieldnames(sf)), 1, [])
+    f = SignalFilter.normalize(sf.(sig));
+    if ~f.enabled; continue; end
+    for iss = SignalFilter.problems(f)
+        add("Source", "SignalFilter." + sig + "." + iss.field, "error", "SignalFilter." + sig + ": " + iss.message);
+    end
+    checkFilterRate(f, sig, "Source", "SignalFilter." + sig + ".cutoff");
 end
 
 % --- Defaults ------------------------------------------------------------------------
@@ -605,6 +639,7 @@ for k = 1:numel(obj.Figures)
             firstSrc = firstOn.source;
             firstSignal = ismember(firstSrc, EphysAnalysisConfig.SignalSources);
         end
+        if isfield(op, 'filter'); checkPanelFilter(op.filter, Lp(on), o0); end
         switch pj.type
             case "raster"
                 checkRasterSort(op, o0);
@@ -755,7 +790,7 @@ for k = 1:numel(obj.Figures)
                 checkFigBaseline(op.baseline, EphysAnalysisConfig.baselineModes("corrmap"), o0, A);
                 checkFigGroup(op.group, o0);
                 checkFigLim(op.cLim, o0 + ".cLim", "color");
-            case {"spectrum" "spectrogram" "coherence"}
+            case {"spectrum" "spectrogram" "coherence" "itpc"}
                 checkSpectral(pj, op, pw, Lp(on), o0, p0, find(on));
             case "eventTrace"
                 checkEventTrace(op, o0);
@@ -1160,11 +1195,12 @@ issues = table(Section, Field, Severity, Message);
     end
 
     function checkSpectral(hP, hOp, hW, hL, hO0, hP0, hIdx)
-        %checkSpectral  A Chronux panel (spectrum, spectrogram, coherence): its options by chronuxSettings' rules, and its layers.
+        %checkSpectral  A multitaper panel (spectrum, spectrogram, coherence, itpc): its options by chronuxSettings' rules, its layers, a frequency axis.
         %   HL: its enabled layers, HIDX their indices in the panel. The options go through figureChronuxSettings (with
         %   the panel's fixed window, which a spectrogram's baseline window must lie inside); what chronuxSettings
         %   throws is reported with its message. A coherence panel takes exactly two enabled layers (the seed, then
-        %   its partner); a spectrogram a signal or spike layer.
+        %   its partner); a spectrogram a signal or spike layer; a phase coherence (itpc) panel warns of a moving
+        %   window (over time) longer than its fixed window.
         hRange = isfield(hOp, 'timeBase') && hOp.timeBase == "range";
         hWin = [];
         if isstruct(hW) && isfield(hW, 'mode') && hW.mode == "fixed" && isfinite(hW.pre) && isfinite(hW.post) && hW.post > hW.pre
@@ -1183,11 +1219,26 @@ issues = table(Section, Field, Severity, Message);
         if isfield(hOp, 'group'); checkFigGroup(hOp.group, hO0); end
         hSrc = strings(1, 0);
         if ~isempty(hL); hSrc = [hL.source]; end
+        checkSpectralRate(hOp, hSrc, hO0);
+        if isfield(hOp, 'freqScale')
+            hFs = string(hOp.freqScale);
+            if ~(isscalar(hFs) && ismember(hFs, ["linear" "log"]))
+                add("Figures", hO0 + ".freqScale", "error", "A " + hP.type + " panel's freqScale (its frequency axis) is " + ...
+                    """linear"" or ""log"", not """ + strjoin(hFs, " ") + """.");
+            end
+        end
         switch hP.type
             case "spectrogram"
                 if ~isempty(hL) && ~any(ismember(hSrc, [EphysAnalysisConfig.SignalSources EphysAnalysisConfig.SpikeSources]))
                     add("Figures", hP0 + ".layers", "error", "A spectrogram draws a signal or spike layer (LFP, MUA, SPIKE, " + ...
                         "AUX, units or detected).");
+                end
+            case "itpc"   % (its layers' sources and their number: every type's checks, MultiLayer false)
+                if ~isempty(hWin) && isfield(hOp, 'overTime') && isequal(hOp.overTime, true) && numel(hOp.movingwin) == 2 ...
+                        && hOp.movingwin(1) > diff(hWin) + 1e-9
+                    add("Figures", hO0 + ".movingwin", "warning", sprintf(['The %g s moving window is longer than the ' ...
+                        'panel''s %g s window: nothing can be drawn over time. Shorten it, or lengthen the window.'], ...
+                        hOp.movingwin(1), diff(hWin)));
                 end
             case "coherence"
                 if numel(hL) ~= 2
@@ -1203,6 +1254,74 @@ issues = table(Section, Field, Severity, Message);
                     add("Figures", hP0 + ".layers(" + hIdx(1) + ")", "warning", "The seed is its layer's first channel " + ...
                         "or unit only: fix the seed layer to one.");
                 end
+        end
+    end
+
+    function checkSpectralRate(hOp, hSrc, hO0)
+        %checkSpectralRate  A warning when a spectral panel's fpass reaches past the band a downsampled signal keeps flat.
+        %   A signal layer read at a lower rate (Source.Downsample) is unchanged up to PassFraction (0.38) x that rate;
+        %   above it the anti-aliasing filter lowers the power, which a spectrum would show as the signal's own.
+        if ~isfield(hOp, 'fpass') || numel(hOp.fpass) ~= 2 || ~isfield(obj.Source, 'Downsample'); return; end
+        hTop = hOp.fpass(2);
+        hDs = obj.Source.Downsample;
+        for hSig = reshape(unique(hSrc(ismember(hSrc, EphysAnalysisConfig.SignalSources))), 1, [])
+            hR = hDs.(hSig);
+            if ~(isscalar(hR) && isfinite(hR) && hR > 0); continue; end
+            hPass = DownsampleDialog.PassFraction * hR;
+            if hTop <= hPass; continue; end
+            if isinf(hTop)
+                hWhat = "up to Nyquist";
+                hFix = "or leave " + hSig + " at its rate on file";
+            else
+                hWhat = "up to " + hTop + " Hz";
+                hFix = "or downsample " + hSig + " to at least " + ceil(hTop / DownsampleDialog.PassFraction) + " Hz";
+            end
+            add("Figures", hO0 + ".fpass", "warning", "fpass runs " + hWhat + ", past the 0-" + round(hPass, 3, "significant") + ...
+                " Hz that " + hSig + " keeps unchanged at " + hR + " Hz (Source.Downsample." + hSig + "): above that the " + ...
+                "anti-aliasing filter lowers the power. Set fmax to " + round(hPass, 3, "significant") + " Hz or less, " + hFix + ".");
+        end
+    end
+
+    function checkPanelFilter(hF, hL, hO0)
+        %checkPanelFilter  A panel's options.filter (a SignalFilter) when enabled: its settings, a warning when the panel
+        %   draws no signal layer (HL: its enabled layers), and its cutoffs against the rate each of its signals is read at.
+        hF = SignalFilter.normalize(hF);
+        if ~hF.enabled; return; end
+        for hI = SignalFilter.problems(hF)
+            add("Figures", hO0 + ".filter." + hI.field, "error", hI.message);
+        end
+        hSrc = strings(1, 0);
+        if ~isempty(hL); hSrc = [hL.source]; end
+        hSig = reshape(unique(hSrc(ismember(hSrc, EphysAnalysisConfig.SignalSources)), 'stable'), 1, []);   % a row (for loops over columns: a 0x1 would run once)
+        if ~isempty(hL) && isempty(hSig)
+            add("Figures", hO0 + ".filter", "warning", "The panel's filter (" + SignalFilter.describe(hF, Short=true) + ...
+                ") filters signal layers (LFP, MUA, SPIKE, AUX); this panel draws none, so nothing is filtered.");
+        end
+        for hS = hSig
+            checkFilterRate(hF, hS, "Figures", hO0 + ".filter.cutoff");
+        end
+    end
+
+    function checkFilterRate(hF, hSig, hSec, hField)
+        %checkFilterRate  Filter HF's cutoffs against the rate Source.Downsample reads signal HSIG at: an error at or above
+        %   its Nyquist frequency (the layer would be skipped), a warning above the 0.38 x rate the anti-aliasing filter
+        %   keeps unchanged (the filter's band is then cut by it). Nothing when HSIG is read at its rate on file (not
+        %   known before the data is read: the layer is skipped then, with the reason).
+        if ~isfield(obj.Source, 'Downsample') || ~isfield(obj.Source.Downsample, hSig); return; end
+        hR = obj.Source.Downsample.(hSig);
+        if ~(isscalar(hR) && isfinite(hR) && hR > 0) || ~isempty(SignalFilter.problems(hF)); return; end
+        hTop = max(hF.cutoff);
+        hPass = DownsampleDialog.PassFraction * hR;
+        hWhat = "The filter " + SignalFilter.describe(hF, Short=true);
+        if hTop >= hR / 2
+            add(hSec, hField, "error", hWhat + " reaches the Nyquist frequency (" + hR / 2 + " Hz) of " + hSig + " read at " + hR + ...
+                " Hz (Source.Downsample." + hSig + "): set its cutoffs below " + round(hPass, 3, "significant") + ...
+                " Hz, or downsample " + hSig + " to at least " + ceil(hTop / DownsampleDialog.PassFraction) + " Hz.");
+        elseif hTop > hPass
+            add(hSec, hField, "warning", hWhat + " runs past the 0-" + round(hPass, 3, "significant") + " Hz that " + hSig + ...
+                " keeps unchanged at " + hR + " Hz (Source.Downsample." + hSig + "): the anti-aliasing filter lowers what lies " + ...
+                "above. Set its cutoffs to " + round(hPass, 3, "significant") + " Hz or less, or downsample " + hSig + ...
+                " to at least " + ceil(hTop / DownsampleDialog.PassFraction) + " Hz.");
         end
     end
 

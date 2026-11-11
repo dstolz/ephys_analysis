@@ -7,15 +7,17 @@ function S = chronuxSettings(s)
 %                   "coherence" (coherencyc; cohgramc when overTime) |
 %                   "spikeSpectrum" (mtspectrumpt) | "spikeSpecgram"
 %                   (mtspectrumpt over the moving window) | "spikeField"
-%                   (coherencycpt) | "unitCoherence" (coherencypt)
-%     signal        the continuous signal: "LFP" (default) | "MUA" |
+%                   (coherencycpt) | "unitCoherence" (coherencypt) |
+%                   "itpc" (inter-trial phase coherence: phaseCoherence;
+%                   over the moving window when overTime)
+%     signal       the continuous signal: "LFP" (default) | "MUA" |
 %                   "SPIKE" | "AUX"
 %     channels      columns of the signal ([] = all)
 %     pairMode      coherence: "seed" (seed against every other channel
 %                   or unit picked) | "pair" (seed against partner)
 %     seed, partner coherence: channels (columns of the signal)
-%     overTime      coherence: over time (cohgramc) instead of one
-%                   spectrum of coherence
+%     overTime      coherence, itpc: over time (cohgramc; phaseCoherence
+%                   over the moving window) instead of one spectrum
 %     spikeSource   spike analyses: "units" (sorted units) | "detected"
 %     units         spike analyses: indices into the file's spike trains
 %                   ([] = all)
@@ -49,13 +51,17 @@ function S = chronuxSettings(s)
 %                   removed) | "linear" trend removed before the spectra
 %     baseline      aligned spectrograms: "none" | "db" | "percent" |
 %                   "zscore" | "ratio" against baselineWindow
-%     baselineWindow  [b0 b1] s from the event
-%   How it is drawn (display): scale ("db" | "log" | "linear"), layout
+%     baselineWindow  [b0 b1] s from the event: inside window, and at least
+%                   one moving window long
+%   How it is drawn (display): scale ("db" | "log" | "linear"), freqScale
+%   (a spectrogram's frequency axis: "linear" | "log"), layout
 %   ("grid": a tile per channel, groups overlaid; "overlay": a tile per
 %   group, channels overlaid), showErr, showPhase, maxTiles, ylim, clim
 %   ([] = automatic), page.
 %
-%   Errors: chronuxSettings:BadValue, chronuxSettings:UnknownField.
+%   Errors: chronuxSettings:BadValue, chronuxSettings:UnknownField,
+%   chronuxSettings:Baseline (an aligned spectrogram's baseline outside
+%   the window, or shorter than the moving window).
 %
 %   See also chronuxTimeBase, chronuxSpectrum, chronuxSpecgram, renderChronux.
 
@@ -117,13 +123,13 @@ S = struct( ...
     'detrend',      "constant", ...
     'baseline',     "none", ...
     'baselineWindow', [-0.5 0], ...
-    'display',      struct('scale', "db", 'layout', "grid", 'showErr', true, 'showPhase', true, ...
+    'display',      struct('scale', "db", 'freqScale', "linear", 'layout', "grid", 'showErr', true, 'showPhase', true, ...
                         'maxTiles', 16, 'ylim', zeros(1, 0), 'clim', zeros(1, 0), 'page', 1));
 end
 
 
 function S = check(S)
-S.analysis = member(S.analysis, "analysis", ["spectrum" "specgram" "coherence" "spikeSpectrum" "spikeSpecgram" "spikeField" "unitCoherence"]);
+S.analysis = member(S.analysis, "analysis", ["spectrum" "specgram" "coherence" "spikeSpectrum" "spikeSpecgram" "spikeField" "unitCoherence" "itpc"]);
 S.signal = member(S.signal, "signal", ["LFP" "MUA" "SPIKE" "AUX"]);
 S.channels = whole(S.channels, "channels");
 S.pairMode = member(S.pairMode, "pairMode", ["seed" "pair"]);
@@ -178,9 +184,15 @@ if S.baseline ~= "none" && ismember(S.analysis, ["specgram" "spikeSpecgram"]) &&
         error('chronuxSettings:Baseline', 'The baseline window [%g %g] s must lie inside the window [%g %g] s.', ...
             S.baselineWindow(1), S.baselineWindow(2), S.window(1), S.window(2));
     end
+    if diff(S.baselineWindow) < S.movingwin(1) - 1e-9
+        error('chronuxSettings:Baseline', ['The baseline window [%g %g] s is %g s long, shorter than the %g s moving window: ' ...
+            'the baseline is the windows that lie wholly inside it. Lengthen it to at least %g s or shorten the moving window.'], ...
+            S.baselineWindow(1), S.baselineWindow(2), diff(S.baselineWindow), S.movingwin(1), S.movingwin(1));
+    end
 end
 d = S.display;
 d.scale = member(d.scale, "display.scale", ["db" "log" "linear"]);
+d.freqScale = member(d.freqScale, "display.freqScale", ["linear" "log"]);
 d.layout = member(d.layout, "display.layout", ["grid" "overlay"]);
 d.showErr = logical(d.showErr);
 d.showPhase = logical(d.showPhase);

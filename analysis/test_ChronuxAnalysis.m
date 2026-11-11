@@ -22,7 +22,11 @@ function test_ChronuxAnalysis()
 %   at 30 Hz after each event stands out over the baseline, on the signal
 %   spectrogram's window centers, its refusals; the spike-field and
 %   unit-unit coherograms over epochs and over a stretch, NaN over its
-%   artifact period), and renderChronux (every kind, layout and
+%   artifact period), phaseCoherence (without Chronux: a burst with the
+%   same phase every trial is phase-locked, an ongoing rhythm of random
+%   phase and noise stay under the level of random phases, Rayleigh's with
+%   one taper, the jackknife bars, over time the locking after the event,
+%   its refusals), and renderChronux (every kind, layout and
 %   scale, the phase tiles, into a classic figure and a uifigure panel,
 %   pages, every component's role known to PlotAesthetics).
 %
@@ -71,8 +75,16 @@ check(S1.analysis == "specgram" && S1.display.layout == "overlay" && S1.display.
     'a struct overlays the defaults (display fields one by one)');
 check(strcmp(errorId(@() chronuxSettings(struct('nope', 1))), 'chronuxSettings:UnknownField'), 'an unknown setting is refused');
 check(strcmp(errorId(@() chronuxSettings(struct('err', "maybe"))), 'chronuxSettings:BadValue'), 'a value not allowed is refused');
+Slog = chronuxSettings(struct('display', struct('freqScale', "log")));
+check(S0.display.freqScale == "linear" && Slog.display.freqScale == "log" ...
+    && strcmp(errorId(@() chronuxSettings(struct('display', struct('freqScale', "ln")))), 'chronuxSettings:BadValue'), ...
+    'a spectrogram''s frequency axis (display.freqScale) is linear by default, else "log"; another value is refused');
 check(strcmp(errorId(@() chronuxSettings(struct('analysis', "specgram", 'baseline', "db", 'baselineWindow', [-2 0]))), ...
     'chronuxSettings:Baseline'), 'a baseline outside the window is refused');
+check(strcmp(errorId(@() chronuxSettings(struct('analysis', "specgram", 'baseline', "db", 'baselineWindow', [-0.5 -0.1], ...
+    'movingwin', [0.5 0.01]))), 'chronuxSettings:Baseline') ...
+    && isstruct(chronuxSettings(struct('analysis', "specgram", 'baseline', "db", 'baselineWindow', [-0.5 0], 'movingwin', [0.5 0.05]))), ...
+    'a baseline shorter than the moving window is refused; one exactly a window long is taken');
 
 fprintf('\n== 2. the signal ==\n');
 fs = 1000;
@@ -139,6 +151,65 @@ TBr.starts = [1.2; 5];   % the first leaves the block (it starts at 1.5 s)
 [~, kept, info] = chronuxCut(Db, TBr, 1, "none");
 check(isequal(kept, 2) && info.droppedEdge == 1, 'a trial that leaves the block is left out and counted');
 
+fprintf('\n== 4b. phaseCoherence (inter-trial phase coherence; no Chronux needed) ==\n');
+durP = 200;
+nPh = durP * fs;
+tP = (0:nPh-1).' / fs;
+evP = (5:3:185).' + 0.37 * rand(numel(5:3:185), 1);     % jittered: an ongoing rhythm's phase is random at each event
+xP = 5 * sin(2 * pi * 25 * tP) + randn(nPh, 1);         % 25 Hz throughout, not locked to the events
+for e = evP.'
+    on = tP >= e & tP < e + 0.4;
+    xP(on) = xP(on) + 5 * sin(pi * (tP(on) - e) / 0.4) .^ 2 .* sin(2 * pi * 12 * (tP(on) - e));   % a 12 Hz burst after each event,
+    % the same phase every time; its Hann envelope keeps it near 12 Hz (an abrupt edge is a step locked to the event at every frequency)
+end
+EP = table((1:numel(evP)).', evP, 1 + mod((0:numel(evP)-1).', 2), 'VariableNames', {'epoch', 't0Continuous', 'groupIndex'});
+EP.Properties.UserData = struct('nDroppedEdge', 0, 'nDroppedArtifact', 0);
+TBp = chronuxTimeBase("aligned", E=EP, Groups=G, Window=[-0.5 1]);
+Dp = blockOf(xP, fs, 1, rowsOf(TBp.span, fs, nPh));
+Sp3 = chronuxSettings(struct('analysis', "itpc", 'window', [-0.5 1], 'TW', 2, 'K', 3, 'fpass', [0 100], 'err', "jackknife"));
+Rp = phaseCoherence(Dp, TBp, Sp3, Dataset="demo");
+[~, k12] = min(abs(Rp.f - 12));
+[~, k25] = min(abs(Rp.f - 25));
+hiP = Rp.f > 60;
+check(Rp.kind == "phaseCoherence" && ~Rp.overTime && isequal(size(Rp.C), [numel(Rp.f) 1 2]) && all(Rp.f > 0) ...
+    && all(Rp.C(:) >= 0 & Rp.C(:) <= 1 + 1e-12) && isequal(Rp.nTrials, TBp.groups.n.') && Rp.dataset == "demo" ...
+    && Rp.tapers.K == 3 && isempty(Rp.t), ...
+    'phaseCoherence: one ITPC per channel and group, 0 to 1, the 0 Hz bin left out, the trials counted');
+check(all(Rp.C(k12, 1, :) > 0.8) && all(reshape(Rp.C(k25, 1, :), 1, []) < Rp.confC(1, :) + 0.05) ...
+    && all(mean(Rp.C(hiP, 1, :) < reshape(Rp.confC(1, :), 1, 1, []), 1) > 0.85), ...
+    sprintf(['a burst with the same phase every trial is phase-locked (ITPC %.2f at 12 Hz); an ongoing rhythm of random ' ...
+    'phase (%.2f at 25 Hz) and noise stay under the level of random phases (%.2f)'], Rp.C(k12, 1, 1), Rp.C(k25, 1, 1), Rp.confC(1, 1)));
+check(all(Rp.Clo(:) <= Rp.C(:) + 1e-12 & Rp.C(:) <= Rp.Chi(:) + 1e-12) && all(Rp.Clo(:) >= 0 & Rp.Chi(:) <= 1), ...
+    'the jackknife bars bracket the ITPC, within 0 and 1');
+S1t = Sp3; S1t.TW = 1; S1t.K = 1;
+R1t = phaseCoherence(Dp, TBp, S1t);
+ray = sqrt(-log(0.05) ./ R1t.nTrials);
+check(all(abs(R1t.confC - ray) ./ ray < 0.15) && all(Rp.confC < R1t.confC), ...
+    sprintf('one taper: the level of random phases is Rayleigh''s sqrt(-ln p / N) (%.3f, %.3f expected); averaging 3 tapers lowers it (%.3f)', ...
+    R1t.confC(1), ray(1), Rp.confC(1)));
+Rp2 = phaseCoherence(Dp, TBp, Sp3);
+Snone = Sp3; Snone.err = "none";
+Rn = phaseCoherence(Dp, TBp, Snone);
+check(isequal(Rp2.confC, Rp.confC) && isempty(Rn.Clo) && all(isnan(Rn.confC(:))) && max(abs(Rn.C(:) - Rp.C(:))) < 1e-12, ...
+    'the level is the same on every call (a fixed seed); err "none": the same ITPC, no level, no bars');
+Sot = chronuxSettings(struct('analysis', "itpc", 'window', [-0.5 1], 'TW', 1, 'K', 1, 'fpass', [4 40], 'overTime', true, ...
+    'movingwin', [0.25 0.025]));
+Ro = phaseCoherence(Dp, TBp, Sot);
+nWo = round(0.25 * fs);
+fo12 = abs(Ro.f - 12) <= 2;
+postO = Ro.t > 0.1 & Ro.t < 0.3;
+preO = Ro.t > -0.35 & Ro.t < -0.15;
+check(Ro.overTime && isequal(size(Ro.C), [numel(Ro.t) numel(Ro.f) 1 2]) && abs(Ro.t(1) - (-0.5 + (nWo - 1) / 2 / fs)) < 1e-12 ...
+    && isempty(Ro.Clo) && mean(Ro.C(postO, fo12, 1, :), 'all') > mean(Ro.C(preO, fo12, 1, :), 'all') + 0.4, ...
+    'over time: the ITPC over each moving window (its center, s from the event), the burst''s phase-locking after the event, not before');
+TBrange = chronuxTimeBase("range", Range=[10 40], Fs=fs, NRows=nPh, Segment=1);
+check(strcmp(errorId(@() phaseCoherence(Dp, TBrange, Sp3)), 'phaseCoherence:Aligned') ...
+    && strcmp(errorId(@() phaseCoherence(Dp, TBp, setfield(Sot, 'movingwin', [2 0.1]))), 'phaseCoherence:Short') ...
+    && strcmp(errorId(@() phaseCoherence(Dp, TBp, setfield(Sp3, 'fpass', [0 0.2]))), 'phaseCoherence:Fpass') ...   % (0.49 Hz bins: 0 Hz alone)
+    && strcmp(errorId(@() phaseCoherence(Dp, TBp, Sot, MaxMB=1e-4)), 'phaseCoherence:TooLarge') ...
+    && strcmp(errorId(@() phaseCoherence(Dp, TBp, Sp3, Check=@() error('test:stop', 'stop'))), 'test:stop'), ...
+    'refused: a time base that is not aligned, a moving window longer than the epoch, no frequency in fpass, over MaxMB; a Check that throws stops it');
+
 if ~ChronuxDataset.hasChronux()
     fprintf('\n(Chronux is not on the path: the analyses are not checked)\n');
 else
@@ -185,6 +256,18 @@ else
     check(abs(mean(Rg.S(inBase, :), 'all')) < 1 && Rg.baseline.units == "dB change", 'a dB baseline is near 0 in its window');
     nW = round(0.25 * fs);
     check(abs(Rg.t(1) - (-1 + (nW - 1) / 2 / fs)) < 1e-12, 'each window''s time is its center, s from the event');
+    Pone = 1 + rand(numel(Rg.t), 3);
+    [Zone, uone] = chronuxNormalize(Pone, Rg.t, "db", [-1 -0.75], 0.25, fs);   % the first window's samples: -1 to -0.751 s
+    check(uone == "dB change" && all(abs(Zone(1, :)) < 1e-12) && all(abs(Zone(2, :)) > 0) ...
+        && strcmp(errorId(@() chronuxNormalize(Pone, Rg.t, "db", [-0.99 -0.74], 0.25, fs)), 'chronuxNormalize:NoBaseline') ...
+        && strcmp(errorId(@() chronuxNormalize(Pone, Rg.t, "zscore", [-1 -0.75], 0.25, fs)), 'chronuxNormalize:NoBaseline') ...
+        && strcmp(errorId(@() chronuxNormalize(Pone, Rg.t, "decibel", [-1 -0.75], 0.25, fs)), 'chronuxNormalize:BadMode'), ...
+        ['a baseline exactly one moving window long takes the window starting on its start (its first to last sample ' ...
+        'inside it), and none when the window grid misses it; a z-score of one window (SD 0) and an unknown mode are refused']);
+    [Zc, uc] = chronuxNormalize(Pone, Rg.t, "zscore", [-1 -0.6], 0.25);   % no fs: each window spans 0.25 s around its time
+    inc = Rg.t - 0.125 >= -1 - 1e-9 & Rg.t + 0.125 <= -0.6 + 1e-9;
+    check(uc == "z" && nnz(inc) >= 2 && max(abs(Zc - (Pone - mean(Pone(inc, :))) ./ std(Pone(inc, :))), [], 'all') < 1e-12, ...
+        sprintf('without fs a window spans winSec around its time (mtspecgrampt''s, the example script''s): a z-score over the %d inside', nnz(inc)));
     Sr = chronuxSettings(struct('analysis', "specgram", 'timeBase', "range", 'range', [20 40], 'movingwin', [0.5 0.25], 'fpass', [0 80]));
     TBq = chronuxTimeBase("range", Range=[20 40], Artifacts=art, Fs=fs, NRows=n, Segment=0.5);
     Dq = blockOf(lfp, fs, [1 3], rowsOf(TBq.span, fs, n));
@@ -367,6 +450,22 @@ else
     h = renderChronux(Rg, p, Editable=false);
     check(~isempty(h.layout) && isa(findobj(h.axes(1), 'Type', 'image'), 'matlab.graphics.primitive.Image'), ...
         'a spectrogram draws into a uifigure''s panel');
+    d = Rg.settings.display; d.freqScale = "log";
+    h = renderChronux(Rg, fig, Display=d, Editable=false);
+    ax = h.axes(1);
+    im = findobj(ax, 'Type', 'image');
+    fp = Rg.f(Rg.f > 0);
+    yc = linspace(im.YData(1), im.YData(end), size(im.CData, 1));   % the rows' centers, log10 Hz
+    [~, r30] = min(abs(yc - log10(30)));
+    [~, b30] = min(abs(Rg.f - 10 ^ yc(r30)));   % the bin that row lies in (the bins are even: the nearest)
+    yl = ylim(ax);
+    tk = reshape(str2double(string(ax.YTickLabel)), 1, []);
+    check(isscalar(im) && size(im.CData, 1) > numel(fp) && yl(1) < log10(fp(1)) && yl(2) > log10(fp(end)) ...
+        && max(abs(im.CData(1, :) - Rg.S(:, find(Rg.f > 0, 1)).')) < 1e-9 && max(abs(im.CData(r30, :) - Rg.S(:, b30).')) < 1e-9 ...
+        && abs(Rg.f(b30) - 30) <= mean(diff(Rg.f)) / 2 + 1e-9 && numel(tk) >= 3 && all(ismember(tk, [1 2 5 10 20 50 100])) ...
+        && max(abs(10 .^ ax.YTick - tk)) < 1e-9 && strcmp(ax.YScale, 'linear'), ...
+        ['a spectrogram with display.freqScale "log": rows evenly spaced in log10 Hz on the y axis, the lowest the first bin ' ...
+        'above 0 Hz (0 Hz left out), the row at 30 Hz the 30 Hz bin''s values, ticks at 2, 5, 10, 20, 50 ... labeled in Hz']);
 end
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);

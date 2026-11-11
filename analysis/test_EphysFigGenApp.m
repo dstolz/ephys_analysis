@@ -9,7 +9,16 @@ function test_EphysFigGenApp(opts)
 %   Figures, Export, Log); the toolbar (its tools, icons and
 %   shortcut tooltips; Preview and Plan from another tab; its run and
 %   results tools following the Export tab's buttons); Scan filling the
-%   datasets table; the active dataset's lines and parameters; grouping by
+%   datasets table; the active dataset's lines and parameters; the Data
+%   tab's Downsample... (1f: the Signals row, the dialog on the config's
+%   rates with the active dataset's rates on file, OK into
+%   Source.Downsample and the runner without a scan, Cancel, Rates on
+%   file, a config opened with a rate); the Data tab's Filter... (1g: the
+%   Filters row, the dialog on the config's filters, a cutoff past
+%   Nyquist refused, OK into Source.SignalFilter and the runner, Cancel,
+%   a config opened with a filter); a panel's Filter... (5d.sigfilter:
+%   the row by type, OK one undo step into options.filter, the preview
+%   read through it, closed with another panel); grouping by
 %   Depth from the Alignment controls (the epoch count reports the groups);
 %   the toolbar's Preview drawing the selected figure on the Figures tab;
 %   the header's column of buttons and the rows right of them;
@@ -241,7 +250,7 @@ needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d
     "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.multi" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
     "5d.quick" "5d.layers"; "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
     "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.trialmeasure" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; ...
-    "5d.saveprefs" "5d.remove"; "1e" "1"];
+    "5d.saveprefs" "5d.remove"; "1e" "1"; "1f" "1"; "1g" "1"; "5d.sigfilter" "5d.layers"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
 timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a failure on the way
 
@@ -498,6 +507,24 @@ if S.sec("1", "build, open the project, scan")
         && app1.Config.Name == string(leaf1) + " quick look" && ~startsWith(app1.Fig.Name, "*"), ...
         ['Datasets= (the pipeline app''s Tools panel) ticks only those datasets of the project to run, ' ...
         'the first one active, and names the config after the one']);
+    a1 = app1.ActiveIdx;
+    o1 = find(~app1.Ticked, 1);
+    dd1 = [app1.AlignDatasetDropDown app1.FiguresDatasetDropDown];
+    listed = @(idx, active) all(arrayfun(@(d) isequal(d.ItemsData, idx) && numel(d.Items) == numel(idx) && d.Value == active, dd1));
+    onlyTicked = listed(a1, a1);
+    app1.selectDataset(o1);   % as a click on the unticked row
+    withActive = listed(sort([a1 o1]), o1);
+    T1 = app1.DatasetsTable.Data;
+    T1.Run = T1.Idx == o1;
+    app1.DatasetsTable.Data = T1;
+    app1.onDatasetsTableEdited([]);
+    followsTicks = listed(o1, o1);
+    T1.Run(:) = false;
+    app1.DatasetsTable.Data = T1;
+    app1.onDatasetsTableEdited([]);
+    check(onlyTicked && withActive && followsTicks && listed(1:2, o1), ...
+        ['the Alignment and Figures tabs'' Dataset drop-downs list only the ticked datasets, and the active one ' ...
+        'when it is not ticked; they follow the Run ticks; none ticked lists every dataset']);
     closeApp(app1);
 end
 
@@ -788,6 +815,122 @@ if S.sec("1e", "Data tab: Variables (a column, the dialog on a cell and on the s
     end
     app.refreshDatasetsTable();
     check(all(app.DatasetsTable.Data.Vars == ""), 'the fixture''s manifests put back');
+end
+
+if S.sec("1f", "Data tab: Downsample... (the Signals row, the dialog on the config's rates, OK into Source.Downsample and the runner, Cancel, Rates on file, a config opened with a rate)")
+    app.selectTab(app.TabData);
+    app.selectDataset(1);
+    src = app.Runner.source(1);
+    none = struct('LFP', [], 'MUA', [], 'SPIKE', [], 'AUX', []);
+    amber = [1 0.8 0.3];
+    b = app.DownsampleButton;
+    cfg0 = app.Config;
+    cfg0.Source.Downsample = none;
+    app.applyConfig(cfg0);   % whatever an earlier section left: no rate
+    check(string(b.Text) == "Downsample..." && app.DownsampleLabel.Text == "every signal at its rate on file" ...
+        && contains(string(b.Tooltip), "every signal keeps its rate on file") && contains(string(b.Tooltip), "Source.Downsample") ...
+        && ~isequal(b.BackgroundColor, amber) ...
+        && contains(app.MemoryLabel.Text, sprintf("at %g Hz", src.signalFs.LFP)) && ~contains(app.MemoryLabel.Text, "figures read"), ...
+        'the Data tab''s Signals row: Downsample..., every signal at its rate on file; the active dataset names each extract''s rate');
+    b.ButtonPushedFcn(b, []);
+    dlg = app.DownsampleWindow;
+    kL = find(dlg.Signals == "LFP");
+    check(isa(dlg, 'DownsampleDialog') && app.onDownsample() == dlg && string(dlg.Ctl.FileRate(kL).Text) == src.signalFs.LFP + " Hz" ...
+        && contains(string(dlg.Ctl.Intro.Text), "before the figures read it") && contains(string(dlg.Ctl.Rate(kL).Tooltip), "Source.Downsample.LFP") ...
+        && contains(string(dlg.Ctl.Source.Text), src.name) && ~any(contains(string({dlg.Ctl.Name.Text}), "not ticked")), ...
+        'the button opens the dialog on the config''s rates, with the active dataset''s rates on file, in the figures'' words; the same one while open');
+    dlg.setRate("LFP", 200);
+    dlg.setRate("AUX", "100 Hz");
+    dlg.ok();
+    want = none; want.LFP = 200; want.AUX = 100;
+    check(~isvalid(dlg.Fig) && isempty(app.DownsampleWindow) && isequal(app.Config.Source.Downsample, want) ...
+        && isequal(app.Runner.Config.Source.Downsample, want) && isequal(app.gatherConfig().Source.Downsample, want) ...
+        && isequal(b.BackgroundColor, amber) && contains(app.DownsampleLabel.Text, "LFP 200 Hz, AUX 100 Hz") ...
+        && contains(string(b.Tooltip), "LFP 200 Hz, AUX 100 Hz") && contains(app.StatusBar.Text, "LFP 200 Hz, AUX 100 Hz") ...
+        && contains(app.MemoryLabel.Text, "figures read 200 Hz") && ~contains(app.ScanLabel.Text, "source changed") ...
+        && ~isequal(app.Config.toStruct(), app.SavedConfigStruct), ...
+        ['OK: the rates into the config (unsaved), its gather and the runner; the button amber with them, the Signals row, the ' ...
+        'status bar and the active dataset say them; no scan asked for']);
+    dlg = app.onDownsample();
+    dlg.setRate("LFP", "");
+    dlg.cancel();
+    check(isequal(app.Config.Source.Downsample, want) && isempty(app.DownsampleWindow), 'Cancel changes nothing');
+    dlg = app.onDownsample();
+    dlg.clearRates();
+    dlg.ok();
+    check(isequal(app.Config.Source.Downsample, none) && app.DownsampleLabel.Text == "every signal at its rate on file" ...
+        && ~isequal(b.BackgroundColor, amber) && ~contains(app.MemoryLabel.Text, "figures read"), ...
+        'Rates on file: every signal back to its rate on file, the button and the active dataset''s line as before');
+    c2 = app.Config;
+    c2.Source.Downsample.MUA = 500;
+    app.applyConfig(c2);
+    check(contains(app.DownsampleLabel.Text, "MUA 500 Hz") && isequal(b.BackgroundColor, amber) ...
+        && isequal(app.gatherConfig().Source.Downsample.MUA, 500) && ~contains(app.ScanLabel.Text, "source changed"), ...
+        'a config holding a rate shows it in the Signals row and keeps it through a gather; no scan asked for');
+    app.applyConfig(cfg0);
+end
+
+if S.sec("1g", "Data tab: Filter... (the Filters row, the dialog on the config's filters at the active dataset's rates, a cutoff past Nyquist refused, OK into Source.SignalFilter and the runner, Cancel, a config opened with a filter)")
+    app.selectTab(app.TabData);
+    app.selectDataset(1);
+    src = app.Runner.source(1);
+    off = struct();
+    for sg = DatasetOutputs.SignalTypes; off.(sg) = SignalFilter.defaults(); end
+    amber = [1 0.8 0.3];
+    b = app.SignalFilterButton;
+    cfg0 = app.Config;
+    cfg0.Source.SignalFilter = off;
+    app.applyConfig(cfg0);   % whatever an earlier section left: no filter
+    check(string(b.Text) == "Filter..." && app.SignalFilterLabel.Text == "no signal filtered" ...
+        && contains(string(b.Tooltip), "Now no signal is filtered") && contains(string(b.Tooltip), "Source.SignalFilter") ...
+        && ~isequal(b.BackgroundColor, amber), ...
+        'the Data tab''s Filters row: Filter..., no signal filtered');
+    b.ButtonPushedFcn(b, []);
+    dlg = app.SignalFilterWindow;
+    check(isa(dlg, 'FilterDialog') && app.onSignalFilter() == dlg && isequal(dlg.Signals, DatasetOutputs.SignalTypes) ...
+        && dlg.Signal == "LFP" && dlg.Picked == "none" && dlg.PreviewRate == src.signalFs.LFP ...
+        && contains(string(dlg.Ctl.RateNote.Text), src.name) && contains(string(dlg.Ctl.OK.Tooltip), "Source.SignalFilter"), ...
+        ['the button opens the dialog on the config''s filters, a signal each, the LFP''s drawn at the active dataset''s ' ...
+        'rate; the same one while open']);
+    dlg.pick("custom");
+    dlg.setType("lowpass");
+    dlg.setCutoff([], src.signalFs.LFP);   % at the LFP's own rate: past its Nyquist frequency
+    dlg.ok();
+    refused = dlg.isOpen() && contains(dlg.ErrorText, "LFP: ") && contains(dlg.ErrorText, "Nyquist");
+    dlg.pick("notch60");
+    dlg.setSignal("AUX");
+    dlg.pick("custom");
+    dlg.setType("lowpass");
+    dlg.setCutoff([], 20);
+    dlg.ok();
+    want = off;
+    want.LFP = SignalFilter.preset("notch60");
+    w = SignalFilter.defaults();
+    w.enabled = true;
+    w.type = "lowpass";
+    w.cutoff = 20;
+    want.AUX = w;
+    check(refused && ~isvalid(dlg.Fig) && isempty(app.SignalFilterWindow) && isequal(app.Config.Source.SignalFilter, want) ...
+        && isequal(app.Runner.Config.Source.SignalFilter, want) && isequal(app.gatherConfig().Source.SignalFilter, want) ...
+        && isequal(b.BackgroundColor, amber) && contains(app.SignalFilterLabel.Text, "LFP 60 Hz line noise") ...
+        && contains(app.SignalFilterLabel.Text, "AUX low-pass 20 Hz") && contains(string(b.Tooltip), "AUX: low-pass 20 Hz") ...
+        && contains(app.StatusBar.Text, "Filters: the figures read") && ~contains(app.ScanLabel.Text, "source changed") ...
+        && ~isequal(app.Config.toStruct(), app.SavedConfigStruct), ...
+        ['OK (after a low-pass at the LFP''s own rate was refused): the filters into the config (unsaved), its gather and the ' ...
+        'runner; the button amber, the Filters row, its tooltip and the status bar say them; no scan asked for']);
+    dlg = app.onSignalFilter();
+    dlg.pick("none");
+    dlg.cancel();
+    check(isequal(app.Config.Source.SignalFilter, want) && isempty(app.SignalFilterWindow), 'Cancel changes nothing');
+    c2 = app.Config;
+    c2.Source.SignalFilter = off;
+    c2.Source.SignalFilter.MUA = SignalFilter.preset("highGamma");
+    app.applyConfig(c2);
+    check(contains(app.SignalFilterLabel.Text, "MUA High gamma 60-150 Hz") && isequal(b.BackgroundColor, amber) ...
+        && isequal(app.gatherConfig().Source.SignalFilter.MUA, SignalFilter.preset("highGamma")) ...
+        && ~contains(app.ScanLabel.Text, "source changed"), ...
+        'a config holding a filter shows it in the Filters row and keeps it through a gather; no scan asked for');
+    app.applyConfig(cfg0);
 end
 
 if S.sec("2", "Alignment: group by Depth")
@@ -1841,6 +1984,50 @@ if S.sec("5d.conttrials", "a continuous panel's Trials row: the Options rows rea
     FE.contTrials.Value = "off";
     FE.maxTrials.Value = Inf;
     app.onConfigChanged("figure");
+end
+
+if S.sec("5d.sigfilter", "a signal panel's Filter row: hidden on a raster, shown on a continuous panel; the Filter window on its filter, OK one undo step into options.filter, the preview read through it; Cancel; closed with another panel")
+    app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
+    app.selectTab(app.TabFigures);   % (run alone: the editor's rows are shown on the Figures tab only)
+    app.onPanelSelected(1);   % the raster
+    rasterHidden = ~shown(FE.filterText) && ~shown(FE.filterEdit);
+    app.onPanelSelected(3);   % the continuous LFP panel (5d.layers)
+    kf = app.SelectedFigure;
+    p3 = app.Config.Figures(kf).panels(3);
+    check(rasterHidden && p3.type == "continuous" && shown(FE.filterText) && shown(FE.filterEdit) ...
+        && string(FE.filterText.Text) == "none" && ~p3.options.filter.enabled && string(FE.filterEdit.Text) == "Filter...", ...
+        'the Filter row: hidden on a raster, shown on the continuous panel (none)');
+    FE.filterEdit.ButtonPushedFcn(FE.filterEdit, []);
+    dlg = app.PanelFilterWindow;
+    src = app.Runner.source(app.ActiveIdx);
+    check(isa(dlg, 'FilterDialog') && isempty(dlg.Signals) && app.editPanelFilter() == dlg && dlg.Picked == "none" ...
+        && dlg.PreviewRate == src.signalFs.LFP && contains(string(dlg.Fig.Name), p3.id), ...
+        'Filter... opens the window on the panel''s filter, drawn at the rate its LFP is read at; the same one while open');
+    nUndo = numel(app.FigureHistory.Undo);
+    dlg.pick("theta");
+    dlg.setPhase("causal");
+    dlg.ok();
+    o3 = app.Config.Figures(kf).panels(3).options;
+    check(o3.filter.enabled && o3.filter.name == "Theta" && o3.filter.phase == "causal" && string(FE.filterText.Text) == "Theta 4-8 Hz" ...
+        && contains(string(FE.filterText.Tooltip), "causal") && isempty(app.PanelFilterWindow) ...
+        && numel(app.FigureHistory.Undo) == nUndo + 1, ...
+        'OK: the filter into the panel''s options.filter, one undo step; the Filter row says it');
+    app.refreshFigurePreview(Force=true);
+    Rf = app.FigurePreviewResult.panels(3).layers(1).R;
+    check(app.FigurePreviewState == "drawn" && isequal(Rf.filters, o3.filter), ...
+        'the preview reads the panel''s LFP through it (its R.filters)');
+    dlg = app.editPanelFilter();
+    dlg.pick("beta");
+    dlg.cancel();
+    check(isequal(app.Config.Figures(kf).panels(3).options.filter, o3.filter), 'Cancel changes nothing');
+    dlg = app.editPanelFilter();
+    app.onPanelSelected(1);
+    check(~dlg.isOpen() && isempty(app.PanelFilterWindow) && isequal(app.Config.Figures(kf).panels(3).options.filter, o3.filter), ...
+        'another panel shown closes the window, as canceled');
+    app.onPanelSelected(3);
+    app.onUndoRedo("undo");
+    check(~app.Config.Figures(kf).panels(3).options.filter.enabled && string(FE.filterText.Text) == "none", ...
+        'Undo: the panel unfiltered again, the row says none');
 end
 
 if S.sec("5d.type", "a type change: the PSTH's bins, a heat map and its rows, back to a PSTH; a layer's binding")
@@ -3168,6 +3355,7 @@ end
 if S.sec("5d.spectrum", "a spectrum panel and a spectrogram panel (Chronux: the bundled copy, on the path for these checks only)")
     savedConfig();
     noFigures();
+    app.selectTab(app.TabFigures);   % (run alone: the editor's rows are shown on the Figures tab only)
     app.FigureAutoSlider.Value = 0;   % no redraw per edit (as 5d.add leaves it)
     spPath = "";
     if ~ChronuxDataset.hasChronux() && isfolder(fullfile(repo, 'toolboxes', 'chronux'))
@@ -3205,9 +3393,10 @@ if S.sec("5d.spectrum", "a spectrum panel and a spectrogram panel (Chronux: the 
         app.onFigureSubheadingToggled("analysis", "tapers", false);
         check(tapFolded && shown(FE.spTaperMode) && shown(FE.spTW) && shown(FE.spErr) && shown(FE.spScale) && shown(FE.spTimeBase) && shown(FE.spSpikeFs) ...
             && ~shown(FE.spRangeFrom) && ~shown(FE.spWin) && ~shown(FE.spShowPhase) && ~shown(FE.binMs) && ~shown(FE.baselineMode) ...
-            && shown(FE.yLim) && FE.spTW.Enable == "on" && FE.spW.Enable == "off" ...
+            && shown(FE.yLim) && FE.spTW.Enable == "on" && FE.spW.Enable == "off" && ~shown(FE.spFreqScale) ...
             && secOf("analysis").Title == "Analysis — Power spectrum" && secOf("display").Title == "Display — Power spectrum", ...
-            'its options show the Chronux rows: tapers, error, scale, time base, spike rate (no range on epochs, no moving window)');
+            ['its options show the Chronux rows: tapers, error, scale, time base, spike rate (no range on epochs, no moving window, ' ...
+            'no spectrogram frequency axis)']);
         FE.spTW.Value = 2;
         FE.spK.Value = 3;
         FE.spFmax.Value = 80;
@@ -3259,6 +3448,19 @@ if S.sec("5d.spectrum", "a spectrum panel and a spectrogram panel (Chronux: the 
             && shown(FE.spSpikeFs) && shown(FE.spWin), ...
             sprintf(['a Spectrogram panel offers sorted units and detected spikes after the signals; switched to units, it previews ' ...
             'the observed unit''s spike spectrogram, with the spike rate row (%s, %s)'], app.FigurePreviewState, sgKind));
+        fsShown = shown(FE.spFreqScale) && FE.spFreqScale.Value == "linear";
+        K0 = app.Runner.FigureCache;
+        FE.spFreqScale.Value = "log";
+        app.onConfigChanged("figure", FE.spFreqScale);
+        app.refreshFigurePreview(Force=true);
+        K1 = app.Runner.FigureCache;
+        isNew = arrayfun(@(e) ~any(arrayfun(@(o) o.kind == e.kind && isequaln(o.key, e.key), K0)), K1);
+        axSg = findPanelAxes(app.FigurePreviewPanel, ps(k2).id);
+        sgTicks = string(axSg.YTickLabel);
+        check(fsShown && app.Config.Figures(1).panels(k2).options.freqScale == "log" && app.FigurePreviewState == "drawn" ...
+            && ~any(isNew) && any(sgTicks == "10") && all(ismember(sgTicks, ["1" "2" "5" "10" "20" "50" "100"])), ...
+            sprintf(['the spectrogram''s Frequency axis (Axes) set to logarithmic reaches the config and redraws the preview ' ...
+            'with its ticks in Hz (%s), computing nothing again (%d new in the cache)'], strjoin(sgTicks, ", "), nnz(isNew)));
         app.onRemoveFigure();
         app.onSaveConfig();
     end

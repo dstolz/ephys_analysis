@@ -64,7 +64,9 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 
 1. **Data.** The project is scanned when the app opens (if not, type the
    **Project root** and press **Scan**). Click a recording in the table to
-   make it the *active* one: the previews show it.
+   make it the *active* one: the previews show it. The **Dataset** list on
+   the Alignment and Figures tabs offers the recordings ticked in the
+   table's **Run** column (all of them when none is ticked).
 2. **Alignment.** Pick the **Line** to align to (a stimulus line, say) and
    the **Edge** (onset). Set the window, for example 0.2 s before to 0.8 s
    after. Pick a trial parameter in **Group by** (`Depth`, say) to draw one
@@ -125,12 +127,18 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | change how a figure looks (colors, line widths, fonts, axis labels) | right-click a part of the preview and edit it there, or open **Design and looks** under LOOK in the settings column: pick a ready-made look in **Design** (journal, talk, ...; the **Design** menu and the list beside **Dataset** are the same choice), press **Edit aesthetics...** to edit the selected panel's colors, lines and fonts (or right-click the preview), and **Save look as design...** to keep the preview's look as a design of your own. Fonts, line widths, colors and the legend are under **Style** |
 | draw a smooth line over a PSTH's bars | select the PSTH and, in its **Display** section, tick **Smoothed line: Draw**. **SD (ms)** sets how smooth the line is; clear **Legend** to leave the line out of the legend; **Smooth SD (ms)** in **Analysis** still sets the bars' own smoothing, apart from the line's |
 | write a label that follows the data, such as *Time (s) re Stim onset* or *Hit trials* | type a variable in braces in a title, an axis label, a layer's name or a note: **Time (s) re {Line} {Edge}**, **{Response} trials**. Each figure fills it in. The **{x}** button beside the field lists them, with what each means (see [Labels that follow the data](#labels-that-follow-the-data)) |
+| put µ, ±, Δ, ° or another symbol in a label | type a backslash and its name: **Amplitude (\muV)** shows *Amplitude (µV)*; **\pm**, **\Delta** and **^\circ** show ±, Δ and °. It works in every title, axis label, legend name and note (see [Symbols and Greek letters](#symbols-and-greek-letters)) |
 | give one figure its own event or window | for the whole figure, untick **Use default** under the event reference or epoch window in its **Alignment** section; for one panel, untick **Same as the figure** in its **Panel alignment** section. The Alignment tab is only the default |
 | stop a sensor's brief blips from counting as new events (the animal touches the platform again as it leaves, or the beam drops out for a moment) | in the event reference, set **Refractory** to a time in seconds, such as 0.5: an interval that starts sooner than that after the one before ended is ignored. Or set **Stitch gaps (s)** to join intervals that close together into one visit, which then ends at the last offset. For a step of a sequence, the **Event sequence** window has the same two columns. The event rows above the plot are drawn the same way |
 | draw a figure across several recordings | in the figure's Observations section, set **Pages** to *Across datasets*; its settings are in the Sessions section that appears |
 | draw a small figure at every unit's place on the probe | in the figure's Observations section, set **Pages** to *On the probe*; its settings are in the Probe layout section that appears |
 | keep only the units that respond to the event | in the figure's Observations section, tick **Responsive only**. Its settings (windows, correction, auROC) are in the **Response test** group under it: click **▸ Response test** to open it. The section colors tell the scope: blue sections are about the whole figure, green about the selected panel, violet about the look of every panel. Can't find a setting? Type its name in the search field above the editor |
 | check one unit's figures before a long run | Export tab: **Test report** |
+| make previews faster and figure files smaller by lowering a signal's sampling rate (an AUX recorded at 30 kHz, say) | Data tab: press **Downsample...** and type a rate for that signal, such as *250* for the LFP or *100* for the AUX; leave a field blank to keep the rate on file. Press **OK**: every figure now reads that signal at the lower rate, and the button turns amber. The signal is filtered first, so no false low frequencies appear. The window shows the band each rate keeps unchanged: choose a rate at least 2.6 times the highest frequency you look at (see [Downsampling signals](EphysFigGenApp.md#downsampling-signals)) |
+| see whether the LFP's phase lines up with the event from trial to trial (inter-trial phase coherence, ITPC) | **New panel...** → *Phase coherence (ITPC)*. Set **Frequency (Hz)**. Under **View**, pick *ITPC by frequency* for one line per trial group, or *time/frequency coherogram* for an image over time and frequency. The value runs from 0 (the phase is random from trial to trial) to 1 (every trial has the same phase). The dashed line is the level that random phases stay under, so values above it are locked to the event. To switch views later, tick or clear **Over time** in the panel's **Analysis** section. Fewer tapers (**TW, K** of *1, 1*) give the classic single-taper ITPC (see [Phase coherence panels](EphysAnalysisConfig.md#phase-coherence-panels)) |
+| look at one EEG band of the LFP, such as theta or gamma | select the panel (a continuous signal, heat map, spectrum, spectrogram, coherence or phase coherence panel) and press **Filter...**, the first row of its **Analysis** section. Pick a band under **Start from**: *Theta*, *Alpha*, *Beta*, *Low gamma*, *High gamma* and others. The plots show what the filter keeps. Press **OK**: the panel now shows that band. The whole recording is filtered first and then cut into trials, so the trial edges are clean. To compare, draw the same channel in a second panel with no filter (see [A panel's filter](EphysFigGenApp.md#a-panels-filter)) |
+| make your own filter and use it again later | in the **Filter** window, set **Cutoffs (Hz)**, **Design** and **Order**, type a name under **Save the settings as one of yours** and press **Save**. Your filter is now listed under **Start from**, in every config. *Zero-phase* (the default) shifts nothing in time; choose *Causal* to filter as a recording system would, with its delay |
+| remove line noise, or filter a signal for every figure | Data tab: press **Filter...**, pick the signal (**Signal**, such as *LFP*) and a filter, such as *60 Hz line noise*. Press **OK**: every figure now reads that signal filtered, and the button turns amber. A panel's own filter runs after it (see [Filtering signals](EphysFigGenApp.md#filtering-signals)) |
 | choose when the preview redraws after a change | drag the **Auto** slider left of the preview. Left end: never, press **Preview**. Right end: after every change, however slow. In between, the further right, the slower a redraw it starts on its own (the middle: under 2 s; point at the slider to see its limit). A change of colors, fonts or labels only redraws, so it is quick even when computing the figure is slow. **Ctrl+T** turns Auto off and on |
 | undo an edit | **Edit → Undo** (Ctrl+Z) |
 | move or resize a panel | press **Arrange** above the preview and drag the panel's box (a corner or an edge resizes it); after a click on the preview the arrow keys nudge it. Or pick it (Ctrl+Click it in the preview) and type its **Position** and **Size** in the Panel section; **Units** (in Layout) picks cm, inches, pixels or a share of the page. **Bring forward** and **Send back** set which of two overlapping panels is on top (see [Arranging panels on the preview](EphysFigGenApp.md#arranging-panels-on-the-preview)) |
@@ -140,6 +148,7 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 | put the legend where you want it | with **Arrange** on, drag the legend's dashed box where you want it: it becomes a legend panel there. Or **New panel...** → *Legend*: a panel of its own that holds the figure's legend; place and size it as any panel. Style → **Legend** picks *Auto*, *Inside* or *None*; the legend never makes a plot smaller |
 | keep labels from running into the next panel, or make a rect mean the whole panel with its labels | in the **Layout** section (under **Page**), **Padding** is the clear space kept around labels, and **Boxes mean** says whether a rect is the plot area (labels kept clear) or the outer box (labels inside it) |
 | hide a panel's axis label or tick numbers (say, on the inner panels of a grid) | select the panel, and in **Axes** set **Show (x, y)** to *ticks, no label*, *label, no ticks* or *neither* for that axis |
+| see the low frequencies of a spectrogram, coherence or phase coherence panel better (a logarithmic frequency axis) | select the panel, and in **Axes** set **Frequency axis** to *logarithmic*. The low frequencies get more room, the ticks read 2, 5, 10, 20, 50 ... Hz, and the 0 Hz bin is left out. Nothing is computed again, so the preview redraws quickly |
 | copy a change to the other figures | **Edit → Apply last change to figures...** |
 | mark a recording, channel or unit to find again | the **☆** star next to it; **Favorites** lists them |
 | keep a note on a recording, channel or unit | the notepad (see [Notes](EphysFigGenApp.md#notes)) |
@@ -199,6 +208,27 @@ for the figure in the preview now. **Help → Label variables** lists them all.
 Type the name exactly as listed (*{Line}*, not *{line}*): **Validate** on the
 Export tab points out a name it does not know.
 
+## Symbols and Greek letters
+
+To put a symbol in a label, type a backslash and the symbol's name. The
+field keeps what you typed; the figure shows the symbol.
+
+- **Amplitude (\muV)** shows *Amplitude (µV)*.
+- **mean \pm SEM** shows *mean ± SEM*.
+- **\Deltat (ms)** shows *Δt (ms)*.
+- **Phase (^\circ)** shows *Phase (°)*.
+
+Other names: **\alpha** α, **\beta** β, **\theta** θ, **\sigma** σ,
+**\times** ×, **\leq** ≤, **\geq** ≥, **\approx** ≈, **\rightarrow** →,
+**\infty** ∞. Greek letters work small (**\gamma**) and capital
+(**\Gamma**). This works in a figure's title, a panel's title, the axis
+labels, a layer's name in the legend, a text note and a trial measure's
+label. More are listed in
+[Special characters](EphysFigGenApp.md#special-characters).
+
+Only the names change. An underscore or a caret stays as it is, so unit and
+dataset names print correctly.
+
 ## Use your tags
 
 [Tags](pipeline-app-guide.md#tag-your-datasets) are short words put on
@@ -252,6 +282,16 @@ change any figure yet.
   again: **Auto** is off, or the redraw would take longer than Auto allows
   (the line under the preview says *slow*). Press **Preview**, or drag the
   **Auto** slider to the right.
+- **A spectrum drops off at its top end, or Validate warns about *fpass*.**
+  The signal was downsampled (Data tab, **Downsample...**), and the filter
+  that keeps the lower rate clean also lowers the highest frequencies. Lower
+  the panel's top frequency (**fpass**) to the value the warning names, or
+  give that signal a higher rate.
+- **A filtered panel is skipped with *reaches the Nyquist frequency*.** The
+  filter's top cutoff is too high for the signal's sampling rate (a 60-150 Hz
+  band on an LFP downsampled to 250 Hz, say). Lower the cutoffs in
+  **Filter...**, or give the signal a higher rate (Data tab,
+  **Downsample...**).
 - **The Export tab's Plan** lists every recording and figure that would run,
   and why any would be skipped, with a *What to do* column, before you run
   anything. Double-click a row to see that figure.

@@ -10,6 +10,64 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app: a **Phase coherence (ITPC)** panel type (`itpc`): the inter-trial phase coherence of a signal over the
+  epochs, how alike each frequency's phase is from trial to trial (0 random, 1 the same phase in every trial). By
+  frequency, a trace per channel and trial group with the jackknife band and a dashed line at the level random phases
+  stay under at 1 − `errP` (simulated for the trial count and tapers, so the small-sample bias is accounted for); with
+  **Over time** (`overTime`) a time/frequency coherogram of the first channel on the figure's time axis, one trial
+  group or a stack of them. It takes the spectral panels' multitaper rows (tapers, `fpass`, `detrend`, `err` / `errP`,
+  `movingwin`), a log **Frequency axis**, stacks, `yLimMode`, `cLim`, the band's look and the panel's filter; the New
+  panel window offers **Frequency (Hz)**, **View** (by frequency or a time/frequency coherogram) and **Moving window
+  (s)**. New public `phaseCoherence(D, TB, S)` computes it (each taper's ITPC, averaged over the tapers; Slepian
+  tapers from the Signal Processing Toolbox's `dpss`): it needs no Chronux. `chronuxSettings` takes `analysis "itpc"`;
+  a template `"itpc"`; `validate` warns of a second layer and of a moving window longer than the panel's window.
+- Spectrograms: a logarithmic frequency axis. A spectrogram panel's `freqScale` (`"linear"`, the default, or `"log"`;
+  **Frequency axis** in the figure editor's Axes section) spreads out the low frequencies: each frequency bin takes its
+  share of a log axis, ticks at 2, 5, 10, 20, 50 ... Hz, the 0 Hz bin left out, a stack's rows too, the data tips
+  naming each row's frequency. It is the drawing's alone (`figureDataSpec`): changing it computes nothing again.
+  MATLAB spreads an image's rows evenly over a log axis, so the map is drawn on rows evenly spaced in log10 Hz (each
+  bin repeated, nothing interpolated) and the axis labeled in Hz: new private `logFrequencyRows` and
+  `logFrequencyTicks`. Scripts: `chronuxSettings`' `display.freqScale`, which `renderChronux` draws. `validate`
+  refuses another value.
+- Analysis app: **Downsample...** on the Data tab sets a lower rate for each signal (LFP, MUA, SPIKE, AUX) that every
+  figure reads it at: faster previews and runs, lighter figure files. The signal is low-pass filtered first, so nothing
+  above the new Nyquist frequency folds back into it (`resampleSignal`: zero phase, flat to 0.38 × the new rate, what
+  could alias at least 60 dB down). The window is the dataset browser's (`DownsampleDialog`, with new `UsedBy`,
+  `ScriptName` and `UnusedNote` options), showing the active dataset's rates on file and the signals the figures read;
+  the Signals row says the rates and the active dataset's line each extract's rate. Config: `Source.Downsample` (a field
+  per signal, `[]` = the rate on file); `figureFor` gives each signal layer its rate (`downsample`), which
+  `figureSignalLayer` and `figureChronuxLayer` read, so a cached preview at another rate computes again. New
+  `selectChannels` option `Rate` and `DatasetOutputs.resampled` (each resampled column kept with `CacheData`); a
+  layer's `R.fsFile` is the rate on file. `validate` refuses a bad rate and warns when a spectral panel's `fpass` runs
+  past the band a downsampled signal keeps; the preview script reads a channel figure's signal at its rate.
+- Analysis app: filtered signals. **Filter...** on the Data tab filters a signal (LFP, MUA, SPIKE, AUX) for every
+  figure, and **Filter...** in the figure editor's Analysis section filters a continuous, heat map, spectrum,
+  spectrogram or coherence panel's signal layers, after the signal's own. Each channel's whole recording is filtered
+  before it is cut into epochs, at the rate it is read at (after **Downsample...**). The window (new `FilterDialog`)
+  starts from the EEG bands (delta, theta, alpha, beta, low and high gamma), sharp-wave ripples, the 60 and 50 Hz
+  line-noise notches or your saved filters (Save under a name, Delete), and sets the type (band-pass, band-stop,
+  low-pass, high-pass), cutoffs, design (Butterworth, Chebyshev I and II, elliptic, FIR) with its order, ripple and
+  attenuation, and phase: zero-phase (acausal: an IIR filter forward and back, an FIR with its delay taken out) or
+  causal. It draws the gain as applied over a log frequency axis and the impulse response (symmetric when acausal),
+  and says a causal filter's delay. New `SignalFilter` (pipeline): the filter's settings, `presets`, your saved
+  filters (`save`, `saved`, `remove`, kept with the apps' preferences), `design`, `apply` (column by column, IIR as
+  second-order sections, FIR by FFT, NaN runs bridged), `response`, `impulse` and `delay`. Config:
+  `Source.SignalFilter` (a filter per signal) and `options.filter` on those five panel types, a shared option
+  (Apply to all panels copies it); `figureFor` gives each signal layer its `filters`, which `figureSignalLayer` and
+  `figureChronuxLayer` read through, and a layer's result keeps them (`R.filters`). New `selectChannels` option
+  `Filter` and `DatasetOutputs.prepared` (each filtered column kept with `CacheData`, the last 6 filter chains). A
+  filter that cannot run at a layer's rate skips it with the reason (`SignalFilter:Unusable`); `validate` refuses
+  bad settings and, with `Source.Downsample` set, a cutoff at or above its Nyquist frequency (a warning past the band
+  the anti-aliasing filter keeps). The preview script reads a channel figure's signal through
+  `Source.SignalFilter`. `figureSignals` (the signals the figures read) is shared by the Downsample and Filter
+  dialogs.
+- Analysis app: special characters in a figure's text. A figure's title, a panel's title, X and Y axis labels and text
+  note (drawn as typed), a layer's name (the legend) and a trial measure's label print TeX character names as the
+  characters they name: *Amplitude (\muV)* draws *Amplitude (µV)*, `\pm` ±, `\Delta` Δ, `^\circ` °, any of MATLAB's
+  TeX characters. The text stays drawn as typed, so an `_` or `^` (in it, or in a label variable's value) stays as it
+  is; the config keeps what was typed. The report's figure headings and captions print the title the same way. New
+  private `figureLabelSymbols`, called by `figureLabelFill` (before the label variables are filled in) and
+  `trialMeasureLabel`; the fields' tooltips and **Help → Label variables** say so.
 - Event references and sequence steps: **Stitch gaps (s)** and **Refractory** (`stitchGapSec`, `refractorySec`; 0 =
   off) clean a digital line before anything else reads it. Stitching joins intervals at most the gap apart into one
   (first onset to last offset: a sensor's dropouts in one visit); the refractory period drops an interval that starts
@@ -57,6 +115,11 @@ says how to cut a release.
 
 ### Changed
 
+- `S_ExampleChronuxSpikes.m` takes its baseline by the analysis app's rule: `chronuxNormalize`, now public, over the
+  moving windows that lie wholly inside `baselineSec` (it took every window centered there, so one reaching past the
+  baseline's end, even past the event, counted). `chronuxSettings` checks the baseline before any dataset is loaded.
+  The default `baselineSec` is `[-1.1 -0.25]`, the same 8 windows as `[-1 -0.5]` took before; under the new rule,
+  `[-1 -0.5]` holds one window.
 - `NeuroGLMExport.designSpec`: `HistoryMs` is the spike-history (and coupling) filter's reach, as documented: the
   filter covers the lags from one bin to `HistoryMs` after a spike at any bin size. It was the peak of the last raised
   cosine, with the filter running 3 to 4 times as long (200 ms gave 653 ms; the script's 500 ms gave 2 s), and at bins
@@ -487,6 +550,14 @@ says how to cut a release.
 
 ### Fixed
 
+- A spectrogram baseline exactly one moving window long (the defaults: `[-0.5 0]` s with a 0.5 s window) normalized
+  nothing: `chronuxNormalize` took a window to reach half a sample past its first and last samples, so the one
+  starting on the baseline's start never fit and the panel was not drawn. A window now lies inside when its samples
+  do (`chronuxNormalize`'s new `fs` input, from `chronuxSpecgram` and `chronuxSpikeSpecgram`). `chronuxSettings`
+  refuses a baseline shorter than the moving window (`chronuxSettings:Baseline`), so **Validate** and the panel's
+  "Cannot draw" sign say what to change instead of "no window lies inside the baseline". A z-score over fewer than
+  two windows (an SD of 0: every value Inf) is refused with the reason (`chronuxNormalize:NoBaseline`), and an
+  unknown mode is `chronuxNormalize:BadMode`.
 - Dataset tags were missing when the analysis app or the dataset browser opened an `OutputRoot` without the recording
   root: the manifest that holds them stays beside the recording. `DatasetOutputs` now also finds
   `<Name>_manifest.json` in the recording folder the outputs' provenance names (`sourceFolder`); of that and a copy in

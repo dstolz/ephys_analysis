@@ -43,6 +43,12 @@ end
 if ~isempty(obj.VariableDialog) && isvalid(obj.VariableDialog)
     delete(obj.VariableDialog);
 end
+if ~isempty(obj.DownsampleWindow) && isvalid(obj.DownsampleWindow)
+    delete(obj.DownsampleWindow);   % closed as canceled: the rates stay as they were
+end
+for w = {obj.SignalFilterWindow, obj.PanelFilterWindow}   % the Filter dialogs: closed as canceled
+    if ~isempty(w{1}) && isvalid(w{1}); delete(w{1}); end
+end
 O = obj.FigureArrangeOverlay;
 if isstruct(O) && ~isempty(O.timer) && isvalid(O.timer); stop(O.timer); end   % Arrange's cue timer (it deletes itself)
 for t = {obj.FigureSelectTimer, obj.FigureSettleTimer, obj.WarmTimer}   % Arrange's refill after a release, its redraw after Arrange off, the startup warm-up (they delete themselves)

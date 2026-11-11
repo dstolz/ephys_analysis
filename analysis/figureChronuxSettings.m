@@ -1,17 +1,18 @@
 function S = figureChronuxSettings(type, op, W, analysis)
 %figureChronuxSettings  The Chronux settings of a spectral figure panel, from its options, checked.
 %   S = figureChronuxSettings(TYPE, OP, W, ANALYSIS) overlays the options OP
-%   of a panel of TYPE ("spectrum", "spectrogram" or "coherence";
+%   of a panel of TYPE ("spectrum", "spectrogram", "coherence" or "itpc";
 %   panelTypes().DefaultOptions) on chronuxSettings() and checks them
-%   there: S.analysis = ANALYSIS (default: "spectrum", "specgram" or
-%   "coherence" by TYPE; the compute passes "spikeSpectrum",
+%   there: S.analysis = ANALYSIS (default: "spectrum", "specgram",
+%   "coherence" or "itpc" by TYPE; the compute passes "spikeSpectrum",
 %   "spikeSpecgram", "spikeField" or "unitCoherence" for spike layers),
 %   S.window = W ([pre post] s, the
 %   panel's window; [] keeps the default), and from OP: timeBase, range,
 %   segmentSec, taperMode, TW, K, W, p, pad, fpass, err, errP, detrend,
 %   spikeFs, movingwin, overTime, the baseline (OP.baseline.Mode and
 %   .Window as baseline / baselineWindow) and display.scale / showPhase.
-%   A spectrogram is always on the aligned time base. Errors are
+%   A spectrogram and a phase coherence (itpc) are always on the aligned
+%   time base. Errors are
 %   chronuxSettings' (chronuxSettings:BadValue, chronuxSettings:Baseline):
 %   validate reports their message as the panel's options error.
 %
@@ -26,6 +27,7 @@ if analysis == ""
     switch type
         case "spectrogram", analysis = "specgram";
         case "coherence",   analysis = "coherence";
+        case "itpc",        analysis = "itpc";
         otherwise,          analysis = "spectrum";
     end
 end

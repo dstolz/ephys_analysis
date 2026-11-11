@@ -1,58 +1,72 @@
 function [spec, F, titleVars] = figureLabelFill(F, spec)
-%figureLabelFill  A figure's texts with their label variables filled in for the result F: what renderFigure draws.
+%figureLabelFill  A figure's texts with their special characters and label variables filled in for the result F: what renderFigure draws.
 %   [SPEC, F, TITLEVARS] = figureLabelFill(F, SPEC) fills each {Name} of
 %   figureLabelVariables in SPEC.title (with the figure's own values),
 %   every panel's title, xLabel, yLabel and note text, and the names of
 %   F's layers (F.panels(k).layers(j).name; the legend), each with its own
-%   panel's values (figureLabelVariables(SPEC, F, Panel=k)). A note drawn
-%   with the TeX interpreter gets its values escaped (an "_" in a unit's
+%   panel's values (figureLabelVariables(SPEC, F, Panel=k)). First each of
+%   these texts, as typed, gets its TeX character names as the characters
+%   they name (figureLabelSymbols: "\muV" is "µV"), so a value filled in
+%   is never read as one. A note drawn with the TeX interpreter keeps its
+%   names (TeX reads them) and gets its values escaped (an "_" in a unit's
 %   label stays an underscore). TITLEVARS lists the variables SPEC.title
 %   names, as typed (a string row; renderFigure and figureAutoTitle: a
 %   title that names the unit or the trial group is not told them again).
-%   SPEC keeps its fields: a figure with no brace in any of these texts is
-%   returned as it is, at no cost. A
+%   SPEC keeps its fields: a figure with no brace and no backslash in any
+%   of these texts is returned as it is, at no cost. A
 %   probe figure (F.tiles) fills its texts with the page's values; its
 %   tiles' layer names are filled by the caller, a tile at a time.
 %
-%   See also figureLabelVariables, renderFigure, renderProbeFigure.
+%   See also figureLabelVariables, figureLabelSymbols, renderFigure, renderProbeFigure.
 
 titleVars = labelNames(spec.title);
-if ~anyBrace(F, spec); return; end
-[~, V] = figureLabelVariables(spec, F);
-spec.title = figureFileName(spec.title, V, Kind="label");
+braced = anyHolds(F, spec, "{");
+if ~braced && ~anyHolds(F, spec, "\"); return; end
+V = struct();   % (no brace: no variable to fill)
+if braced; [~, V] = figureLabelVariables(spec, F); end
+spec.title = labelText(spec.title, V);
 hasPanels = isstruct(F) && isfield(F, 'panels');
 for k = 1:numel(spec.panels)
     p = spec.panels(k);
-    [~, V] = figureLabelVariables(spec, F, Panel=k);
+    if braced; [~, V] = figureLabelVariables(spec, F, Panel=k); end
     for f = ["title" "xLabel" "yLabel"]
-        p.(f) = figureFileName(string(p.(f)), V, Kind="label");
+        p.(f) = labelText(p.(f), V);
     end
-    if isfield(p, 'note') && isstruct(p.note) && contains(string(p.note.text), "{")
-        Vn = V;
-        if isfield(p.note, 'interpreter') && string(p.note.interpreter) == "tex"; Vn = texEscaped(V); end
-        p.note.text = figureFileName(string(p.note.text), Vn, Kind="label");
+    if isfield(p, 'note') && isstruct(p.note)
+        t = string(p.note.text);
+        if isfield(p.note, 'interpreter') && string(p.note.interpreter) == "tex"
+            if contains(t, "{"); p.note.text = figureFileName(t, texEscaped(V), Kind="label"); end
+        elseif contains(t, ["{" "\"])
+            p.note.text = labelText(t, V);
+        end
     end
     spec.panels(k) = p;
     if hasPanels && k <= numel(F.panels) && isfield(F.panels(k), 'layers')
         for j = 1:numel(F.panels(k).layers)
-            F.panels(k).layers(j).name = figureFileName(string(F.panels(k).layers(j).name), V, Kind="label");
+            F.panels(k).layers(j).name = labelText(F.panels(k).layers(j).name, V);
         end
     end
 end
 end
 
 
-function tf = anyBrace(F, spec)
-%anyBrace  Any text this fills holds a brace.
-tf = contains(spec.title, "{");
+function t = labelText(t, V)
+%labelText  A text drawn as typed: its TeX character names as characters (figureLabelSymbols), then its label variables filled in from V.
+t = figureFileName(figureLabelSymbols(string(t)), V, Kind="label");
+end
+
+
+function tf = anyHolds(F, spec, c)
+%anyHolds  Any text this fills holds C: "{" (a label variable) or "\" (a TeX character name).
+tf = contains(spec.title, c);
 for k = 1:numel(spec.panels)
     if tf; return; end
     p = spec.panels(k);
-    tf = any(contains([string(p.title) string(p.xLabel) string(p.yLabel)], "{"));
-    if ~tf && isfield(p, 'note') && isstruct(p.note); tf = contains(string(p.note.text), "{"); end
+    tf = any(contains([string(p.title) string(p.xLabel) string(p.yLabel)], c));
+    if ~tf && isfield(p, 'note') && isstruct(p.note); tf = contains(string(p.note.text), c); end
     if ~tf && isstruct(F) && isfield(F, 'panels') && k <= numel(F.panels) && isfield(F.panels(k), 'layers') ...
             && ~isempty(F.panels(k).layers)
-        tf = any(contains(string({F.panels(k).layers.name}), "{"));
+        tf = any(contains(string({F.panels(k).layers.name}), c));
     end
 end
 end

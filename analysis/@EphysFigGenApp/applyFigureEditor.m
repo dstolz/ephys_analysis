@@ -38,6 +38,7 @@ if k < 1 || k > numel(obj.Config.Figures)
     obj.FigureEditorPanel.Title = "Figure";
     showFigureId(obj);
     closeTrialMeasureDialog(obj);
+    closePanelFilterDialog(obj);
     obj.syncFigureEditor();
     return
 end
@@ -69,6 +70,7 @@ else
     overlayList(E, repmat(EphysAnalysisConfig.defaults("Overlay"), 1, 0), 0);
 end
 closeTrialMeasureDialog(obj);   % a Trial measure window open on a layer not shown now goes
+closePanelFilterDialog(obj);   % ... and a Filter window open on a panel not shown now
 obj.syncFigureEditor();
 end
 
@@ -285,6 +287,11 @@ if isfield(op, 'stack')   % the type's stack values (stackModes)
     stackChoices(E.stack, p.type, op.stack);
     if isfinite(op.stackSpacing) && op.stackSpacing > 0; E.stackSpacing.Value = op.stackSpacing; else; E.stackSpacing.Value = 1.1; end
 end
+if isfield(op, 'filter')   % a signal panel's filter (the Filter row: its UserData)
+    showPanelFilter(E, op.filter);
+else
+    showPanelFilter(E, SignalFilter.defaults());
+end
 if p.type == "continuous"
     E.statistic.Value = char(pickFrom(op.statistic, string(E.statistic.ItemsData), "mean"));
     E.transform.Value = char(pickFrom(op.transform, string(E.transform.ItemsData), "none"));
@@ -429,7 +436,7 @@ end
 
 
 function applySpectral(E, op)
-%applySpectral  A spectrum, spectrogram or coherence panel's Chronux rows (the fields its type has).
+%applySpectral  A spectrum, spectrogram, coherence or phase coherence (itpc) panel's multitaper rows (the fields its type has).
 E.spTaperMode.Value = char(pickFrom(op.taperMode, string(E.spTaperMode.ItemsData), "TWK"));
 E.spTW.Value = max(eps, op.TW);
 E.spK.Value = max(1, round(op.K));
@@ -450,6 +457,7 @@ if isfield(op, 'err')
     E.spErrP.Value = min(1 - eps, max(eps, op.errP));
 end
 if isfield(op, 'scale'); E.spScale.Value = char(pickFrom(op.scale, string(E.spScale.ItemsData), "db")); end
+if isfield(op, 'freqScale'); E.spFreqScale.Value = char(pickFrom(op.freqScale, ["linear" "log"], "linear")); end
 if isfield(op, 'spikeFs'); E.spSpikeFs.Value = max(eps, op.spikeFs); end
 if isfield(op, 'movingwin')
     E.spWin.Value = max(eps, op.movingwin(1));

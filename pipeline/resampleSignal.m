@@ -31,7 +31,9 @@ function [Y, FsOut] = resampleSignal(X, FsIn, FsOut)
 %
 %   Used by mTRFExport.resample (the mTRF connectors), epochMatrix and
 %   sessionData (epochMatrixSettings' signal.downsample: the dataset
-%   browser's Downsample... dialog).
+%   browser's Downsample... dialog), and DatasetOutputs.resampled
+%   (selectChannels' Rate: the analysis app's figures, the analysis
+%   config's Source.Downsample).
 %
 %   Example
 %     [Y, fs] = selectChannels(src, "LFP");          % 1000 Hz

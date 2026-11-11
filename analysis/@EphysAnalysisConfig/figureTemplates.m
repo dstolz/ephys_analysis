@@ -24,7 +24,7 @@ P = EphysAnalysisConfig.panelTypes();
 rp = struct();
 rp.panels = {panelOf("raster", [0 0.5 1 0.5]), panelOf("psth", [0 0 1 0.5])};
 
-order = ["psth" "raster" "continuous" "eventTrace" "trialDist" "trialHist" "trialScatter" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" "spectrum" "spectrogram" "coherence"];
+order = ["psth" "raster" "continuous" "eventTrace" "trialDist" "trialHist" "trialScatter" "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" "spectrum" "spectrogram" "coherence" "itpc"];
 n = numel(order) + 2;
 Template = strings(n, 1); Label = strings(n, 1); Description = strings(n, 1); Figure = cell(n, 1);
 Template(1) = "rasterPsth";

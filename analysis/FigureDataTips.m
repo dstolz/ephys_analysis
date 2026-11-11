@@ -242,10 +242,7 @@ row = PT.Type == C.type;
 label = C.type;
 if any(row); label = string(PT.Label(row)); end
 C.panel = string(p.id) + " (" + label + ")";
-C.isTime = any(row) && PT.SharesTime(row);
-if C.type == "coherence" && isfield(p.options, 'overTime') && p.options.overTime
-    C.isTime = isfield(p.options, 'timeBase') && p.options.timeBase == "aligned";
-end
+C.isTime = any(row) && (PT.SharesTime(row) || figureOverEpochs(p));   % (a coherogram over the epochs)
 C.event = "";
 if isfield(p, 'ref') && isstruct(p.ref)
     try

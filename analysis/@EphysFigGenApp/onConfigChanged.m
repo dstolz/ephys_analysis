@@ -1,7 +1,11 @@
 function onConfigChanged(obj, what, src)
 %onConfigChanged  A control changed: re-gather the config and refresh what depends on it.
 %   WHAT says which part changed: "name", "source", "ticks", "filter"
-%   (the Data tab's filter: Source.Filter, its table already filtered), "defaults"
+%   (the Data tab's filter: Source.Filter, its table already filtered),
+%   "downsample" (Source.Downsample, set by onDownsample: the Signals row
+%   says it and the preview follows; no scan needed), "signalfilter"
+%   (Source.SignalFilter, set by onSignalFilter: the Filters row says it
+%   and the preview follows; no scan needed), "defaults"
 %   (the Alignment tab), "figure" (the Figures tab's editor), "figuresize"
 %   (its Size rows: a "figure" edit that changes how the figure is drawn,
 %   not what it is computed from) or "export" (the Layout section's
@@ -18,8 +22,9 @@ function onConfigChanged(obj, what, src)
 %   "figuresize" edit is that too, but a drawn preview that was current is
 %   shaped like the new page (fitFigureViews) and drawn again from the
 %   figure it holds (redrawFigurePreview), not computed again; "export"
-%   shapes the previews to the Export tab's page. "ticks" (a Run tick on the Data tab): when
-%   the figure in the editor is a session figure drawn across the ticked
+%   shapes the previews to the Export tab's page. "ticks" (a Run tick on the Data tab): the
+%   Alignment and Figures tabs' Dataset drop-downs list the datasets ticked
+%   now (refreshDatasetLabels); when the figure in the editor is a session figure drawn across the ticked
 %   datasets, its observations are matched again and its preview, drawn
 %   over the old datasets, is forgotten and marked out of date
 %   (autoFigurePreview).
@@ -69,10 +74,16 @@ end
 switch what
     case "source"
         obj.syncSourceEnable();
-        if ~isempty(obj.Runner) && ~isempty(fieldnames(obj.ScannedSource)) && ~isequaln(rmfield(cfg.Source, {'Selection', 'Datasets', 'Filter'}), ...
-                rmfield(obj.ScannedSource, {'Selection', 'Datasets', 'Filter'}))
+        if ~isempty(obj.Runner) && ~isempty(fieldnames(obj.ScannedSource)) && ~isequaln(scanned(cfg.Source), scanned(obj.ScannedSource))
             obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
         end
+    case "downsample"
+        obj.showDownsample();
+        obj.refreshDatasetInfo();   % the active dataset's signals: the rate the figures read each at
+        obj.autoFigurePreview();   % the figures that read a signal whose rate changed compute again (figureFor's layer rates)
+    case "signalfilter"
+        obj.showSignalFilter();
+        obj.autoFigurePreview();   % the figures that read a signal whose filter changed compute again (figureFor's layer filters)
     case "defaults"
         AlignControls.syncEnable(obj.AlignControls);
         obj.refreshAlignPreview();
@@ -101,6 +112,7 @@ switch what
         obj.showFigureSize();
         showPanelPlace(obj);   % a rect in cm, in or px is a length on that page
     case "ticks"
+        refreshDatasetLabels(obj);   % the Dataset drop-downs list the ticked datasets
         k = obj.SelectedFigure;
         if k >= 1 && k <= numel(cfg.Figures) && cfg.Figures(k).sessions.enabled && cfg.Figures(k).sessions.datasets == "ticked"
             obj.refreshFigureObservations();   % matched across the datasets ticked now
@@ -108,4 +120,10 @@ switch what
         end
 end
 obj.updateTitle();
+end
+
+
+function S = scanned(S)
+%scanned  What of Source a scan reads: without the ticks (Selection, Datasets), the filter and the signals' rates and filters.
+S = rmfield(S, intersect({'Selection', 'Datasets', 'Filter', 'Downsample', 'SignalFilter'}, fieldnames(S)));
 end

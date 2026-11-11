@@ -355,7 +355,16 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   mTRF-Toolbox packaging, `mTRFExport.resample` and `mTRFExport.envelope`;
   `resample` with its anti-aliasing filter in `resampleSignal`, which
   downsamples a signal for the dataset browser's **Downsample...**
-  (`epochMatrix`, `sessionData`)).
+  (`epochMatrix`, `sessionData`) and the analysis app's figures
+  (**Downsample...** on its Data tab, the config's `Source.Downsample`:
+  `selectChannels`' `Rate`, `DatasetOutputs.resampled`); `butter`, `cheby1`,
+  `cheby2`, `ellip`, `fir1`, `hamming`, `zp2sos`, `filtfilt`, `sosfilt`,
+  `fftfilt`, `freqz` and `impzlength` in `SignalFilter`, the band-pass,
+  band-stop, low- and high-pass filters of the analysis app's **Filter...**
+  windows (the config's `Source.SignalFilter` and a panel's
+  `options.filter`: `selectChannels`' `Filter`, `DatasetOutputs.prepared`),
+  their responses drawn by `FilterDialog`); `dpss`, the Slepian tapers of a
+  phase coherence (ITPC) panel, `phaseCoherence` (which needs no Chronux).
 - Statistics and Machine Learning Toolbox (`mad` in automatic
   derived-signal bad-channel detection, a robust z of each channel's RMS,
   made before the common reference so the channels it flags are left out of
@@ -386,7 +395,8 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   `fitlm` and `predict` for the trial panels' statistics, `trialStats`:
   the group tests, the summary's quartiles, the correlations and the fits'
   95% bands; `ecdf` for a trial histogram's cumulative distribution,
-  `drawTrialHistPanel`).
+  `drawTrialHistPanel`; `quantile` for the level of random phases and `tinv`
+  for the jackknife band of a phase coherence (ITPC) panel, `phaseCoherence`).
 - Image Processing Toolbox (`padarray` in the mTRF-Toolbox packaging,
   `mTRFExport.resample`, which mirrors a signal past its ends so that
   `resample` does not filter them against zeros; `imresize` in the analysis

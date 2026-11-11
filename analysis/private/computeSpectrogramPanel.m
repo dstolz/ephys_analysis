@@ -11,8 +11,9 @@ function P = computeSpectrogramPanel(src, panel, E, G, ctx)
 %     LFP / MUA / SPIKE / AUX   chronuxSpecgram of its first column
 %     units / detected          chronuxSpikeSpecgram of its first train
 %   R: the chronux function's (t [nT x 1] s from the event, f, S [nT x nF x
-%   1 x nGroups], baseline, units, groups, nTrials) with names, layer,
-%   epochs and dataset. A further map layer is skipped ("A spectrogram
+%   1 x nGroups], baseline, units, groups, nTrials) with names, filters
+%   (the filters a signal was read through, 1x0 for none), layer, epochs
+%   and dataset. A further map layer is skipped ("A spectrogram
 %   draws its first enabled layer only"); events marks are computed as
 %   latency lines (figurePointLayer). A missing Chronux, a moving window
 %   longer than the epoch (chronuxSpecgram:Short, chronuxSpikeSpecgram:Short),
@@ -66,6 +67,7 @@ for j = 1:numel(P.layers)
         continue
     end
     R.names = X.names(1);
+    R.filters = X.filters;   % the filters a signal was read through (1x0: none, and for spikes)
     R.layer = j;
     R.epochs = E;
     R.dataset = src.name;

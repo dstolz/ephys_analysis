@@ -25,10 +25,14 @@ if opts.MarkSaved
 elseif opts.Action ~= ""
     recordFigureEdit(obj, cfg, opts.Action);
 end
+ratesBefore = sourceRates(obj.Config.Source);
 obj.Config = cfg;
 obj.ConfigNameField.Value = char(cfg.Name);
 obj.ConfigDescField.Value = char(cfg.Description);
 obj.applySourceSection(cfg.Source);
+if ~isequaln(ratesBefore, sourceRates(cfg.Source)) && ~isempty(obj.Runner) && obj.ActiveIdx >= 1
+    obj.refreshDatasetInfo();   % the active dataset's signals: the rate the figures read each at
+end
 D = cfg.Defaults;
 obj.applyAlignControls(obj.AlignControls, D.EventRef, D.Window, D.Selection);
 obj.applyExportSection(cfg.Export);
@@ -47,7 +51,7 @@ end
 clear restore
 if ~isempty(obj.Runner)
     obj.Runner.Config = cfg;
-    if ~isequaln(withoutFilter(cfg.Source), withoutFilter(obj.ScannedSource))   % the filter only shows some of the datasets scanned
+    if ~isequaln(withoutFilter(cfg.Source), withoutFilter(obj.ScannedSource))   % the filter only shows some of the datasets scanned; the rates and signal filters are read after
         obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
     end
 end
@@ -67,7 +71,8 @@ end
 
 
 function S = withoutFilter(S)
-if isfield(S, 'Filter'); S = rmfield(S, 'Filter'); end
+%withoutFilter  Source without what a scan does not read: the filter and the signals' rates and filters (Downsample, SignalFilter).
+S = rmfield(S, intersect({'Filter', 'Downsample', 'SignalFilter'}, fieldnames(S)));
 end
 
 

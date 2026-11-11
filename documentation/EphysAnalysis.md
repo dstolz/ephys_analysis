@@ -399,7 +399,39 @@ signal (`LFP`, `MUA`, `SPIKE` or `AUX`) through the outputs' cache: `Y` is
 itself, not a copy, and `evokedPotential` reads only the epochs' rows from it.
 A MUA at 2 kHz × 64 channels × 1 h is about 1.8 GB, so
 load one signal at a time and `clearCache()` between datasets (the runner
-does).
+does). `Rate=R` brings the channels asked for to the lower rate `R` Hz first,
+low-pass filtered so nothing aliases (`resampleSignal`: flat to 0.38 × `R`);
+`fs` is then `R` and `Y` a new array of those columns, each kept in the
+outputs' cache once made (`DatasetOutputs.resampled`). A rate at or above the
+one on file changes nothing. The figures read their signals so when the
+config sets [`Source.Downsample`](EphysAnalysisConfig.md#downsampled-signals):
+
+```matlab
+[Y, fs] = selectChannels(src, "AUX", Channels=1:3, Rate=100);   % 100 Hz, flat to 38 Hz
+```
+
+`Filter=F` filters each column over the whole recording before anything is
+cut into epochs, at the rate read (after `Rate`): `F` is a
+[`SignalFilter`](EphysAnalysisConfig.md#filtered-signals), or a list of them
+applied in order, and each filtered column is kept in the outputs' cache
+(`DatasetOutputs.prepared`). A filter whose cutoff is at or above the Nyquist
+frequency of that rate raises `SignalFilter:Unusable`. The figures read their
+signals so when the config sets `Source.SignalFilter` or a panel's
+`options.filter`. On data already in memory, `SignalFilter.apply` does the
+same:
+
+```matlab
+theta = SignalFilter.preset("theta");                            % 4-8 Hz, Butterworth order 4, zero-phase
+[Yt, fs] = selectChannels(src, "LFP", Channels=12, Filter=theta);   % the whole recording, filtered
+R = evokedPotential(Yt, fs, E, Window=[-0.5 1]);                 % then cut into epochs
+f = theta; f.design = "fir"; f.order = 0; f.phase = "causal";    % or an FIR, automatic order, forward only
+Y2 = SignalFilter.apply(Y, fs, [SignalFilter.preset("notch60") f]);   % a chain: the notch, then the band
+```
+
+`SignalFilter.presets()` lists the EEG bands and line-noise notches,
+`SignalFilter.saved()` the filters saved in the app's Filter window, and
+`SignalFilter.response(f, fs, freq)` and `SignalFilter.impulse(f, fs)` what
+a filter does at a rate (what the window draws).
 
 ## Time base
 
@@ -2041,7 +2073,7 @@ variables to analyze, then calls `figureCompute` and `renderFigure` into a
 | `E`, `G` | the preview's epochs and trial groups (`figureEpochs`): a row per epoch with `t0`, `t0Continuous` (the event on the spikes' clock), `tStart`, `tStop`, `trial` (a row of `trials`), `groupIndex` and `group`. Every trial group: a **Per trial group** observation draws one of them |
 | `spikesIn` | `{epoch, unit}`: each unit's spikes in each epoch's window, s from its event (`epochSpikes`) |
 | `onsets`, `offsets` | `onsets.(line){e}`: the line's onsets in epoch `e`, s from its event (`epochEvents`) |
-| `signalIn`, `signalTime`, `channels`, `fs` | a figure of channels only: its signal's channels (`selectChannels`, `observe.channels`) cut into the epochs over the widest window (`evokedPotential`, `KeepEpochs`): `[time x channel x epoch]`, NaN outside the recording |
+| `signalIn`, `signalTime`, `channels`, `fs` | a figure of channels only: its signal's channels (`selectChannels`, `observe.channels`; at the figure's rate, `Rate=`, when [`Source.Downsample`](EphysAnalysisConfig.md#downsampled-signals) sets one; through the signal's filter, `Filter=`, written out, when [`Source.SignalFilter`](EphysAnalysisConfig.md#filtered-signals) sets one) cut into the epochs over the widest window (`evokedPotential`, `KeepEpochs`): `[time x channel x epoch]`, NaN outside the recording |
 
 For a figure across sessions, `Datasets=` lists the sessions' keys: the
 script builds their `sessionTable` and sources, finds the observation in
@@ -2137,7 +2169,9 @@ runner does. Not mirrored: cancel, the `Results` rows and the run record.
 
 The Figures tab's [spectral panels](EphysAnalysisConfig.md#spectral-panels) (spectrum,
 spectrogram, coherence) run [Chronux](http://chronux.org) (bundled in
-`toolboxes/chronux`; put it on the path) through the functions below. They take
+`toolboxes/chronux`; put it on the path) through the functions below; a phase
+coherence panel runs `phaseCoherence`, which takes the same settings and needs
+no Chronux. They take
 the block of a layer's signal or the spike trains the panel has read
 (`figureChronuxLayer`), not a file. To run Chronux on a dataset yourself, use
 [ChronuxDataset](ChronuxDataset.md) or the DatasetBrowser's
@@ -2145,7 +2179,7 @@ the block of a layer's signal or the spike trains the panel has read
 
 | Function | Does |
 | --- | --- |
-| `chronuxSettings(s)` | the settings, complete and checked: the analysis, signal and channels, the time base, the tapers (`[TW K]`, or the half bandwidth W and p), `fpass`, `pad`, the error bars, the detrend, the moving window, the baseline, and how it is drawn (`display`) |
+| `chronuxSettings(s)` | the settings, complete and checked: the analysis, signal and channels, the time base, the tapers (`[TW K]`, or the half bandwidth W and p), `fpass`, `pad`, the error bars, the detrend, the moving window, the baseline, and how it is drawn (`display`: the power `scale`, a spectrogram's frequency axis `freqScale`, `"linear"` or `"log"`, the layout, ...) |
 | `chronuxTimeBase("aligned", E=, Groups=, Window=)` | the trials: the epochs of an `epochTable` (its groups kept), each `Window` (`[pre post]` s) around its event on the continuous clock |
 | `chronuxTimeBase("range", Range=, Artifacts=, Fs=, NRows=, Segment=)` | the trials: back-to-back segments of a stretch, only where it is clear of the artifact periods, on the signal's own rows |
 | `chronuxSpectrum(D, TB, S)` | `mtspectrumc` per channel and group over its trials (`trialave` 1): `R.f`, `R.S`, the error bars `R.Slo` / `R.Shi`, `R.nTrials`, `R.params` (the exact Chronux params), `R.tapers` |
@@ -2155,7 +2189,9 @@ the block of a layer's signal or the spike trains the panel has read
 | `chronuxSpikeSpecgram(SP, TB, S)` | `mtspectrumpt` per train and group over each moving window of the epochs (aligned only), on one window grid over the epoch (Chronux's `mtspecgrampt` spans the first to the last spike instead) and normalized to the baseline: `chronuxSpecgram`'s result, a train in place of a channel |
 | `chronuxSpikeField(D, SP, TB, S)` | `coherencycpt` of each train with the field channel `S.fieldChannel`, the spikes cut to the field's very samples (half a sample of margin, moved onto the grid's ends by `chronuxOntoGrid` so a trial whose only spikes sit in the margin is not read by `mtfftpt` with them outside the tapers); `S.overTime`: `cohgramcpt`, as a coherogram |
 | `chronuxUnitCoherence(SP, TB, S)` | `coherencypt` of the seed train with its partner, or with every other train (spikes stamped past the grid's last point moved onto it, as `chronuxSpikeSpectrum`); `S.overTime`: `coherencypt` over each moving window, as a coherogram |
-| `renderChronux(R, target, Display=)` | draws any of them (a tile per channel, train or pair, or per group; a coherence's phase under it; an image per channel or pair and group over time) in the plot design, its parts named for the aesthetics editor (a coherence's `confLine` and `phase`, a spike spectrum's `rateLine`) |
+| `chronuxNormalize(S, t, mode, window, winSec, fs)` | a spectrogram `[time x freq x ...]` against its baseline, frequency by frequency: the mean of the moving windows that lie wholly inside `window` (`[b0 b1]` s), as `"db"`, `"percent"`, `"zscore"` or `"ratio"`; `fs` when the windows are samples (`chronuxSpecgram`, `chronuxSpikeSpecgram`), none when each spans `winSec` around its time (`mtspecgrampt`'s, in `S_ExampleChronuxSpikes`) |
+| `phaseCoherence(D, TB, S)` | the inter-trial phase coherence (ITPC) per channel and group over aligned epochs, with the same settings (`S.analysis = "itpc"`): each trial tapered by each Slepian taper (`dpss`) and Fourier transformed, its coefficients kept as their phase, ITPC = the mean over the tapers of \|mean over the trials of exp(i·phase)\| (0 random, 1 the same phase in every trial; one taper, `TW 1, K 1`: the usual ITPC); `R.C`, the level random phases stay under at 1 − `errP` `R.confC` (simulated for the trial count and tapers), the jackknife bars `R.Clo` / `R.Chi`; `S.overTime`: over the moving window, `R.C` `[time x freq x channel x group]`. 0 Hz and Nyquist are left out. Needs no Chronux. The figure's [phase coherence panel](EphysAnalysisConfig.md#phase-coherence-panels) draws it; `renderChronux` does not |
+| `renderChronux(R, target, Display=)` | draws any of them (a tile per channel, train or pair, or per group; a coherence's phase under it; an image per channel or pair and group over time, its frequency axis logarithmic with `Display.freqScale = "log"`) in the plot design, its parts named for the aesthetics editor (a coherence's `confLine` and `phase`, a spike spectrum's `rateLine`) |
 
 The trials are cut as `evokedPotential` cuts its epochs: offset 0 of a
 trial is the row nearest its time 0 on the continuous clock (row `k` at
@@ -2186,7 +2222,7 @@ and counted. Each trial's mean is removed before its spectrum unless
 | `test_EphysAnalysisConfig` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) |
 | `test_EphysAnalysisRunner` | the fixture: `plan` and its skip reasons, `run` exports (a file per observation, no figure left open), HTML and PDF reports (percent-encoded and `file://` links; the PDF's title, summary and figure pages in order, each page drawn once), the run record (`ephys-analysis-run/2`), `Overwrite` off, `run(Figures=)` alone, cancel (between observations and inside a compute), driven units, compact vs standalone script equivalence (figures, HTML and PDF pages), a failing export closing its page (runner and standalone script), unit waveforms (templates without the sorted `.bin` and the warning; the spikes cut from a planted one, at most `maxSpikes`, and kept in the cache; detections drawn from the spikes file's waveforms), a figure per trial group, a report per dataset, and a session figure across both datasets (plan, a page per matched site, the *Across sessions* entry, the data file, `Overwrite` off, cancel, the standalone script) |
 | `test_EphysAnalysisFigures` | see [EphysAnalysisConfig](EphysAnalysisConfig.md#tests) (section 10: session figures across two datasets) |
-| `test_ChronuxAnalysis` | no fixture: signal blocks and spike trains built in the test, in the shape the figures' spectral panels hand the analyses: `chronuxSettings` and its errors; `chronuxTimeBase` (segments clear of the artifact periods' rows, the seconds accounted for, segments on the spike clock, epochs and their groups); the alignment (a signal whose value is its row); and with Chronux on the path `chronuxSpectrum` (a 40 Hz sine's peak, the jackknife bars bracketing the spectrum, a burst inside an artifact period not seen, groups), `chronuxSpecgram` (a burst after each event, the dB baseline, window centers, NaN over an artifact period, `TooLarge`), a throwing `Check`, `chronuxCoherence` (the seed and pair modes' pairs and `BadPair`, a delayed copy coherent with the delay's phase, noise under `confC`, a coherogram NaN over an artifact period), the spike analyses (a train modulated at 20 Hz peaks there and tends to its rate, spikes locked to a 40 Hz field are coherent with it, identical trains have a coherence of 1; `chronuxSpikeSpecgram`: firing modulated at 30 Hz after each event over the baseline, on the signal spectrogram's window centers, `Short` and `Aligned`; spike-field and unit-unit coherograms over epochs and over a stretch, NaN over an artifact period), and `renderChronux` (every kind, layout and scale, the phase tiles, the rate line, pages, a uifigure panel, every part's role known); a spectrum and a unit coherence with a trial whose only spike sits past the grid's last point (`chronuxOntoGrid`) |
+| `test_ChronuxAnalysis` | no fixture: signal blocks and spike trains built in the test, in the shape the figures' spectral panels hand the analyses: `chronuxSettings` and its errors; `chronuxTimeBase` (segments clear of the artifact periods' rows, the seconds accounted for, segments on the spike clock, epochs and their groups); the alignment (a signal whose value is its row); and with Chronux on the path `chronuxSpectrum` (a 40 Hz sine's peak, the jackknife bars bracketing the spectrum, a burst inside an artifact period not seen, groups), `chronuxSpecgram` (a burst after each event, the dB baseline, window centers, NaN over an artifact period, `TooLarge`), a throwing `Check`, `chronuxCoherence` (the seed and pair modes' pairs and `BadPair`, a delayed copy coherent with the delay's phase, noise under `confC`, a coherogram NaN over an artifact period), the spike analyses (a train modulated at 20 Hz peaks there and tends to its rate, spikes locked to a 40 Hz field are coherent with it, identical trains have a coherence of 1; `chronuxSpikeSpecgram`: firing modulated at 30 Hz after each event over the baseline, on the signal spectrogram's window centers, `Short` and `Aligned`; spike-field and unit-unit coherograms over epochs and over a stretch, NaN over an artifact period), and `renderChronux` (every kind, layout and scale, a spectrogram's log frequency axis, the phase tiles, the rate line, pages, a uifigure panel, every part's role known); a spectrum and a unit coherence with a trial whose only spike sits past the grid's last point (`chronuxOntoGrid`) |
 | `test_EphysFigGenApp` | see [EphysFigGenApp](EphysFigGenApp.md#tests) |
 | `test_PipelineAnalysisStep` | the fixture: the pipeline's Analysis step running a saved analysis config, see [EphysPipeline](EphysPipeline.md#tests) |
 

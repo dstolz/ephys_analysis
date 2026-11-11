@@ -38,6 +38,9 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0, 
 %     spectrum        Frequency (Hz), Power scale
 %     spectrogram     Frequency (Hz), Moving window (s)
 %     coherence       Frequency (Hz)
+%     itpc            Frequency (Hz), View (ITPC by frequency or a
+%                     time/frequency coherogram: options.overTime),
+%                     Moving window (s)
 %     eventTrace      Lines (LINES: one events layer each), Draw as
 %     trialDist, trialHist, trialScatter   no Reads or Binding (a trials
 %                     layer, always fixed): the Trial measure's Kind, From (A's
@@ -87,7 +90,7 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0, 
 %   current parameters' controls, a struct by name: Source, Partner,
 %   Binding, Sort, BinMs, SmoothMs, Measure, Display, ErrorType, Rows,
 %   Layout, Value, Metric, Correlation, Param, Series, FreqFrom, FreqTo,
-%   Scale, WinSec, StepSec, Lines, Kind, From, FromEdge, To, ToEdge, Fit;
+%   Scale, View, WinSec, StepSec, Lines, Kind, From, FromEdge, To, ToEdge, Fit;
 %   a saved figure's: Alignment), Message,
 %   Ok and Cancel.
 %
@@ -171,7 +174,8 @@ nameField = uieditfield(rg, "text", "ValueChangedFcn", @(~, ~) nameTyped(), ...
 nameField.Layout.Row = 3; nameField.Layout.Column = 2;
 l = uilabel(rg, "Text", "Title:"); l.Layout.Row = 4;
 titleField = uieditfield(rg, "text", "Placeholder", "none", ...
-    "Tooltip", "The panel's own title (blank = none; under a figure title of your own the top-left panel names the observation).");
+    "Tooltip", "The panel's own title (blank = none; under a figure title of your own the top-left panel names the observation). " + ...
+    "Special characters: \mu, \pm, \Delta (µ, ±, Δ) and the other TeX names print as their characters.");
 titleField.Layout.Row = 4; titleField.Layout.Column = 2;
 l = uilabel(rg, "Text", "Place:"); l.Layout.Row = 5;
 [placeText, placeData, grayed, placeTip] = placeItems(F, anchor, canDraw);
@@ -486,6 +490,14 @@ switch t
             "The moving window and its step, s.")};
     case "coherence"
         specs = [specs; freqRow(def)];
+    case "itpc"
+        specs = [specs; freqRow(def)];
+        specs(end+1, :) = {"View", "View:", @(gr) uidropdown(gr, "Items", ["ITPC by frequency" ...
+            "time/frequency coherogram"], "ItemsData", ["frequency" "time"], "Value", ternary(def.overTime, "time", "frequency"), ...
+            "Tooltip", "The ITPC over the whole window by frequency (a line per group), or over the moving window: an " + ...
+            "image over time from the event and frequency.")};
+        specs(end+1, :) = {"WinSec", "Moving window (s):", @(gr) pair(gr, def.movingwin, "step", ...
+            "The time/frequency coherogram's moving window and its step, s.")};
     case "eventTrace"
         L = lines(lines ~= "Trial");
         if isempty(L)
@@ -693,6 +705,7 @@ if isfield(P, 'Series'); o.seriesParam = strtrim(string(P.Series.Value)); end
 if isfield(P, 'FreqFrom'); o.fpass = [P.FreqFrom.Value P.FreqTo.Value]; end
 if isfield(P, 'Scale'); o.scale = string(P.Scale.Value); end
 if isfield(P, 'WinSec'); o.movingwin = [P.WinSec.Value P.StepSec.Value]; end
+if isfield(P, 'View'); o.overTime = string(P.View.Value) == "time"; end   % a phase coherence panel's
 if isfield(P, 'Orientation'); o.orientation = string(P.Orientation.Value); end
 if isfield(P, 'Columns'); o.columns = round(P.Columns.Value); end
 if isfield(P, 'Fit'); o.fit = string(P.Fit.Value); end

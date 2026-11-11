@@ -11,7 +11,9 @@ classdef DownsampleDialog < handle
     %   holds the pending edit; nothing changes until OK. The dataset
     %   browser opens it from the Downsample... button beside the Data
     %   boxes (DatasetBrowser.editDownsample) and puts the rates in its
-    %   settings' signal.downsample (epochMatrixSettings).
+    %   settings' signal.downsample (epochMatrixSettings); the analysis app
+    %   from the Data tab's Downsample... button (EphysFigGenApp.onDownsample),
+    %   into its config's Source.Downsample (every figure's signals).
     %
     %     dlg = DownsampleDialog(B.Settings.signal.downsample, FileRates=src.signalFs, ...
     %         Dataset=src.name, Ticked=B.Settings.data, Parent=B.Fig, OnDone=@(r) apply(r));
@@ -25,6 +27,12 @@ classdef DownsampleDialog < handle
     %     Dataset    the name of the dataset FileRates come from ("" = none)
     %     Ticked     the kinds of Data ticked: their signals are named in
     %                bold, the others are marked "(not ticked)"
+    %     UnusedNote what marks a signal not in Ticked ("not ticked"; the
+    %                analysis app: "no figure reads it")
+    %     UsedBy     who reads the rates, in the window's words ("Compute
+    %                and Raw Data"; the analysis app: "the figures")
+    %     ScriptName the rates' name in a script, in each field's tooltip
+    %                ("signal.downsample"; the app: "Source.Downsample")
     %     OnDone     called once as OnDone(R) when the window closes
     %     Parent     the uifigure to center on ([] = none)
     %     Visible    false builds the window hidden (tests)
@@ -68,6 +76,9 @@ classdef DownsampleDialog < handle
         FileRates = struct()         % each signal's rate on file (NaN = not known)
         Dataset (1,1) string = ""
         Ticked (1,:) string = strings(1, 0)
+        UnusedNote (1,1) string = "not ticked"
+        UsedBy (1,1) string = "Compute and Raw Data"
+        ScriptName (1,1) string = "signal.downsample"
         Done (1,1) logical = false
     end
 
@@ -78,6 +89,9 @@ classdef DownsampleDialog < handle
                 opts.FileRates = struct()
                 opts.Dataset (1,1) string = ""
                 opts.Ticked string = strings(1, 0)
+                opts.UnusedNote (1,1) string = "not ticked"
+                opts.UsedBy (1,1) string = "Compute and Raw Data"
+                opts.ScriptName (1,1) string = "signal.downsample"
                 opts.OnDone = []
                 opts.Parent = []
                 opts.Visible (1,1) logical = true
@@ -95,6 +109,9 @@ classdef DownsampleDialog < handle
             end
             obj.Dataset = opts.Dataset;
             obj.Ticked = reshape(opts.Ticked, 1, []);
+            obj.UnusedNote = opts.UnusedNote;
+            obj.UsedBy = opts.UsedBy;
+            obj.ScriptName = opts.ScriptName;
             obj.OnDone = opts.OnDone;
             obj.build(opts.Parent, opts.Visible);
             obj.refresh();
@@ -221,7 +238,7 @@ classdef DownsampleDialog < handle
             g = uigridlayout(fig, [5 1], "RowHeight", {'fit', 'fit', 'fit', 'fit', 34}, "RowSpacing", 8);
             c = struct();
             c.Intro = uilabel(g, "WordWrap", "on", "Text", ...
-                "Bring a signal to a lower rate before Compute or Raw Data uses it: less memory, faster work. " + ...
+                "Bring a signal to a lower rate before " + obj.UsedBy + " read it: less memory, faster work. " + ...
                 "Each signal has its own rate; leave a field blank to keep the rate on file. " + ...
                 "The signal is low-pass filtered first (anti-aliasing, zero phase), so nothing above the new " + ...
                 "Nyquist frequency folds back into it: content up to " + DownsampleDialog.PassFraction + ...
@@ -247,8 +264,8 @@ classdef DownsampleDialog < handle
                 if ~isempty(v); txt = hzText(v); end
                 c.Rate(k) = place(uieditfield(t, "text", "Value", char(txt), "Placeholder", "rate on file", ...
                     "ValueChangedFcn", @(~, ~) obj.readField(k), ...
-                    "Tooltip", "The rate, Hz, to bring " + s + " to before it is computed or loaded; " + ...
-                    "blank = the rate on file. Script name: signal.downsample." + s), k + 1, 3);
+                    "Tooltip", "The rate, Hz, to bring " + s + " to before " + obj.UsedBy + " read it; " + ...
+                    "blank = the rate on file. Script name: " + obj.ScriptName + "." + s), k + 1, 3);
                 c.Note(k) = place(uilabel(t, "Text", "", "FontColor", gray), k + 1, 4);
             end
             src = "Rates on file: not known (scan the root and click a dataset).";
@@ -261,7 +278,7 @@ classdef DownsampleDialog < handle
                 "Tooltip", "Every signal back to its rate on file (no downsampling).");
             c.Cancel = uibutton(bg, "Text", "Cancel", "ButtonPushedFcn", @(~, ~) obj.cancel());
             c.Cancel.Layout.Column = 3;
-            c.OK = uibutton(bg, "Text", "OK", "Tooltip", "Use these rates for Compute and Raw Data.", ...
+            c.OK = uibutton(bg, "Text", "OK", "Tooltip", "Use these rates for " + obj.UsedBy + ".", ...
                 "ButtonPushedFcn", @(~, ~) obj.ok());
             c.OK.Layout.Column = 4;
             styleButton([c.Clear c.Cancel]);
@@ -279,7 +296,7 @@ classdef DownsampleDialog < handle
             for k = reshape(only, 1, [])
                 s = obj.Signals(k);
                 ticked = ismember(s, obj.Ticked);
-                c.Name(k).Text = s + ternary(ticked || isempty(obj.Ticked), "", "  (not ticked)");
+                c.Name(k).Text = s + ternary(ticked || isempty(obj.Ticked), "", "  (" + obj.UnusedNote + ")");
                 c.Name(k).FontWeight = ternary(ticked, "bold", "normal");
                 f = obj.FileRates.(s);
                 c.FileRate(k).Text = ternary(isnan(f), "—", hzText(f) + " Hz");

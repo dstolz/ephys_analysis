@@ -86,7 +86,8 @@ switch key
     case {"panelBox" "panelXLabel" "panelXSide" "panelYLabel" "panelYSide" "panelXShow" "panelYShow"}
         tail = "is a setting of the selected panel's axes: pick a panel that draws data (a legend panel has no axes).";
     case "group"
-        tail = "is an option of heat map, unit correlation and spectrogram panels (and a coherence panel drawn over time); " + ...
+        tail = "is an option of heat map, unit correlation and spectrogram panels (and a coherence or phase coherence " + ...
+            "panel drawn over time); " + ...
             "a heat map of one unit's epochs and a stacked panel (Stack: one row per group) draw every group.";
     case {"layerName" "layerSource" "layerBinding"}
         tail = "is a setting of the picked layer: pick one in the Layers list.";
@@ -158,7 +159,7 @@ T.baseFrom = T.baselineMode;
 T.psthDisplay = o("psth", "");
 T.normalize = o("psth", "");
 for f = ["histStyle" "fill" "smoothLine"]; T.(f) = o("psth", "with Draw as: trace"); end
-T.stack = o(["psth" "continuous" "heatmap" "tuning" "spectrum" "spectrogram" "coherence"], ...
+T.stack = o(["psth" "continuous" "heatmap" "tuning" "spectrum" "spectrogram" "coherence" "itpc"], ...
     "on a PSTH with Draw as: trace, on a heat map with Rows: the layer's units or channels (a raster lists its groups " + ...
     "in blocks already, a firing rate panel puts them along x; a waveforms, probe map, unit correlation or event-trace " + ...
     "panel has no groups over a shared axis to stack)");
@@ -180,9 +181,12 @@ T.onsetLine = o(["raster" "psth"], "");
 T.trialCount = o("psth", "");
 T.heatRows = o("heatmap", "");
 for f = ["contTrials" "statistic"]; T.(f) = o("continuous", ""); end
+for f = ["filterText" "filterEdit"]
+    T.(f) = o(["continuous" "heatmap" "spectrum" "spectrogram" "coherence" "itpc"], "on a heat map, one of a signal (its first layer LFP, MUA, SPIKE or AUX)");
+end
 T.errorType = o(["psth" "continuous" "rate" "tuning" EphysAnalysisConfig.TrialPanelTypes], "on a PSTH with Draw as: trace");
-T.errFace = o(["psth" "continuous" "spectrum" "coherence" "waveforms" "probemap"], ...
-    "on a PSTH with Draw as: trace, on a coherence panel unless drawn over time");
+T.errFace = o(["psth" "continuous" "spectrum" "coherence" "itpc" "waveforms" "probemap"], ...
+    "on a PSTH with Draw as: trace, on a coherence or phase coherence panel unless drawn over time");
 T.errEdge = T.errFace;
 T.maskAfterStop = o(["raster" "psth" "heatmap"], spikesHeat);
 T.order = o("heatmap", "with Rows: the layer's units or channels");
@@ -195,20 +199,21 @@ T.legAlign = T.legOrient;
 T.unitLabels = o("probemap", "");
 T.waveColor = o("probemap", "with Waveform: a mode other than Off, and Color by: rate or nSpikes");
 for f = ["metric" "correlation" "fisherZ" "detrend"]; T.(f) = o("corrmap", ""); end
-T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence" "trialDist" "trialScatter"], ...
-    "on a PSTH with Draw as: trace, on a coherence panel unless drawn over time (an image's scale is its Color limits)");
+T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence" "itpc" "trialDist" "trialScatter"], ...
+    "on a PSTH with Draw as: trace, on a coherence or phase coherence panel unless drawn over time (an image's scale is its Color limits)");
 T.yLimMode = T.yLim;
-T.cLim = o(["psth" "heatmap" "probemap" "corrmap" "spectrogram" "coherence"], ...
-    "on a PSTH with Draw as: heat map, on a coherence panel drawn over time");
+T.cLim = o(["psth" "heatmap" "probemap" "corrmap" "spectrogram" "coherence" "itpc"], ...
+    "on a PSTH with Draw as: heat map, on a coherence or phase coherence panel drawn over time");
 T.spTimeBase = o(["spectrum" "coherence"], "");
 T.spRangeFrom = o(["spectrum" "coherence"], "with Time base: segments of the recording");
 T.spSegment = o(["spectrum" "coherence"], "with Time base: segments of the recording (a coherence panel not drawn over time)");
-for f = ["spTaperMode" "spTW" "spW" "spPad" "spFmin" "spDetrend"]; T.(f) = o(["spectrum" "spectrogram" "coherence"], ""); end
-T.spErr = o(["spectrum" "coherence"], "on a coherence panel, unless drawn over time");
+for f = ["spTaperMode" "spTW" "spW" "spPad" "spFmin" "spDetrend"]; T.(f) = o(["spectrum" "spectrogram" "coherence" "itpc"], ""); end
+T.spErr = o(["spectrum" "coherence" "itpc"], "on a coherence or phase coherence panel, unless drawn over time");
 T.spScale = o(["spectrum" "spectrogram"], "");
+T.spFreqScale = o(["spectrogram" "coherence" "itpc"], "");
 T.spSpikeFs = o(["spectrum" "spectrogram" "coherence"], "with a spike layer");
-T.spOverTime = o("coherence", "");
-T.spWin = o(["spectrogram" "coherence"], "on a coherence panel, drawn over time");
+T.spOverTime = o(["coherence" "itpc"], "");
+T.spWin = o(["spectrogram" "coherence" "itpc"], "on a coherence or phase coherence panel, drawn over time");
 T.spShowPhase = o("coherence", "unless drawn over time");
 for f = ["auMethod" "auWinMs" "auModFrom" "auCutoff" "auMarks"]
     T.(f) = o(["psth" "heatmap"], "with the auroc baseline (a heat map of spikes)");

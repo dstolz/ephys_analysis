@@ -2,7 +2,8 @@ function refreshDatasetInfo(obj)
 %refreshDatasetInfo  The Data tab's panes for the active dataset.
 %   Files (DatasetOutputs.inventory), digital lines, behavior (subject,
 %   trials, pairing, responses), the Epsych2 parameters with their values,
-%   sorted units by class and shank, and the size of each signal extract
+%   sorted units by class and shank, and the size and rate of each signal
+%   extract, with the lower rate the figures read it at (Source.Downsample)
 %   (a signal larger than PreviewMaxMB is previewed only on request).
 if isempty(obj.Runner) || obj.ActiveIdx < 1
     obj.MemoryLabel.Text = "No dataset selected.";
@@ -20,11 +21,18 @@ end
 % --- signal sizes -------------------------------------------------------------------
 parts = strings(1, 0);
 big = strings(1, 0);
+rates = sourceRates(obj.Config.Source);
 for sig = DatasetOutputs.SignalTypes
     if ~src.signals.(sig); continue; end
     f = out.signalFile(sig);
     mb = sum(arrayfun(@fileBytes, f)) / 2^20;
     parts(end+1) = sprintf("%s %.0f MB", sig, mb); %#ok<AGROW>
+    fs = src.signalFs.(sig);
+    if isfinite(fs)
+        parts(end) = parts(end) + sprintf(" at %g Hz", fs);
+        r = rates.(sig);
+        if isscalar(r) && r < fs; parts(end) = parts(end) + sprintf(" (figures read %g Hz)", r); end
+    end
     if mb > obj.PreviewMaxMB; big(end+1) = sig; end %#ok<AGROW>
 end
 txt = src.name + ": " + ternary(isempty(parts), "no signal extracts", strjoin(parts, ", "));

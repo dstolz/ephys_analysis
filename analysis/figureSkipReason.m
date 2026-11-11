@@ -165,7 +165,7 @@ switch p.type
         if o.trials == "rows"; r = sortReason(src, o, vars); end   % its sub-rows sorted as a raster's
     case "probemap"
         if isempty(src.probe); r = "no probe map"; end
-    case {"spectrum" "spectrogram" "coherence"}
+    case {"spectrum" "spectrogram" "coherence"}   % (a phase coherence panel needs no Chronux: phaseCoherence)
         if ~ChronuxDataset.hasChronux(); r = "Chronux is not on the path"; end
     case {"trialDist" "trialHist" "trialScatter"}
         if ~src.hasTrials; r = "no paired trials"; return; end

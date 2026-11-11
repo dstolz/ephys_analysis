@@ -10,11 +10,18 @@ function key = figureViewKey(obj, k)
 %                  the keys of the ticked datasets instead (it does not
 %                  use the active one)
 %     observation  the observation it shows (FigureObservation, by id)
+%     downsample   the rates its layers' signals are read at
+%                  (Source.Downsample of those signals alone: a field per
+%                  signal its layers read, [] = the rate on file)
+%     signalFilter the filters its layers' signals are read through
+%                  (Source.SignalFilter of those signals alone, a field
+%                  each; a panel's own filter is in the figure)
 %     generation   FigurePreviewGeneration (a scan reads the data again)
 %   refreshFigurePreview keeps the key it drew with (FigurePreviewDrawn,
 %   FigureViews.Drawn); previewFigureView and markFigureTree compare. So
 %   an edit of one figure leaves the others' previews current, an edit of
-%   the defaults reaches the figures that use them, another dataset or a
+%   the defaults reaches the figures that use them, a signal's new rate
+%   or filter the figures that read that signal, another dataset or a
 %   scan every figure, and an edit undone makes a preview current again.
 %   The design is not in it: choosing one redraws every drawn preview in
 %   place, the hidden ones too (PlotDesign.redrawAll).
@@ -40,5 +47,19 @@ obs = "";
 if isa(obj.FigureObservation, 'containers.Map') && isKey(obj.FigureObservation, char(fig.id))
     obs = string(obj.FigureObservation(char(fig.id)));
 end
-key = struct('figure', fig, 'data', data, 'observation', obs, 'generation', obj.FigurePreviewGeneration);
+key = struct('figure', fig, 'data', data, 'observation', obs, 'downsample', signalRates(fig, sourceRates(obj.Config.Source)), ...
+    'signalFilter', signalRates(fig, sourceFilters(obj.Config.Source)), 'generation', obj.FigurePreviewGeneration);
+end
+
+
+function d = signalRates(fig, rates)
+%signalRates  The rates (Source.Downsample), or filters (Source.SignalFilter), of the signals FIG's layers read: a field each, in signal order.
+read = strings(1, 0);
+for p = reshape(fig.panels, 1, [])
+    if ~isempty(p.layers); read = [read, reshape([p.layers.source], 1, [])]; end %#ok<AGROW>
+end
+d = struct();
+for s = reshape(string(fieldnames(rates)), 1, [])
+    if ismember(s, read); d.(s) = rates.(s); end
+end
 end

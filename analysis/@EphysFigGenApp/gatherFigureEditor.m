@@ -317,6 +317,9 @@ if isfield(op, 'stack')   % the stack, one row for every type that stacks
     op.stack = string(E.stack.Value);
     op.stackSpacing = E.stackSpacing.Value;
 end
+if isfield(op, 'filter') && isstruct(E.filterText.UserData)   % a signal panel's filter (editPanelFilter keeps it there)
+    op.filter = SignalFilter.normalize(E.filterText.UserData);
+end
 if p.type == "continuous"
     op.statistic = string(E.statistic.Value);
     op.transform = string(E.transform.Value);
@@ -371,6 +374,7 @@ if isfield(op, 'err')
     op.errP = E.spErrP.Value;
 end
 if isfield(op, 'scale'); op.scale = string(E.spScale.Value); end
+if isfield(op, 'freqScale'); op.freqScale = string(E.spFreqScale.Value); end
 if isfield(op, 'spikeFs'); op.spikeFs = E.spSpikeFs.Value; end
 if isfield(op, 'movingwin'); op.movingwin = [E.spWin.Value E.spStep.Value]; end
 if isfield(op, 'overTime'); op.overTime = logical(E.spOverTime.Value); end

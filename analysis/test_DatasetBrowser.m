@@ -38,7 +38,16 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
     %   keeps the result and saves the preferences. A dataset whose
     %   outputs changed (its manifest's time, restored afterwards) reads
     %   "old" after a scan and is the only one computed again;
-    %   forgetTicked with nothing ticked keeps the cache. checkCancel ends a
+    %   forgetTicked with nothing ticked keeps the cache. Caching (the Cache
+    %   menu): Compute keeps each dataset's loaded data, so another window
+    %   and trial order are computed with the spikes files away; the first
+    %   settings' results come back cached (Earlier); Reuse off computes
+    %   again, Earlier off keeps one settings' results; a new scan keeps the
+    %   loaded data and the sources (held by the new outputs); Spikes off
+    %   drops them, Compute off and a 1-byte limit keep nothing, Raw Data
+    %   keeps only when asked, SaveResults off writes no part; the menu's
+    %   checks and clicks, bad values refused, the preference, and closing
+    %   frees the data. checkCancel ends a
     %   script's canceled run; a second Cancel ends a script's run left
     %   open, but not the browser's own compute. Workers: the option, the
     %   field and the preference; on process workers (Slow) compute equals
@@ -1875,6 +1884,110 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
             tc.verifyEqual(T.Cached(T.Key == tc.Keys(1)), "");
         end
 
+        function cachingKeepsLoadedData(tc)
+            S1 = epochMatrixSettings(tc.Spike, data="detected");
+            B = tc.open(Settings=S1);
+            want = struct('Results', true, 'Earlier', true, 'SaveResults', true, 'Spikes', true, 'Signals', true, ...
+                'LimitGB', B.Caching.LimitGB, 'Compute', true, 'RawData', false, 'Scripts', true, 'Here', true);
+            tc.verifyEqual(B.Caching, want, 'Everything is kept by default, but what Raw Data loads.');
+            tc.verifyEqual(B.Runs.MaxIds, DatasetBrowser.EarlierSettings);
+            R1 = B.compute();
+            tc.verifyEqual(sort(B.LoadedData.Keys), sort(tc.Keys), 'Compute keeps each dataset''s data.');
+            tc.verifyGreaterThan(B.LoadedData.TotalMB, 0);
+            % the spikes files away: another window and trial selection are computed from memory
+            for k = reshape(tc.Keys, 1, [])
+                f = string(B.Runner.Outputs(B.Runner.index(k)).SpikesFile);
+                movefile(f, f + ".away");
+                tc.addTeardown(@() moveBack(f));   % the shared fixture as it was
+            end
+            S2 = epochMatrixSettings(S1, window=epochWindow(pre=-0.1, post=0.3), ...
+                selection=trialSelection(groupBy="Depth", groupOrder="ascending"));
+            B.Settings = S2;
+            R2 = B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["done"; "done"], 'Computed again, from memory (the files are away).');
+            tc.verifyTrue(R2.t(1) > -0.1 && R2.t(end) < 0.3, 'The new window.');
+            % back to the first settings: their results were kept (Earlier)
+            B.Settings = S1;
+            tc.verifyTrue(all(startsWith(B.Table.Cached, "✓")), 'The first settings'' results are still kept.');
+            R1b = B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["cached"; "cached"]);
+            tc.verifyEqual(R1b.data, R1.data);
+            % Reuse computed results off: computed again (from memory)
+            B.Caching = struct('Results', false);
+            B.compute();
+            tc.verifyEqual(B.Runs.Last.status, ["done"; "done"]);
+            B.Caching = struct('Results', true);
+            % Earlier off: one settings' results per dataset
+            B.Caching = struct('Earlier', false);
+            tc.verifyEqual(B.Runs.MaxIds, 1);
+            tc.verifyEqual(numel(B.Runs.Entries), numel(tc.Keys));
+            B.Settings = S2;
+            tc.verifyTrue(all(B.Table.Cached == "old"));
+            % a new scan keeps the loaded data and the sources of the unchanged datasets
+            for k = reshape(tc.Keys, 1, [])   % (the scan lists the files: put them back first)
+                moveBack(string(B.Runner.Outputs(B.Runner.index(k)).SpikesFile));
+            end
+            n = B.LoadedData.Count;
+            B.scan();
+            tc.verifyEqual(B.LoadedData.Count, n, 'The scan keeps the loaded data.');
+            tc.verifyEqual(B.Runner.Sources.Count, uint64(numel(tc.Keys)), 'And the sources.');
+            for i = 1:B.LoadedData.Count
+                h = B.LoadedData.Held(i);
+                tc.verifyTrue(h.outputs == B.Runner.Outputs(B.Runner.index(h.key)), 'Held by the new scan''s outputs.');
+            end
+            % Spikes off drops them from what is held; Compute off keeps nothing new
+            B.Caching = struct('Spikes', false);
+            for k = reshape(tc.Keys, 1, [])
+                tc.verifyEqual(B.Runner.Outputs(B.Runner.index(k)).cacheBytes(DatasetCache.SpikeKinds), 0);
+            end
+            B.Caching = struct('Spikes', true, 'Compute', false);
+            B.clearLoadedData();
+            tc.verifyEqual(B.LoadedData.Count, 0);
+            tc.verifyTrue(contains(string(B.Ctl.Status.Text), "Freed the loaded data"), B.Ctl.Status.Text);
+            B.compute();
+            tc.verifyEqual(B.LoadedData.Count, 0, 'Compute off: nothing kept.');
+            % the memory limit: a dataset larger than it is not kept
+            B.Caching = struct('Compute', true, 'LimitGB', 1e-9);
+            B.Settings = S1;
+            B.forget();
+            B.compute();
+            tc.verifyEqual(B.LoadedData.Count, 0, 'Nothing fits 1 byte.');
+            % Raw Data keeps what it loads only when asked
+            B.Caching = struct('LimitGB', 4, 'RawData', false);
+            B.loadSessions();
+            tc.verifyEqual(B.LoadedData.Count, 0);
+            B.Caching = struct('RawData', true);
+            B.loadSessions();
+            tc.verifyEqual(B.LoadedData.Count, numel(tc.Keys));
+            % the result file without the results
+            B.Caching = struct('SaveResults', false);
+            tc.verifyTrue(B.save());
+            L = load(B.ResultFile, 'runs');
+            tc.verifyEmpty(L.runs.entries, 'SaveResults off: no part in the file.');
+            % the menu: its checks follow Caching, a click toggles one
+            m = findobj(B.Fig, 'Type', 'uimenu', 'Tag', 'CacheEarlier');
+            tc.verifyEqual(string(m.Checked), "off");
+            m.MenuSelectedFcn(m, []);
+            tc.verifyTrue(B.Caching.Earlier);
+            tc.verifyEqual(string(m.Checked), "on");
+            g = findobj(B.Fig, 'Type', 'uimenu', 'Tag', 'CacheLimit8');
+            g.MenuSelectedFcn(g, []);
+            tc.verifyEqual(B.Caching.LimitGB, 8);
+            tc.verifyEqual(string(g.Checked), "on");
+            used = findobj(B.Fig, 'Type', 'uimenu', '-regexp', 'Text', '^Loaded: ');
+            tc.verifyTrue(contains(string(used.Text), B.LoadedData.summary()), used.Text);
+            tc.verifyError(@() setCaching(B, struct('Nope', true)), 'DatasetBrowser:BadValue');
+            tc.verifyError(@() setCaching(B, struct('LimitGB', -1)), 'DatasetBrowser:BadValue');
+            % the preference; closing frees the data
+            B.close();
+            tc.verifyEqual(B.LoadedData.Count, 0, 'Closing the window frees the loaded data.');
+            B2 = tc.open(Scan=false);
+            c = B2.Caching;
+            tc.verifyTrue(c.RawData && ~c.SaveResults && c.LimitGB == 8, 'Caching comes back from the preferences.');
+            B2.Caching = want;   % the shared preferences as they were
+            B2.close();
+        end
+
         function checkCancelEndsScriptRun(tc)
             B = tc.open();
             c = B.Ctl;
@@ -2157,6 +2270,17 @@ end
 
 function setSettings(B, S)
 B.Settings = S;
+end
+
+
+function setCaching(B, c)
+B.Caching = c;
+end
+
+
+function moveBack(f)
+%moveBack  F's file back from F.away (when it is away).
+if isfile(f + ".away"); movefile(f + ".away", f); end
 end
 
 

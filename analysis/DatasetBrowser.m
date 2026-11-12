@@ -79,6 +79,33 @@ classdef DatasetBrowser < handle
     %   DatasetRuns version are not restored (DatasetRuns:OldVersion): they
     %   are computed again.
     %
+    %   Caching (the Cache menu; Caching from a script) keeps two things, so
+    %   that a change of settings reads nothing from disk again:
+    %     Computed results: each dataset's part (above) is reused while the
+    %       settings and its outputs are the same (Results: "Reuse computed
+    %       results"; off, every Compute and forEach computes every dataset
+    %       again). Earlier: "Keep results of earlier settings" keeps the
+    %       parts of the last EarlierSettings settings per dataset (DatasetRuns'
+    %       MaxIds), so switching back (Hit, Miss, then Hit again) computes
+    %       nothing. SaveResults: "Save computed results in the result
+    %       file" (off: a smaller file; computed again after a restart).
+    %     Loaded data (LoadedData, a DatasetCache): what a run reads from
+    %       disk for a dataset (the spikes file, the sorting, the signals)
+    %       stays in memory, so the next Compute with another event,
+    %       window, trial selection, bin or measure reads no file. Spikes,
+    %       Signals: which data are kept; LimitGB: the most they may take
+    %       (the datasets used least recently go first); Compute, RawData,
+    %       Scripts: which runs keep what they load (Compute, Raw Data,
+    %       forEach; a run that does not still uses the data held). With
+    %       Workers, Compute and Raw Data compute a dataset whose data are
+    %       held here, not on a worker; and with Here ("Compute here while
+    %       the data fit") they load the others here too until LimitGB is
+    %       reached, so their data stay for the next run (what a worker
+    %       loads stays on the worker). A new Scan keeps the data of the
+    %       datasets whose files did not change (a tag edit included);
+    %       another root, Clear loaded data (clearLoadedData) and closing
+    %       the window free them.
+    %
     %   The progress strip at the bottom is the browser's and a script's:
     %     B.progressStart("Histograms", Total=nS);
     %     for si = 1:nS
@@ -134,7 +161,9 @@ classdef DatasetBrowser < handle
     %     [VALUES, T] = forEach(B, FN, Name=, Id=, Datasets=, Recompute=, SkipIds=)
     %                  FN(SRC) or FN(SRC, INFO) per dataset, kept in Runs
     %                  (DatasetRuns.run); Name defaults to "forEach/" + func2str(FN)
-    %     forget(B, NAME, KEYS); forgetTicked(B)   (nothing ticked: nothing dropped)
+    %     forget(B, NAME, KEYS); forgetTicked(B)   (nothing ticked: nothing dropped; forget(B): every
+    %                  computed result, Cache > Forget all computed results)
+    %     clearLoadedData(B)                 free the data held in memory (Cache > Clear loaded data)
     %     DLG = editTags(B, KEYS)            the tag dialog (TagDialog) on datasets (default: the rows
     %                                        selected, else the clicked one; a click on a Tags cell,
     %                                        the right-click menu); OK writes them to the manifests
@@ -219,7 +248,8 @@ classdef DatasetBrowser < handle
     %   (sessionData's fields; D.data the kind; pair a dataset's kinds by
     %   D.key). A dataset that lacks one of the kinds has no entry for it.
     %   The event window, the measure and normalization are not
-    %   used. Nothing is cached or saved in the result file; signals are
+    %   used. No result is kept or saved in the result file (the data read
+    %   are kept in memory only with Caching.RawData); signals are
     %   whole (GBs per dataset). Trials Only (TrialsOnly=true) brings
     %   the same without the spikes or signal: only the trials and the
     %   digital lines (D.data "trials"), one per dataset.
@@ -273,7 +303,7 @@ classdef DatasetBrowser < handle
     %   Workers DatasetRuns:Serial (no process pool: computed here).
     %   Preferences (AppPrefs group DatasetBrowser, saved on close): Root,
     %   NamePattern, Position, Sort, SettingsFolder, RecentSettings, Workers,
-    %   OnTop, Scripts, Script, ScriptAfterCompute, ScriptFolder.
+    %   OnTop, Scripts, Script, ScriptAfterCompute, ScriptFolder, Caching.
     %
     %   See also epochMatrix, epochMatrixSettings, epochMatrixRaster,
     %   TrialRaster, DatasetRuns, outputsStamp, datasetFilter,
@@ -385,6 +415,7 @@ classdef DatasetBrowser < handle
         %   ("The table above" is epochMatrixSettings' list of the fields of S.)
         Sessions = []                      % the last loadSessions' datasets ([] before one): a struct column of sessionData's D, on their own clock, one per dataset and kind of data (D.data)
         Runs                               % the DatasetRuns holding every dataset's parts and forEach values
+        LoadedData                         % the DatasetCache holding each dataset's loaded data between runs (Caching)
         Busy (1,1) logical = false         % the progress strip is running (progressStart .. progressFinish)
         CancelRequested (1,1) logical = false   % Cancel was pressed (or cancel() called) since progressStart
         Fig = []                           % the uifigure
@@ -429,6 +460,14 @@ classdef DatasetBrowser < handle
         OnTop                              % the window stays above the other windows (WindowStyle "alwaysontop")
         Script                             % the post-processing script picked ("" = none; set: a file, added to Scripts)
         ScriptAfterCompute                 % Compute in the window runs Script after (the "After Compute, run" box)
+        Caching                            % struct, what is kept between runs (the Cache menu; see the class help):
+        %   Results, Earlier, SaveResults   computed results: reuse them, keep
+        %                    those of earlier settings, save them in the result file
+        %   Spikes, Signals  loaded data: which are kept in memory
+        %   LimitGB          the most memory the loaded data may take, GB
+        %   Compute, RawData, Scripts   the runs that keep the data they load
+        %   Here             with Workers, load here while the data fit
+        %   Set a struct of some fields; the others stay.
     end
 
     properties (Dependent, SetAccess = private)
@@ -470,9 +509,12 @@ classdef DatasetBrowser < handle
         DefinitionName (1,1) string = ""   % the definition shown in the drop-down ("" = none): − drops it
         DefinitionTyped (1,1) logical = false   % DefinitionName was typed in the drop-down: + keeps the settings under it (replacing one of that name)
         Splash AppSplash = AppSplash.empty % the startup window (AppSplash; open while the window is built and the root scanned)
+        CacheS = struct()                  % Caching's fields kept here (Spikes, Signals and LimitGB live in LoadedData)
     end
 
     properties (Constant)
+        EarlierSettings = 5                % Caching.Earlier: the settings whose results are kept per dataset (DatasetRuns' MaxIds)
+        LimitChoicesGB = [1 2 4 8 16 32 64]   % the Cache menu's Memory for loaded data
         PrefGroup = "DatasetBrowser"
         WikiURL = "https://github.com/dstolz/ephys_analysis/wiki"   % the Help menu's pages
         Schema = "dataset-browser-results"
@@ -482,7 +524,7 @@ classdef DatasetBrowser < handle
     properties (Constant, Access = private)
         DataItems = ["units" "detected" "LFP" "MUA" "SPIKE" "AUX"]
         Controls = ["Root" "Browse" "Pattern" "Scan" "Subject" "NotSubject" "Search" "Tags" "TagMode" "NotTags" ...
-            "TickShown" "UntickAll" "Table" "FileMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
+            "TickShown" "UntickAll" "Table" "FileMenu" "CacheMenu" "Data" "Normalize" "NormBaseline" "NormScope" ...
             "Shanks" "Channels" "ProbeAll" "Probe" "Merge" "Classes" "Measure" "Bin" "Baseline" ...
             "SigBaseline" "Detrend" "Rectify" "Magnitude" "Statistic" "Downsample" "KeepEpochs" "Compute" "LoadSessions" "LoadTrials" "Workers" ...
             "GroupCounts" "Details" "ScriptAfter" "ScriptList" "ScriptAdd" "ScriptRemove" "ScriptEdit" "ScriptRun" "DefList" "DefAdd" "DefRemove"]
@@ -515,7 +557,9 @@ classdef DatasetBrowser < handle
             splash = B.Splash;
             unfinished = onCleanup(@() splash.close()); %#ok<NASGU> an error closes the splash too
             B.Splash.step("settings", "Reading the preferences ...");
-            B.Runs = DatasetRuns();
+            B.CacheS = DatasetBrowser.defaultCaching();
+            B.LoadedData = DatasetCache(LimitMB=1024 * DatasetBrowser.defaultLimitGB());
+            B.takeRuns(DatasetRuns());
             B.Datasets = DatasetBrowser.emptyDatasets();
             B.FilterS = DatasetBrowser.noFilter();
             B.takeSettings(epochMatrixSettings());
@@ -540,6 +584,13 @@ classdef DatasetBrowser < handle
                 B.OnTopS = logical(prefs.OnTop);
             end
             B.readScriptPrefs(prefs);
+            if isfield(prefs, 'Caching') && isstruct(prefs.Caching) && isscalar(prefs.Caching)
+                try
+                    B.applyCaching(prefs.Caching);
+                catch
+                    % preferences are a convenience: a bad one keeps the defaults
+                end
+            end
             B.DefaultFile = opts.ResultFile == "";
             B.ResultFileS = opts.ResultFile;
             if B.DefaultFile; B.ResultFileS = DatasetBrowser.defaultFile(B.Root); end
@@ -590,6 +641,7 @@ classdef DatasetBrowser < handle
         function delete(B)
             B.closeWindows();
             if ~isempty(B.Fig) && isvalid(B.Fig); delete(B.Fig); end
+            if isa(B.LoadedData, 'DatasetCache') && isvalid(B.LoadedData); B.LoadedData.clear(); end
         end
 
         % --- dependent properties ----------------------------------------------------------
@@ -724,6 +776,26 @@ classdef DatasetBrowser < handle
             B.refreshScripts();
         end
 
+        function c = get.Caching(B)
+            c = B.CacheS;
+            c.Spikes = B.LoadedData.Spikes;
+            c.Signals = B.LoadedData.Signals;
+            c.LimitGB = B.LoadedData.LimitMB / 1024;
+            c = orderfields(c, {'Results', 'Earlier', 'SaveResults', 'Spikes', 'Signals', 'LimitGB', 'Compute', 'RawData', 'Scripts', 'Here'});
+        end
+
+        function set.Caching(B, c)
+            B.applyCaching(c);
+        end
+
+        function clearLoadedData(B)
+            %clearLoadedData  Free the data held in memory (LoadedData): the next run reads its datasets from disk again.
+            was = B.LoadedData.summary();
+            B.LoadedData.clear();
+            B.refreshCacheMenu();
+            B.setStatus("Freed the loaded data (" + was + ").");
+        end
+
         % --- scanning ----------------------------------------------------------------------
         function scan(B, opts)
             %scan  Find the root's datasets: which outputs each has and its tags (no source is loaded).
@@ -762,6 +834,7 @@ classdef DatasetBrowser < handle
                 end
                 rethrow(ME);
             end
+            B.keepLoaded(r, D);   % the unchanged datasets' loaded data and sources move to the new runner
             B.Runner = r;
             B.Datasets = D;
             B.ProbeKey = "";   % the new runner's sources: the probe is read again
@@ -1448,9 +1521,10 @@ classdef DatasetBrowser < handle
                 if n > 1; tag = @(m) kind + ": " + m; end
                 try
                     R = epochMatrix(B.Runner, epochMatrixSettings(B.SettingsS, Kind=kind), Datasets=keys, Info=B.info(keys), ...
-                        Runs=B.Runs, Recompute=opts.Recompute, ProgressFcn=@(f, m) B.progress((k - 1 + f) / n, tag(m)), ...
+                        Runs=B.Runs, Recompute=opts.Recompute || ~B.CacheS.Results, ...
+                        ProgressFcn=@(f, m) B.progress((k - 1 + f) / n, tag(m)), ...
                         CheckFcn=@() B.checkCancel(), LogFcn=@(m) B.say(tag(m)), StampFcn=@(key) B.stampOf(key), ...
-                        Workers=B.WorkersN);
+                        Workers=B.WorkersN, ReleaseFcn=B.releaseFcn("Compute"), LocalFcn=B.localFcn("Compute"));
                 catch ME
                     if ME.identifier == "epochMatrix:Canceled"
                         B.endRun("Canceled: " + string(ME.message));
@@ -1490,8 +1564,10 @@ classdef DatasetBrowser < handle
             %   the kinds in Data's order), also kept in B.Sessions; T the
             %   status of each ticked dataset (DatasetRuns.run's T: a
             %   dataset without any of the kinds is "skipped"; one without
-            %   some has no entry for them). Nothing is cached or written to the
-            %   result file: each call reads the datasets again. Signals are
+            %   some has no entry for them). No result is kept or written to
+            %   the result file; the data come from memory when held there
+            %   (LoadedData), else from disk, and are kept for the next run
+            %   only with Caching.RawData. Signals are
             %   whole (GBs per dataset). RunScript=true then runs Script
             %   (runScript); the Load sessions button passes
             %   ScriptAfterCompute. TrialsOnly=true reads no spikes or
@@ -1523,7 +1599,8 @@ classdef DatasetBrowser < handle
                 [values, T] = B.Runs.run(B.Runner, keys, @(src) sessionData(src, S, TrialsOnly=opts.TrialsOnly), ...
                     Id="sessionData/" + strjoin(kinds, "+"), ...
                     Info=B.info(keys), ProgressFcn=@(f, m) B.progress(f, m), CheckFcn=@() B.checkCancel(), ...
-                    LogFcn=@(m) B.say(m), SkipIds=skipIds, Workers=B.WorkersN);
+                    LogFcn=@(m) B.say(m), SkipIds=skipIds, Workers=B.WorkersN, ...
+                    ReleaseFcn=B.releaseFcn("RawData"), LocalFcn=B.localFcn("RawData"));
             catch ME
                 if ME.identifier == "DatasetRuns:Canceled"
                     B.endRun("Canceled: " + string(ME.message));
@@ -1553,6 +1630,7 @@ classdef DatasetBrowser < handle
                 ProgressClock.durationText(seconds(datetime('now') - t0))));
             B.reportNotComputed();
             B.applyEnable();
+            B.refreshCacheMenu();
             B.changed("sessions");
             if opts.RunScript && B.ScriptS ~= ""; B.runScript(); end
         end
@@ -1592,8 +1670,9 @@ classdef DatasetBrowser < handle
             B.LastRun = table();
             try
                 [values, T] = B.Runs.run(B.Runner, keys, fn, Name=opts.Name, Id=id, Info=B.info(keys), ...
-                    Recompute=opts.Recompute, ProgressFcn=@(f, m) B.progress(f, m), CheckFcn=@() B.checkCancel(), ...
-                    SkipIds=opts.SkipIds, StampFcn=@(key) B.stampOf(key), Workers=opts.Workers);
+                    Recompute=opts.Recompute || ~B.CacheS.Results, ProgressFcn=@(f, m) B.progress(f, m), CheckFcn=@() B.checkCancel(), ...
+                    SkipIds=opts.SkipIds, StampFcn=@(key) B.stampOf(key), Workers=opts.Workers, ...
+                    ReleaseFcn=B.releaseFcn("Scripts"));   % FN's own work may need the workers: only Compute and Raw Data stay here
             catch ME
                 if ME.identifier == "DatasetRuns:Canceled"
                     B.endRun("Canceled: " + string(ME.message));
@@ -1883,7 +1962,7 @@ classdef DatasetBrowser < handle
         end
 
         function tf = save(B, file)
-            %save  Write the result file (default ResultFile): the state, Results and Runs. TF: written.
+            %save  Write the result file (default ResultFile): the state, Results and Runs (Runs only with Caching.SaveResults). TF: written.
             if nargin < 2; file = B.ResultFileS; end
             file = string(file);
             tf = false;
@@ -1894,8 +1973,10 @@ classdef DatasetBrowser < handle
                     if isfield(Rs.(f), 'epochs'); Rs.(f).epochs = []; end   % the kept parts hold them: restoreEpochs
                 end
             end
+            runs = DatasetRuns();   % SaveResults off: no part in the file
+            if B.CacheS.SaveResults; runs = B.Runs; end
             payload = struct('schema', DatasetBrowser.Schema, 'version', DatasetBrowser.Version, ...
-                'browser', B.browserState(), 'results', Rs, 'runs', B.Runs.toStruct());
+                'browser', B.browserState(), 'results', Rs, 'runs', runs.toStruct());
             [folder, name] = fileparts(file);
             tmp = fullfile(folder, "." + name + "_saving.mat");
             try
@@ -2103,9 +2184,10 @@ classdef DatasetBrowser < handle
         end
 
         function close(B)
-            %close  Close the window (its preferences and, when changed, the result file are saved); B stays.
+            %close  Close the window (its preferences and, when changed, the result file are saved; the loaded data freed); B stays.
             B.savePrefs();
             B.saveIfChanged();
+            B.LoadedData.clear();   % the memory goes back; a later run reads from disk
             B.closeWindows();
             if B.uiOk(); delete(B.Fig); end
             B.changed("closed");
@@ -2120,6 +2202,7 @@ classdef DatasetBrowser < handle
             end
             L = [L(:); "Result file: " + DatasetBrowser.Schema + " v" + DatasetBrowser.Version; ...
                 "Cache (DatasetRuns): v" + DatasetRuns.Version; ...
+                "Loaded data in memory: " + B.LoadedData.summary() + " (limit " + DatasetCache.sizeText(B.LoadedData.LimitMB) + ")"; ...
                 "Root: " + ternary(B.Root == "", "(none)", B.Root); ...
                 "Datasets found: " + height(B.Datasets); ...
                 "Settings file: " + ternary(B.SettingsFile == "", "(none)", B.SettingsFile)];
@@ -2208,6 +2291,44 @@ classdef DatasetBrowser < handle
             uimenu(c.FileMenu, "Text", "Open manifest viewer", "Separator", "on", ...
                 "Tooltip", "The clicked row's dataset in the manifest viewer.", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.viewManifest()));
             uimenu(c.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~, ~) B.close());
+
+            % --- the Cache menu: what is kept between runs (Caching)
+            c.CacheMenu = uimenu(f, "Text", "Cache", "MenuSelectedFcn", @(~, ~) B.refreshCacheMenu());
+            cm = c.CacheMenu;
+            toggle = @(field) @(src, ~) B.uiRun(@() B.applyCaching(struct(char(field), src.Checked == "off")));
+            item = @(field, text, tip, varargin) uimenu(cm, "Text", text, "Tooltip", tip, "Tag", "Cache" + field, ...
+                "MenuSelectedFcn", toggle(field), varargin{:});
+            c.CacheItems = struct();
+            c.CacheItems.Results = item("Results", "Reuse computed results", ...
+                "Compute only the datasets whose results for these settings are not kept yet. Off: every Compute computes every dataset again.");
+            c.CacheItems.Earlier = item("Earlier", "Keep results of earlier settings", ...
+                sprintf("Keep each dataset's results of the last %d settings, so going back (Hit, Miss, then Hit again) computes nothing.", ...
+                DatasetBrowser.EarlierSettings));
+            c.CacheItems.SaveResults = item("SaveResults", "Save computed results in the result file", ...
+                "Keep the results in the result file, so they are there after a restart. Off: a smaller file; computed again after a restart.");
+            c.CacheItems.Spikes = item("Spikes", "Keep loaded spike data in memory", ...
+                "Keep the spike times and units read from disk, so a new event, window, trial selection or bin reads no file.", "Separator", "on");
+            c.CacheItems.Signals = item("Signals", "Keep loaded signals in memory", ...
+                "Keep the LFP, MUA, SPIKE and AUX signals read from disk (large: up to GBs per dataset).");
+            c.LimitMenu = uimenu(cm, "Text", "Memory for loaded data", "Tooltip", ...
+                "The most memory the loaded data may take; beyond it the datasets used least recently are freed.");
+            for gb = DatasetBrowser.LimitChoicesGB
+                uimenu(c.LimitMenu, "Text", gb + " GB", "Tag", "CacheLimit" + gb, ...
+                    "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.applyCaching(struct('LimitGB', gb))));
+            end
+            c.CacheItems.Compute = item("Compute", "Keep data loaded by Compute", ...
+                "Compute keeps the data it reads in memory for the next Compute.", "Separator", "on");
+            c.CacheItems.RawData = item("RawData", "Keep data loaded by Raw Data", ...
+                "Raw Data and Trials Only keep the data they read in memory (B.Sessions holds a copy of them too).");
+            c.CacheItems.Scripts = item("Scripts", "Keep data loaded by scripts (forEach)", ...
+                "A script's B.forEach keeps the data it reads in memory (not what workers read).");
+            c.CacheItems.Here = item("Here", "Compute here while the data fit (not on workers)", ...
+                "With Workers: Compute and Raw Data read the datasets here, not on the workers, until the memory is full, so the data stay for the next run.");
+            c.CacheUsed = uimenu(cm, "Text", "Loaded: nothing", "Enable", "off", "Separator", "on");
+            uimenu(cm, "Text", "Clear loaded data", "Tooltip", "Free the memory the loaded data take; the next run reads from disk.", ...
+                "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.clearLoadedData()));
+            uimenu(cm, "Text", "Forget all computed results", "Tooltip", "Drop every dataset's kept results, for every setting; the next Compute computes all.", ...
+                "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.forgetAll()));
 
             % --- the Help menu: the wiki, and which version of the code this is
             c.HelpMenu = uimenu(f, "Text", "Help");
@@ -2488,6 +2609,7 @@ classdef DatasetBrowser < handle
         % --- refreshing ------------------------------------------------------------------------------
         function refreshAll(B)
             B.refreshFileMenu();
+            B.refreshCacheMenu();
             B.refreshScripts();
             B.refreshFilterControls();
             B.refreshForm();
@@ -2515,7 +2637,7 @@ classdef DatasetBrowser < handle
                     name = B.PartNames(j);
                     st(:, j) = B.Runs.status(name, D.key, B.Ids.(kinds(j)), Stamps=D.stamp);   % "old": other settings or changed outputs
                     for k = reshape(find(st(:, j) == "current"), 1, [])
-                        v = B.Runs.value(name, D.key(k));
+                        v = B.Runs.value(name, D.key(k), B.Ids.(kinds(j)));
                         if isstruct(v) && isfield(v, 'rows'); rows(k, j) = height(v.rows); end
                     end
                 end
@@ -2523,7 +2645,7 @@ classdef DatasetBrowser < handle
                     noun = ["channel" "channels"];
                     if ismember(kinds, ["units" "detected"]); noun = ["unit" "units"]; end
                     for k = reshape(find(st == "skipped"), 1, [])   % "skipped: no sorted units"
-                        Cached(k) = "skipped: " + DatasetBrowser.reasonText("skipped", B.Runs.message(B.PartNames(1), D.key(k)), D.name(k));
+                        Cached(k) = "skipped: " + DatasetBrowser.reasonText("skipped", B.Runs.message(B.PartNames(1), D.key(k), B.Ids.(kinds(1))), D.name(k));
                     end
                     Cached(st == "old") = "old";
                     for k = reshape(find(st == "current"), 1, [])
@@ -2537,7 +2659,7 @@ classdef DatasetBrowser < handle
                             parts(s == "skipped") = kinds(s == "skipped") + " skipped";
                             Cached(k) = "✓ " + strjoin(parts, ", ");
                         elseif all(s == "skipped")
-                            Cached(k) = "skipped: " + DatasetBrowser.reasonText("skipped", B.Runs.message(B.PartNames(1), D.key(k)), D.name(k));
+                            Cached(k) = "skipped: " + DatasetBrowser.reasonText("skipped", B.Runs.message(B.PartNames(1), D.key(k), B.Ids.(kinds(1))), D.name(k));
                         elseif any(s == "old")
                             Cached(k) = "old";
                         end
@@ -3035,7 +3157,7 @@ classdef DatasetBrowser < handle
                 wrote = true;
                 B.Datasets.varSet{k} = s;
                 B.Datasets.variables(k) = DatasetVariables.toText(s);
-                out.clearCache();   % its manifest (CacheData) is read again
+                out.clearCache("manifest");   % its manifest (CacheData) is read again; the loaded data stay
                 S = B.Runner.Sources;   % a source loaded already: its variables too
                 if ~isempty(S) && isKey(S, char(keys(j)))
                     src = S(char(keys(j)));
@@ -3117,7 +3239,7 @@ classdef DatasetBrowser < handle
                 wrote = true;
                 B.Datasets.tagSet{k} = t;
                 B.Datasets.tags(k) = TagSet.toText(t, TagSet.ExportDelimiter);
-                out.clearCache();   % its manifest (CacheData) is read again
+                out.clearCache("manifest");   % its manifest (CacheData) is read again; the loaded data stay
                 S = B.Runner.Sources;   % a source loaded already: its tags too
                 if ~isempty(S) && isKey(S, char(keys(j)))
                     src = S(char(keys(j)));
@@ -3335,8 +3457,9 @@ classdef DatasetBrowser < handle
             if ~B.DefaultFile; return; end
             B.ResultFileS = DatasetBrowser.defaultFile(root);
             B.Runner = [];
+            B.LoadedData.clear();
             B.Datasets = DatasetBrowser.emptyDatasets();
-            B.Runs = DatasetRuns();
+            B.takeRuns(DatasetRuns());
             B.Results = [];
             B.ResultIdText = "";
             B.Sessions = [];
@@ -3394,7 +3517,7 @@ classdef DatasetBrowser < handle
             end
             if isfield(L, 'runs')
                 try
-                    B.Runs = DatasetRuns.fromStruct(L.runs);
+                    B.takeRuns(DatasetRuns.fromStruct(L.runs));
                 catch ME
                     warning('DatasetBrowser:BadResultFile', '%s: the kept parts are not used (%s).', file, ME.message);
                 end
@@ -3435,7 +3558,7 @@ classdef DatasetBrowser < handle
                 end
                 parts = cell(numel(keys), 1);
                 for k = 1:numel(keys)
-                    parts{k} = B.Runs.value(name, keys(k));
+                    parts{k} = B.Runs.value(name, keys(k), ID);
                     parts{k}.key = keys(k);
                 end
                 info = R.datasets(ismember(R.datasets.key, keys), {'key', 'name', 'subject', 'date'});
@@ -3487,6 +3610,7 @@ classdef DatasetBrowser < handle
             end
             B.refreshTable();
             B.refreshSummary();
+            B.refreshCacheMenu();   % the memory the loaded data take
         end
 
         function noteRun(B, kind, T)
@@ -3636,10 +3760,130 @@ classdef DatasetBrowser < handle
                 AppPrefs.setpref(g, "Script", char(B.ScriptS));
                 AppPrefs.setpref(g, "ScriptAfterCompute", B.AfterS);
                 AppPrefs.setpref(g, "ScriptFolder", char(B.ScriptFolder));
+                AppPrefs.setpref(g, "Caching", B.Caching);
                 if B.uiOk(); AppPrefs.setpref(g, "Position", B.Fig.Position); end
             catch
                 % preferences are a convenience
             end
+        end
+
+        % --- caching ---------------------------------------------------------------------------------------
+        function applyCaching(B, c)
+            %applyCaching  Take the fields of C (some of Caching's): checked, then set (LoadedData, Runs' MaxIds, the menu).
+            if ~(isstruct(c) && isscalar(c))
+                error('DatasetBrowser:BadValue', 'Caching must be a struct (fields %s).', strjoin(string(fieldnames(B.Caching)), ", "));
+            end
+            cc = B.Caching;
+            for f = string(fieldnames(c)).'
+                if ~isfield(cc, f)
+                    error('DatasetBrowser:BadValue', 'Caching has no field "%s" (it has %s).', f, strjoin(string(fieldnames(cc)), ", "));
+                end
+                v = c.(f);
+                if f == "LimitGB"
+                    if ~(isnumeric(v) && isscalar(v) && isfinite(v) && v > 0)
+                        error('DatasetBrowser:BadValue', 'Caching.LimitGB must be a number of GB above 0.');
+                    end
+                    cc.(f) = double(v);
+                else
+                    if ~((islogical(v) || isnumeric(v)) && isscalar(v) && ~isnan(double(v)))
+                        error('DatasetBrowser:BadValue', 'Caching.%s must be true or false.', f);
+                    end
+                    cc.(f) = logical(v);
+                end
+            end
+            B.LoadedData.Spikes = cc.Spikes;   % false drops those data from what is held
+            B.LoadedData.Signals = cc.Signals;
+            B.LoadedData.LimitMB = 1024 * cc.LimitGB;   % lower: the datasets used least recently are freed
+            B.CacheS = rmfield(cc, ["Spikes" "Signals" "LimitGB"]);
+            B.Runs.MaxIds = ternary(cc.Earlier, DatasetBrowser.EarlierSettings, 1);   % 1: only the current settings' results are kept
+            B.refreshCacheMenu();
+            if B.uiOk() && height(B.Datasets) > 0; B.refreshTable(); end
+        end
+
+        function takeRuns(B, runs)
+            %takeRuns  RUNS as Runs, keeping as many settings' results per dataset as Caching.Earlier asks.
+            B.Runs = runs;
+            B.Runs.MaxIds = ternary(B.CacheS.Earlier, DatasetBrowser.EarlierSettings, 1);
+        end
+
+        function tf = keeps(B, situation)
+            %keeps  The runs of SITUATION ("Compute", "RawData", "Scripts") keep the data they load.
+            tf = B.CacheS.(situation) && (B.LoadedData.Spikes || B.LoadedData.Signals);
+        end
+
+        function fn = releaseFcn(B, situation)
+            %releaseFcn  The ReleaseFcn of a run of SITUATION: LoadedData keeps what it loaded (or only what it held).
+            C = B.LoadedData;
+            keep = B.keeps(situation);
+            fn = @(src) C.release(src, keep);
+        end
+
+        function fn = localFcn(B, situation)
+            %localFcn  The LocalFcn of a run of SITUATION with Workers: a dataset held here is computed here, and with Here the others while the data fit.
+            C = B.LoadedData;
+            fill = B.CacheS.Here && B.keeps(situation);
+            fn = @(key) C.holds(key) || (fill && C.hasRoom());
+        end
+
+        function keepLoaded(B, r, D)
+            %keepLoaded  A new scan's runner R and datasets D: the unchanged datasets' loaded data (and sources) move to R.
+            %   The data stay when the dataset's files but its manifest are the
+            %   same (a tag edit keeps them); a source, only when the stamps
+            %   are equal. Another root, pattern or recordings mode frees all.
+            old = B.Runner;
+            oldD = B.Datasets;
+            if isempty(old) || height(oldD) == 0
+                B.LoadedData.clear();
+                return
+            end
+            a = old.Config.Source;
+            b = r.Config.Source;
+            if ~(DatasetBrowser.sameRoot(a.Root, b.Root) && string(a.OutputRoot) == string(b.OutputRoot) ...
+                    && string(a.NamePattern) == string(b.NamePattern) && string(a.Recordings) == string(b.Recordings))
+                B.LoadedData.clear();
+                return
+            end
+            [tf, loc] = ismember(D.key, oldD.key);
+            same = false(height(D), 1);
+            dataSame = same;
+            same(tf) = D.stamp(tf) == oldD.stamp(loc(tf));
+            dataSame(tf) = DatasetBrowser.dataStamp(D.stamp(tf)) == DatasetBrowser.dataStamp(oldD.stamp(loc(tf)));
+            B.LoadedData.adopt(r, D.key(dataSame));
+            S = old.Sources;
+            N = r.Sources;   % a handle: the runner's own map
+            for key = reshape(D.key(same), 1, [])
+                k = r.index(key);
+                if ~isKey(S, char(key)) || k == 0; continue; end
+                src = S(char(key));
+                src.outputs = r.Outputs(k);
+                N(char(key)) = src;
+            end
+        end
+
+        function refreshCacheMenu(B)
+            %refreshCacheMenu  The Cache menu's checks and the memory the loaded data take.
+            if ~B.uiOk() || ~isfield(B.Ctl, 'CacheItems'); return; end
+            c = B.Caching;
+            for f = string(fieldnames(B.Ctl.CacheItems)).'
+                B.Ctl.CacheItems.(f).Checked = matlab.lang.OnOffSwitchState(c.(f));
+            end
+            items = B.Ctl.LimitMenu.Children;
+            for i = 1:numel(items)
+                items(i).Checked = matlab.lang.OnOffSwitchState(string(items(i).Tag) == "CacheLimit" + c.LimitGB);
+            end
+            B.Ctl.LimitMenu.Text = "Memory for loaded data (" + DatasetCache.sizeText(1024 * c.LimitGB) + ")";
+            B.Ctl.CacheUsed.Text = "Loaded: " + B.LoadedData.summary();
+            off = ~(c.Spikes || c.Signals);   % nothing is kept: the runs' choices do not apply
+            for f = ["Compute" "RawData" "Scripts" "Here"]
+                B.Ctl.CacheItems.(f).Enable = matlab.lang.OnOffSwitchState(~off);
+            end
+        end
+
+        function forgetAll(B)
+            %forgetAll  Drop every kept result (Cache > Forget all computed results).
+            n = numel(B.Runs.Entries);
+            B.forget();
+            B.setStatus(sprintf("Forgot %d kept result(s): the next Compute computes every dataset.", n));
         end
 
         % --- the progress strip's parts ------------------------------------------------------------------
@@ -4051,6 +4295,34 @@ classdef DatasetBrowser < handle
                 strings(0, 1), cell(0, 1), false(0, 1), false(0, 1), false(0, 1), strings(0, 1), strings(0, 1), 'VariableNames', ...
                 {'key', 'name', 'subject', 'date', 'tags', 'tagSet', 'variables', 'varSet', 'units', 'detected', 'behavior', ...
                 'signals', 'stamp'});
+        end
+
+        function c = defaultCaching()
+            %defaultCaching  Caching's defaults but Spikes, Signals and LimitGB (LoadedData's): everything kept, but Raw Data's loads.
+            c = struct('Results', true, 'Earlier', true, 'SaveResults', true, 'Compute', true, 'RawData', false, ...
+                'Scripts', true, 'Here', true);
+        end
+
+        function gb = defaultLimitGB()
+            %defaultLimitGB  The default memory for loaded data: a quarter of this machine's RAM, among LimitChoicesGB (4 when unknown).
+            gb = 4;
+            try
+                [~, sys] = memory();
+                quarter = sys.PhysicalMemory.Total / 4 / 2^30;
+                choices = DatasetBrowser.LimitChoicesGB;
+                gb = max([choices(1), choices(choices <= quarter)]);
+            catch
+                % memory() is Windows-only
+            end
+        end
+
+        function s = dataStamp(stamp)
+            %dataStamp  A dataset's stamp (outputsStamp) without its manifest's line: what tells whether its data files changed.
+            s = stamp;
+            for k = 1:numel(stamp)
+                L = splitlines(stamp(k));
+                s(k) = strjoin(L(~startsWith(L, "manifest ")), newline);
+            end
         end
 
         function tf = skipAsked(splash)

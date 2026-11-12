@@ -14,7 +14,9 @@ exist, the manifest's tags). It loads no recording. A dataset's source is
 loaded only when it is computed, or once for the form's lists of lines and
 trial parameters. Every dataset's part of the result is kept
 ([The cache and the result file](#the-cache-and-the-result-file)), so ticking
-one more dataset computes only that one.
+one more dataset computes only that one, and the data a **Compute** reads stay
+in memory ([Loaded data](#loaded-data)), so another event, window or trial
+selection (Hit, then Miss) reads no file again.
 
 This page is the reference for every control and for scripts. New to the
 browser? Start with the [dataset browser guide](dataset-browser-guide.md).
@@ -58,7 +60,7 @@ ticks what the filter shows. A root that cannot be reached raises
 ## The window
 
 The window (1380 x 860 pixels, its position remembered) has a **File** menu,
-a **Help** menu and four rows.
+a **Cache** menu, a **Help** menu and four rows.
 
 The **File** menu holds the [settings files](#settings):
 
@@ -70,6 +72,27 @@ The **File** menu holds the [settings files](#settings):
 | **Save settings as...** | writes the settings to a file picked in a dialog (`B.saveSettingsAs()`) |
 | **Export compute script...** | writes a script that computes these settings on the ticked datasets without the window ([Export a script](#export-a-script); `B.exportScript()`) |
 | **Close** | closes the window, as its close button does |
+
+The **Cache** menu says what is kept between runs, so a change of settings
+reads and computes as little as it can ([Caching](#caching); `B.Caching`,
+preference `Caching`). Each item with a check mark is on or off; all are on
+but **Keep data loaded by Raw Data**:
+
+| Item | When on | `B.Caching` field |
+| --- | --- | --- |
+| **Reuse computed results** | a dataset whose results for these settings are kept is not computed again. Off: every **Compute** (and `forEach`) computes every ticked dataset again | `Results` |
+| **Keep results of earlier settings** | each dataset keeps the results of its last 5 settings, so going back (Hit, Miss, then Hit again) computes nothing. Off: only the last settings' results are kept | `Earlier` |
+| **Save computed results in the result file** | the results go into the [result file](#the-cache-and-the-result-file), so they are there after a restart. Off: a smaller file, and the results are computed again after a restart | `SaveResults` |
+| **Keep loaded spike data in memory** | the spike times and units read from disk stay in memory | `Spikes` |
+| **Keep loaded signals in memory** | the LFP, MUA, SPIKE and AUX signals read from disk stay in memory (up to GBs per dataset) | `Signals` |
+| **Memory for loaded data** | a submenu: 1, 2, 4, 8, 16, 32 or 64 GB, the most the loaded data may take (default: a quarter of the computer's memory) | `LimitGB` |
+| **Keep data loaded by Compute** | **Compute** keeps what it reads | `Compute` |
+| **Keep data loaded by Raw Data** | **Raw Data** and **Trials Only** keep what they read (off by default: `B.Sessions` holds those data already) | `RawData` |
+| **Keep data loaded by scripts (forEach)** | a script's `B.forEach` keeps what it reads | `Scripts` |
+| **Compute here while the data fit (not on workers)** | with [Workers](#workers), **Compute** and **Raw Data** read the datasets here until the memory is full, so the data stay for the next run | `Here` |
+| **Loaded: 1.2 GB in 12 datasets** | (grayed) what the loaded data take now | |
+| **Clear loaded data** | frees that memory; the next run reads from disk (`B.clearLoadedData()`) | |
+| **Forget all computed results** | drops every dataset's kept results, for every setting (`B.forget()`) | |
 
 The **Help** menu:
 
@@ -180,7 +203,8 @@ named in `DatasetBrowser:TagsNotWritten` after the others are written.
 A tag edit changes the manifest, which counts in each dataset's stamp
 (`outputsStamp`): until the next **Scan** the retagged datasets stay cached;
 after it their parts read `old` and **Compute** works them out again, as after
-a tag edit in the pipeline app. **Compute** takes the new tags into `R.rows`
+a tag edit in the pipeline app (from the [loaded data](#loaded-data), which a
+tag edit keeps). **Compute** takes the new tags into `R.rows`
 and `R.name` at once.
 
 #### Editing variables
@@ -528,8 +552,10 @@ for U = S([S.data] == "units").'
 end
 ```
 
-Nothing is cached or written to the result file: each press reads the
-datasets again (on the [workers](#workers) when set). A dataset without the
+No result is kept or written to the result file. The data come from memory
+when a **Compute** left them there ([Loaded data](#loaded-data)), else from
+disk (on the [workers](#workers) when set), and stay in memory for the next
+run only with **Cache > Keep data loaded by Raw Data**. A dataset without the
 data asked for (no sort, no spikes file, no such signal; with several kinds,
 none of them) is skipped; the strip's message counts them. `[D, T] = B.loadSessions()` also returns each
 ticked dataset's status. Like **Compute**, the button lets `wait` return and
@@ -675,6 +701,15 @@ as when computed here. Datasets already cached are not sent. Without the
 toolbox, or when no pool can be started, the datasets are computed here with
 the warning `DatasetRuns:Serial`.
 
+What a worker reads stays on the worker, not in this MATLAB's
+[loaded data](#loaded-data). So **Compute** and **Raw Data** compute a dataset
+whose data are held here, here (no file read), and send only the others; with
+**Cache > Compute here while the data fit**, they read the others here too
+until the memory for loaded data is full, so the next run finds them in
+memory. The first **Compute** then takes about as long as with no workers,
+and the next ones read nothing. `forEach` keeps its workers: a script's own
+work may need them.
+
 Each worker holds one dataset in memory (its spikes, or its signal for LFP,
 MUA, SPIKE and AUX), so the number that fits depends on the machine's memory
 and the size of the recordings. A `forEach` function, and whatever it
@@ -749,7 +784,8 @@ R = B.compute();
 | `[R, Rs] = compute(B, Recompute=false)` | `epochMatrix` over the ticked datasets with `B.Settings`, once per kind of data: `R` is `B.Result`, `Rs` is `B.Results` ([Several kinds of data](#several-kinds-of-data)) |
 | `[D, T] = loadSessions(B, TrialsOnly=false)` | the ticked datasets whole, in `B.Sessions` ([Raw Data](#raw-data)) |
 | `[VALUES, T] = forEach(B, FN, ...)` | [your own per-dataset code, cached](#foreach) |
-| `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts |
+| `forget(B, NAME, KEYS)`, `forgetTicked(B)` | drop kept parts (`forget(B)`: all of them) |
+| `B.Caching = struct(...)`, `clearLoadedData(B)` | what is kept between runs, as the **Cache** menu sets it (a struct of some of its fields; the others stay); free the data held in memory, `B.LoadedData` ([Caching](#caching)) |
 | `DLG = editTags(B, KEYS)`, `setTags(B, KEYS, Set=, Add=, Remove=)` | the tag window on datasets (no `KEYS`: the rows selected, else the clicked one); the same edit from a script, written to the manifests ([Editing tags](#editing-tags)) |
 | `DLG = editVariables(B, KEYS)`, `setVariables(B, KEYS, Name=, Value=, Label=, Units=, Description=, Remove=)` | the variable window on datasets (a row per dataset, a column per variable); the same edit from a script, written to the manifests ([Editing variables](#editing-variables)) |
 | `DLG = editDownsample(B)` | the *Downsample signals* window (**Downsample...**): a rate per signal into `Settings.signal.downsample`; its methods `setRate`, `clearRates`, `ok` and `cancel` drive it ([Downsampling the signals](#downsampling-the-signals)) |
@@ -1199,6 +1235,14 @@ compute is kept as `"skipped"`. Any other error is not kept: the dataset
 shows `"error"` with the warning `DatasetRuns:DatasetFailed`, and is tried
 again next time.
 
+**Earlier settings.** With **Cache > Keep results of earlier settings** (on by
+default) each dataset keeps the parts of its last 5 settings
+(`B.Runs.MaxIds`; `DatasetBrowser.EarlierSettings`), not only the last
+one's: going back to settings computed before (Hit, Miss, then Hit again)
+reuses their parts. The one used least recently goes first. A changed stamp
+drops every settings' part of that dataset when it is computed again. Off,
+a new settings' part replaces the old one.
+
 **Recompute and Forget.**
 
 - `B.compute(Recompute=true)` computes every ticked dataset again. It drops
@@ -1220,7 +1264,7 @@ the old one. It holds
 | `schema`, `version` | `"dataset-browser-results"`, 1 |
 | `browser` | the browser's state: `root`, `outputRoot`, `namePattern`, `recordings`, `ticked` (keys), `filter` and `settings` |
 | `results` | `B.Results` (`[]` before a compute): a result per kind of data, by kind; their `labels` are made again on restore, and their `epochs` are left out and assembled again from `runs`. A version 1 file's `result` is not read |
-| `runs` | `B.Runs.toStruct()`: every kept part and `forEach` value, each with its identity, status, message, seconds and the time it was made |
+| `runs` | `B.Runs.toStruct()`: every kept part and `forEach` value, each with its identity, status, message, seconds and the time it was made. With **Cache > Save computed results in the result file** off, none (an empty `DatasetRuns`): a restored result then has no `epochs`, and its datasets are computed again |
 
 It is written after a `compute` or `forEach` that added parts (a canceled one
 too, so the finished parts survive), on `done`, and on close, when the state
@@ -1234,6 +1278,72 @@ leaves that part at its default. A result file whose cache is from an older
 `DatasetBrowser(root, Scan=false)` reads only this file, so `B.Result` is
 available without the share being reachable. `B.restore(file)` takes the
 state of another result file.
+
+## Caching
+
+Two things are kept between runs, each set from the **Cache** menu
+([The window](#the-window)) or from a script with `B.Caching`, a struct:
+
+```matlab
+B.Caching                                     % every field
+B.Caching = struct('LimitGB', 16);            % some fields; the others stay
+B.Caching = struct('Signals', false, 'RawData', true);
+```
+
+| Field | Menu item | Default |
+| --- | --- | --- |
+| `Results` | Reuse computed results | `true` |
+| `Earlier` | Keep results of earlier settings | `true` |
+| `SaveResults` | Save computed results in the result file | `true` |
+| `Spikes` | Keep loaded spike data in memory | `true` |
+| `Signals` | Keep loaded signals in memory | `true` |
+| `LimitGB` | Memory for loaded data | a quarter of the computer's memory, among 1 to 64 GB (4 when unknown) |
+| `Compute` | Keep data loaded by Compute | `true` |
+| `RawData` | Keep data loaded by Raw Data | `false` |
+| `Scripts` | Keep data loaded by scripts (forEach) | `true` |
+| `Here` | Compute here while the data fit (not on workers) | `true` |
+
+A field it has not, or a value that is not true or false (`LimitGB`: a
+number of GB above 0), raises `DatasetBrowser:BadValue`. The fields are the
+preference `Caching`.
+
+**Computed results** are the per-dataset parts of [the cache](#the-cache-and-the-result-file):
+`Results`, `Earlier` and `SaveResults` say whether they are reused, whether
+those of earlier settings are kept beside the last ones, and whether they go
+into the result file.
+
+### Loaded data
+
+What a run reads from disk for a dataset (the spikes file, the sorting, the
+signal files, with the signals' resampled and filtered columns) stays in
+memory in `B.LoadedData`, a [`DatasetCache`](../analysis/DatasetCache.m) that
+holds each dataset's `DatasetOutputs` cache. The next run on that dataset reads
+nothing from disk, so a **Compute** with another event, window, trial
+selection (Hit, then Miss), bin, measure or channel pick works on the data in
+memory. The parts are still computed again (their settings changed); only the
+reading is saved, which over a network share or a USB disk is most of the
+time.
+
+- **Which data.** `Spikes` keeps the spike data (the spikes file, the
+  sorting), `Signals` the signals (and a whole extract file). Turning one off
+  drops those data from memory at once.
+- **How much.** Beyond `LimitGB` the datasets used least recently are freed; a
+  dataset larger than the limit is not kept. Sizes are those `whos` counts.
+  A lower limit frees datasets at once.
+- **Which runs keep what they read.** `Compute`, `RawData` (**Raw Data** and
+  **Trials Only**), `Scripts` (`forEach`). A run that does not keep still uses
+  the data held, and a dataset held stays held (with what that run read).
+- **Workers.** What a worker reads stays on the worker. A dataset held here
+  is computed here by **Compute** and **Raw Data**; with `Here` they read the
+  others here too until `LimitGB` is reached ([Workers](#workers)).
+- **Scan, root, close.** A new **Scan** keeps the data of each dataset whose
+  data files did not change (a tag or variable edit, which rewrites only the
+  manifest, keeps them; the manifest is read again), and the loaded sources of
+  those whose files are all the same. Another root, **Cache > Clear loaded
+  data** (`B.clearLoadedData()`) and closing the window free them.
+
+`B.LoadedData.summary()` says what is held ("1.2 GB in 12 datasets"; also in
+the menu and in **Help > About**), `B.LoadedData.Keys` which datasets.
 
 ## `forEach`
 
@@ -1287,6 +1397,7 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `Scripts`, `Script` | the [post-processing scripts](#the-post-processing-script) listed and the one picked (the scripts of `analysis/browser_scripts`, always, then those added with **+**) |
 | `ScriptAfterCompute` | **Run it after each Compute or Load** |
 | `ScriptFolder` | the folder of the last script added (where **+** opens) |
+| `Caching` | the **Cache** menu: what is kept between runs ([Caching](#caching)) |
 
 ## Errors and warnings
 
@@ -1296,7 +1407,7 @@ Saved on close under the `AppPrefs` group `DatasetBrowser`:
 | `DatasetBrowser:NotScanned` | a method needs the scan's datasets and there are none |
 | `DatasetBrowser:NoneTicked` | `compute` or `loadSessions` with no dataset ticked |
 | `DatasetBrowser:UnknownDataset` | a key, name or index that is no scanned dataset |
-| `DatasetBrowser:BadValue` | a form control that does not exist, or a typed number or range (`1:4`) that does not parse |
+| `DatasetBrowser:BadValue` | a form control that does not exist, a typed number or range (`1:4`) that does not parse, or a `Caching` field it has not or a value that does not fit |
 | `DatasetBrowser:BadFilter` | a filter option that does not fit |
 | `DatasetBrowser:NoFile` | a settings file was asked for and none was passed |
 | `DatasetBrowser:NoDefinition` | `useDefinition` or `removeDefinition` with a name that is no definition |
@@ -1341,6 +1452,7 @@ out).
 | one row of a result trial by trial; its window | [`epochMatrixRaster.m`](../analysis/epochMatrixRaster.m), [`TrialRaster.m`](../analysis/TrialRaster.m) |
 | the **Epochs per group** window (also the analysis app's Alignment tab bars) | [`EpochGroupCounts.m`](../analysis/EpochGroupCounts.m) |
 | the per-dataset cache and run engine | [`DatasetRuns.m`](../analysis/DatasetRuns.m) |
+| the loaded data kept in memory between runs (**Cache** menu) | [`DatasetCache.m`](../analysis/DatasetCache.m); a dataset's own cache of them in [`DatasetOutputs.m`](../pipeline/@DatasetOutputs/DatasetOutputs.m) |
 | the stamp of a dataset's output files (names, sizes, times) | [`outputsStamp.m`](../analysis/outputsStamp.m) |
 | the subject, tag and text filter (also the analysis app's Data tab) | [`datasetFilter.m`](../pipeline/datasetFilter.m) |
 | the tag window and the tag rules; writing a manifest's tags | [`TagDialog.m`](../pipeline/TagDialog.m), [`TagSet.m`](../pipeline/TagSet.m); [`writeManifestTags.m`](../pipeline/writeManifestTags.m) |
@@ -1353,7 +1465,8 @@ out).
 | Suite | Covers |
 | --- | --- |
 | [`test_DatasetFilter.m`](../pipeline/test_DatasetFilter.m) | `datasetFilter`: subjects, wildcards and literal regex characters, tags, search, the combinations |
-| [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct |
+| [`test_DatasetRuns.m`](../analysis/test_DatasetRuns.m) | `DatasetRuns`: reuse, identity, skipped and failed datasets, cancel, `forget`, the saved struct, the results of earlier ids (`MaxIds`), `LocalFcn` |
+| [`test_DatasetOutputs.m`](../pipeline/test_DatasetOutputs.m) | among the rest, what `CacheData` keeps: by kind (`cacheBytes`, `clearCache(KINDS)`), taken by a new object (`adoptCache`), detached and put back |
 | [`test_EpochMatrix.m`](../analysis/test_EpochMatrix.m) | `epochMatrixSettings` and `epochMatrix`: the parts against the per-dataset calls, assembly, groups, the result fields, the labels, the normalization (`epochMatrixNormalize`), `signal.downsample` (its checks and cache identity, a downsampled LFP against `resampleSignal` and `evokedPotential` by hand, `sessionData` at the new rate) |
 | [`test_MTRFExport.m`](../pipeline/test_MTRFExport.m) | `resampleSignal` under `mTRFExport.resample`: the rate reached, t = 0 kept, single kept, the passband and an alias removed |
-| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, `noteInManifest` (the `custom.browser_<tool>` field written, replaced and left off other datasets, a bad key warning), tags (`setTags`: Add, Remove and Set written to the manifests with nothing else changed, the table and the tag filter following, the refusals writing nothing, a loaded source's tags and `R.rows`; the tag window from a Tags cell, the selected rows and the ticked ones, OK, Cancel and closing the browser), variables (`setVariables` written with nothing else changed, an unchanged value not written, a loaded source and `R.rows`' `var_` column following; the window from a Variables cell and the selected rows, closing the browser), **Downsample...** (`DownsampleDialog`: the rates on file, a bad rate refused, OK, Cancel, **Rates on file**; the rates reaching **Compute** and **Raw Data**, a new MUA rate keeping the LFP parts), the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it) |
+| [`test_DatasetBrowser.m`](../analysis/test_DatasetBrowser.m) | the browser, headless and with its window: scan, filter, ticks, the form, compute, `forEach`, progress and cancel, the result file, the trial rasters (`raster`, `epochMatrixRaster`, the window), the exported script (`exportScript`), the whole sessions (`loadSessions`, `sessionData`), the Channels tab (`ProbePicker`: clicks and fields yoked), the event & trial definitions, `noteInManifest` (the `custom.browser_<tool>` field written, replaced and left off other datasets, a bad key warning), tags (`setTags`: Add, Remove and Set written to the manifests with nothing else changed, the table and the tag filter following, the refusals writing nothing, a loaded source's tags and `R.rows`; the tag window from a Tags cell, the selected rows and the ticked ones, OK, Cancel and closing the browser), variables (`setVariables` written with nothing else changed, an unchanged value not written, a loaded source and `R.rows`' `var_` column following; the window from a Variables cell and the selected rows, closing the browser), **Downsample...** (`DownsampleDialog`: the rates on file, a bad rate refused, OK, Cancel, **Rates on file**; the rates reaching **Compute** and **Raw Data**, a new MUA rate keeping the LFP parts), the **Epochs per group** window (`EpochGroupCounts`: its groups, epochs and trials against `epochTable`, the excluded epochs, a settings edit and a row click redraw it), the **Cache** menu (`Caching`, `DatasetCache`: another window and trial order computed from memory with the spikes files away, earlier settings' results reused, each menu item's effect, a new scan keeping the loaded data, the preference, closing freeing the data) |

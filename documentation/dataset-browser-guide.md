@@ -25,6 +25,9 @@ has the details of every control.
   over each group of trials.
 - **Remembers** each recording's part, so ticking one more recording computes
   only that one, and the result is there again the next time you open it.
+- **Keeps the recordings it read in memory**, so trying hits, then misses,
+  or another time window, does not read the files again: only the first
+  **Compute** waits for the disk.
 - **Hands the result to a script** of yours, or to one of the scripts that
   come with it: a summary plot, FieldTrip, Chronux, neuroGLM, the mTRF
   toolbox, or a current source density estimate.
@@ -73,6 +76,8 @@ ticks, settings and result.
     With no box ticked, every unit counts.
 - **Bottom:** **Compute**, **Details...**, the post-processing script, and a
   progress bar with **Cancel**.
+- **Cache** menu: what the browser keeps between computes (see
+  [Faster changes: the Cache menu](#faster-changes-the-cache-menu)).
 - **Help → Keyboard shortcuts and right-click menus** lists the keys and what
   the right-click menu of the table does.
 
@@ -136,6 +141,38 @@ value, and **OK**. Only the latest value is kept; the manifest viewer
 row of a result carries its recording's values, one column each
 (`var_probeDepth`), so a script can sort or split the result by them.
 
+## Faster changes: the Cache menu
+
+The first **Compute** reads each recording from disk, which is the slow part
+on a network drive. After that, the browser keeps what it read in memory: a
+new event, time window, trial choice (Hit, then Miss), grouping or bin size is
+computed without reading the files again. Settings you computed before come
+back at once, with nothing computed at all.
+
+Everything is on when you start; turn things off in the **Cache** menu when
+you need to:
+
+- **Reuse computed results**: off makes every **Compute** start from scratch.
+- **Keep results of earlier settings**: going back to settings you used
+  before (up to 5) is instant.
+- **Save computed results in the result file**: off keeps the result file
+  small; the browser then computes again after a restart.
+- **Keep loaded spike data in memory** and **Keep loaded signals in memory**:
+  which data stay. Signals are large; turn them off if memory runs short.
+- **Memory for loaded data**: the most memory they may take. When it is full,
+  the recordings you used least recently are let go.
+- **Keep data loaded by Compute**, **by Raw Data** and **by scripts**: which
+  buttons keep what they read. **Raw Data** is off at first, because its
+  data are kept in `B.Sessions` already.
+- **Compute here while the data fit**: with **Workers** set, reads the
+  recordings in this MATLAB, so they stay in memory for the next **Compute**.
+- **Clear loaded data** gives the memory back now. Closing the window does too.
+- **Forget all computed results** makes the next **Compute** start from
+  scratch.
+
+The grayed line in the menu shows how much memory the loaded data take now.
+**Scan** keeps them for the recordings whose files did not change.
+
 ## Common tasks
 
 | ...do this | Do this |
@@ -147,8 +184,9 @@ row of a result carries its recording's values, one column each
 | use less memory, or work at a lower rate (an LFP at 250 Hz, say) | **Downsample...** beside **Data**: type a rate for each signal (blank keeps the rate on file), **OK**. The signal is filtered first, so nothing aliases. The window shows the band that passes unchanged (up to 0.38 × the new rate) |
 | hand the data to FieldTrip, Chronux, neuroGLM, the mTRF toolbox or a CSD estimate | pick that script in the **Post-processing script** list and **Run now** |
 | run the same computation without the window | **File → Export compute script...** |
-| compute faster | set **Workers** to compute several recordings at once (needs the Parallel Computing Toolbox and memory for one recording per worker) |
-| start a recording again from scratch | right-click the table: **Forget cached (ticked)** |
+| compute faster | set **Workers** to compute several recordings at once (needs the Parallel Computing Toolbox and memory for one recording per worker); after the first **Compute**, the [Cache menu](#faster-changes-the-cache-menu) keeps the recordings in memory |
+| free memory | **Cache → Clear loaded data**, or a smaller **Cache → Memory for loaded data** |
+| start a recording again from scratch | right-click the table: **Forget cached (ticked)** (all recordings: **Cache → Forget all computed results**) |
 | tag the recordings you picked (`cohort-3`) | tick them, right-click the table: **Edit tags (ticked)...**, type the tag, **Add to all**, **OK** |
 | see how a recording was processed (its manifest) | click its row, then right-click the table: **Open manifest viewer** (or **File → Open manifest viewer**) |
 
@@ -167,6 +205,8 @@ row of a result carries its recording's values, one column each
   status line at the bottom says why.
 - **A script fails.** The status line names the script and the line; the
   result is kept, so fix the script and press **Run now** again.
+- **MATLAB runs out of memory.** Turn off **Cache → Keep loaded signals in
+  memory**, or pick a smaller **Cache → Memory for loaded data**.
 - More: [Errors and warnings](DatasetBrowser.md#errors-and-warnings).
 
 <!-- wiki: ![The Details window after a Compute: a row per recording and kind of data, with its status](images/dataset-browser-details.png) -->

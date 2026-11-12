@@ -10,6 +10,22 @@ says how to cut a release.
 
 ### Added
 
+- Dataset browser: a **Cache** menu, and the data a run reads stay in memory. What **Compute** reads for a dataset
+  (the spikes file, the sorting, the signals) is kept between runs, so another event, window, trial selection (Hit,
+  then Miss), bin or measure reads no file again; the results of each dataset's last 5 settings are kept too, so
+  going back to earlier settings computes nothing. The menu turns each part on or off: **Reuse computed results**,
+  **Keep results of earlier settings**, **Save computed results in the result file**, **Keep loaded spike data /
+  signals in memory**, **Memory for loaded data** (1 to 64 GB; default a quarter of the RAM; the datasets used least
+  recently go first), which runs keep what they read (**Compute**, **Raw Data**, scripts' `forEach`), **Compute here
+  while the data fit (not on workers)**, **Clear loaded data** and **Forget all computed results**; scripts set the
+  same with `B.Caching` (preference `Caching`) and `B.clearLoadedData()`. A new **Scan** keeps the loaded data of
+  the datasets whose data files did not change (a tag edit keeps them); another root and closing the window free
+  them. New `DatasetCache` (the loaded data, `B.LoadedData`); `DatasetRuns` gains `MaxIds` (the ids kept per
+  dataset), `LocalFcn` (datasets computed here with `Workers`) and an id argument to `value` and `message`;
+  `epochMatrix` gains `ReleaseFcn` and `LocalFcn`; `DatasetOutputs` gains `cacheBytes`, `clearCache(KINDS)`,
+  `adoptCache` and `remember`. With unit-quality limits on, `selectUnits` keeps the units with their quality
+  metrics in the dataset's cache too, so they are not read and measured again. A dataset sent to a worker no longer
+  drops the data held for it here.
 - Dataset variables in figure labels. A figure's title, a panel's title, X and Y axis labels and text note, and a
   layer's name may name a dataset variable in braces, `"Depth {probeDepth} µm"`, which prints the value recorded on
   the figure's dataset (*Depth 1200 µm*; a figure across sessions, the merged sessions' values, *1200, 1400*). A

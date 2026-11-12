@@ -1,4 +1,4 @@
-"""Write the analysis app's button and section icons as SVG files.
+"""Write the button and section icons of the analysis app and the dataset browser as SVG files.
 
     python tools/makeButtonIcons.py
 
@@ -13,8 +13,7 @@ twice:
                                              (primary, confirm, danger) and the
                                              dark supersection headers
 
-The app reads them with buttonIcon(<name>) (analysis/@EphysFigGenApp/private);
-styleButton swaps a button's icon to its light/ twin when the button is colored
+The apps read them with buttonIcon(<name>) (analysis/buttonIcon.m); styleButton swaps a button's icon to its light/ twin when the button is colored
 and back when it is not. Edit an icon here, never the SVG files, and run this
 again. Files of names no longer listed are removed.
 """
@@ -53,6 +52,10 @@ ICONS = {
                 '<rect x="15" y="17" width="6" height="4" rx="1"/>',
     "link": '<path d="M10 13.5a4.5 4.5 0 0 0 6.4.4l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.6 1.6"/>'
             '<path d="M14 10.5a4.5 4.5 0 0 0-6.4-.4l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.6-1.6"/>',
+    "listAdd": '<path d="M3 6h14M3 11h10M3 16h7"/><path d="M18 13v8M14 17h8" stroke="{a}"/>',
+    "listRemove": '<path d="M3 6h14M3 11h10M3 16h7"/><path d="M14 17h8" stroke="{r}"/>',
+    "apply": '<path d="M4.5 12.5l5 5L20 7" stroke="{a}"/>',
+    "close": '<path d="M6 6l12 12M18 6L6 18"/>',
     # --- files and folders ---
     "browse": '<path d="M3 19V6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v2"/><path d="M3 19l3-8h15l-3 8z"/>',
     "folderAdd": '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'
@@ -82,8 +85,21 @@ ICONS = {
     "probe": '<path d="M9 2h6v13l-3 7-3-7z"/>'
              '<circle cx="12" cy="6" r="1" fill="{a}" stroke="{a}"/><circle cx="12" cy="9.5" r="1" fill="{a}" stroke="{a}"/>'
              '<circle cx="12" cy="13" r="1" fill="{a}" stroke="{a}"/>',
+    "rawTrace": '<path d="M2 12h2.5l1.5-5 2 10 2-8 1.5 5 1.5-3h1.5l1.5-6 2 11 1.5-6.5 1 2.5H22"/>',
+    "trialTable": '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9.5h18M3 15h18"/>'
+                  '<path d="M9 4v16" stroke="{a}"/>',
+    "barCounts": '<path d="M2 21h20"/>'
+                 '<rect x="4.5" y="12" width="4" height="9" rx="0.5" fill="{a}" stroke="{a}" stroke-width="1"/>'
+                 '<rect x="10" y="5" width="4" height="16" rx="0.5" fill="{a}" stroke="{a}" stroke-width="1"/>'
+                 '<rect x="15.5" y="9" width="4" height="12" rx="0.5" fill="{a}" stroke="{a}" stroke-width="1"/>',
+    "epochDiagram": '<rect x="5" y="5" width="14" height="12" fill="{a}" stroke="none" opacity="0.35"/>'
+                    '<path d="M5 5v12M19 5v12" stroke="{a}"/><path d="M2 17h20"/><path d="M10 3v17"/>',
     # --- checking and running ---
     "validate": '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5 5.5-6" stroke="{a}"/>',
+    "info": '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5" stroke="{a}"/>'
+            '<circle cx="12" cy="7.5" r="0.6" fill="{a}" stroke="{a}" stroke-width="1.6"/>',
+    "help": '<circle cx="12" cy="12" r="9"/><path d="M9.3 9.3a2.8 2.8 0 0 1 5.4 1c0 1.9-2.7 2.3-2.7 4.2" stroke="{a}"/>'
+            '<circle cx="12" cy="17.4" r="0.6" fill="{a}" stroke="{a}" stroke-width="1.6"/>',
     "plan": '<rect x="5" y="4" width="14" height="18" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/>'
             '<path d="M9 11h6M9 15h6M9 19h4"/>',
     "test": '<path d="M9 3h6M10 3v6l-5.4 9.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.4-2.5L14 9V3"/>'

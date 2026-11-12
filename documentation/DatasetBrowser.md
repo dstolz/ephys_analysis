@@ -1459,6 +1459,7 @@ out).
 | the sorted table | [`TableSort.m`](../pipeline/TableSort.m) |
 | the clickable probe of the Channels tab | [`ProbePicker.m`](../analysis/ProbePicker.m) |
 | the time left | [`ProgressClock.m`](../pipeline/ProgressClock.m) |
+| the buttons' icons (drawn by [`makeButtonIcons.py`](../tools/makeButtonIcons.py), shared with the analysis app); their look | [`buttonIcon.m`](../analysis/buttonIcon.m); [`styleButton.m`](../pipeline/styleButton.m) |
 
 ## Tests
 

@@ -191,7 +191,7 @@ classdef AlignControls
             if ~isempty(opts.EditSequence)
                 C.StopSeqEdit.ButtonPushedFcn = @(~,~) opts.EditSequence(C.StopSeqText, C.StopLine, C.StopEdge, @() changed("window"));
             end
-            C.Diagram = uibutton(wg, "Text", "Epoch Diagram");   % the caller sets its ButtonPushedFcn and tooltip
+            C.Diagram = uibutton(wg, "Text", "Epoch Diagram", "Icon", buttonIcon("epochDiagram"));   % the caller sets its ButtonPushedFcn and tooltip
             C.Diagram.Layout.Row = 9; C.Diagram.Layout.Column = [1 4];
             if opts.FixedWindow
                 % fixed, no stop event: only Pre / Post and the diagram show
@@ -217,7 +217,8 @@ classdef AlignControls
             fg.ColumnWidth = {'1x', 28};
             fg.Padding = [0 0 0 0];
             C.Filter = uieditfield(fg, "text", "Placeholder", "e.g. Depth > 0 & RespLatency < 500   or   Hit | Miss", "ValueChangedFcn", cbSel);
-            C.FilterHelp = uibutton(fg, "Text", "?", "Tooltip", "The trial columns, response words and functions a filter can use.");
+            C.FilterHelp = uibutton(fg, "Text", "", "Icon", buttonIcon("help"), ...
+                "Tooltip", "Help: the trial columns, response words and functions a filter can use.");
             if ~isempty(opts.FilterHelp)
                 C.FilterHelp.ButtonPushedFcn = @(~,~) opts.FilterHelp();
             end
@@ -518,11 +519,11 @@ classdef AlignControls
             bg.Layout.Row = 3;
             bg.ColumnWidth = {'fit', 'fit', 'fit', 'fit', '1x', 'fit', 260};
             bg.Padding = [0 0 0 0];
-            D.AddStep = uibutton(bg, "Text", "Add step", "ButtonPushedFcn", @(~,~) onAddStep(), ...
+            D.AddStep = uibutton(bg, "Text", "Add step", "Icon", buttonIcon("add"), "ButtonPushedFcn", @(~,~) onAddStep(), ...
                 "Tooltip", "A step after the last: the next event that must (or must not) come.");
-            D.RemoveStep = uibutton(bg, "Text", "Remove step", "ButtonPushedFcn", @(~,~) onMove(0));
-            D.Up = uibutton(bg, "Text", "Up", "ButtonPushedFcn", @(~,~) onMove(-1));
-            D.Down = uibutton(bg, "Text", "Down", "ButtonPushedFcn", @(~,~) onMove(1));
+            D.RemoveStep = uibutton(bg, "Text", "Remove step", "Icon", buttonIcon("remove"), "ButtonPushedFcn", @(~,~) onMove(0));
+            D.Up = uibutton(bg, "Text", "Up", "Icon", buttonIcon("up"), "ButtonPushedFcn", @(~,~) onMove(-1));
+            D.Down = uibutton(bg, "Text", "Down", "Icon", buttonIcon("down"), "ButtonPushedFcn", @(~,~) onMove(1));
             uilabel(bg, "Text", "");
             uilabel(bg, "Text", "Align to:", "FontWeight", "bold");
             D.Align = uidropdown(bg, "Items", "the last step", "ItemsData", Inf, ...
@@ -541,8 +542,8 @@ classdef AlignControls
             ag.ColumnWidth = {'1x', 120, 120};
             ag.Padding = [0 0 0 0];
             uilabel(ag, "Text", "");
-            D.Apply = uibutton(ag, "Text", "Apply", "ButtonPushedFcn", @(~,~) onApply());
-            D.Cancel = uibutton(ag, "Text", "Cancel", "ButtonPushedFcn", @(~,~) delete(f));
+            D.Apply = uibutton(ag, "Text", "Apply", "Icon", buttonIcon("apply"), "ButtonPushedFcn", @(~,~) onApply());
+            D.Cancel = uibutton(ag, "Text", "Cancel", "Icon", buttonIcon("close"), "ButtonPushedFcn", @(~,~) delete(f));
             styleButton(findall(f, "Type", "uibutton"));
             styleButton(D.Apply, "confirm");
             f.UserData = D;
@@ -661,11 +662,11 @@ function [txt, btn] = sequenceRow(grid, row, tip)
 %sequenceRow  A sequence's summary (setSequenceHolder) and its Edit button, in ROW of GRID.
 sg = uigridlayout(grid, [1 2]);
 sg.Layout.Row = row; sg.Layout.Column = [2 4];
-sg.ColumnWidth = {'1x', 70};
+sg.ColumnWidth = {'1x', 84};
 sg.Padding = [0 0 0 0];
 txt = uilabel(sg, "Text", "none");
 AlignControls.setSequenceHolder(txt, struct('sequence', repmat(EphysAnalysisConfig.defaults("SequenceStep"), 1, 0), 'alignStep', Inf));
-btn = uibutton(sg, "Text", "Edit...", "Tooltip", tip);
+btn = uibutton(sg, "Text", "Edit...", "Icon", buttonIcon("edit"), "Tooltip", tip);
 end
 
 

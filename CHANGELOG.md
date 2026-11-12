@@ -35,6 +35,14 @@ says how to cut a release.
   `styleButton` swaps a button's icon to its white twin while the button is colored, and gains the role
   `"attention"` (orange, dark text: the analysis app's **Preview** while the figure is out of date).
 
+- Dataset browser: button icons, in the analysis app's style. **Browse...**, **Scan**, **Tick shown only**,
+  **Untick all**, **Downsample...**, **Epochs per group**, the Channels tab's **All**, **Compute** (a sum sign),
+  **Raw Data** (a trace), **Trials Only** (a table), **Details...**, the script's **Edit** and **Run now**, and
+  **Cancel** show an icon left of their name. The definitions' and the scripts' **+** and **−** are a list with a
+  blue plus or a red minus. The Event tab's **Epoch Diagram**, sequence **Edit...** and the filter's **?** (now a
+  circled question mark), and the sequence editor's buttons, have icons in both apps (`AlignControls`).
+  `buttonIcon` moves from the analysis app's `private/` to `analysis/buttonIcon.m` so every window can use it.
+
 - Dataset variables in figure labels. A figure's title, a panel's title, X and Y axis labels and text note, and a
   layer's name may name a dataset variable in braces, `"Depth {probeDepth} µm"`, which prints the value recorded on
   the figure's dataset (*Depth 1200 µm*; a figure across sessions, the merged sessions' values, *1200, 1400*). A

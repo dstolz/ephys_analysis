@@ -134,6 +134,27 @@ classdef test_DatasetBrowser < matlab.unittest.TestCase
                 && contains(txt, "Cache (DatasetRuns): v" + DatasetRuns.Version) && contains(txt, "Root: " + B.Root), txt);
         end
 
+        function buttonIcons(tc)
+            % every button shows an icon of analysis/icons/buttons (tools/makeButtonIcons.py), white on the colored ones
+            B = tc.open(Scan=false);
+            c = B.Ctl;
+            A = c.Align;
+            btn = [c.Browse c.Scan c.TickShown c.UntickAll c.Downsample c.GroupCounts c.ProbeAll c.DefAdd c.DefRemove ...
+                c.Compute c.LoadSessions c.LoadTrials c.Details c.ScriptAdd c.ScriptRemove c.ScriptEdit c.ScriptRun c.Cancel ...
+                A.Diagram A.SeqEdit A.FilterHelp];
+            inRoot = fullfile("icons", "buttons");
+            icons = arrayfun(@(b) string(b.Icon), btn);
+            tc.verifyTrue(all(contains(icons, inRoot)) && all(isfile(icons)), ...
+                "Every button shows an icon file of analysis/icons/buttons: " + strjoin(icons, ", "));
+            colored = arrayfun(@(b) isequal(b.FontColor, [1 1 1]), btn);
+            tc.verifyEqual(contains(icons, fullfile(inRoot, "light")), colored, ...
+                'A colored button (Scan, Compute, Raw Data, Trials Only, Cancel) shows the white twin of its icon, the others the dark one.');
+            tc.verifyTrue(all(arrayfun(@(b) string(b.Text) == "", [c.DefAdd c.DefRemove c.ScriptAdd c.ScriptRemove A.FilterHelp])) ...
+                && all(startsWith(string({c.DefAdd.Tooltip c.DefRemove.Tooltip c.ScriptAdd.Tooltip c.ScriptRemove.Tooltip ...
+                A.FilterHelp.Tooltip}), ["Add" "Remove" "Add..." "Remove" "Help"])), ...
+                'The list buttons and the filter help show their icon alone, named first in their tooltips.');
+        end
+
         function scanLoadsNoSource(tc)
             B = tc.open();
             tc.verifyNotEmpty(B.Runner);

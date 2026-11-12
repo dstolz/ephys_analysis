@@ -556,6 +556,48 @@ if S.sec("1b", "Toolbar: the most used commands")
         'before a run: Validate, Plan and Run are on; Cancel, the report and the figure folder off');
 end
 
+if S.sec("1b.icons", "Button icons: the main buttons and the editor's section headers show icons, white on the colored buttons")
+    iconRoot = fullfile(here, 'icons', 'buttons');
+    inRoot = fullfile('icons', 'buttons');
+    btn = findall(app.Fig, 'Type', 'uibutton', '-or', 'Type', 'uistatebutton');
+    paths = strings(size(btn));
+    for i = 1:numel(btn)
+        if ischar(btn(i).Icon) || isstring(btn(i).Icon); paths(i) = string(btn(i).Icon); end
+    end
+    mine = contains(paths, inRoot);
+    E = app.FigureEditor;
+    must = {app.ScanButton app.BrowseRootButton app.DownsampleButton app.SignalFilterButton app.ValidateButton app.PlanButton ...
+        app.RunButton app.CancelButton app.OpenReportButton app.OpenFolderButton app.RunStrip.Cancel app.AddFigureButton ...
+        app.RemoveFigureButton app.DuplicateFigureButton app.UpFigureButton app.DownFigureButton app.CopyFigureButton ...
+        app.FigurePreviewButton app.FigureRedrawAllButton app.FigureExportPreviewButton app.FigureCodeButton app.FigureOpenButton ...
+        app.FigureArrangeButton app.FigureTemplateApplyButton app.FigureTemplateRemoveButton E.newPanel E.setCorners E.removePanel ...
+        E.addLayer E.removeLayer E.filterEdit E.ovAddLine E.ovRemove E.editAesthetics};
+    hasIcon = cellfun(@(b) contains(string(b.Icon), inRoot), must);
+    check(all(hasIcon) && nnz(mine) >= numel(must) && all(isfile(paths(mine))), ...
+        'the main buttons of every tab show an icon of analysis/icons/buttons, each a file');
+    light = contains(paths, fullfile(inRoot, 'light'));
+    colored = arrayfun(@(b) isequal(b.FontColor, [1 1 1]), btn);
+    check(isequal(light(mine), colored(mine)), ...
+        'a colored button (primary, confirm, danger) shows the white twin of its icon, every other button the dark one');
+    Sx = app.FigureSections([app.FigureSections.Title] ~= "");
+    secIcons = arrayfun(@(s) string(s.Toggle.Icon), Sx);
+    check(all(isfile(secIcons)) && numel(unique(secIcons)) == numel(Sx) && ~any(contains(secIcons, fullfile(inRoot, 'light'))), ...
+        'every section of the figure editor has an icon of its own in its pale header');
+    b = app.FigureOpenButton;
+    was = string(b.Icon);
+    styleButton(b, "danger");
+    toLight = endsWith(string(b.Icon), fullfile('light', 'openWindow.svg'));
+    styleButton(b, "attention");
+    back = string(b.Icon) == was;
+    styleButton(b);
+    check(toLight && back && string(b.Icon) == was, ...
+        'styleButton swaps a button''s icon for its white twin while the button is colored, and back after');
+    dark = dir(fullfile(iconRoot, '*.svg'));
+    lite = dir(fullfile(iconRoot, 'light', '*.svg'));
+    check(~isempty(dark) && isequal(sort(string({dark.name})), sort(string({lite.name}))), ...
+        'every button icon has its white twin (tools/makeButtonIcons.py writes both)');
+end
+
 if S.sec("1c", "Help menu: GitHub issue and feature request")
     items = flip(string({app.HelpMenu.Children.Text}));
     check(isequal(items(end-4:end), ["Report an issue on GitHub..." "Request a feature on GitHub..." "Report a figure template issue..." ...

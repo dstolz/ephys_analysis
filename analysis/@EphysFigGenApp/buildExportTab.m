@@ -25,7 +25,7 @@ left.Padding = [0 0 0 0];
 xp = uipanel(left, "Title", "Figure files");
 xg = uigridlayout(xp, [7 4]);
 xg.RowHeight = repmat({22}, 1, 7);
-xg.ColumnWidth = {150, '1x', '1x', 70};
+xg.ColumnWidth = {150, '1x', '1x', 104};
 xg.RowSpacing = 4;
 X = struct();
 X.Enabled = uicheckbox(xg, "Text", "Write figure files", "FontWeight", "bold", "ValueChangedFcn", changed);
@@ -39,7 +39,7 @@ lab(xg, "Folder:", 3, 1);
 X.Folder = uieditfield(xg, "text", "ValueChangedFcn", changed, ...
     "Tooltip", "Tokens: {OutputFolder} (each dataset's output folder), {OutputRoot}, {Root}, {Name}, {Date}.");
 place(X.Folder, 3, [2 3]);
-X.Browse = uibutton(xg, "Text", "Browse...", "ButtonPushedFcn", @(~,~) browse(obj, X.Folder));
+X.Browse = uibutton(xg, "Text", "Browse...", "Icon", buttonIcon("browse"), "ButtonPushedFcn", @(~,~) browse(obj, X.Folder));
 place(X.Browse, 3, 4);
 lab(xg, "File names:", 4, 1);
 X.FilenamePattern = uieditfield(xg, "text", "ValueChangedFcn", changed, ...
@@ -68,7 +68,7 @@ obj.ExportControls = X;
 rp = uipanel(left, "Title", "Report");
 rg = uigridlayout(rp, [8 4]);
 rg.RowHeight = repmat({22}, 1, 8);
-rg.ColumnWidth = {150, '1x', '1x', 70};
+rg.ColumnWidth = {150, '1x', '1x', 104};
 rg.RowSpacing = 4;
 P = struct();
 P.Enabled = uicheckbox(rg, "Text", "Write a report", "FontWeight", "bold", "ValueChangedFcn", changed);
@@ -82,7 +82,7 @@ place(P.Title, 2, [2 4]);
 lab(rg, "Folder:", 3, 1);
 P.Folder = uieditfield(rg, "text", "ValueChangedFcn", changed, "Tooltip", "Tokens as for the figure folder.");
 place(P.Folder, 3, [2 3]);
-P.Browse = uibutton(rg, "Text", "Browse...", "ButtonPushedFcn", @(~,~) browse(obj, P.Folder));
+P.Browse = uibutton(rg, "Text", "Browse...", "Icon", buttonIcon("browse"), "ButtonPushedFcn", @(~,~) browse(obj, P.Folder));
 place(P.Browse, 3, 4);
 lab(rg, "File name:", 4, 1);
 P.FileName = uieditfield(rg, "text", "ValueChangedFcn", changed);
@@ -128,16 +128,16 @@ obj.ReportControls = P;
 % --- run ------------------------------------------------------------------------
 right = uigridlayout(g, [6 6]);
 right.RowHeight = {30, '1x', 20, 22, '1x', 30};
-right.ColumnWidth = {90, 90, 120, 90, 90, '1x'};
+right.ColumnWidth = {112, 90, 136, 90, 104, '1x'};
 right.Padding = [0 0 0 0];
-obj.ValidateButton = uibutton(right, "Text", "Validate", "ButtonPushedFcn", @(~,~) obj.onValidate());
+obj.ValidateButton = uibutton(right, "Text", "Validate", "Icon", buttonIcon("validate"), "ButtonPushedFcn", @(~,~) obj.onValidate());
 place(obj.ValidateButton, 1, 1);
-obj.PlanButton = uibutton(right, "Text", "Plan", "Tooltip", "Which figure runs on which ticked dataset (and each session figure across them), and why one is skipped.", ...
+obj.PlanButton = uibutton(right, "Text", "Plan", "Icon", buttonIcon("plan"), "Tooltip", "Which figure runs on which ticked dataset (and each session figure across them), and why one is skipped.", ...
     "ButtonPushedFcn", @(~,~) obj.onPlan());
 place(obj.PlanButton, 1, 2);
 cmdKey = "Ctrl";
 if ismac; cmdKey = "Cmd"; end
-obj.TestReportButton = uibutton(right, "Text", "Test report", "Enable", "off", ...
+obj.TestReportButton = uibutton(right, "Text", "Test report", "Icon", buttonIcon("test"), "Enable", "off", ...
     "Tooltip", "A spot check: every enabled figure (and the one selected on the Figures tab) on the active dataset, " + ...
     "drawn for the unit or channel picked over the Figures tab's preview only, as an HTML report in a temporary " + ...
     "folder that opens in the browser, in the report's Order. A figure of channels or detections draws what is on " + ...
@@ -145,12 +145,12 @@ obj.TestReportButton = uibutton(right, "Text", "Test report", "Enable", "off", .
     "as are the figures across sessions. No figure files; the output folder is not touched. (" + cmdKey + "+U on the Figures tab)", ...
     "ButtonPushedFcn", @(~,~) obj.onTestReport());
 place(obj.TestReportButton, 1, 3);
-obj.RunButton = uibutton(right, "Text", "Run", ...
+obj.RunButton = uibutton(right, "Text", "Run", "Icon", buttonIcon("run"), ...
     "Tooltip", "Every enabled figure on every ticked dataset, then every enabled session figure across them: " + ...
     "figure files and report. A figure is drawn once per observation (File > Generate selected figure draws one " + ...
     "figure alone).", "ButtonPushedFcn", @(~,~) obj.onRunExport());
 place(obj.RunButton, 1, 4);
-obj.CancelButton = uibutton(right, "Text", "Cancel", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onCancelRun());
+obj.CancelButton = uibutton(right, "Text", "Cancel", "Icon", buttonIcon("stop"), "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onCancelRun());
 place(obj.CancelButton, 1, 5);
 wg = uigridlayout(right, [1 3], "Padding", [8 0 0 0], "ColumnWidth", {'fit', 60, '1x'}, "ColumnSpacing", 4);
 place(wg, 1, 6);
@@ -174,8 +174,8 @@ obj.ResultsTable = uitable(right, "RowName", {}, "ColumnWidth", 'auto', "ColumnS
 place(obj.ResultsTable, 5, [1 6]);
 og = uigridlayout(right, [1 3], "Padding", [0 0 0 0], "ColumnWidth", {'fit', 'fit', '1x'});
 place(og, 6, [1 6]);
-obj.OpenReportButton = uibutton(og, "Text", "Open report", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenReport());
-obj.OpenFolderButton = uibutton(og, "Text", "Open figure folder", "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenExportFolder(), ...
+obj.OpenReportButton = uibutton(og, "Text", "Open report", "Icon", buttonIcon("report"), "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenReport());
+obj.OpenFolderButton = uibutton(og, "Text", "Open figure folder", "Icon", buttonIcon("figureFolder"), "Enable", "off", "ButtonPushedFcn", @(~,~) obj.onOpenExportFolder(), ...
     "Tooltip", "The first dataset's figure folder of the last run. The session figures' files go to the sessions folder (Export.SessionsFolder).");
 end
 

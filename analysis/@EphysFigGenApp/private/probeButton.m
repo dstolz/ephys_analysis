@@ -17,7 +17,7 @@ parent = field.Parent;
 heights = parent.RowHeight;    % a new child may grow the grid: put it back
 widths = parent.ColumnWidth;
 at = field.Layout;
-g = uigridlayout(parent, [1 2], "ColumnWidth", {'1x', 64}, "RowHeight", {'1x'}, "Padding", [0 0 0 0], "ColumnSpacing", 4);
+g = uigridlayout(parent, [1 2], "ColumnWidth", {'1x', 86}, "RowHeight", {'1x'}, "Padding", [0 0 0 0], "ColumnSpacing", 4);
 g.Layout.Row = at.Row;
 g.Layout.Column = at.Column;
 field.Parent = g;
@@ -25,7 +25,7 @@ field.Layout.Row = 1;
 field.Layout.Column = 1;
 parent.RowHeight = heights;
 parent.ColumnWidth = widths;
-b = uibutton(g, "Text", "Probe...", "Tag", "probePick", "UserData", field, "ButtonPushedFcn", @(~, ~) fcn(), ...
+b = uibutton(g, "Text", "Probe...", "Icon", buttonIcon("probe"), "Tag", "probePick", "UserData", field, "ButtonPushedFcn", @(~, ~) fcn(), ...
     "Tooltip", "Pick the channels by clicking the probe of the active dataset, as in the dataset browser's Channels " + ...
     "tab: a site picks or drops its channel, a shank picks or drops the shank. OK puts them in these rows.");
 b.Layout.Row = 1;

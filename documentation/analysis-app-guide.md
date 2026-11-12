@@ -60,6 +60,13 @@ pipeline's project). `EphysFigGenApp` alone opens your last config.
 
 **Help → Help for this tab** opens the page for the tab you are on.
 
+Buttons show an icon beside their name: a plus adds, a bin removes, a
+folder browses, an eye previews, a play arrow runs, a red square stops. The
+Figures tab's settings sections each have an icon in their header too. A
+few buttons in tight rows show the icon alone (the template buttons above
+the preview, and **Export preview** under it): point at one to see its name
+and what it does.
+
 ## Your first figure
 
 1. **Data.** The project is scanned when the app opens (if not, type the

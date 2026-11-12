@@ -131,7 +131,7 @@ function showRunBar(obj, on)
 %showRunBar  The progress bar and Cancel in the status bar: shown while a run goes (ON), hidden after.
 if on
     obj.RunStrip.Bar.ColumnWidth = {0, '1x'};
-    obj.RunStrip.Host.ColumnWidth = {'1x', 280, 90};
+    obj.RunStrip.Host.ColumnWidth = {'1x', 280, 104};
 else
     obj.RunStrip.Host.ColumnWidth = {'1x', 0, 0};
 end

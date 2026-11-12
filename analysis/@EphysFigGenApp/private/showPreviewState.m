@@ -50,7 +50,7 @@ B.Text.Text = word;
 B.Text.FontColor = c{2};
 set([B.Icon B.Text], "Tooltip", tip);
 if state == "stale"   % the Preview button asks for a press, in the badge's amber
-    set(P.Button, "BackgroundColor", [1.00 0.62 0.15], "FontColor", [0.10 0.10 0.10]);
+    styleButton(P.Button, "attention");   % (its icon dark on the amber)
 else
     styleButton(P.Button, "primary");
 end
@@ -91,7 +91,7 @@ g = uigridlayout(card, [1 3], "ColumnWidth", {48, '1x', 100}, "Padding", [14 8 1
 ui.Grid = g;
 ui.Icon = uiimage(g, "ScaleMethod", "fit");
 ui.Text = uilabel(g, "FontSize", 15, "FontWeight", "bold", "WordWrap", "on");
-ui.Cancel = uibutton(g, "Text", "Cancel", "Tooltip", "Stop computing this figure", "ButtonPushedFcn", @(~, ~) cancelFcn());
+ui.Cancel = uibutton(g, "Text", "Cancel", "Icon", buttonIcon("stop"), "Tooltip", "Stop computing this figure", "ButtonPushedFcn", @(~, ~) cancelFcn());
 styleButton(ui.Cancel, "danger");
 card.UserData = ui;
 panel.AutoResizeChildren = "off";   % else SizeChangedFcn does not run; the figure's own layout fills the panel anyway

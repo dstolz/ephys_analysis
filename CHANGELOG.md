@@ -10,6 +10,15 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app: button icons. The tabs' buttons show an icon left of their name (a plus adds, a bin removes, a
+  folder browses, an eye previews, a play arrow runs, a square stops, ...), white on the colored buttons, and each
+  section of the Figures tab's editor has an icon in its header. The template row's **Save as...**, **Update**,
+  **Remove**, **Import...** and **Export...**, and the **Export preview** under the preview, show the icon alone
+  (named in their tooltips), which gives the template list room. The icons are
+  `analysis/icons/buttons/<name>.svg`, a white twin of each in `light/`, all drawn by `tools/makeButtonIcons.py`.
+  `styleButton` swaps a button's icon to its white twin while the button is colored, and gains the role
+  `"attention"` (orange, dark text: the analysis app's **Preview** while the figure is out of date).
+
 - Dataset variables in figure labels. A figure's title, a panel's title, X and Y axis labels and text note, and a
   layer's name may name a dataset variable in braces, `"Depth {probeDepth} µm"`, which prints the value recorded on
   the figure's dataset (*Depth 1200 µm*; a figure across sessions, the merged sessions' values, *1200, 1400*). A

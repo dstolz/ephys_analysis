@@ -238,11 +238,22 @@ function U = withQuality(src, q)
 %   Without it, EphysDataset.unitQualityOf on the recording's length as
 %   SRC knows it (fs x durationSec), and no SNR. Both use the sort
 %   folder's quality_metrics.json when it is current. A dataset that holds
-%   only pipeline outputs (no recording) takes the second way.
+%   only pipeline outputs (no recording) takes the second way. With CacheData
+%   the units with their metrics are kept (DatasetOutputs.remember, kind
+%   "sorting"), so the next call reads nothing again.
+out = src.outputs;
+noise = isfinite(q.snrMin);
+id = strjoin(string(out.SortingDir), ",") + "|quality|noise=" + noise + "|n=" + sprintf('%.0f', src.fs * src.durationSec);
+U = out.remember("sorting", id, @() qualityUnits(src, noise));
+end
+
+
+function U = qualityUnits(src, noise)
+%qualityUnits  withQuality's units, read and measured (NOISE: the recording's noise, for the SNR).
 out = src.outputs;
 [U, info] = out.readUnits();
 if ~isempty(out.Dataset) && out.Dataset.hasRecording()
-    U = out.Dataset.unitQuality(U, info, Noise=isfinite(q.snrMin));
+    U = out.Dataset.unitQuality(U, info, Noise=noise);
     return
 end
 n = round(src.fs * src.durationSec);

@@ -4,7 +4,9 @@ function test_DatasetOutputs()
 %   combined extracts, spikes and behavior files, a phy results folder, a
 %   manifest, an NWB file's notes -- with plain save() calls, plus decoys that
 %   belong to other datasets, and checks discovery, pinning and on-demand
-%   loading, both for a folder alone and for an EphysDataset (a tiny
+%   loading (what CacheData keeps: its bytes by kind, clearCache of some
+%   kinds, adoptCache by a new object of the same files, detachCache and
+%   attachCache, remember), both for a folder alone and for an EphysDataset (a tiny
 %   universal-format recording, so no Intan files or toolboxes are needed).
 %   Then: two recordings with one name whose outputs share a folder (the
 %   recorded source folder decides, also after the project moved), a
@@ -158,8 +160,30 @@ check(any(o2.Foreign == string(fullfile(nwbDir, 'rec1_b.nwb'))) && ~any(o2.Candi
 
 o2.CacheData = true;
 a = o2.Spikes;
+lfp = o2.LFP;
+o3 = DatasetOutputs(out, SearchDirs=nwbDir, CacheData=true);   % a new scan of the same files
 delete(fullfile(out, 'rec1_spikes.mat'));
 check(isequal(o2.Spikes, a), 'CacheData serves the loaded data again');
+nAll = o2.cacheBytes();
+nSp = o2.cacheBytes("spikes");
+nLfp = o2.cacheBytes("LFP");
+check(nSp > 0 && nLfp > 0 && nSp + nLfp <= nAll && o2.cacheBytes(["spikes" "LFP"]) == nSp + nLfp, ...
+    'cacheBytes: all of it, and by kind');
+o3.adoptCache(o2, Except="LFP");
+check(isequal(o3.Spikes, a) && o3.cacheBytes("spikes") == nSp && o3.cacheBytes("LFP") == 0, ...
+    'adoptCache: the other''s data (its file gone), but the kinds Except');
+o2.clearCache("LFP");
+check(o2.cacheBytes("LFP") == 0 && o2.cacheBytes("spikes") == nSp && isequal(o2.LFP, lfp), ...
+    'clearCache(KINDS) drops only those kinds (read again on demand)');
+kept = o3.detachCache();
+check(o3.cacheBytes() == 0, 'detachCache leaves the cache empty');
+o3.attachCache(kept);
+check(o3.cacheBytes("spikes") == nSp, 'attachCache puts it back');
+v1 = o3.remember("sorting", "x", @() 1);
+v2 = o3.remember("sorting", "x", @() 2);
+check(v1 == 1 && v2 == 1 && o3.cacheBytes("sorting") > 0, 'remember keeps the first value, under its kind');
+o3.clearCache("sorting");
+check(o3.remember("sorting", "x", @() 2) == 2, 'clearCache(KIND) drops a remembered value');
 o2.clearCache();
 check(~o2.has("spikes"), 'clearCache + a deleted file');
 o2.refresh();

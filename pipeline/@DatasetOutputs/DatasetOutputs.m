@@ -88,6 +88,23 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   Set CacheData=true to keep loaded data in memory, resampled and
     %   filtered columns too (clearCache frees it).
     %
+    %   What CacheData keeps, by kind ("extract", "LFP", "MUA", "SPIKE",
+    %   "AUX", "spikes", "sorting", "behavior", "manifest", "artifacts",
+    %   "nwb"; a signal's resampled and filtered columns count as that
+    %   signal, a unit's waveforms as "sorting"):
+    %     clearCache(out)            drop all of it
+    %     clearCache(out, KINDS)     drop only those kinds (e.g. "manifest"
+    %                                after a tag edit, so the signals stay)
+    %     N = cacheBytes(out, KINDS) the bytes it holds (of KINDS; all
+    %                                without), as whos counts them
+    %     adoptCache(out, OTHER, Except=KINDS)   take what another
+    %                                DatasetOutputs of the same files keeps
+    %                                (a new scan of an unchanged dataset)
+    %     V = remember(out, KIND, ID, FN)   FN()'s value kept under KIND
+    %                                and ID (a value computed from the
+    %                                files, such as units with their
+    %                                quality metrics)
+    %
     %   See also EphysDataset.outputs, EphysPipeline.outputsFor, DatasetTracker,
     %   EphysDataset.toMat, EphysDataset.spikesToMat, EphysDataset.behaviorToMat,
     %   EphysDataset.exportNWB.
@@ -774,12 +791,73 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             end
         end
 
-        function clearCache(obj)
-            %clearCache  Drop data kept by CacheData.
-            if ~isempty(obj.Cache)
-                remove(obj.Cache, keys(obj.Cache));
+        function clearCache(obj, kinds)
+            %clearCache  Drop data kept by CacheData: all of it, or only KINDS ("LFP", "spikes", "sorting", "manifest", ...).
+            %   A signal's kind drops its resampled and filtered columns
+            %   too; "sorting" drops the units' waveforms too.
+            if nargin < 2
+                if ~isempty(obj.Cache)
+                    remove(obj.Cache, keys(obj.Cache));
+                end
+                obj.Filtered = strings(1, 0);
+                return
             end
-            obj.Filtered = strings(1, 0);
+            kinds = reshape(string(kinds), 1, []);
+            if isempty(obj.Cache) || obj.Cache.Count == 0 || isempty(kinds); return; end
+            k = string(keys(obj.Cache));
+            drop = ismember(DatasetOutputs.cacheKinds(k), kinds);
+            if any(drop); remove(obj.Cache, cellstr(k(drop))); end
+            obj.Filtered = obj.Filtered(~ismember(DatasetOutputs.cacheKinds(obj.Filtered), kinds));
+        end
+
+        function n = cacheBytes(obj, kinds)
+            %cacheBytes  The bytes CacheData holds (whos' count), of KINDS only when given.
+            n = 0;
+            if isempty(obj.Cache) || obj.Cache.Count == 0; return; end
+            k = string(keys(obj.Cache));
+            if nargin > 1
+                k = k(ismember(DatasetOutputs.cacheKinds(k), reshape(string(kinds), 1, [])));
+            end
+            if isempty(k); return; end
+            v = values(obj.Cache, cellstr(k)); %#ok<NASGU> measured by whos (no copy: the arrays are shared)
+            w = whos('v');
+            n = w.bytes;
+        end
+
+        function adoptCache(obj, other, opts)
+            %adoptCache  Take what OTHER (a DatasetOutputs of the same files) keeps in its cache, but the kinds Except.
+            %   For a dataset scanned again with its files unchanged: the new
+            %   DatasetOutputs starts with the data the old one had loaded.
+            %   Entries are keyed by their files, so only those of the files
+            %   this one reads are ever found.
+            arguments
+                obj (1,1) DatasetOutputs
+                other (1,1) DatasetOutputs
+                opts.Except (1,:) string = string.empty(1, 0)
+            end
+            if obj == other || isempty(other.Cache) || other.Cache.Count == 0; return; end
+            k = string(keys(other.Cache));
+            k = k(~ismember(DatasetOutputs.cacheKinds(k), opts.Except));
+            for j = 1:numel(k)
+                obj.Cache(char(k(j))) = other.Cache(char(k(j)));
+            end
+            f = other.Filtered(~ismember(DatasetOutputs.cacheKinds(other.Filtered), opts.Except));
+            obj.Filtered = [obj.Filtered(~ismember(obj.Filtered, f)), f];
+        end
+
+        function v = remember(obj, kind, id, fn)
+            %remember  FN()'s value, kept with CacheData under KIND (a kind of data, so clearCache(KIND) drops it) and ID.
+            %   V = out.remember("sorting", ID, FN) is FN() the first time and
+            %   the kept value after, while CacheData holds (FN() every time
+            %   without CacheData). ID names what FN computes from the files
+            %   (their paths and the options that change the value).
+            key = char(strjoin([string(kind), "remember", string(id)], "|"));
+            if obj.CacheData && isKey(obj.Cache, key)
+                v = obj.Cache(key);
+                return
+            end
+            v = fn();
+            if obj.CacheData; obj.Cache(key) = v; end
         end
 
         %% --- path properties -------------------------------------------------
@@ -1036,6 +1114,23 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         end
     end
 
+    methods (Hidden)
+        function kept = detachCache(obj)
+            %detachCache  Take the cache out (this object's cache is empty after), to put back with attachCache.
+            %   For copying this object to a process worker without its data
+            %   (DatasetRuns), while the data stay here.
+            kept = struct('cache', obj.Cache, 'filtered', obj.Filtered);
+            obj.Cache = containers.Map('KeyType', 'char', 'ValueType', 'any');
+            obj.Filtered = strings(1, 0);
+        end
+
+        function attachCache(obj, kept)
+            %attachCache  Put back what detachCache took out (what was cached meanwhile is dropped).
+            obj.Cache = kept.cache;
+            obj.Filtered = kept.filtered;
+        end
+    end
+
     methods (Static)
         function T = emptyCandidates()
             %emptyCandidates  Schema of the Candidates table.
@@ -1046,6 +1141,22 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     end
 
     methods (Static, Access = private)
+        function k = cacheKinds(keys)
+            %cacheKinds  The kind of data of each cache key: its first part ("LFP|...", "spikes|..."), a resampled or
+            %   filtered column's signal, "sorting" for a unit's waveforms.
+            keys = reshape(string(keys), 1, []);
+            k = strings(size(keys));
+            for j = 1:numel(keys)
+                p = split(keys(j), "|");
+                k(j) = p(1);
+                if ismember(p(1), ["resampled" "filtered"]) && numel(p) > 1
+                    k(j) = p(2);
+                elseif p(1) == "waveforms"
+                    k(j) = "sorting";
+                end
+            end
+        end
+
         function f = essentialSortFiles(d)
             %essentialSortFiles  The files of sorting folder D the unit readers use (not the large feature files).
             %   readPhyUnits and readPhyWaveforms read these (and the

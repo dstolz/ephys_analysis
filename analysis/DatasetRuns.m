@@ -15,6 +15,13 @@ classdef DatasetRuns < handle
     %   epochMatrix keeps its parts here, and DatasetBrowser.forEach keeps
     %   any per-dataset code's results.
     %
+    %   MaxIds (default 1) is how many identities (settings) are kept per
+    %   name and dataset: with 1, a new id replaces the entry; with more,
+    %   the entries of earlier ids stay (switching back to them computes
+    %   nothing) and the one used least recently goes once there are more.
+    %   An entry of another stamp (the outputs changed) is dropped when the
+    %   dataset is computed, whatever its id.
+    %
     %   [VALUES, T] = run(R, SOURCE, KEYS, FN, Name=Value)
     %     SOURCE   an EphysAnalysisRunner that has found its datasets (each
     %              dataset's source is SOURCE.source(key), its outputs
@@ -64,10 +71,17 @@ classdef DatasetRuns < handle
     %                  (e.g. "selectUnits:NoUnits"): such a dataset is kept
     %                  as "skipped" with the message, and reported so
     %                  without I/O while the id and the stamp hold
-    %     ReleaseFcn   ReleaseFcn(SRC) after each dataset computed (not one
-    %                  reused): the default clears SRC.outputs' cache
+    %     ReleaseFcn   ReleaseFcn(SRC) after each dataset computed here (not
+    %                  one reused): the default clears SRC.outputs' cache
     %                  (DatasetOutputs.clearCache), so one dataset's signals
-    %                  are held at a time; [] = none
+    %                  are held at a time; [] = none. A dataset computed on
+    %                  a worker is always released with the default (its
+    %                  source is the worker's own)
+    %     LocalFcn     TF = LocalFcn(key), with Workers: true computes the
+    %                  dataset here, not on a worker (e.g. its data are in
+    %                  memory here: DatasetCache). Called once per dataset to
+    %                  compute, in KEYS' order, before any goes to the
+    %                  workers; [] (default) = none here
     %     Workers      0 (default): compute here, one dataset after the
     %                  other. N >= 1: when two or more datasets are to be
     %                  computed, compute up to N at once on process workers
@@ -76,8 +90,9 @@ classdef DatasetRuns < handle
     %                  "Processes"; it stays open until its idle timeout).
     %                  The stamps, the kept entries and the reports stay
     %                  here; a worker loads the dataset's source itself
-    %                  (loadAnalysisSource of the runner's outputs, whose
-    %                  cache is cleared first; or SOURCE(key)), runs FN with
+    %                  (loadAnalysisSource of the runner's outputs, sent
+    %                  without the data their cache holds here, which stay;
+    %                  or SOURCE(key)), runs FN with
     %                  a CHECK that does nothing, and releases the source.
     %                  FN, SOURCE (a function) and what they capture are
     %                  copied to the workers: a handle they capture is a copy
@@ -87,7 +102,8 @@ classdef DatasetRuns < handle
     %                  toolbox, or when no process pool can be had, the
     %                  datasets are computed here with the warning
     %                  DatasetRuns:Serial. On a worker Workers is ignored
-    %   A dataset's kept entry is dropped before the dataset is computed, so
+    %   A dataset's kept entry (of this id, and with MaxIds 1 of any id) is
+    %   dropped before the dataset is computed, so
     %   whatever happens next never leaves an old value behind. Any error
     %   but a skip leaves no entry: the dataset is "error", with the
     %   warning DatasetRuns:DatasetFailed, and is tried again next run (an
@@ -101,12 +117,14 @@ classdef DatasetRuns < handle
     %   Other methods
     %     ST = status(R, NAME, KEYS, ID, Stamps=)   per key: "current" (a
     %                  "done" entry of that id), "skipped" (a "skipped"
-    %                  one), "old" (an entry of another id, or, with Stamps
-    %                  (text, one per key), of another stamp) or "" (none)
-    %     V = value(R, NAME, KEY)   the kept value ([] when none)
-    %     M = message(R, NAME, KEY)   the kept message: why a skipped
+    %                  one), "old" (only entries of other ids, or, with
+    %                  Stamps (text, one per key), of another stamp) or ""
+    %                  (none)
+    %     V = value(R, NAME, KEY, ID)   the kept value of that id ([] when
+    %                  none); without ID, the entry used last, whatever its id
+    %     M = message(R, NAME, KEY, ID)   the kept message: why a skipped
     %                  dataset was skipped ("" when none, or when it was
-    %                  done)
+    %                  done); ID as for value
     %     forget(R), forget(R, NAME), forget(R, NAME, KEYS)   drop entries
     %                  (every one, NAME's, NAME's of KEYS; empty KEYS drops
     %                  nothing)
@@ -127,8 +145,12 @@ classdef DatasetRuns < handle
     %   EphysAnalysisRunner.
 
     properties (SetAccess = private)
-        Entries   % struct array: name, key, idText, stamp, status ("done" | "skipped"), message, seconds, value, created
+        Entries   % struct array: name, key, idText, stamp, status ("done" | "skipped"), message, seconds, value, created; of one name and key, the one used last is last
         Last table = table()   % the last run's T
+    end
+
+    properties
+        MaxIds (1,1) double {mustBeInteger, mustBePositive} = 1   % the ids (settings) kept per name and dataset; the least recently used goes first
     end
 
     properties (Constant, Hidden)
@@ -159,6 +181,7 @@ classdef DatasetRuns < handle
                 opts.ReleaseFcn = @releaseOutputs
                 opts.StampFcn = []
                 opts.Workers (1,1) double {mustBeInteger, mustBeNonnegative} = 0
+                opts.LocalFcn = []
             end
             isRunner = isa(source, 'EphysAnalysisRunner');
             if ~isRunner && ~isa(source, 'function_handle')
@@ -234,10 +257,10 @@ classdef DatasetRuns < handle
                 end
                 stamps(j) = stamp;
 
-                e = obj.entryIndex(opts.Name, key);
-                if keep && ~opts.Recompute && ~isempty(e) && obj.Entries(e).idText == txt ...
-                        && (~useStamp || obj.Entries(e).stamp == stamp)
+                e = obj.entryIndex(opts.Name, key, txt);
+                if keep && ~opts.Recompute && ~isempty(e) && (~useStamp || obj.Entries(e).stamp == stamp)
                     E = obj.Entries(e);
+                    obj.touch(e);
                     if E.status == "done"
                         T.status(j) = "cached";
                         values{j} = E.value;
@@ -250,10 +273,10 @@ classdef DatasetRuns < handle
                     say(sprintf('%s (%d/%d): %s', names(j), j, n, T.status(j)));
                     continue
                 end
-                if keep && ~isempty(e)
-                    obj.Entries(e) = [];   % an error or a cancel below must not leave the old value
+                if keep
+                    obj.dropBefore(opts.Name, key, txt, stamp, useStamp);   % an error or a cancel below must not leave the old value
                 end
-                if par
+                if par && ~(~isempty(opts.LocalFcn) && opts.LocalFcn(key))
                     todo(end+1) = j; %#ok<AGROW>
                     continue
                 end
@@ -261,7 +284,7 @@ classdef DatasetRuns < handle
                 res = computeOne(sourceLoader(source, isRunner, key, false), fn, nIn, infoRow(info, key, names(j)), ...
                     check, opts.ReleaseFcn);
                 [T, values, canceled] = obj.settle(T, values, j, res, stamp, ctx);
-                if canceled; obj.cancelAt(T, j:n, res.error); end
+                if canceled; obj.cancelAt(T, [j todo j+1:n], res.error); end   % (todo: those waiting for the workers)
             end
             if ~isempty(todo)
                 job = struct('isRunner', isRunner, 'fn', fn, 'nIn', nIn, 'check', check, 'workers', opts.Workers);
@@ -297,12 +320,11 @@ classdef DatasetRuns < handle
             end
             st = strings(numel(keys), 1);
             for j = 1:numel(keys)
-                e = obj.entryIndex(name, keys(j));
-                if isempty(e); continue; end
-                E = obj.Entries(e);
-                if E.idText ~= txt || (useStamp && E.stamp ~= stamps(j))
+                if isempty(obj.entryIndex(name, keys(j))); continue; end
+                e = obj.entryIndex(name, keys(j), txt);
+                if isempty(e) || (useStamp && obj.Entries(e).stamp ~= stamps(j))
                     st(j) = "old";
-                elseif E.status == "done"
+                elseif obj.Entries(e).status == "done"
                     st(j) = "current";
                 else
                     st(j) = "skipped";
@@ -310,18 +332,31 @@ classdef DatasetRuns < handle
             end
         end
 
-        function v = value(obj, name, key)
-            %value  The kept value of (NAME, KEY), whatever its id; [] when none.
+        function v = value(obj, name, key, id)
+            %value  The kept value of (NAME, KEY) and ID; without ID, the entry used last whatever its id; [] when none.
             v = [];
-            e = obj.entryIndex(string(name), string(key));
+            if nargin < 4
+                e = obj.entryIndex(string(name), string(key));
+            else
+                e = obj.entryIndex(string(name), string(key), DatasetRuns.idText(id));
+            end
             if ~isempty(e); v = obj.Entries(e).value; end
         end
 
-        function m = message(obj, name, key)
-            %message  The message kept with (NAME, KEY), whatever its id: why a dataset was skipped ("" for none, or when it was done).
+        function m = message(obj, name, key, id)
+            %message  The message kept with (NAME, KEY) and ID (without ID, the entry used last): why a dataset was skipped ("" for none, or when it was done).
             m = "";
-            e = obj.entryIndex(string(name), string(key));
+            if nargin < 4
+                e = obj.entryIndex(string(name), string(key));
+            else
+                e = obj.entryIndex(string(name), string(key), DatasetRuns.idText(id));
+            end
             if ~isempty(e); m = string(obj.Entries(e).message); end
+        end
+
+        function set.MaxIds(obj, n)
+            obj.MaxIds = n;
+            obj.trim();
         end
 
         function forget(obj, name, keys)
@@ -423,21 +458,59 @@ classdef DatasetRuns < handle
     end
 
     methods (Access = private)
-        function e = entryIndex(obj, name, key)
+        function e = entryIndex(obj, name, key, txt)
+            %entryIndex  The entry of (NAME, KEY) and id text TXT; without TXT, the one used last whatever its id ([] = none).
             e = [];
             if isempty(obj.Entries) || name == ""; return; end
-            e = find([obj.Entries.name] == name & [obj.Entries.key] == key, 1);
+            hit = [obj.Entries.name] == name & [obj.Entries.key] == key;
+            if nargin > 3; hit = hit & [obj.Entries.idText] == txt; end
+            e = find(hit, 1, 'last');
+        end
+
+        function touch(obj, e)
+            %touch  Entry E was used: it goes last (with MaxIds above 1 the first of its name and key goes first).
+            if obj.MaxIds <= 1 || e == numel(obj.Entries); return; end
+            E = obj.Entries(e);
+            obj.Entries(e) = [];
+            obj.Entries(end+1) = E;
+        end
+
+        function dropBefore(obj, name, key, txt, stamp, useStamp)
+            %dropBefore  Before (NAME, KEY) is computed for id TXT: drop its entry of that id, those of another stamp, and with MaxIds 1 every one.
+            if isempty(obj.Entries); return; end
+            drop = [obj.Entries.name] == name & [obj.Entries.key] == key;
+            if obj.MaxIds > 1
+                other = [obj.Entries.idText] ~= txt;
+                if useStamp; other = other & [obj.Entries.stamp] == stamp; end
+                drop = drop & ~other;
+            end
+            obj.Entries(drop) = [];
         end
 
         function store(obj, name, key, txt, stamp, status, message, seconds, value)
             E = struct('name', name, 'key', key, 'idText', txt, 'stamp', stamp, 'status', status, 'message', string(message), ...
                 'seconds', seconds, 'value', {value}, 'created', datetime('now'));
-            e = obj.entryIndex(name, key);
-            if isempty(e)
-                obj.Entries(end+1) = E;
-            else
-                obj.Entries(e) = E;
+            e = obj.entryIndex(name, key, txt);
+            if ~isempty(e); obj.Entries(e) = []; end
+            if obj.MaxIds <= 1
+                e = obj.entryIndex(name, key);
+                if ~isempty(e); obj.Entries(e) = []; end
             end
+            obj.Entries(end+1) = E;
+            obj.trim();
+        end
+
+        function trim(obj)
+            %trim  At most MaxIds entries per name and key: the ones used least recently (first) go.
+            E = obj.Entries;
+            if numel(E) <= obj.MaxIds; return; end
+            [~, ~, g] = unique([E.name] + char(31) + [E.key]);
+            drop = false(1, numel(E));
+            for k = 1:max(g)
+                at = find(g(:).' == k);
+                if numel(at) > obj.MaxIds; drop(at(1:end - obj.MaxIds)) = true; end
+            end
+            if any(drop); obj.Entries(drop) = []; end
         end
 
         function [T, values, canceled] = settle(obj, T, values, j, res, stamp, ctx)
@@ -514,14 +587,22 @@ classdef DatasetRuns < handle
                         j = todo(next);
                         next = next + 1;
                         try
-                            load = sourceLoader(job.source, job.isRunner, T.key(j), true);
+                            [load, out] = sourceLoader(job.source, job.isRunner, T.key(j), true);
                         catch ME
                             [T, values] = obj.settle(T, values, j, failed(ME), stamps(j), ctx);
                             nDone = nDone + 1;
                             continue
                         end
-                        F(end+1) = parfeval(pool, @DatasetRuns.computeRemote, 1, load, job.fn, job.nIn, ...
-                            infoRow(job.info, T.key(j), T.name(j)), job.release); %#ok<AGROW>
+                        kept = [];
+                        if ~isempty(out); kept = out.detachCache(); end   % the outputs go to the worker without the data held here
+                        try
+                            F(end+1) = parfeval(pool, @DatasetRuns.computeRemote, 1, load, job.fn, job.nIn, ...
+                                infoRow(job.info, T.key(j), T.name(j))); %#ok<AGROW> released there with the default (ReleaseFcn may hold handles of this MATLAB)
+                        catch ME
+                            if ~isempty(out); out.attachCache(kept); end
+                            rethrow(ME);
+                        end
+                        if ~isempty(out); out.attachCache(kept); end
                         of(end+1) = j; %#ok<AGROW>
                         active(end+1) = true; %#ok<AGROW>
                     end
@@ -575,9 +656,9 @@ classdef DatasetRuns < handle
     end
 
     methods (Static, Hidden)
-        function res = computeRemote(load, fn, nIn, row, releaseFcn)
-            %computeRemote  computeOne on a process worker (run's Workers): FN's CHECK does nothing there.
-            res = computeOne(load, fn, nIn, row, @() [], releaseFcn);
+        function res = computeRemote(load, fn, nIn, row)
+            %computeRemote  computeOne on a process worker (run's Workers): FN's CHECK does nothing there; the source is released with the default.
+            res = computeOne(load, fn, nIn, row, @() [], @releaseOutputs);
         end
     end
 
@@ -656,17 +737,19 @@ res = struct('value', [], 'seconds', NaN, 'error', ME);
 end
 
 
-function load = sourceLoader(source, isRunner, key, remote)
+function [load, out] = sourceLoader(source, isRunner, key, remote)
 %sourceLoader  LOAD() gives dataset KEY's source: SOURCE(key), the runner's, or (REMOTE) loaded afresh from its outputs.
-%   REMOTE is for a worker: it captures only the dataset's outputs (their
-%   cache cleared, so it is not copied there), not the runner.
+%   REMOTE is for a worker: it captures only the dataset's outputs OUT, not
+%   the runner; the caller takes OUT's cache out while LOAD is sent
+%   (DatasetOutputs.detachCache), so the data held here are not copied
+%   there and stay here. OUT is [] otherwise.
+out = [];
 if ~isRunner
     load = @() source(key);
 elseif ~remote
     load = @() source.source(runnerIndex(source, key));
 else
     out = source.Outputs(runnerIndex(source, key));
-    out.clearCache();
     load = @() loadAnalysisSource(out, Key=key);
 end
 end

@@ -15,8 +15,12 @@ classdef test_DatasetRuns < matlab.unittest.TestCase
     %   a changed stamp is "old" and computes only that dataset again, a
     %   kept skip is tried again, a dataset canceled after its stamp changed
     %   keeps no old value. outputsStamp over a hand-built output folder:
-    %   what it holds, and that a file's size or time changes it. Workers:
-    %   one dataset to compute is computed here; on process workers (Slow)
+    %   what it holds, and that a file's size or time changes it. MaxIds:
+    %   the entries of earlier ids kept (going back computes nothing), the
+    %   one used least recently dropped, a lower MaxIds trimming at once,
+    %   and a changed stamp dropping every id's entry. Workers:
+    %   one dataset to compute is computed here; LocalFcn keeps datasets
+    %   here (no pool asked for, ReleaseFcn here); on process workers (Slow)
     %   the statuses and values equal those computed here, and a cancel
     %   while they compute marks every unfinished dataset "canceled".
     %
@@ -26,6 +30,7 @@ classdef test_DatasetRuns < matlab.unittest.TestCase
         Calls = strings(0, 1)      % the keys the source was asked for, in order
         Released = strings(0, 1)   % the datasets ReleaseFcn was called for
         Checks = 0                 % CheckFcn calls
+        Asked = strings(0, 1)      % the datasets LocalFcn was asked about
     end
 
     methods (TestClassSetup)
@@ -42,6 +47,7 @@ classdef test_DatasetRuns < matlab.unittest.TestCase
             tc.Calls = strings(0, 1);
             tc.Released = strings(0, 1);
             tc.Checks = 0;
+            tc.Asked = strings(0, 1);
         end
     end
 
@@ -54,6 +60,12 @@ classdef test_DatasetRuns < matlab.unittest.TestCase
 
         function noteRelease(tc, src)
             tc.Released(end+1, 1) = src.name;
+        end
+
+        function tf = askHere(tc, key)
+            %askHere  A LocalFcn: every dataset here; records the call.
+            tc.Asked(end+1, 1) = key;
+            tf = true;
         end
 
         function countCheck(tc, cancelAt)
@@ -439,6 +451,72 @@ classdef test_DatasetRuns < matlab.unittest.TestCase
             tc.verifyEqual(v, {1; 2});
             tc.verifyEqual(T.status, ["cached"; "done"]);
             tc.verifyEqual(tc.Calls, "bb");
+        end
+
+        function localFcnComputesHere(tc)
+            % Workers, but every dataset LocalFcn names is computed here: no pool is asked for, no warning
+            runs = DatasetRuns();
+            here = @(k) tc.askHere(k);
+            [v, T] = tc.verifyWarningFree(@() runs.run(@(k) tc.source(k), ["a" "bb" "ccc"], @(src) src.n, Name="loc", Id=1, ...
+                Workers=4, LocalFcn=here, ReleaseFcn=@(src) tc.noteRelease(src)));
+            tc.verifyEqual(v, {1; 2; 3});
+            tc.verifyEqual(T.status, ["done"; "done"; "done"]);
+            tc.verifyEqual(tc.Asked, ["a"; "bb"; "ccc"], 'Asked once per dataset to compute, in order.');
+            tc.verifyEqual(tc.Released, ["a"; "bb"; "ccc"], 'Released here with ReleaseFcn.');
+            tc.Asked = strings(0, 1);
+            runs.run(@(k) tc.source(k), ["a" "bb" "ccc"], @(src) src.n, Name="loc", Id=1, Workers=4, LocalFcn=here);
+            tc.verifyEmpty(tc.Asked, 'A cached dataset is not asked about.');
+        end
+
+        function maxIdsKeepsEarlierSettings(tc)
+            runs = DatasetRuns();
+            runs.MaxIds = 2;
+            fn = @(src, id) src.n * id;
+            runOne = @(id) runs.run(@(k) tc.source(k), ["a" "bb"], @(src) fn(src, id), Name="m", Id=id);
+            runOne(1);
+            runOne(2);
+            tc.verifyEqual(runs.status("m", ["a" "bb"], 1), ["current"; "current"], 'Id 1 kept beside id 2.');
+            tc.verifyEqual(runs.status("m", ["a" "bb"], 2), ["current"; "current"]);
+            tc.verifyEqual(runs.value("m", "bb", 1), 2);
+            tc.verifyEqual(runs.value("m", "bb", 2), 4);
+            tc.verifyEqual(runs.value("m", "bb"), 4, 'Without an id: the entry used last.');
+            tc.Calls = strings(0, 1);
+            [v, T] = runOne(1);
+            tc.verifyEqual(T.status, ["cached"; "cached"], 'Back to id 1: nothing computed.');
+            tc.verifyEqual(v, {1; 2});
+            tc.verifyEmpty(tc.Calls);
+            tc.verifyEqual(runs.value("m", "bb"), 2, 'Id 1 is now the one used last.');
+            runOne(3);   % a third id: id 2, used least recently, goes
+            tc.verifyEqual(runs.status("m", ["a" "bb"], 2), ["old"; "old"]);
+            tc.verifyEqual(runs.status("m", ["a" "bb"], 1), ["current"; "current"]);
+            tc.verifyEqual(runs.status("m", ["a" "bb"], 3), ["current"; "current"]);
+            tc.verifyEqual(numel(runs.Entries), 4);
+            runs.MaxIds = 1;   % a lower limit trims at once: the one used last stays
+            tc.verifyEqual(numel(runs.Entries), 2);
+            tc.verifyEqual(runs.status("m", ["a" "bb"], 3), ["current"; "current"]);
+            tc.verifyEqual(runs.status("m", ["a" "bb"], 1), ["old"; "old"]);
+            runOne(1);   % MaxIds 1: a new id replaces the entry
+            tc.verifyEqual(numel(runs.Entries), 2);
+            tc.verifyEqual(runs.status("m", ["a" "bb"], 3), ["old"; "old"]);
+        end
+
+        function maxIdsStampDropsEveryId(tc)
+            % the outputs changed: every id's entry of that dataset is of the old outputs
+            runs = DatasetRuns();
+            runs.MaxIds = 3;
+            stamp = "s1";
+            run = @(id) runs.run(@(k) tc.source(k), ["a" "bb"], @(src) src.n * id, Name="m", Id=id, ...
+                StampFcn=@(k) stamp + k);
+            run(1);
+            run(2);
+            tc.verifyEqual(numel(runs.Entries), 4);
+            stamp = "s2";   % a's and bb's outputs changed
+            run = @(id) runs.run(@(k) tc.source(k), ["a" "bb"], @(src) src.n * id, Name="m", Id=id, ...
+                StampFcn=@(k) stamp + k);
+            [~, T] = run(1);
+            tc.verifyEqual(T.status, ["done"; "done"]);
+            tc.verifyEqual(runs.status("m", ["a" "bb"], 2, Stamps=["s2a" "s2bb"]), ["old"; "old"]);
+            tc.verifyEqual(numel(runs.Entries), 2, 'The entries of id 2 with the old stamp are dropped when computed.');
         end
     end
 

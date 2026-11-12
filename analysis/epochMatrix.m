@@ -206,6 +206,13 @@ function [R, T] = epochMatrix(source, S, opts)
 %                  N >= 1: up to N at once on process workers
 %                  (DatasetRuns.run's Workers; CheckFcn then stops between
 %                  datasets, not inside one)
+%     ReleaseFcn   ReleaseFcn(SRC) after each dataset computed here
+%                  (DatasetRuns.run's). [] (default): its outputs' cache is
+%                  cleared, so one dataset's spikes and signals are held at a
+%                  time; DatasetBrowser passes its DatasetCache's, which keeps
+%                  them for the next compute
+%     LocalFcn     TF = LocalFcn(key): with Workers, true computes the
+%                  dataset here (DatasetRuns.run's; [] = none)
 %
 %   PARTS (assembly only) is a struct array or a cell array of part
 %   structs; each may hold key (default "part<k>"); nEpochs, valueUnits and
@@ -247,6 +254,8 @@ arguments
     opts.LogFcn = @(msg) fprintf('%s\n', msg)
     opts.StampFcn = []
     opts.Workers (1,1) double {mustBeInteger, mustBeNonnegative} = 0
+    opts.ReleaseFcn = []
+    opts.LocalFcn = []
 end
 
 [S, ID, partName] = epochMatrixSettings(S);
@@ -293,10 +302,12 @@ skipIds = ["selectUnits:NoUnits" "selectUnits:NoDetected" "selectUnits:NoneLeft"
     "selectChannels:NoSignal" "spikePSTH:NoneModulated" "epochMatrix:NoChannels"];
 stampFcn = opts.StampFcn;
 if isempty(stampFcn); stampFcn = @(key) stampOf(runner, key); end
+release = {};
+if ~isempty(opts.ReleaseFcn); release = {'ReleaseFcn', opts.ReleaseFcn}; end   % else DatasetRuns' default
 try
-    [values, T] = runs.run(runner, keys, fn, Name=partName, Id=ID, Info=info, ...
+    [values, T] = runs.run(runner, keys, fn, release{:}, Name=partName, Id=ID, Info=info, ...
         Recompute=opts.Recompute, ProgressFcn=opts.ProgressFcn, CheckFcn=opts.CheckFcn, LogFcn=opts.LogFcn, ...
-        SkipIds=skipIds, StampFcn=stampFcn, Workers=opts.Workers);
+        SkipIds=skipIds, StampFcn=stampFcn, Workers=opts.Workers, LocalFcn=opts.LocalFcn);
 catch ME
     if ME.identifier == "DatasetRuns:Canceled"
         C = MException('epochMatrix:Canceled', '%s', ME.message);

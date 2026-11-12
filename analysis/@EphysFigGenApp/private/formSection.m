@@ -32,6 +32,9 @@ function S = formSection(parent, row, name, title, body, opts)
 %   black. The default is a pale gray-blue. S.Key, which the caller may set,
 %   is the key that goes to the section; formLayout names it in the header.
 %
+%   S = formSection(..., Icon=NAME) puts the icon NAME (buttonIcon) left of
+%   the header's arrow and title, so the section is known at a glance.
+%
 %   See also formRow, formSubheading, formLayout.
 arguments
     parent
@@ -40,6 +43,7 @@ arguments
     title (1,1) string
     body (1,1) string {mustBeMember(body, ["form" "panel"])} = "form"
     opts.Color (1,3) double {mustBeInRange(opts.Color, 0, 1)} = [0.88 0.91 0.95]
+    opts.Icon (1,1) string = ""
 end
 bar = pale(opts.Color);
 S = struct('Name', name, 'Title', title, 'Grid', [], 'HeaderGrid', [], 'Toggle', [], 'Body', [], ...
@@ -62,6 +66,10 @@ if title ~= ""
         "FontWeight", "bold", "FontSize", 13, "FontColor", [0 0 0], "BackgroundColor", bar, "Tag", "formSectionToggle", ...
         "Tooltip", "Show or hide this section.");
     S.Toggle.Layout.Column = 1;
+    if opts.Icon ~= ""
+        S.Toggle.Icon = buttonIcon(opts.Icon);
+        S.Toggle.IconAlignment = "left";
+    end
 end
 if body == "form"
     S.Body = uigridlayout(S.Grid, [1 2]);

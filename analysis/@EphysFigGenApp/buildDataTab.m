@@ -8,7 +8,7 @@ changed = @(~,~) obj.onConfigChanged("source");
 left = uigridlayout(g, [12 4]);
 left.Padding = [0 0 0 0];
 left.RowHeight = {24, 30, 24, 24, 24, 56, 26, 26, 20, 64, '1x', 20};
-left.ColumnWidth = {110, '1x', '1x', 90};
+left.ColumnWidth = {110, '1x', '1x', 112};
 
 lab(left, "Config name:", 1, 1);
 obj.ConfigNameField = uieditfield(left, "text", "ValueChangedFcn", @(~,~) obj.onConfigChanged("name"));
@@ -21,20 +21,20 @@ lab(left, "Datasets from:", 2, 1);
 obj.SourceModeDropDown = uidropdown(left, "Items", ["a pipeline project (root folder)" "output folders"], ...
     "ItemsData", ["project" "folders"], "ValueChangedFcn", @(~,~) obj.onSourceModeChanged());
 obj.SourceModeDropDown.Layout.Row = 2; obj.SourceModeDropDown.Layout.Column = 2;
-obj.ScanButton = uibutton(left, "Text", "Scan", ...
+obj.ScanButton = uibutton(left, "Text", "Scan", "Icon", buttonIcon("scan"), ...
     "Tooltip", "Find the datasets and what each holds.", "ButtonPushedFcn", @(~,~) obj.onScan());
 obj.ScanButton.Layout.Row = 2; obj.ScanButton.Layout.Column = 4;
 
 lab(left, "Project root:", 3, 1);
 obj.RootField = uieditfield(left, "text", "Placeholder", "the folder the pipeline app scans", "ValueChangedFcn", changed);
 obj.RootField.Layout.Row = 3; obj.RootField.Layout.Column = [2 3];
-obj.BrowseRootButton = uibutton(left, "Text", "Browse...", "ButtonPushedFcn", @(~,~) obj.onBrowseRoot("root"));
+obj.BrowseRootButton = uibutton(left, "Text", "Browse...", "Icon", buttonIcon("browse"), "ButtonPushedFcn", @(~,~) obj.onBrowseRoot("root"));
 obj.BrowseRootButton.Layout.Row = 3; obj.BrowseRootButton.Layout.Column = 4;
 
 lab(left, "Output root:", 4, 1);
 obj.OutputRootField = uieditfield(left, "text", "Placeholder", "blank = outputs next to each recording", "ValueChangedFcn", changed);
 obj.OutputRootField.Layout.Row = 4; obj.OutputRootField.Layout.Column = [2 3];
-obj.BrowseOutputButton = uibutton(left, "Text", "Browse...", "ButtonPushedFcn", @(~,~) obj.onBrowseRoot("output"));
+obj.BrowseOutputButton = uibutton(left, "Text", "Browse...", "Icon", buttonIcon("browse"), "ButtonPushedFcn", @(~,~) obj.onBrowseRoot("output"));
 obj.BrowseOutputButton.Layout.Row = 4; obj.BrowseOutputButton.Layout.Column = 4;
 
 lab(left, "Name pattern:", 5, 1);
@@ -52,7 +52,7 @@ lab(left, "Output folders:", 6, 1);
 obj.FoldersArea = uitextarea(left, "Placeholder", "one dataset output folder per line (holding <Name>_extract*.mat, _spikes.mat, _behavior.mat ...)", ...
     "ValueChangedFcn", changed);
 obj.FoldersArea.Layout.Row = 6; obj.FoldersArea.Layout.Column = [2 3];
-obj.AddFolderButton = uibutton(left, "Text", "Add...", "ButtonPushedFcn", @(~,~) obj.onAddFolder());
+obj.AddFolderButton = uibutton(left, "Text", "Add...", "Icon", buttonIcon("folderAdd"), "ButtonPushedFcn", @(~,~) obj.onAddFolder());
 obj.AddFolderButton.Layout.Row = 6; obj.AddFolderButton.Layout.Column = 4;
 
 % Source.Downsample: the rate each signal is brought to (anti-aliased) before any figure reads it (onDownsample;
@@ -61,7 +61,7 @@ lab(left, "Signals:", 7, 1);
 ds = uigridlayout(left, [1 2], "ColumnWidth", {'1x', 'fit'}, "RowHeight", {'1x'}, "Padding", [0 0 0 0]);
 ds.Layout.Row = 7; ds.Layout.Column = [2 4];
 obj.DownsampleLabel = uilabel(ds, "Text", "", "FontColor", [0.35 0.35 0.35]);
-obj.DownsampleButton = uibutton(ds, "Text", "Downsample...", "ButtonPushedFcn", @(~,~) obj.onDownsample());
+obj.DownsampleButton = uibutton(ds, "Text", "Downsample...", "Icon", buttonIcon("downsample"), "ButtonPushedFcn", @(~,~) obj.onDownsample());
 
 % Source.SignalFilter: the filter each signal is read through by every figure, its whole recording before the epochs are
 % cut (onSignalFilter; showSignalFilter words it here and colors the button)
@@ -69,7 +69,7 @@ lab(left, "Filters:", 8, 1);
 sf = uigridlayout(left, [1 2], "ColumnWidth", {'1x', 'fit'}, "RowHeight", {'1x'}, "Padding", [0 0 0 0]);
 sf.Layout.Row = 8; sf.Layout.Column = [2 4];
 obj.SignalFilterLabel = uilabel(sf, "Text", "", "FontColor", [0.35 0.35 0.35]);
-obj.SignalFilterButton = uibutton(sf, "Text", "Filter...", "ButtonPushedFcn", @(~,~) obj.onSignalFilter());
+obj.SignalFilterButton = uibutton(sf, "Text", "Filter...", "Icon", buttonIcon("filter"), "ButtonPushedFcn", @(~,~) obj.onSignalFilter());
 
 obj.ScanLabel =uilabel(left, "Text", "Scan to list the datasets.", "FontColor", [0.35 0.35 0.35]);
 obj.ScanLabel.Layout.Row = 9; obj.ScanLabel.Layout.Column = [1 2];
@@ -110,10 +110,10 @@ obj.TagFilterModeDropDown = uidropdown(r2, "Items", {'any of', 'all of'}, "Items
 uilabel(r2, "Text", "not");
 obj.NotTagFilterDropDown = uidropdown(r2, "Items", {'(any)'}, "Editable", "on", "Value", '(any)', ...
     "Tooltip", "Leave out the datasets holding any of these tags.", "ValueChangedFcn", refilter);
-obj.TickShownButton = uibutton(r2, "Text", "Tick shown only", ...
+obj.TickShownButton = uibutton(r2, "Text", "Tick shown only", "Icon", buttonIcon("checkAll"), ...
     "Tooltip", "Tick Run for the datasets shown and clear it for those the filter hides (no filter: tick every one).", ...
     "ButtonPushedFcn", @(~,~) obj.onTickDatasets("shown"));
-obj.UntickAllButton = uibutton(r2, "Text", "Untick all", "Tooltip", "Clear Run for every dataset, shown or hidden.", ...
+obj.UntickAllButton = uibutton(r2, "Text", "Untick all", "Icon", buttonIcon("checkNone"), "Tooltip", "Clear Run for every dataset, shown or hidden.", ...
     "ButtonPushedFcn", @(~,~) obj.onTickDatasets("none"));
 
 obj.DatasetsTable = uitable(left, "RowName", {}, ...

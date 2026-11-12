@@ -38,7 +38,7 @@ RS.Bar = uigridlayout(track, [1 2], "Padding", [0 0 0 0], "ColumnSpacing", 0, "R
     "BackgroundColor", [0.92 0.92 0.94], "RowHeight", {'1x'}, "ColumnWidth", {0, '1x'});
 fill = uipanel(RS.Bar, "BorderType", "none", "BackgroundColor", [0.25 0.55 0.85]);
 fill.Layout.Row = 1; fill.Layout.Column = 1;
-RS.Cancel = uibutton(bg, "Text", "Cancel", "Tooltip", "Stop the run before the next figure observation.", ...
+RS.Cancel = uibutton(bg, "Text", "Cancel", "Icon", buttonIcon("stop"), "Tooltip", "Stop the run before the next figure observation.", ...
     "ButtonPushedFcn", @(~,~) obj.onCancelRun());
 RS.Cancel.Layout.Column = 3;
 obj.RunStrip = RS;

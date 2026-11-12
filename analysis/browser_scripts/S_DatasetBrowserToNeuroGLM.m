@@ -110,9 +110,9 @@ opts.responseAfter = "RespWindow";       % ...the first one after this line's on
 opts.history = false; opts.historyMs = 250;    % the spike-history filter and its reach: the lags from one bin to this long after a spike (the paper's spans 265 ms)
 opts.historyBases = 10;                  % its log-stretched raised cosines
 opts.coupling = false;                   % a coupling filter from every other unit of the dataset (slow with many units)
-% opts.withSignal = "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
-opts.withSignal = "";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
-opts.auxParts = ["magnitude" "axes" "slow"];   % withSignal "AUX": the columns, each z-scored: "magnitude" (of the axes less their 2 s running mean), "axes" (those, signed), "slow" (the 2 s running means); named in g.expt.param.channels. LFP and MUA go in as they are, in uV
+opts.withSignal = "AUX";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
+% opts.withSignal = "";                    % "LFP" | "MUA" | "AUX" | "": that signal's channels as an instantaneous covariate
+opts.auxParts = ["magnitude"];   % withSignal "AUX": the columns, each z-scored: "magnitude" (of the axes less their 2 s running mean), "axes" (those, signed), "slow" (the 2 s running means); named in g.expt.param.channels. LFP and MUA go in as they are, in uV
 opts.fitMethod = "matRegress";           % "matRegress": neuroGLM's route (fminunc, ridge prior; the paper's) | "glmfit": maximum likelihood
 opts.ridge = "evidence";                 % matRegress: the ridge prior's precision, or "evidence" to pick it by the marginal likelihood (the paper)
 opts.trainFraction = 0.8;                % trials fitted; the last block of consecutive trials (about 1 - this) is held out for the prediction (NeuroGLMExport.split); 1 = test on the fit

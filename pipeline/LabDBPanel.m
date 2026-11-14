@@ -143,7 +143,7 @@ classdef LabDBPanel < handle
                 obj.say("There is no folder " + folder + ".", true);
                 return
             end
-            if any([obj.Roots.Name] == name)
+            if any(string({obj.Roots.Name}) == name)
                 obj.say("Storage root " + name + " is mapped already: remove it first.", true);
                 return
             end
@@ -160,14 +160,14 @@ classdef LabDBPanel < handle
 
         function removeRoot(obj, name)
             %removeRoot  Forget the mapping of storage root NAME (the database is not changed).
-            obj.Roots = obj.Roots([obj.Roots.Name] ~= string(name));
+            obj.Roots = obj.Roots(string({obj.Roots.Name}) ~= string(name));
             obj.showRoots();
         end
 
         function registerRoot(obj, name)
             %registerRoot  Add storage root NAME (mapped here) to the database, and mark its folder.
             name = string(name);
-            k = find([obj.Roots.Name] == name, 1);
+            k = find(string({obj.Roots.Name}) == name, 1);
             if isempty(k)
                 obj.say("Map " + name + " to a folder first.", true);
                 return

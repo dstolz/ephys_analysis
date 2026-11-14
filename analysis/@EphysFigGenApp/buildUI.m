@@ -26,10 +26,14 @@ obj.TabLog    = uitab(obj.Tabs, "Title", "Log");
 
 bar = uipanel(outer, "BorderType", "line", "BackgroundColor", [0.96 0.96 0.98]);
 bar.Layout.Row = 2;
-bg = uigridlayout(bar, [1 4]);
+% the run strip, then the database lamp in a column of its own
+barGrid = uigridlayout(bar, [1 2], "Padding", [0 0 8 0], "ColumnSpacing", 0, ...
+    "RowHeight", {'1x'}, "ColumnWidth", {'1x', 'fit'});
+bg = uigridlayout(barGrid, [1 3]);
+bg.Layout.Row = 1; bg.Layout.Column = 1;
 bg.Padding = [8 2 8 2];
 bg.ColumnSpacing = 8;
-bg.ColumnWidth = {'1x', 0, 0, 'fit'};   % the status text; a run's progress bar and Cancel, shown while it goes (onRunExport); the database lamp
+bg.ColumnWidth = {'1x', 0, 0};   % the status text; a run's progress bar and Cancel, shown while it goes (onRunExport)
 obj.StatusBar = uilabel(bg, "Text", "Ready.", "FontColor", [0.15 0.15 0.15]);
 track = uipanel(bg, "BorderType", "line", "BackgroundColor", [0.92 0.92 0.94]);
 track.Layout.Column = 2;
@@ -42,7 +46,7 @@ RS.Cancel = uibutton(bg, "Text", "Cancel", "Icon", buttonIcon("stop"), "Tooltip"
     "ButtonPushedFcn", @(~,~) obj.onCancelRun());
 RS.Cancel.Layout.Column = 3;
 obj.RunStrip = RS;
-LabDBLamp(bg, Row=1, Column=4, Parent=obj.Fig);   % the lab database's state; a click opens its window
+LabDBLamp(barGrid, Row=1, Column=2, Parent=obj.Fig);   % the lab database's state; a click opens its window
 
 obj.Splash.step("Data", "Building the Data tab ..."); obj.buildDataTab();
 obj.Splash.step("Alignment", "Building the Alignment tab ..."); obj.buildAlignTab();

@@ -162,6 +162,12 @@ for seed = opts.Seeds
     dopt = opts.DetectOptions;
     dopt.Waveforms = false;
     dopt.ArtifactIntervals = T.artifacts;
+    if isfield(dopt, 'Coincidence') && dopt.Coincidence ~= "none"
+        % The Spikes step finds coincident copies on the dataset's probe
+        % (spikesToMat); here that is the synthetic probe the recording
+        % was made with.
+        dopt.SitePositions = [T.probe.xc(:) T.probe.yc(:)];
+    end
     dArgs = namedargs2cell(dopt);
     [~, ~, info] = ds.detectSpikes(dArgs{:});
     thr = median(info.threshold, 1, 'omitnan');           % per channel (chunk scope: over the chunks)

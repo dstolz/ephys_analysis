@@ -164,7 +164,7 @@ classdef LabDBSettings
                         if n == "" || p == ""
                             error("root %d has no name or no path", k);
                         end
-                        if any([out.Name] == n)
+                        if any(string({out.Name}) == n)
                             error("root %s is listed twice", n);
                         end
                         out(end+1) = struct("Name", n, "Path", p); %#ok<AGROW>

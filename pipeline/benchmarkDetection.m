@@ -165,8 +165,9 @@ for seed = opts.Seeds
     if isfield(dopt, 'Coincidence') && dopt.Coincidence ~= "none"
         % The Spikes step finds coincident copies on the dataset's probe
         % (spikesToMat); here that is the synthetic probe the recording
-        % was made with.
-        dopt.SitePositions = [T.probe.xc(:) T.probe.yc(:)];
+        % was made with (the preview P, made with the same arguments,
+        % carries it).
+        dopt.SitePositions = [P.probe.xc(:) P.probe.yc(:)];
     end
     dArgs = namedargs2cell(dopt);
     [~, ~, info] = ds.detectSpikes(dArgs{:});

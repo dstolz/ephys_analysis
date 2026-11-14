@@ -731,8 +731,8 @@ end
 
 if S.sec("2", "config: addFigure, templates and ids")
     check(FT.Template(1) == "rasterPsth" && FT.Label(1) == "Raster over PSTH (per unit)" ...
-        && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "eventTrace" trialTypes "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" spectralTypes]) ...
-        && FT.Template(end) == "blank", 'figureTemplates: rasterPsth first, one per type (the trial panels after the event traces), blank last');
+        && isequal(FT.Template(2:end-1).', ["psth" "raster" "continuous" "eventTrace" trialTypes "heatmap" "waveforms" "probemap" "corrmap" "rate" "tuning" spectralTypes "strf"]) ...
+        && FT.Template(end) == "blank", 'figureTemplates: rasterPsth first, one per type (the trial panels after the event traces, the STRF after the spectral types), blank last');
     cTr = EphysAnalysisConfig();
     idsTr = strings(1, 0);
     for tt = trialTypes

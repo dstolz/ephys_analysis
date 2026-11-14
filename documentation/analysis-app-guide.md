@@ -297,6 +297,11 @@ optional, and the app works the same without it.
   (the server did not answer; keep working) or **attention** (something on
   this computer needs fixing; point at the lamp to see what). Click it to
   open the Database window.
+- **Records wait for you** when the lamp says **· N need you**: open the
+  Database window and read the outbox. A folder whose subject the database
+  does not have asks for it in a small window: create the subject, or pick
+  the right one (the folder name may be misspelled; the folder is not
+  renamed).
 
 See [Lab database](database.md) for the details.
 

@@ -15,6 +15,26 @@ classdef (Abstract) LabDBBackend < handle
     %     T = b.sessions(filters)    % filters: struct of SubjectId, StorageRootId, RelativePath, ...
     %     T = b.artifacts(filters)   % filters: struct of SessionId, StorageRootId, RelativePath,
     %                                %   PathPrefix, PresentOnly, ...
+    %     T = b.subjects(filters)    % filters: SubjectId, ProjectId
+    %     T = b.projects()           % project_id, name, ...
+    %     T = b.species()            % code, common_name
+    %     T = b.persons(filters)     % filters: PersonId, Email
+    %     id = b.addSubject(a)       % a: SubjectId, ProjectId, SpeciesCode, Sex
+    %     id = b.addSession(a)       % a: SessionId, SubjectId, Label, StorageRootId,
+    %                                %   RelativePath, StartedAt (zoned or NaT)
+    %     out = b.recordEvent(req)   % one event, its inputs and outputs, once (LabSync)
+    %     tf = b.addEventInput(eventId, artifactId, role)   % false when it was there
+    %
+    %   recordEvent's REQ: EventType, EventId, Digest, OccurredAt (zoned),
+    %   SubjectId, SessionId, Notes, AttributesJson (JSON text), RecordedBy
+    %   (a person id), Detail (the type's columns; parameters_json and
+    %   environment_json as JSON text), Inputs (artifact_id, role) and
+    %   Outputs (artifact_id, storage_root_id, relative_path, checksum,
+    %   size_bytes, role, format, attributes_json, replaces; "" for none).
+    %   OUT: EventId, Outcome ("inserted" | "existing"), OutputIds,
+    %   Unchanged, SkippedInputs, SkippedReplaces. Errors keep CarasLabDB's
+    %   identifiers (CarasLabDB:idConflict for an id sent before with other
+    %   content).
     %
     %   S is the LabDBSettings struct. Errors whose identifier ends in
     %   ":Unreachable" mean the server could not be reached; any other
@@ -32,5 +52,13 @@ classdef (Abstract) LabDBBackend < handle
         id = addStorageRoot(obj, name, description)
         T = sessions(obj, filters)
         T = artifacts(obj, filters)
+        T = subjects(obj, filters)
+        T = projects(obj)
+        T = species(obj)
+        T = persons(obj, filters)
+        id = addSubject(obj, a)
+        id = addSession(obj, a)
+        out = recordEvent(obj, req)
+        tf = addEventInput(obj, eventId, artifactId, role)
     end
 end

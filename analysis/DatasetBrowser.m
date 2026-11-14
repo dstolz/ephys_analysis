@@ -2293,6 +2293,7 @@ classdef DatasetBrowser < handle
             uimenu(c.FileMenu, "Text", "Database...", "Separator", "on", ...
                 "Tooltip", "The lab database on this computer: set it up, test it, see what waits to be sent.", ...
                 "MenuSelectedFcn", @(~, ~) LabDBPanel.open(Parent=f));
+            LabSync.start(Parent=f, IfEnabled=true);   % what waits for the lab database is sent while it is open
             uimenu(c.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~, ~) B.close());
 
             % --- the Cache menu: what is kept between runs (Caching)

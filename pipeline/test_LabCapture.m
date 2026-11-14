@@ -26,7 +26,8 @@ classdef test_LabCapture < matlab.unittest.TestCase
 
     methods (TestMethodSetup)
         function isolate(tc)
-            tc.Restore = {AppPrefs.useTemporary(), LabDBSecrets.useFake(), LabDB.useTemporary()};
+            tc.Restore = {AppPrefs.useTemporary(), LabDBSecrets.useFake(), LabDB.useTemporary(), ...
+                LabSync.useManual()};
             tc.Top = string(tempname);
             mkdir(tc.Top);
             tc.addTeardown(@() tc.cleanUp());

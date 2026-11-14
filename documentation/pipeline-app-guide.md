@@ -282,8 +282,15 @@ optional, and the app works the same without it.
   open the Database window.
 - **What it keeps:** while the database is on, every step that writes a
   file, and every session the Copy tab copies, is noted on this computer
-  as it is written, with each file's checksum. Nothing waits for the
-  server.
+  as it is written, with each file's checksum, and sent to the database
+  when it answers: after a run, and every few seconds while the app is
+  open. Nothing waits for the server. The lamp says **· N to send** while
+  some wait.
+- **Records wait for you** when the lamp says **· N need you**: open the
+  Database window and read the outbox. A folder whose subject the database
+  does not have asks for it in a small window: create the subject, or pick
+  the right one (the folder name may be misspelled; the folder is not
+  renamed).
 
 See [Lab database](database.md) for the details.
 

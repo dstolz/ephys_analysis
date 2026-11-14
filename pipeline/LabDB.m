@@ -22,9 +22,13 @@ classdef LabDB < handle
     %                  the Database Toolbox missing): Message says what
     %
     %   Before opening a connection it checks that the server accepts one
-    %   (a TCP probe bounded by ConnectTimeout), so an unreachable server
-    %   costs a few seconds once, not a hung window. Listen to the event
-    %   StateChanged of LabDB.instance() to follow the state (LabDBLamp).
+    %   (a TCP probe bounded by ConnectTimeout, or MaxWait seconds when that
+    %   is shorter: LabSync's ticks wait 2 s at most), so an unreachable
+    %   server costs a few seconds once, not a hung window. Listen to the
+    %   event StateChanged of LabDB.instance() to follow the state, and
+    %   OutboxChanged to follow what waits to be sent (LabDBLamp).
+    %   LabDB.lost(message) says a connection broke while it was used: it is
+    %   closed, and the next try waits as after a failed one.
     %
     %   The folder is %LOCALAPPDATA%\ephys_analysis\labdb (tempdir without
     %   LOCALAPPDATA) or the one EPHYS_LABDB_DIR names; useTemporary() points
@@ -36,6 +40,7 @@ classdef LabDB < handle
 
     events
         StateChanged
+        OutboxChanged
     end
 
     properties (Constant)
@@ -67,10 +72,25 @@ classdef LabDB < handle
             %connect  The open backend, or [] when the database is off or out of reach.
             %   Never an error: why there is none is in status(). While
             %   offline, a new try waits for NextTry unless Force=true.
+            %   MaxWait (seconds) bounds the wait for the server's answer.
             arguments
                 opts.Force (1,1) logical = false
+                opts.MaxWait (1,1) double {mustBePositive} = Inf
             end
-            b = LabDB.instance().tryConnect(opts.Force);
+            b = LabDB.instance().tryConnect(opts.Force, opts.MaxWait);
+        end
+
+        function lost(message)
+            %lost  The connection broke while it was used: close it; the next try waits.
+            db = LabDB.instance();
+            db.closeBackend();
+            db.failed("offline", "The lab database stopped answering: " + string(message) + ...
+                ". The apps keep working; what they record is kept here and sent later.");
+        end
+
+        function outboxChanged()
+            %outboxChanged  Tell the listeners (the lamps, the Database window) that the outbox changed.
+            notify(LabDB.instance(), "OutboxChanged");
         end
 
         function st = status()
@@ -137,9 +157,12 @@ classdef LabDB < handle
             obj.settle();
         end
 
-        function b = tryConnect(obj, force)
+        function b = tryConnect(obj, force, maxWait)
             b = [];
             s = LabDBSettings.load();
+            if isfinite(maxWait)
+                s.ConnectTimeout = max(2, min(s.ConnectTimeout, maxWait));   % libpq waits 2 s at least
+            end
             if ~LabDBSettings.isConfigured(s)
                 obj.closeBackend();
                 obj.setState("off", LabDB.offMessage(s));

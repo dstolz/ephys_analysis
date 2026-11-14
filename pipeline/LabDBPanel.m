@@ -12,8 +12,15 @@ classdef LabDBPanel < handle
     %   is not in the database yet (this workstation's data disk, say) can
     %   be registered in it, and a marker file is written at its top.
     %
-    %   Keys: Ctrl+S save · F5 test the connection · Esc or Ctrl+W close ·
-    %   Ctrl+? list the keys.
+    %   The outbox (LabOutbox) lists what waits to be sent, or waits for
+    %   you, with the reason: Send now (LabSync.flush), Retry a failed
+    %   record, Hold one, Release a held one (Send as me for one captured
+    %   under another login), Discard (asks first; the record is kept,
+    %   marked discarded, with who and why), Details (the record as
+    %   written) and Assign subjects... (SubjectAssignDialog).
+    %
+    %   Keys: Ctrl+S save · F5 test the connection · Ctrl+R send now ·
+    %   Esc or Ctrl+W close · Ctrl+? list the keys.
     %
     %   The apps open it from File > Database... and from the Database lamp
     %   in their status bar (LabDBLamp).
@@ -24,10 +31,12 @@ classdef LabDBPanel < handle
         Fig = []
         Ctl struct = struct()
         Roots struct = struct("Name", {}, "Path", {})
+        OutboxIds (:,1) string = strings(0, 1)   % the record of each outbox row
     end
 
     properties (Access = private)
         Listener = []
+        OutboxListener = []
     end
 
     methods (Static)
@@ -76,6 +85,7 @@ classdef LabDBPanel < handle
                 return
             end
             LabDB.disconnect();
+            LabSync.start(IfEnabled=true);
             obj.say("Saved.", false);
             ok = true;
         end
@@ -110,6 +120,127 @@ classdef LabDBPanel < handle
                 msg = msg + " (" + string(ME.message) + ")";
             end
             obj.say(msg, false);
+        end
+
+        function T = refreshOutbox(obj)
+            %refreshOutbox  Show the outbox: state, captured, what, dataset, note (one row per record).
+            T = LabOutbox.list();
+            T = T(T.state ~= "done" & T.state ~= "discarded", :);
+            n = height(T);
+            data = cell(n, 5);
+            for k = 1:n
+                what = T.type(k);
+                ds = "";
+                try
+                    b = LabOutbox.read(T.id(k));
+                    if b.type == "event"
+                        what = b.record.event.event_type;
+                        a = jsondecode(char(b.record.event.attributes_json));
+                        if isfield(a, "step"); what = what + " " + string(a.step); end
+                        ds = b.record.dataset.name;
+                    end
+                catch
+                end
+                st = T.state(k);
+                if st == "pending" && ~T.sealed(k); st = "hashing"; end
+                data(k, :) = {char(st), char(T.captured_at(k)), char(what), char(ds), char(T.note(k))};
+            end
+            obj.Ctl.Outbox.Data = data;
+            obj.OutboxIds = T.id;
+            c = LabOutbox.counts();
+            obj.Ctl.OutboxPanel.Title = sprintf('Outbox: %d to send, %d held, %d failed (%d sent)', ...
+                c.pending + c.claimed, c.held, c.failed, c.done);
+        end
+
+        function sendNow(obj)
+            %sendNow  Send what can be sent now, for up to 30 s (Ctrl+R).
+            obj.say("Sending...", false);
+            drawnow limitrate
+            r = LabSync.flush(Budget=30);
+            obj.refreshOutbox();
+            msg = sprintf('%d record(s) sent; %d waiting, %d held, %d failed.', r.sent, r.pending, r.held, r.failed);
+            if r.message ~= ""; msg = msg + " " + r.message; end
+            obj.say(msg, r.failed > 0);
+        end
+
+        function retry(obj, ids)
+            %retry  Send failed records IDS again.
+            obj.moveSelected(ids, "failed", "pending", "retried by " + LabBundles.osUser());
+        end
+
+        function hold(obj, ids)
+            %hold  Keep pending records IDS from being sent until released.
+            obj.moveSelected(ids, "pending", "held", "held by " + LabBundles.osUser());
+        end
+
+        function release(obj, ids, opts)
+            %release  Let held records IDS be sent; OnBehalf=true sends one captured under another login as yours.
+            arguments
+                obj
+                ids (1,:) string
+                opts.OnBehalf (1,1) logical = false
+            end
+            for id = ids
+                [~, st] = LabOutbox.read(id);
+                if st ~= "held"; continue; end
+                n = LabOutbox.note(id, "held");
+                f = n.flags;
+                if opts.OnBehalf; f = unique([f, LabSync.OnBehalf], "stable"); end
+                LabOutbox.move(id, "pending", Reason="released by " + LabBundles.osUser(), Flags=f);
+            end
+            obj.refreshOutbox();
+            LabDB.outboxChanged();
+        end
+
+        function discard(obj, ids, opts)
+            %discard  Never send records IDS (asks first unless Confirm=false); they are kept, marked discarded.
+            arguments
+                obj
+                ids (1,:) string
+                opts.Confirm (1,1) logical = true
+                opts.Reason (1,1) string = ""
+            end
+            if isempty(ids); return; end
+            if opts.Confirm
+                a = uiconfirm(obj.Fig, sprintf(['Discard %d record(s)? They are never sent to the lab ' ...
+                    'database. They stay in the outbox, marked discarded with your name.'], numel(ids)), ...
+                    "Discard", "Options", {'Discard', 'Cancel'}, "DefaultOption", 2, "CancelOption", 2, ...
+                    "Icon", "warning");
+                if a ~= "Discard"; return; end
+            end
+            why = "discarded by " + LabBundles.osUser() + " on " + LabBundles.host();
+            if opts.Reason ~= ""; why = why + ": " + opts.Reason; end
+            for id = ids
+                [~, st] = LabOutbox.read(id);
+                if ismember(st, ["pending" "held" "failed"])
+                    LabOutbox.move(id, "discarded", Reason=why);
+                end
+            end
+            obj.refreshOutbox();
+            LabDB.outboxChanged();
+        end
+
+        function txt = details(obj, id)
+            %details  The record ID as it is written, in a window of its own.
+            [b, st] = LabOutbox.read(id);
+            if isempty(b); txt = ""; return; end
+            n = LabOutbox.note(id, st);
+            txt = "State: " + st + newline + "Note: " + n.reason + newline + newline + ...
+                string(jsonencode(jsondecode(char(LabBundles.encode(b))), "PrettyPrint", true));
+            if obj.Fig.Visible == "on"
+                AppDialog.showText("Record " + id, split(txt, newline), Parent=obj.Fig);
+            end
+        end
+
+        function assignSubjects(obj)
+            %assignSubjects  The subject window for the first folder subject records wait for.
+            T = LabSync.subjectHolds();
+            if isempty(T)
+                obj.say("No record waits for a subject.", false);
+                return
+            end
+            SubjectAssignDialog.open(Parent=obj.Fig, FolderId=T.folder_id(1));
+            obj.refreshOutbox();
         end
 
         function setPassword(obj)
@@ -205,6 +336,9 @@ classdef LabDBPanel < handle
             if ~isempty(obj.Listener) && isvalid(obj.Listener)
                 delete(obj.Listener);
             end
+            if ~isempty(obj.OutboxListener) && isvalid(obj.OutboxListener)
+                delete(obj.OutboxListener);
+            end
         end
     end
 
@@ -212,7 +346,7 @@ classdef LabDBPanel < handle
         function obj = LabDBPanel(parent, visible)
             s = LabDBSettings.load();
             obj.Roots = s.Roots;
-            pos = [100 100 720 560];
+            pos = [100 100 760 760];
             if ~isempty(parent) && isvalid(parent)
                 pp = parent.Position;
                 pos(1:2) = pp(1:2) + max(0, (pp(3:4) - pos(3:4)) / 2);
@@ -220,8 +354,8 @@ classdef LabDBPanel < handle
             f = uifigure("Name", "Lab database", "Position", pos, "Visible", "off", ...
                 "Tag", "LabDBPanel", "KeyPressFcn", @(~, e) obj.onKey(e));
             obj.Fig = f;
-            g = uigridlayout(f, [4 1]);
-            g.RowHeight = {'fit', 'fit', '1x', 'fit'};
+            g = uigridlayout(f, [5 1]);
+            g.RowHeight = {'fit', 'fit', '1x', '1.3x', 'fit'};
             g.Padding = [12 12 12 12];
 
             % settings
@@ -281,11 +415,41 @@ classdef LabDBPanel < handle
                 "Remove the selected mapping, or register the selected root in the database", ...
                 "ButtonPushedFcn", @(~, ~) obj.rootAction());
 
+            % the outbox
+            c.OutboxPanel = uipanel(g, "Title", "Outbox");
+            og = uigridlayout(c.OutboxPanel, [2 8]);
+            og.RowHeight = {'1x', 26};
+            og.ColumnWidth = {'fit', 'fit', 'fit', 'fit', 'fit', 'fit', 'fit', '1x'};
+            c.Outbox = uitable(og, "ColumnName", {'State', 'Captured', 'What', 'Dataset', 'Note'}, ...
+                "ColumnWidth", {70, 170, 130, 150, 'auto'}, "RowName", {}, "SelectionType", "row", ...
+                "Multiselect", "on");
+            c.Outbox.Layout.Column = [1 8];
+            uibutton(og, "Text", "Send now", "Tooltip", "Send what can be sent now (Ctrl+R)", ...
+                "ButtonPushedFcn", @(~, ~) obj.sendNow());
+            uibutton(og, "Text", "Retry", "Tooltip", "Send the selected failed records again", ...
+                "ButtonPushedFcn", @(~, ~) obj.retry(obj.selectedIds()));
+            uibutton(og, "Text", "Hold", "Tooltip", "Keep the selected records from being sent", ...
+                "ButtonPushedFcn", @(~, ~) obj.hold(obj.selectedIds()));
+            uibutton(og, "Text", "Release", "Tooltip", "Let the selected held records be sent", ...
+                "ButtonPushedFcn", @(~, ~) obj.release(obj.selectedIds()));
+            uibutton(og, "Text", "Send as me", "Tooltip", ...
+                "Send the selected records captured under another login as yours (the database stamps your login)", ...
+                "ButtonPushedFcn", @(~, ~) obj.release(obj.selectedIds(), OnBehalf=true));
+            uibutton(og, "Text", "Discard...", "Tooltip", "Never send the selected records (asks first)", ...
+                "ButtonPushedFcn", @(~, ~) obj.discard(obj.selectedIds()));
+            uibutton(og, "Text", "Details", "Tooltip", "The selected record as it is written", ...
+                "ButtonPushedFcn", @(~, ~) obj.detailsOfSelected());
+            uibutton(og, "Text", "Assign subjects...", "Tooltip", ...
+                "Create the subjects records wait for, or assign their sessions to existing ones", ...
+                "ButtonPushedFcn", @(~, ~) obj.assignSubjects());
+
             c.Message = uilabel(g, "Text", "", "WordWrap", "on");
             obj.Ctl = c;
             obj.showRoots();
             obj.showState();
+            obj.refreshOutbox();
             obj.Listener = listener(LabDB.instance(), "StateChanged", @(~, ~) obj.showState());
+            obj.OutboxListener = listener(LabDB.instance(), "OutboxChanged", @(~, ~) obj.refreshOutboxIfOpen());
             addlistener(f, "ObjectBeingDestroyed", @(~, ~) obj.delete());
             if visible
                 f.Visible = "on";
@@ -299,14 +463,46 @@ classdef LabDBPanel < handle
             if ctrl && (ismember(key, ["slash", "questionmark"]) || string(e.Character) == "?")
                 uialert(obj.Fig, sprintf(['Ctrl+S   Save the settings\n' ...
                     'F5       Test the connection (saves first)\n' ...
+                    'Ctrl+R   Send what waits in the outbox now\n' ...
                     'Esc      Close (also Ctrl+W)\n' ...
                     'Ctrl+?   This list']), "Keyboard shortcuts", "Icon", "info");
             elseif ctrl && key == "s"
                 obj.save();
+            elseif ctrl && key == "r"
+                obj.sendNow();
             elseif key == "f5"
                 obj.testConnection();
             elseif key == "escape" || (ctrl && key == "w")
                 obj.close();
+            end
+        end
+
+        function ids = selectedIds(obj)
+            sel = obj.Ctl.Outbox.Selection;
+            ids = strings(1, 0);
+            if isempty(sel); obj.say("Select records in the outbox first.", true); return; end
+            rows = unique(sel(:, 1)).';
+            rows = rows(rows <= numel(obj.OutboxIds));
+            ids = reshape(obj.OutboxIds(rows), 1, []);
+        end
+
+        function detailsOfSelected(obj)
+            ids = obj.selectedIds();
+            if ~isempty(ids); obj.details(ids(1)); end
+        end
+
+        function moveSelected(obj, ids, from, to, reason)
+            for id = reshape(string(ids), 1, [])
+                [~, st] = LabOutbox.read(id);
+                if st == from; LabOutbox.move(id, to, Reason=reason); end
+            end
+            obj.refreshOutbox();
+            LabDB.outboxChanged();
+        end
+
+        function refreshOutboxIfOpen(obj)
+            if ~isempty(obj.Fig) && isvalid(obj.Fig)
+                obj.refreshOutbox();
             end
         end
 

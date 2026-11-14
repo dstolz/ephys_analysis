@@ -10,7 +10,11 @@ classdef LabDBLamp < handle
     %                            working and what they record waits here (orange)
     %     Database: attention    something on this computer must be fixed (red)
     %
-    %   The tooltip says why. Clicking opens LabDBPanel over PARENT.
+    %   followed, while the database is on, by what waits in the outbox
+    %   (LabOutbox): "· 3 to send", or "· 2 need you" (held or failed
+    %   records, shown red) . The tooltip says why. Clicking opens
+    %   LabDBPanel over PARENT. Creating a lamp starts the sending
+    %   (LabSync.start) when the database is turned on here.
     %
     %   See also LabDB, LabDBPanel.
 
@@ -21,6 +25,7 @@ classdef LabDBLamp < handle
 
     properties (Access = private)
         Listener = []
+        OutboxListener = []
     end
 
     methods
@@ -37,8 +42,10 @@ classdef LabDBLamp < handle
             obj.Button.Layout.Row = opts.Row;
             obj.Button.Layout.Column = opts.Column;
             obj.Listener = listener(LabDB.instance(), "StateChanged", @(~, ~) obj.refresh());
+            obj.OutboxListener = listener(LabDB.instance(), "OutboxChanged", @(~, ~) obj.refresh());
             addlistener(obj.Button, "ObjectBeingDestroyed", @(~, ~) obj.delete());
             obj.refresh();
+            LabSync.start(Parent=opts.Parent, IfEnabled=true);
         end
 
         function refresh(obj)
@@ -48,19 +55,47 @@ classdef LabDBLamp < handle
             end
             st = LabDB.status();
             [label, color] = LabDBLamp.look(st.State);
-            obj.Button.Text = "Database: " + label;
+            tip = st.Message;
+            [extra, need] = LabDBLamp.outboxText();
+            if need
+                color = [0.75 0.10 0.10];
+                tip = tip + " Some records wait for you: see the outbox in the Database window.";
+            end
+            obj.Button.Text = "Database: " + label + extra;
             obj.Button.FontColor = color;
-            obj.Button.Tooltip = char(st.Message + " (click for the Database window)");
+            obj.Button.Tooltip = char(tip + " (click for the Database window)");
         end
 
         function delete(obj)
             if ~isempty(obj.Listener) && isvalid(obj.Listener)
                 delete(obj.Listener);
             end
+            if ~isempty(obj.OutboxListener) && isvalid(obj.OutboxListener)
+                delete(obj.OutboxListener);
+            end
         end
     end
 
     methods (Static)
+        function [t, need] = outboxText()
+            %outboxText  " · N to send" / " · N need you" while the database is on, "" otherwise.
+            t = "";
+            need = false;
+            try
+                if ~LabCapture.enabled(); return; end
+                c = LabOutbox.counts();
+            catch
+                return
+            end
+            n = c.held + c.failed;
+            if n > 0
+                t = " · " + n + " need you";
+                need = true;
+            elseif c.pending + c.claimed > 0
+                t = " · " + (c.pending + c.claimed) + " to send";
+            end
+        end
+
         function [label, color] = look(state)
             %look  The lamp's text and colour for STATE.
             switch state

@@ -1659,17 +1659,17 @@ run records it under that id.
 ## Lab database bundle (`caraslabdb-bundle/1`)
 
 Path: `<LabDB.folder()>/outbox/<state>/<bundle_id>.json`, `<state>` one of
-`pending`, `claimed`, `held`, `failed`, `done`; `LabDB.folder()` is
+`pending`, `claimed`, `held`, `failed`, `done`, `discarded`; `LabDB.folder()` is
 `%LOCALAPPDATA%\ephys_analysis\labdb` (or `EPHYS_LABDB_DIR`). Written by
 `LabCapture` when the [lab database](database.md) is turned on here, one per
-record to send; nothing is sent from it yet. Compact JSON, written by
+record to send, and sent by `LabSync`. Compact JSON, written by
 `LabBundles.encode` only (atomically, `writeJsonFile`):
 
 ```text
 {
   "format":      "caraslabdb-bundle/1",
   "bundle_id":   <the event's id, a uuid>,
-  "type":        "event",
+  "type":        "event" | "edges",
   "captured_at": <yyyy-MM-ddTHH:mm:ss.SSSSSS±hh:mm>,
   "captured_by": { "host", "os_user", "db_username", "person_id", "person_email" },
   "after":       [<bundle ids to send first>],
@@ -1690,6 +1690,11 @@ record to send; nothing is sent from it yet. Compact JSON, written by
 <item> = { "artifact_id", "path", "root", "rel", "bytes", "mtime", "sha256", "role",
            "format", "kind", "replaces", "attributes_json" }
 ```
+
+An `edges` bundle holds the inputs of an event already sent whose files were
+not in the database yet: `"record": { "event_id", "inputs": [<item>, ...] }`.
+`LabSync` writes one when the database leaves inputs out, and sends it again
+until every file is there.
 
 - Times carry their zone offset; a rig time written without one (a folder
   name, an old manifest) is read in the lab's time zone.
@@ -1715,7 +1720,9 @@ record to send; nothing is sent from it yet. Compact JSON, written by
   Sending the same bundle twice is harmless: the database keeps the digest
   with the event and answers "existing".
 - A `<bundle_id>.note.json` beside a bundle says when and why it moved
-  (`state`, `reason`, `at`, `host`); a claimed bundle has a heartbeat,
+  (`state`, `reason`, `at`, `host`) and what a person decided or the last
+  try found (`flags`: `on_behalf` for "Send as me", `needs_subject`,
+  `needs_login`); a claimed bundle has a heartbeat,
   `<bundle_id>.claim.json`. The out-of-process hashes are in
   `<LabDB.folder()>/hashing`.
 - `pipeline/testdata/labdb/bundle_event_v1.json` is a complete example,
@@ -1727,7 +1734,9 @@ Path: the dataset's folder. Written by `LabCapture` the first time something
 of the dataset is captured for the lab database, or by `copySessions` for a
 session it copied: `format` (`ephys-labdb-session/1`), `session_id` (the
 session's id in the database, the same on every record and every computer
-that reads the folder), `created_at`, `recording_event_id` and
+that reads the folder), `created_at`, `subject_id` (the database subject a
+person assigned the session to, `SubjectAssignDialog`; absent or `""`: the
+one the folder's name gives), `recording_event_id` and
 `behavior_event_id` (the copied session's events; `""` when none) and `raw`
 (the raw files as captured, bundle items with their ids). Not written while
 the database is off here.

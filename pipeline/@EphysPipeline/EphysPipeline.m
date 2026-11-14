@@ -483,12 +483,44 @@ classdef EphysPipeline < handle
             if nargin < 6; output = ""; end
             obj.Results(end+1, :) = {string(step), string(dataset), string(status), ...
                 string(message), string(output), seconds};
+            if startsWith(string(status), "error") || (string(status) == "canceled" && seconds > 0)
+                obj.captureFailure(step, dataset, status, message, seconds);   % for the lab database
+            end
             if obj.TransferStep && ~startsWith(string(step), "transfer")
                 try
                     obj.transferOutputs(Rows=height(obj.Results), Close=false, Wait=false);   % its outputs, at once
                 catch ME
                     obj.log("[transfer] %s: not queued: %s", string(dataset), ME.message);
                 end
+            end
+        end
+
+        function captureFailure(obj, step, dataset, status, message, seconds)
+            %captureFailure  A step that failed on DATASET, or was canceled while it ran, for the lab database.
+            %   The steps that write files only (artifacts, sorting,
+            %   signals, spikes, the behavior file, export); never an error.
+            kinds = struct("artifacts", "artifacts", "sorting", "sorting", "signals", "signals", ...
+                "spikes", "spikes", "behavior_file", "behavior", "export_nwb", "nwb");
+            key = matlab.lang.makeValidName(replace(string(step), ":", "_"));
+            if ~isfield(kinds, key) || ~LabCapture.enabled(); return; end
+            try
+                ds = obj.Project.Datasets([obj.Project.Datasets.Name] == string(dataset));
+                if isempty(ds); return; end
+                section = EphysPipelineConfig.StepSections(EphysPipelineConfig.StepNames == ...
+                    extractBefore(string(step) + ":", ":"));
+                par = struct();
+                cs = obj.Config.toStruct();
+                if ~isempty(section) && isfield(cs, section); par = cs.(section); end
+                outcome = "failed";
+                if string(status) == "canceled"; outcome = "canceled"; end
+                prov = obj.Provenance;
+                runId = "";
+                if isstruct(prov) && isfield(prov, 'runId'); runId = string(prov.runId); end
+                LabCapture.failure(ds(1), kinds.(key), Outcome=outcome, Message=string(message), ...
+                    Seconds=seconds, Parameters=par, Provenance=prov, RunId=runId);
+            catch ME
+                obj.log("[lab database] %s %s: the failure was not noted: %s", string(step), ...
+                    string(dataset), ME.message);
             end
         end
 

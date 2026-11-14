@@ -8,13 +8,15 @@ classdef LabBundles
     %
     %     format       "caraslabdb-bundle/1"
     %     bundle_id    the event's id (a uuid the toolbox minted)
-    %     type         "event"
+    %     type         "event", or "edges" (inputs of an event already sent,
+    %                  whose files were not in the database yet)
     %     captured_at  when it was captured (zoned, microseconds)
     %     captured_by  host, os_user, db_username, person_id, person_email
     %     after        bundles to send before this one
     %     digest       SHA-256 of the record's canonical JSON text; "" until
     %                  every output's SHA-256 is known (sealed)
-    %     record       dataset, event, inputs, outputs
+    %     record       dataset, event, inputs, outputs ("edges": event_id,
+    %                  inputs)
     %
     %   Everything the database stores as JSON (parameters, environment,
     %   attributes) is kept as JSON text in a string member (*_json), so it
@@ -173,6 +175,21 @@ classdef LabBundles
                 "after", opts.After, "digest", "", "record", rec);
         end
 
+        function b = edges(opts)
+            %edges  A bundle of input edges to add to event EventId once their files are in the database.
+            arguments
+                opts.EventId (1,1) string
+                opts.Inputs struct
+                opts.After (1,:) string = string.empty(1, 0)
+                opts.CapturedBy (1,1) struct = LabBundles.capturedBy()
+            end
+            rec = struct("event_id", opts.EventId, "inputs", LabBundles.items(opts.Inputs));
+            b = struct("format", LabBundles.Format, "bundle_id", LabBundles.newId(), "type", "edges", ...
+                "captured_at", LabBundles.now(), "captured_by", opts.CapturedBy, ...
+                "after", opts.After, "digest", "", "record", rec);
+            b = LabBundles.seal(b);
+        end
+
         function d = noDataset()
             %noDataset  The dataset block of a record about no dataset.
             d = struct("name", "", "folder", "", "session_id", "", "subject_folder_id", "", ...
@@ -204,8 +221,9 @@ classdef LabBundles
 
         function n = missingHashes(b)
             %missingHashes  How many outputs of B have no SHA-256 yet.
-            o = b.record.outputs;
             n = 0;
+            if ~isfield(b.record, "outputs"); return; end
+            o = b.record.outputs;
             for k = 1:numel(o)
                 if strlength(string(o(k).sha256)) ~= 64; n = n + 1; end
             end
@@ -254,6 +272,12 @@ classdef LabBundles
             if isempty(b.after); b.after = string.empty(1, 0); end
             b.captured_by = LabBundles.strings(b.captured_by);
             r = b.record;
+            if b.type == "edges"
+                r.event_id = string(r.event_id);
+                r.inputs = LabBundles.items(r.inputs);
+                b.record = r;
+                return
+            end
             r.dataset = LabBundles.strings(r.dataset);
             ev = r.event;
             for f = ["event_id" "event_type" "occurred_at" "notes" "attributes_json"]
@@ -321,7 +345,7 @@ classdef LabBundles
             %canonicalRecord  REC with its lists as cells, so a list of one is still a JSON list.
             r = rec;
             r.inputs = LabBundles.itemCells(rec.inputs);
-            r.outputs = LabBundles.itemCells(rec.outputs);
+            if isfield(rec, "outputs"); r.outputs = LabBundles.itemCells(rec.outputs); end
         end
 
         function c = itemCells(items)

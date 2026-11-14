@@ -110,6 +110,93 @@ classdef LabDBCarasBackend < LabDBBackend
             T = obj.Db.getArtifacts(args{:});
         end
 
+        function T = subjects(obj, filters)
+            obj.requireOpen();
+            args = namedargs2cell(filters);
+            T = obj.Db.getSubjects(args{:});
+        end
+
+        function T = projects(obj)
+            obj.requireOpen();
+            T = obj.Db.getProjects();
+        end
+
+        function T = species(obj)
+            obj.requireOpen();
+            T = obj.Db.getSpecies();
+        end
+
+        function T = persons(obj, filters)
+            obj.requireOpen();
+            args = namedargs2cell(filters);
+            T = obj.Db.getPersons(args{:});
+        end
+
+        function id = addSubject(obj, a)
+            obj.requireOpen();
+            args = {"SubjectId", a.SubjectId, "ProjectId", a.ProjectId, "Sex", a.Sex};
+            if isfield(a, "SpeciesCode") && strlength(a.SpeciesCode) > 0
+                args = [args, {"SpeciesCode", a.SpeciesCode}];
+            end
+            id = string(obj.Db.addSubject(args{:}));
+        end
+
+        function id = addSession(obj, a)
+            obj.requireOpen();
+            args = {"SessionId", a.SessionId, "SubjectId", a.SubjectId, "Label", a.Label, ...
+                "StorageRootId", a.StorageRootId, "RelativePath", a.RelativePath};
+            if isfield(a, "StartedAt") && ~isnat(a.StartedAt)
+                args = [args, {"StartedAt", a.StartedAt}];
+            end
+            id = string(obj.Db.addSession(args{:}));
+        end
+
+        function out = recordEvent(obj, req)
+            %recordEvent  CarasLabDB.recordEvent, with the JSON text sent as written (CarasLabDB.jsonText).
+            obj.requireOpen();
+            d = req.Detail;
+            for f = ["parameters" "environment"]
+                if isfield(d, f + "_json")
+                    d.(f) = CarasLabDB.jsonText(d.(f + "_json"));
+                    d = rmfield(d, f + "_json");
+                end
+            end
+            O = struct("artifact_id", {}, "storage_root_id", {}, "relative_path", {}, ...
+                "checksum", {}, "size_bytes", {}, "role", {}, "format", {}, "attributes", {}, ...
+                "replaces", {});
+            for k = 1:numel(req.Outputs)
+                o = req.Outputs(k);
+                O(k) = struct("artifact_id", LabDBCarasBackend.orMissing(o.artifact_id), ...
+                    "storage_root_id", o.storage_root_id, "relative_path", o.relative_path, ...
+                    "checksum", o.checksum, "size_bytes", o.size_bytes, ...
+                    "role", LabDBCarasBackend.orMissing(o.role), ...
+                    "format", LabDBCarasBackend.orMissing(o.format), ...
+                    "attributes", CarasLabDB.jsonText(o.attributes_json), ...
+                    "replaces", LabDBCarasBackend.orMissing(o.replaces));
+            end
+            I = struct("artifact_id", {}, "role", {});
+            for k = 1:numel(req.Inputs)
+                I(k) = struct("artifact_id", req.Inputs(k).artifact_id, ...
+                    "role", LabDBCarasBackend.orMissing(req.Inputs(k).role));
+            end
+            args = {"EventId", req.EventId, "Digest", req.Digest, "OccurredAt", req.OccurredAt, ...
+                "Attributes", CarasLabDB.jsonText(req.AttributesJson), "Detail", d, ...
+                "Inputs", I, "Outputs", O, "MissingInputs", "skip"};
+            for f = ["SubjectId" "SessionId" "Notes" "RecordedBy"]
+                if isfield(req, f) && strlength(req.(f)) > 0
+                    args = [args, {char(f), req.(f)}]; %#ok<AGROW>
+                end
+            end
+            out = obj.Db.recordEvent(req.EventType, args{:});
+        end
+
+        function tf = addEventInput(obj, eventId, artifactId, role)
+            obj.requireOpen();
+            args = {"EventId", eventId, "ArtifactId", artifactId, "IfExists", "skip"};
+            if strlength(role) > 0; args = [args, {"Role", role}]; end
+            tf = obj.Db.addEventInput(args{:});
+        end
+
         function delete(obj)
             obj.close();
         end
@@ -123,6 +210,14 @@ classdef LabDBCarasBackend < LabDBBackend
                 tf = any(string(methods("CarasLabDB")) == LabDBCarasBackend.RequiredMethod);
             catch
             end
+        end
+    end
+
+    methods (Static, Access = private)
+        function v = orMissing(v)
+            %orMissing  "" as string(missing): a value not given, left to the database.
+            v = string(v);
+            if isempty(v) || v == ""; v = string(missing); end
         end
     end
 

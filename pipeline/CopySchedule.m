@@ -417,6 +417,9 @@ classdef CopySchedule
             %   went through and 1 when a session failed or the run could not
             %   do its work (the source or the destination not there, bad
             %   settings); Task Scheduler shows it as the task's last result.
+            %   When the lab database is on, the run ends by sending what
+            %   the copy recorded (LabSync.flush, a minute at most); that
+            %   does not change the exit code.
             arguments
                 file (1,1) string
             end
@@ -456,6 +459,17 @@ classdef CopySchedule
             info.Finished = isoText(datetime('now'));
             writeJsonFile(lastFile, info);
             logFcn(sprintf("Scheduled copy %s: %s", info.State, summary));
+            try
+                % What the copy recorded for the lab database goes now, for a
+                % minute at most; what is left waits for the next run or an app.
+                if LabCapture.enabled()
+                    r = LabSync.flush(Budget=60);
+                    logFcn(sprintf("Lab database: %d record(s) sent, %d waiting, %d held, %d failed%s", ...
+                        r.sent, r.pending, r.held, r.failed, ternary(r.message == "", "", " (" + r.message + ")")));
+                end
+            catch ME
+                logFcn("Lab database: nothing sent: " + ME.message);
+            end
         end
 
         function t = subjectText(subjects)

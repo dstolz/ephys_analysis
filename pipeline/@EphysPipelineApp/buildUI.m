@@ -154,8 +154,8 @@ function buildStatusBar(obj, parent)
 %buildStatusBar  Status strip along the bottom of the figure.
 panel = uipanel(parent, "BorderType", "line", "BackgroundColor", [0.96 0.96 0.98]);
 panel.Layout.Row = 3; panel.Layout.Column = 1;
-sg = uigridlayout(panel, [1 2]);
-sg.ColumnWidth  = {'1x', 'fit'};
+sg = uigridlayout(panel, [1 3]);
+sg.ColumnWidth  = {'1x', 'fit', 'fit'};
 sg.RowHeight    = {'1x'};
 sg.Padding      = [8 0 8 0];
 sg.ColumnSpacing = 16;
@@ -164,4 +164,5 @@ obj.StatusBar.Layout.Row = 1; obj.StatusBar.Layout.Column = 1;
 obj.StatusHint = uilabel(sg, "Text", "", "FontAngle", "italic", "FontColor", [0.15 0.45 0.75], ...
     "HorizontalAlignment", "right", "VerticalAlignment", "center");
 obj.StatusHint.Layout.Row = 1; obj.StatusHint.Layout.Column = 2;
+LabDBLamp(sg, Row=1, Column=3, Parent=obj.Fig);   % the lab database's state; a click opens its window
 end

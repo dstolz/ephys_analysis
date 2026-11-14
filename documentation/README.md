@@ -45,6 +45,7 @@ organized by event.
 | [NeuroGLMExport](NeuroGLMExport.md) | connector that hands the browser's whole sessions to the neuroGLM toolbox (Park et al. 2014) and fits its Poisson GLM |
 | [mTRFExport](mTRFExport.md) | stimulus / response pairs for the mTRF-Toolbox (Crosse et al. 2016: temporal response functions, decoders): `mTRFExport`, `epochMatrixMTRF`, `sessionDataMTRF` |
 | [CSDEstimate](CSDEstimate.md) | current source density of the browser's laminar potentials with the iCSD toolbox (`icsdEstimate`: Pettersen et al. 2006) or kCSD-python (`kcsdEstimate`: Potworowski et al. 2012): `laminarColumns`, `epochMatrixCSD`, `sessionDataCSD` |
+| [Lab database](database.md) | the optional link to the lab's CarasLabDB database: the Database window, the storage roots on each computer, the status lamp, `LabDB` / `LabDBSettings` / `LabRoots` in scripts |
 | [Platforms](platforms.md) | what runs on Windows, macOS and Linux; `platformSupport`, `openInSystem` |
 | [Analysis](EphysAnalysis.md) | the `analysis` folder: event references, epochs, trial selection and grouping, PSTH / evoked / rate / tuning computations, response statistics, population analysis, figures merged across sessions and their data export, renderers, export, HTML / PDF reports, `EphysAnalysisRunner`, `EphysAnalysisScript` |
 | [EphysAnalysisConfig](EphysAnalysisConfig.md) | the analysis config (JSON `ephys-analysis-config`): every field, panel types, version 1 migration, validation, tokens |
@@ -428,6 +429,13 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   computed one after the other. The Visualize tab's envelope builds
   (`EphysTraceEnvelope`) need no toolbox: `parfeval` on `backgroundPool`
   is part of MATLAB.
+- Database Toolbox (optional; the lab database, through the
+  [CarasLabDB](https://github.com/dstolz/CarasLabDB) class on the path, which
+  connects with the toolbox's native `postgresql` interface:
+  `LabDBCarasBackend`). MATLAB's secret vault (`setSecret`, `getSecret`,
+  R2024a or later) keeps the database password (`LabDBSecrets`), and
+  `tcpclient` checks that the server answers before a connection is opened
+  (`LabDBCarasBackend.probe`). See [Lab database](database.md).
 - No Report Generator: the analysis module's PDF reports are vector pages
   from `print -dpdf -vector`, joined with the Apache PDFBox library that MATLAB
   ships on its Java class path (`java/jarext/pdfbox.jar`,

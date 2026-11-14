@@ -190,6 +190,19 @@ The grayed line in the menu shows how much memory the loaded data take now.
 | tag the recordings you picked (`cohort-3`) | tick them, right-click the table: **Edit tags (ticked)...**, type the tag, **Add to all**, **OK** |
 | see how a recording was processed (its manifest) | click its row, then right-click the table: **Open manifest viewer** (or **File → Open manifest viewer**) |
 
+## The lab database
+
+If your lab uses its database, the app can record there what it does. It is
+optional, and the app works the same without it.
+
+- **Set it up once:** **File → Database...**. Tick the box, type the server
+  and your login, click **Set password...**, then **Test connection**.
+- **Its state**, in the Database window, is **connected**, **offline**
+  (the server did not answer; keep working) or **attention** (something on
+  this computer needs fixing; point at the lamp to see what).
+
+See [Lab database](database.md) for the details.
+
 ## When something goes wrong
 
 - **A recording is missing from the result.** Look at its **Cached** cell

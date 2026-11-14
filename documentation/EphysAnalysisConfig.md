@@ -517,6 +517,7 @@ groups), on the panel's one x axis. One vocabulary serves every such type
 | `tuning` | `groups` | a row per series (`seriesParam`), every item in each |
 | `heatmap` | `groups` (rows `"items"`) | a block of the layer's units or channels per group, every block in the same row order and on one color scale; not used for rows `"trials"` (they list the groups in blocks already: a validation warning) |
 | `spectrogram`, `coherence` and `itpc` over time | `groups` | an image row per group sharing the time axis, one color scale and one color bar for all, y label `<parameters> (<f1>-<f2> Hz per row)` |
+| `strf` | `groups` | an image row per set (trial group or bank item) of the view drawn, sharing its x axis, one color scale and one color bar, when the sets' grids agree |
 | `raster`, `rate`, `waveforms`, `probemap`, `corrmap`, `eventTrace` | — | none: a raster lists its groups in blocks already and an event trace has a row per line; a rate panel puts its groups along x; waveforms and the probe map have no trial groups, and a unit correlation map is a units-by-units matrix (draw one panel per group with `options.group`) |
 
 - **Line rows** (PSTH, continuous, spectrum, coherence, ITPC, tuning): a thin gray line
@@ -1307,7 +1308,7 @@ its own (`"psth"`, `"raster"`, `"continuous"`, `"eventTrace"` for [event traces]
 `"probemap"`, `"corrmap"`, `"rate"` for a firing rate panel, `"tuning"` for a
 tuning curve, `"spectrum"`, `"spectrogram"` and `"coherence"` for the
 [spectral panels](#spectral-panels), `"itpc"` for a [phase coherence
-panel](#phase-coherence-panels)): one panel `<type>_1` over the whole page (`[0 0 1 1]`) holding
+panel](#phase-coherence-panels), `"strf"` for an [STRF panel](#strf-panels-torcs-and-dynamic-moving-ripples)): one panel `<type>_1` over the whole page (`[0 0 1 1]`) holding
 `defaultLayer(type)`, a layer of the first source of the type's first
 [category](#source-categories) (`units`; `LFP` for continuous; an events layer of the `Stim` line for event traces; a
 `trials` layer measuring Stim onset to Trial offset for the trial panels, a scatter's x Trial onset to Stim onset) bound as the
@@ -1501,6 +1502,7 @@ follow its id.
 | `trialDist` | Trial distribution | Dist | trial | no | no | no | yes | `fixed` |
 | `trialHist` | Trial histogram | Hist | trial | no | no | no | yes | `fixed` |
 | `trialScatter` | Trial scatter | Scatter | trial | no | no | no | yes | `fixed` |
+| `strf` | STRF (TORC / DMR) | STRF | point | yes | no | yes | no | `observation` |
 | `legend` | Legend | Legend | none (no layers) | no | no | no | no | `""` |
 
 - `Short`: one word, the type's part of an [automatic figure id](#figure-ids).
@@ -1693,6 +1695,10 @@ What each draws:
 - `eventTrace`: digital or derived lines as a logic analyzer shows them, a row
   per events layer, each interval from its onset to its offset ([Event
   traces](#event-traces)).
+- `strf`: the spectrotemporal receptive field of a unit's spikes from TORC or
+  dynamic moving ripple stimuli made by stimgen: the STRF over lag and
+  frequency, its ripple transfer function, or a DMR's conditioned response
+  histogram ([STRF panels](#strf-panels-torcs-and-dynamic-moving-ripples)).
 - `trialDist`: one value per trial (a trials layer's measure: a delay, a
   duration, a count or a trial parameter) by category along x (the trial
   groups, a parameter's levels, the session or the layer), as a swarm, boxes,
@@ -1947,6 +1953,155 @@ time, from 2 to 60 Hz on a log axis:
 ```json
 { "id": "itpc_1", "type": "itpc", "layers": [ { "source": "LFP", "binding": "observation" } ],
   "options": { "overTime": true, "fpass": [2 60], "freqScale": "log", "movingwin": [0.4 0.02] } }
+```
+
+### STRF panels (TORCs and dynamic moving ripples)
+
+An `strf` panel ("STRF (TORC / DMR)") draws the **spectrotemporal receptive
+field** (STRF) of a spike train: which spectral and temporal patterns of the
+sound came before its spikes. It needs stimuli designed for reverse
+correlation and made by [stimgen](https://github.com/dstolz/stimgen):
+
+- **TORCs** (`stimgen.TORC`, temporally orthogonal ripple combinations): Klein
+  DJ, Depireux DA, Simon JZ, Shamma SA (2000), *Robust spectrotemporal reverse
+  correlation for the auditory system: optimizing stimulus design*, J Comput
+  Neurosci 9:85-111.
+- **Dynamic moving ripples** and **ripple noise** (`stimgen.DMR`, its
+  `EnvelopeMode` `"DMR"` or `"RippleNoise"`): Escabi MA, Schreiner CE (2002),
+  *Nonlinear spectrotemporal sound analysis by neurons in the auditory
+  midbrain*, J Neurosci 22:4114-4131.
+
+The panel reads one layer, the first enabled one: units or detected spikes
+that may follow the observation; a fixed layer's units are pooled into one
+spike train. It is aligned (its `ref`, `window` and trial selection pick the
+epochs), but each epoch is analyzed over its own stimulus, from the event to
+the stimulus's end; the panel's window is not read. Its x axis is lag (or
+modulation rate), not time from the event.
+
+**Which stimulus each epoch presented** (`options.stim`, `rippleStimuli`).
+The envelope a presentation played is rebuilt from its stimgen generation
+record (`stimgen.TORC.envelope_from_record`,
+`stimgen.DMR.envelope_from_record`: no waveform is synthesized), so stimgen
+must be on the MATLAB path; without it the layer is skipped with the reason.
+Two routes:
+
+| `stim.source` | Reads | Each epoch's stimulus |
+| --- | --- | --- |
+| `"log"` (default) | a stimgen presentation log (`stimgen_run_*.mat`, written by StimPlayer, `FormatVersion` 1) | the k-th onset of the panel's line is presentation k of the log, its `StimRecord`. The line's onsets are every interval of the line over the recording, cleaned and filtered as the event reference says (stitching, refractory period, length, `timeRange` in recording time: narrow it to the run's part of a recording that holds more than one run). Refused unless there are as many onsets as presentations, and unless every interval between two onsets agrees with the log's (`StimOrderTime`) within `stim.tolerance` s. The panel must align to the line's onsets (edge `onset`, no `offsetParam`, no `sequence`; validate says so). `stim.item` (a bank item's name or number, `""` = every item) keeps one item's presentations |
+| `"parameter"` | a trial column, `stim.parameter`, holding the variant (combination) index each trial played; and a file to read that variant from: a presentation log (a presentation of that item and variant), a stimgen bank (`.spl`: the item generated at that variant) or a DMR envelope export (`DMR.export_envelope`: the combination's `Record`) | the record of the trial's variant; `stim.item` names the bank item of a log or bank (`""`: its only one) |
+
+`stim.file` is absolute, or relative to each dataset's output folder (one
+setting then serves every dataset that keeps its log beside its outputs). A
+TORC logged before stimgen recorded its ripple phases is generated again from
+the log's bank at the variant played, and refused unless its length and
+variant values match the logged record and its `Seed` was not negative (a
+negative `Seed` drew phases that were never recorded). An epoch whose stimulus
+runs past the end of the recording, or over an artifact period the selection
+excludes, is left out.
+
+**The STRF** (`rippleStrf`). Times are on a grid of `rate` Hz (4000, the rate
+Escabi & Schreiner sampled their envelopes at): each spike is placed at the
+nearest grid time, and the STRF is read at lags 0 to `maxLag` (0.1 s). The
+first `skip` s of each presentation are left out (`NaN`, automatic: a DMR's
+or ripple noise's `maxLag`, so every lag reads the stimulus and not the
+silence before it; a TORC's one ripple period when it holds two or more, the
+onset response, else nothing). With S the envelope in dB, the sum
+`sum_n S(t_n - tau, x)` over the spikes analyzed is divided by:
+
+| Stimulus | Normalizer | Drawn | Units |
+| --- | --- | --- | --- |
+| DMR, ripple noise | `sigma^2 T` (Escabi & Schreiner Eq. 10): `sigma^2` the envelope's mean square over the time analyzed (`M^2/8` for a DMR), `T` that time | the rate-normalized STRF, `sigma` x STRF | spikes/s |
+| TORC | `a^2 T` per TORC (Klein et al. Eq. 38: `C = 1/T sum_n S(t_n - tau, x)` is the period-averaged response against one period, the envelope periodic, so lags before the onset read the period before; `a` its `RippleAmplitude`). TORCs of one ripple set (the same rates and densities, other phases) are averaged (Eq. 33-34), different sets (method I) summed (Eq. 39); sets sharing a component are refused | the STRF | spikes/s per dB |
+
+The two scales follow their papers and are not comparable with each other.
+**Significant pixels** (Escabi & Schreiner, "Statistically significant
+STRF"): with spike times unrelated to the stimulus each pixel is normal with
+mean 0 and a variance the spikes and the envelope's mean square give; a
+pixel beyond `z = sqrt(2) erfcinv(sigAlpha)` SDs of it is significant
+(`sigAlpha` 0.002: 3.09 SD). Klein et al. state no test for a TORC; the panel
+applies the same null to the TORC's envelope.
+
+**Read from the significant STRF** (the other pixels 0):
+
+- the **ripple transfer function** (RTF): `|H(w, Omega)|`, Klein et al. Eq. 14,
+  `H = 1/(TX) sum STRF(tau, x) exp(-i 2 pi (w tau - Omega x))`, drawn on
+  `Omega >= 0` (the rest is its mirror), zero-padded `rtfPad` times. H is
+  indexed by the stimulus ripple: `w > 0` with `Omega > 0` is a
+  **downward-moving** ripple, as a TORC's positive `RippleDensity` and a DMR's
+  positive `Fm` are. Escabi & Schreiner draw their RTFs with the opposite sign
+  of `Fm` (positive = upward sweep): their figures mirror these along `Fm`.
+  The best ripple (`best.fm`, `best.omega`: the bTM and bRD) is |H|'s peak;
+  the other half's peak is a second best when it is at least half the best's;
+- for a DMR or ripple noise, the **energy** (Eq. 13: `sqrt(sum over x and tau of
+  STRF_r^2 dtau)`, the rate-normalized significant STRF, `dtau` in s) and the
+  **phase-locking index** (Eq. 14: the peak-to-peak of the rate-normalized
+  significant STRF over the mean rate and `Delta`, `Delta = (max S - min S) /
+  sigma` of the envelopes played: `sqrt(8)` for a DMR, `sqrt(12)` for uniform
+  ripple noise);
+- the **SNR** (mean, max): the STRF of 100 spikes chosen at random (a fixed
+  seed; the global random stream is not touched), its significant pixels' rms
+  and maximum in SDs of the null; none with fewer spikes.
+
+A DMR's **conditioned response histogram** (CRH, Eq. 15) counts each spike at
+the modulation rate `Fm` and ripple density its stimulus had `crhLag` s before
+it, in bins of `crhBins` (`[25 0.25]`: Hz, cycles/octave); it shows tuning that
+is not locked in time to the envelope. With `crhScale "rate"` the counts are
+divided by the seconds the stimulus spent in each bin. A TORC or ripple noise
+(a sum of several envelopes) has none.
+
+**Sets and comparisons.** One STRF per set: the trial groups (`split
+"groups"`) or the bank items presented (`split "item"`: a DMR item and a
+ripple noise item, say). Each set holds one kind of stimulus on one carrier
+grid (else the layer is skipped: split them). With two or more, every pair is
+compared (Eq. 11-12): the **similarity index** (the correlation of the two
+STRFs over the pixels significant in either), the **rate disparity index**
+`s((ra/rb)^s - 1) 100` with `s = sign(ra - rb)`, and for DMRs and ripple noise
+the **magnitude disparity index**, the same with the energies.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `stim.source` | `"log"` | `"log"` or `"parameter"` (above) |
+| `stim.file` | `""` | the presentation log, bank or DMR export |
+| `stim.item` | `""` | a bank item's name or number |
+| `stim.parameter` | `""` | `"parameter"`: the trial column holding the variant index |
+| `stim.tolerance` | 0.05 | `"log"`: s an interval between two onsets may differ from the log's |
+| `split` | `"groups"` | one STRF per trial group (`"groups"`) or bank item (`"item"`) |
+| `rate` | 4000 | Hz, the time grid |
+| `maxLag` | 0.1 | s, the longest lag (a TORC's must be shorter than its ripple period) |
+| `skip` | `NaN` | s left out after each onset; `NaN` automatic (above). A DMR's must be at least `maxLag` |
+| `sigAlpha` | 0.002 | the pixels' two-sided significance level |
+| `rtfPad` | 1 | the RTF's zero padding in each dimension (1 = none) |
+| `crhBins` | `[25 0.25]` | a DMR's CRH bins, `[Fm Hz, density c/o]` |
+| `crhLag` | 0 | s, the CRH's lag |
+| `view` | `"strf"` | `"strf"`, `"rtf"` or `"crh"`: what is drawn (the drawing's alone) |
+| `showSig` | `false` | view `"strf"`: the significant pixels only |
+| `contour` | `true` | view `"strf"`: outline the significant pixels (role `strfContour`) |
+| `crhScale` | `"count"` | view `"crh"`: `"count"` or `"rate"` |
+| `stats` | `true` | the set's spikes, rate, bTM and bRD, energy and PLI, SNR and its first comparison in the panel's corner (role `strfStats`) |
+| `cLim` | `[]` | the color scale ([Color limits](#color-limits)); automatic: symmetric about 0 for the STRF, 0 to the largest value for the RTF and CRH |
+| `group` | 1 | the set drawn; not used in a stack |
+| `stack`, `stackSpacing` | `"off"`, 1.1 | `"groups"`: an image row per set ([Stacks](#stacks)) |
+
+The STRF is drawn on the diverging colormap centered on 0 (the significant
+pixels outlined), the RTF and CRH on the heat colormap, the best ripple marked
+`+` (a second best `x`, role `strfBest`). The result is the layer's `R`
+(`rippleStrf`'s: `R.sets(s)` with `strf`, `strfRate`, `strfSig`, `sig`,
+`threshold`, `lags`, `x`, `freq`, `rtf`, `rtfFm`, `rtfOmega`, `best`, `crh`,
+`crhRate`, `crhOccupancy`, the edges, `energy`, `pli`, `delta`, `snrMean`,
+`snrMax`, `nSpikes`, `rate`, `duration`, `notes`; `R.compare`; `R.stimulus`:
+the file, its match and the epochs left without a record). What the stimulus
+file or the settings do not allow (no file, a log that does not match, no
+stimgen, a skip shorter than a DMR's lags, a lag of a TORC's period) skips the
+layer with the reason. Validate checks the options and, for a log, that the
+panel aligns to onsets. The `"strf"` template gives a panel with a units layer
+that follows the observed unit; name its stimulus file. For example, a DMR
+run logged as `stimgen_run_20261114_101500.mat` beside each dataset's outputs,
+aligned to the `Stim` line, its RTF:
+
+```json
+{ "id": "strf_1", "type": "strf", "layers": [ { "source": "units", "binding": "observation" } ],
+  "ref": { "line": "Stim", "which": "all", "scope": "recording" },
+  "options": { "stim": { "source": "log", "file": "stimgen_run_20261114_101500.mat" }, "view": "rtf" } }
 ```
 
 ### Event traces
@@ -2451,6 +2606,7 @@ them across types ([Copying options between panels](#copying-options-between-pan
 | `tuning` | `waveform` | [Waveform](#unit-waveforms), `mode "off"` | the first unit's waveform in a box in the panel |
 | `spectrum`, `spectrogram`, `coherence` | | | the [Chronux options](#spectral-panels), above; none but `stack`, `stackSpacing` and `filter` is a shared option |
 | `eventTrace` | | | the [event-trace options](#event-traces), above; none is a shared option |
+| `strf` | | | the [STRF options](#strf-panels-torcs-and-dynamic-moving-ripples), above; `stack` and `stackSpacing` are its shared options |
 | `trialDist`, `trialHist`, `trialScatter` | | | the [trial-measure options](#trial-measures), above; the series, summary, error, tests and scales are shared among the three |
 | `legend` | `orientation` | `"auto"` | `"auto"` (horizontal when the rect is wider than tall, else vertical), `"vertical"` or `"horizontal"` |
 | `legend` | `align`, `valign` | `"center"`, `"middle"` | where the legend sits in its rect when smaller: `"left"`, `"center"` or `"right"`; `"top"`, `"middle"` or `"bottom"` |

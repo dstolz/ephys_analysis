@@ -1043,6 +1043,7 @@ ANALYSIS_GROUPS = [
     ("Chronux analyses", ["chronuxSettings", "chronuxTimeBase", "chronuxSpectrum", "chronuxSpecgram",
                           "chronuxCoherence", "chronuxSpikeSpectrum", "chronuxSpikeSpecgram",
                           "chronuxUnitCoherence", "chronuxSpikeField", "chronuxNormalize", "phaseCoherence"]),
+    ("Spectrotemporal receptive fields (TORC, DMR)", ["rippleStimuli", "rippleStrf"]),
     ("Dataset browser: epochs of every dataset", ["epochMatrix", "epochMatrixSettings", "epochMatrixLabels",
                                                   "epochMatrixNormalize", "epochMatrixRaster"]),
     ("Dataset browser: whole sessions", ["sessionData"]),

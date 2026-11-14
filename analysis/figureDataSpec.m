@@ -36,7 +36,8 @@ LookOptions = ["tickColor" "tickWidth" "backColor" "yTicks" "firstSpike" "fill" 
     "testShow" "bracketPairs" "ordinalX" "showSummary" "markerSize" "jitter" "showN" "binMode" "binCount" "binWidth" ...
     "normalization" "marginals" "marginalSize" "xLim" ...
     "smoothLine" ...   % smoothLine: drawPsthPanel smooths R.rateUnsmoothed itself
-    "freqScale"];      % a spectrogram's, coherence's or ITPC's frequency axis: the drawing's alone
+    "freqScale" ...    % a spectrogram's, coherence's or ITPC's frequency axis: the drawing's alone
+    "view" "showSig" "contour" "crhScale" "stats"];   % an STRF panel's: what is drawn of the analysis computed
 
 d = drop(spec, LookFigure);
 if isfield(d, 'probe') && isstruct(d.probe) && isfield(d.probe, 'enabled')

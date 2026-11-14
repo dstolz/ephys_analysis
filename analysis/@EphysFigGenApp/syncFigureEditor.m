@@ -334,7 +334,8 @@ optionKeys = ["filterText" "filterEdit" "binMs" "smoothMs" "measure" "baselineMo
     "spDetrend" "spScale" "spFreqScale" "spSpikeFs" "spOverTime" "spWin" "spShowPhase" "etDisplay" "etTrials" "etColorBy" "etHeight" ...
     "etEdge" "etMinWidth" "etLineStyle" "etBaseline" "etBaseStyle" "etRowSpacing" "legOrient" "legAlign" ...
     "trCategories" "trSeries" "trSummary" "trTest" "trAdjust" "trTestShow" "trDisplay" "trMarker" "trShowSummary" ...
-    "trHistDisplay" "trBins" "trOpacity" "trFit" "trCorr" "trMarginals" "trXScale" "trXLim"];
+    "trHistDisplay" "trBins" "trOpacity" "trFit" "trCorr" "trMarginals" "trXScale" "trXLim" ...
+    "strfSource" "strfFile" "strfItem" "strfTolerance" "strfRate" "strfAlpha" "strfCrhFm" "strfView" "strfShowSig"];
 waveKeys = ["waveNote" "waveMode" "waveSpikes" "waveFrom" "waveAmp" "waveWidth" "waveLocation" "wavePP" "waveSites"];
 noteKeys = ["annText" "annPlace" "annX" "annAlign" "annRotation" "annFont" "annBold" "annColor" "annInterp"];
 overlayKeys = ["ovList" "ovName" "ovKind" "ovValue" "ovFrom" "ovLayer" "ovColor" "ovFill" "ovEdge" "ovStyle"];
@@ -465,6 +466,11 @@ if hasPanel
     en(E.auResamples, auCut == "shuffle" || string(E.auTest.Value) ~= "ranksum");
     en([E.auMarks E.auModOnly], string(E.auCutoff.Value) ~= "none");
     en(E.stackSpacing, stackNow ~= "off");
+    strfFrom = string(E.strfSource.Value);   % an STRF panel's rows its stimulus source and view do not use: grayed out
+    en(E.strfParam, strfFrom == "parameter");
+    en(E.strfTolerance, strfFrom == "log");
+    en(E.strfCrhScale, string(E.strfView.Value) == "crh");
+    en([E.strfShowSig E.strfContour], string(E.strfView.Value) == "strf");
     en(E.yLim, string(E.yLimMode.Value) == "fixed");   % the limits are typed only for Fixed
     lineStack = stackNow ~= "off" && ismember(t, ["psth" "continuous" "spectrum" "coherence" "itpc" "tuning"]) && ~overTime;
     en(E.panelYSide, ~lineStack);   % a stacked line panel has a y axis on each side
@@ -757,7 +763,11 @@ v.trSeries = trial; v.trSummary = trial; v.trTest = trial; v.trAdjust = trial; v
 v.trMarker = isDist || isScat; v.trShowSummary = isDist || isHist; v.trOpacity = isHist || isScat; v.trXLim = isHist || isScat;
 v.trHistDisplay = isHist; v.trBins = isHist;
 v.trFit = isScat; v.trCorr = isScat; v.trMarginals = isScat;
-v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram"]) || psthHeat;
+v.cLim = ismember(t, ["heatmap" "probemap" "corrmap" "spectrogram" "strf"]) || psthHeat;
+% an STRF panel's rows: its stimulus, its analysis, what it draws (strfEnable grays what their values do not use)
+isStrf = t == "strf";
+v.strfSource = isStrf; v.strfFile = isStrf; v.strfItem = isStrf; v.strfTolerance = isStrf; v.strfRate = isStrf;
+v.strfAlpha = isStrf; v.strfCrhFm = isStrf; v.strfView = isStrf; v.strfShowSig = isStrf;
 v.panelColormap = psthHeat;
 % the spectral panels: the Chronux tab's rows (a phase coherence panel's multitaper settings are the same rows)
 spectral = ismember(t, ["spectrum" "spectrogram" "coherence" "itpc"]);

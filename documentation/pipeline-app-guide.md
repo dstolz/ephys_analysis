@@ -269,6 +269,20 @@ the recording's own folder when no output folder is set. The main ones:
 
 <!-- wiki: Every file is listed on [Output files](Output-Files). -->
 
+## The lab database
+
+If your lab uses its database, the app can record there what it does. It is
+optional, and the app works the same without it.
+
+- **Set it up once:** **File → Database...**. Tick the box, type the server
+  and your login, click **Set password...**, then **Test connection**.
+- **The lamp** at the bottom of the window says **connected**, **offline**
+  (the server did not answer; keep working) or **attention** (something on
+  this computer needs fixing; point at the lamp to see what). Click it to
+  open the Database window.
+
+See [Lab database](database.md) for the details.
+
 ## When something goes wrong
 
 - **A tab is red or amber.** Its name ends in `x` (red) or `!` (amber). The

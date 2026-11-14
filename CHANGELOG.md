@@ -10,6 +10,17 @@ says how to cut a release.
 
 ### Added
 
+- The lab database (CarasLabDB), first part: **File → Database...** in the pipeline app, the analysis app and the
+  dataset browser, and a **Database** lamp in the status bar of the pipeline app, the analysis app and the manifest
+  viewer (off / connected / offline / attention; a click opens the window). The window holds this computer's
+  settings (server, database, your own login, the lab time zone), stores the password in the MATLAB vault
+  (`setSecret`; never in a file), tests the connection, and maps the lab's storage roots to folders here, with a
+  marker file at each root so a wrong mapping is refused; a workstation's data disk can be registered as a root of
+  its own. Optional: without the database, or without CarasLabDB and the Database Toolbox, everything works as
+  before, and an unreachable server costs one bounded check, then a growing pause before the next try. New
+  `LabDB`, `LabDBSettings`, `LabDBSecrets`, `LabRoots`, `LabDBBackend` (`LabDBCarasBackend`, `LabDBFakeBackend`),
+  `LabDBPanel`, `LabDBLamp`; tests `test_LabDB`. Recording the work and finding files through the database follow.
+  See [documentation/database.md](documentation/database.md).
 - Dataset browser: a **Cache** menu, and the data a run reads stay in memory. What **Compute** reads for a dataset
   (the spikes file, the sorting, the signals) is kept between runs, so another event, window, trial selection (Hit,
   then Miss), bin or measure reads no file again; the results of each dataset's last 5 settings are kept too, so

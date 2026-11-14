@@ -285,6 +285,20 @@ change any figure yet.
 | pages | how a figure is paged (**Pages**, in Observations): one per observation, across datasets, or on the probe |
 | config | everything you set in the app, saved as a `.json` file |
 
+## The lab database
+
+If your lab uses its database, the app can record there what it does. It is
+optional, and the app works the same without it.
+
+- **Set it up once:** **File → Database...**. Tick the box, type the server
+  and your login, click **Set password...**, then **Test connection**.
+- **The lamp** at the bottom of the window says **connected**, **offline**
+  (the server did not answer; keep working) or **attention** (something on
+  this computer needs fixing; point at the lamp to see what). Click it to
+  open the Database window.
+
+See [Lab database](database.md) for the details.
+
 ## When something goes wrong
 
 - **A figure or a panel shows a gray square with a red cross.** It cannot be

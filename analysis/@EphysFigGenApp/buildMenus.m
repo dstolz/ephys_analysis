@@ -33,6 +33,9 @@ uimenu(gen, "Text", "Compact (loads the saved config)...", "MenuSelectedFcn", @(
 uimenu(gen, "Text", "Standalone (every setting written out)...", "MenuSelectedFcn", @(~,~) obj.onGenerateScript("standalone"));
 uimenu(obj.FileMenu, "Text", "Open pipeline app", "Separator", "on", ...
     "MenuSelectedFcn", @(~,~) obj.onOpenPipelineApp());
+uimenu(obj.FileMenu, "Text", "Database...", "Separator", "on", ...
+    "Tooltip", "The lab database on this computer: set it up, test it, see what waits to be sent.", ...
+    "MenuSelectedFcn", @(~,~) LabDBPanel.open(Parent=obj.Fig));
 uimenu(obj.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~,~) obj.onClose());
 
 obj.EditMenu = uimenu(obj.Fig, "Text", "Edit");

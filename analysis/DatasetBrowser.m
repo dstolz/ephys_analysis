@@ -2290,6 +2290,9 @@ classdef DatasetBrowser < handle
                 "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.exportScript()));
             uimenu(c.FileMenu, "Text", "Open manifest viewer", "Separator", "on", ...
                 "Tooltip", "The clicked row's dataset in the manifest viewer.", "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.viewManifest()));
+            uimenu(c.FileMenu, "Text", "Database...", "Separator", "on", ...
+                "Tooltip", "The lab database on this computer: set it up, test it, see what waits to be sent.", ...
+                "MenuSelectedFcn", @(~, ~) LabDBPanel.open(Parent=f));
             uimenu(c.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~, ~) B.close());
 
             % --- the Cache menu: what is kept between runs (Caching)

@@ -207,8 +207,8 @@ classdef ManifestViewerApp < handle
             g.RowHeight = {32, '1x', 'fit'};
             g.Padding = [10 10 10 10];
 
-            top = uigridlayout(g, [1 6]);
-            top.ColumnWidth = {'fit', '1x', 'fit', 'fit', 'fit', 'fit'};
+            top = uigridlayout(g, [1 7]);
+            top.ColumnWidth = {'fit', '1x', 'fit', 'fit', 'fit', 'fit', 'fit'};
             top.Padding = [0 0 0 0];
             uilabel(top, 'Text', 'Manifest:');
             obj.PathField = uieditfield(top, 'text', 'Editable', 'off');
@@ -226,6 +226,7 @@ classdef ManifestViewerApp < handle
                 'ButtonPushedFcn', @(~,~) obj.onRewrite());
             styleButton([obj.OpenButton, obj.FolderButton, obj.RewriteButton]);
             styleButton(obj.ReloadButton, 'primary');
+            LabDBLamp(top, Row=1, Column=7, Parent=obj.Fig);   % the lab database's state; a click opens its window
 
             obj.Tabs = uitabgroup(g, 'SelectionChangedFcn', @(~,~) obj.refreshFlowChart());
 

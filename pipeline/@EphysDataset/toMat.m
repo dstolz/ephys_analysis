@@ -72,6 +72,7 @@ arguments
 end
 prov = opts.Provenance;
 if isempty(prov); prov = ephysProvenance(); end
+started = datetime('now', 'TimeZone', 'local');   % for the lab database (setProcessing)
 
 file = opts.File;
 if file == ""
@@ -175,7 +176,7 @@ if ~isempty(obj.Manifest) && isa(obj.Manifest, 'Manifest')
         struct('file', files, 'dataTypeOut', info.importOptions.dataTypeOut, ...
         'bytes', out.bytes));
 end
-obj.Processing.signals = signalsRecord(files, info, opts, prov);   % how they were made, for the manifest
+obj.setProcessing("signals", signalsRecord(files, info, opts, prov), StartedAt=started, Provenance=prov);   % how they were made, for the manifest
 
 if ~isempty(opts.ProgressFcn)
     try

@@ -27,6 +27,7 @@ the readers take both. Probe maps are the exception
 ├─ session_manifest.json                where the Copy tab copied the session from (copySessions)
 ├─ session_copy_robocopy.log            the copy engine's robocopy log
 ├─ <Name>_manifest.json                 dataset manifest (writeManifest)
+├─ <Name>_labdb.json                    the session's id for the lab database (LabCapture; only when it is used)
 └─ <Name>_cleanup.json                  what Clean up removed, how and where to (runLocalCleanup)
 
 <outputFolder>/                         = Folder, or OutputDir, or <OutputRoot>/<Name>
@@ -440,7 +441,8 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   "bin":      { "file": <BinFile path>, "exists": <true|false> },
   "processing": {          how each output was made: every record is [] until written, else
                            { <file>, "created", "run_id", "options": { every option as run },
-                             "options_hash", ..., "exists" }
+                             "options_hash", ..., "event_id", "created_at", "started_at",
+                             "performer", "code_version", "outputs": [...], "exists" }
     "artifacts": { "file" (the interval cache, when kept), "options": <the detector settings>,
                    "reference": <ref>, "channels": <compact list detected on>, "detected": <n>, "detected_s": <s> },
     "bin":       { "file", "options": <toBin's>, "reference": <ref>, "filter": "none" | "<type> <cutoff> Hz, order <n>",
@@ -599,6 +601,19 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   own; [Provenance](#provenance) has the run's whole config). `exists` says
   whether the file (`signals`: all of `files`; `sorting`: `results_dir`) is
   there now.
+- Every writer stores its record with `EphysDataset.setProcessing`, which
+  adds what the [lab database](database.md) needs, whether or not the
+  database is used: `event_id` (the step's id, a uuid; a sort's is minted
+  when it is launched), `created_at` and `started_at` (when the record was
+  made and when the step started, `yyyy-MM-ddTHH:mm:ss.SSSSSS±hh:mm`;
+  `started_at` `""` when the writer did not say), `performer` (`person_id`,
+  `person_email` as set up in the Database window, `os_user`, `host`),
+  `code_version` (the commit, with `-dirty` when the code had uncommitted
+  changes) and `outputs`, one per file written: `{ "path", "bytes",
+  "mtime" (to the millisecond, zoned), "artifact_id", "sha256" }`. `sha256`
+  is `""` while the database is off here, and for a file too large to hash
+  at once (its SHA-256 is then in the outbox's bundle). A file the step left
+  as an earlier record had it keeps that record's `artifact_id`.
 - `options` is every option the writer ran with, the defaults and the
   values it worked out included (`EphysDataset.optionsRecord`): toBin's
   scale, dtype, filter, detection and fill settings; settings.json, which
@@ -1395,6 +1410,7 @@ failed (not for a dry run). Schema `ephys-pipeline-run/1`:
   "results":  [ { "Step", "Dataset", "Status", "Message", "Output", "Seconds" }, ... ],   the Results table
   "backgroundRuns": [ { "name", "resultsDir", "device" }, ... ],   Kilosort4 runs started in the background
   "script":   <the pipeline script the run saved, <Root>/pipeline_<name>.m; "" when none (Project.SaveScript)>,
+  "labEvents": [ { "name", "kind", "event_id" }, ... ],   the processing records the run wrote, by their event_id
   "provenance": { the Provenance fields above, without config },
   "config":   { the pipeline config, as its JSON file holds it }
 }
@@ -1633,9 +1649,85 @@ ignored and replaced.
 
 Path: the sort's run folder (`kilosort4/`, `si_<sorter>/`). Written by
 `EphysDataset.launchSorting`: `status_file`, `sorter` and `record`, the
-`processing.sorting` record `runKilosort` / `runSpikeInterface` made.
+`processing.sorting` record `runKilosort` / `runSpikeInterface` made,
+stamped at launch with its `event_id`, `started_at`, `performer` and
+`code_version` (`LabCapture.launchStamp`), so the computer that settles the
+run records it under that id.
 `EphysDataset.writeManifest` moves it into the manifest once the run is
 `"done"` and deletes it; a failed or stopped run records nothing.
+
+## Lab database bundle (`caraslabdb-bundle/1`)
+
+Path: `<LabDB.folder()>/outbox/<state>/<bundle_id>.json`, `<state>` one of
+`pending`, `claimed`, `held`, `failed`, `done`; `LabDB.folder()` is
+`%LOCALAPPDATA%\ephys_analysis\labdb` (or `EPHYS_LABDB_DIR`). Written by
+`LabCapture` when the [lab database](database.md) is turned on here, one per
+record to send; nothing is sent from it yet. Compact JSON, written by
+`LabBundles.encode` only (atomically, `writeJsonFile`):
+
+```text
+{
+  "format":      "caraslabdb-bundle/1",
+  "bundle_id":   <the event's id, a uuid>,
+  "type":        "event",
+  "captured_at": <yyyy-MM-ddTHH:mm:ss.SSSSSS±hh:mm>,
+  "captured_by": { "host", "os_user", "db_username", "person_id", "person_email" },
+  "after":       [<bundle ids to send first>],
+  "digest":      <SHA-256 of the record's JSON text; "" until every output's SHA-256 is known>,
+  "record": {
+    "dataset": { "name", "folder", "session_id", "subject_folder_id", "recording_start" },
+    "event":   { "event_id", "event_type": "analysis" | "recording" | "behavior",
+                 "occurred_at", "notes", "performer": { "person_id", "person_email" },
+                 "attributes_json": <JSON object as text>,
+                 "detail": { the event type's columns: analysis "pipeline_name", "code_version",
+                             "parameters_json", "environment_json", "started_at", "finished_at",
+                             "status"; recording "acquisition_system_code", "duration_s";
+                             behavior "trials_completed" (only what is known) } },
+    "inputs":  [ <item>, ... ],   the files it read
+    "outputs": [ <item>, ... ]    the files it wrote
+  }
+}
+<item> = { "artifact_id", "path", "root", "rel", "bytes", "mtime", "sha256", "role",
+           "format", "kind", "replaces", "attributes_json" }
+```
+
+- Times carry their zone offset; a rig time written without one (a folder
+  name, an old manifest) is read in the lab's time zone.
+- Whatever the database stores as JSON (`parameters_json`, the processing
+  record's own JSON text; `environment_json`, the writer's provenance without
+  its config; `attributes_json`) is kept as text, so it is sent exactly as
+  captured and never decoded and encoded again.
+- `root` and `rel` are the file's storage root and its path below it
+  (`LabRoots`), `""` for a file under none of the roots mapped here.
+  `artifact_id` of an output is minted at capture, or kept from an earlier
+  record when the step left the file as it was; `replaces` is the id of the
+  file it rewrote (`""` when none, or when the new bytes are the same). An
+  input's `artifact_id` is known when this computer captured that file
+  (`""` otherwise; it is resolved when the record is sent).
+- `role` is the database's artifact role (`raw`, `spikes`, `lfp`,
+  `waveforms`, `derived`, ...), `kind` what the file is to this toolbox
+  (`raw`, `epsych`, `artifacts`, `bin`, `sorting`, `signals`,
+  `threshold_spikes`, `behavior`, `nwb`).
+- `digest` is the SHA-256 of `record` as `LabBundles.encodeRecord` writes it.
+  Sending the same bundle twice is harmless: the database keeps the digest
+  with the event and answers "existing".
+- A `<bundle_id>.note.json` beside a bundle says when and why it moved
+  (`state`, `reason`, `at`, `host`); a claimed bundle has a heartbeat,
+  `<bundle_id>.claim.json`. The out-of-process hashes are in
+  `<LabDB.folder()>/hashing`.
+- `pipeline/testdata/labdb/bundle_event_v1.json` is a complete example,
+  checked byte for byte by `test_LabCapture`.
+
+## Lab database session file (`<Name>_labdb.json`)
+
+Path: the dataset's folder. Written by `LabCapture` the first time something
+of the dataset is captured for the lab database, or by `copySessions` for a
+session it copied: `format` (`ephys-labdb-session/1`), `session_id` (the
+session's id in the database, the same on every record and every computer
+that reads the folder), `created_at`, `recording_event_id` and
+`behavior_event_id` (the copied session's events; `""` when none) and `raw`
+(the raw files as captured, bundle items with their ids). Not written while
+the database is off here.
 
 ## Which writes are atomic
 
@@ -1646,4 +1738,4 @@ previous file as it was.
 | Written atomically (temporary file + rename) | Written directly |
 | --- | --- |
 | the three `.mat` outputs (`toMat`, `spikesToMat`, `behaviorToMat`) and the session figures' data `.mat` (`writeAnalysisData`) via `EphysDataset.saveAtomically`; the unit-mapping CSV (`writeUnitMapping`); the stitched Epsych2 file; the `.nwb`; the Visualize envelopes; the `.bin` (written as `.bin.partial`, renamed once whole, `toBin`) | its JSON sidecar, `settings.json`, `<Name>_events.mat`, generated scripts, analysis figures and reports |
-| through `writeJsonFile`: the dataset manifest, the artifact cache, the favorites (`<Name>_favorites.json`), `recording.json` (`writeDescriptor`), `openephys-part.json`, probe maps and the derived `_excluded` / `_spaced` probes (`writeProbeMap`), `<probe>.ks4.json`, `<probe>.chanmap.json`, hardware bank entries, pipeline and analysis configs, run records, `quality_metrics.json`, `<Name>_nwbinspector.json`, `<Name>_cleanup.json`, `session_manifest.json`, the scheduled copy's `schedule.json` and `last_run.json`, and the `ks4_status.json` of a run stopped from MATLAB | everything Python writes (`ks4_status.json`, `ks4_run.log`, the sorter output), and the logs appended a line at a time (`copy_schedule.log`) |
+| through `writeJsonFile`: the dataset manifest, the artifact cache, the favorites (`<Name>_favorites.json`), `recording.json` (`writeDescriptor`), `openephys-part.json`, probe maps and the derived `_excluded` / `_spaced` probes (`writeProbeMap`), `<probe>.ks4.json`, `<probe>.chanmap.json`, hardware bank entries, pipeline and analysis configs, run records, the lab database's bundles, notes and session files, `quality_metrics.json`, `<Name>_nwbinspector.json`, `<Name>_cleanup.json`, `session_manifest.json`, the scheduled copy's `schedule.json` and `last_run.json`, and the `ks4_status.json` of a run stopped from MATLAB | everything Python writes (`ks4_status.json`, `ks4_run.log`, the sorter output), and the logs appended a line at a time (`copy_schedule.log`) |

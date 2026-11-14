@@ -887,7 +887,8 @@ if isfield(m, 'processing') && isstruct(m.processing) && isscalar(m.processing)
     S = "Processing";
     labels = struct('artifacts', "Artifact detection", 'bin', "Sorting .bin", 'sorting', "Sort", ...
         'signals', "Signals", 'spikes', "Spikes", 'behavior', "Behavior file", 'nwb', "NWB export");
-    shown = ["file" "files" "results_dir" "exists" "created" "run_id" "reference" "bin_reference" "own_reference"];
+    shown = ["file" "files" "results_dir" "exists" "created" "run_id" "reference" "bin_reference" "own_reference" ...
+        "event_id" "created_at" "started_at" "performer" "code_version" "outputs"];
     missingKinds = strings(1, 0);
     for k = string(fieldnames(m.processing)).'
         r = m.processing.(k);
@@ -915,6 +916,21 @@ if isfield(m, 'processing') && isstruct(m.processing) && isscalar(m.processing)
         run = txtOf(getf(r, 'run_id', ""));
         R = addRow(R, S, lab + " written", txtOf(getf(r, 'created', "")), "", ...
             ternary(run == "", "outside a pipeline run", "pipeline run " + run));
+        if isfield(r, 'event_id')
+            % what the lab database is told (LabCapture): the step's id, who ran
+            % it with which code, and the files it wrote
+            ck = "";
+            if txtOf(getf(r, 'started_at', "")) ~= ""; ck = "started " + txtOf(r.started_at); end
+            R = addRow(R, S, lab + " event", txtOf(r.event_id), "", ck);
+            pf = getf(r, 'performer', struct());
+            who = strjoin([txtOf(getf(pf, 'os_user', "")), txtOf(getf(pf, 'host', ""))], " on ");
+            R = addRow(R, S, lab + " by", who, "", "code " + txtOf(getf(r, 'code_version', "")));
+            o = getf(r, 'outputs', []);
+            if isstruct(o); o = num2cell(o); end
+            if ~iscell(o); o = {}; end
+            nHash = sum(cellfun(@(x) isstruct(x) && strlength(txtOf(getf(x, 'sha256', ""))) == 64, o));
+            R = addRow(R, S, lab + " outputs", sprintf('%d file(s), %d with SHA-256', numel(o), nHash));
+        end
         if isfield(r, 'bin_reference')
             [v, lv, ck] = sortReferenceText(r);
             R = addRow(R, S, lab + " reference", v, lv, ck);

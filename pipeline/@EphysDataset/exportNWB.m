@@ -170,6 +170,7 @@ arguments
 end
 prov = opts.Provenance;
 if isempty(prov); prov = ephysProvenance(); end
+started = datetime('now', 'TimeZone', 'local');   % for the lab database (setProcessing)
 t0 = tic;
 
 file = opts.File;
@@ -593,7 +594,7 @@ r = EphysDataset.processingRecord("file", file, prov, opts);
 r.sources = EphysDataset.optionsRecord(sources);
 r.probe_file = string(probeFile);
 r.versions = R.versions;
-obj.Processing.nwb = r;
+obj.setProcessing("nwb", r, StartedAt=started, Provenance=prov);
 end
 
 

@@ -10,6 +10,18 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app: an **STRF (TORC / DMR)** panel type. It estimates a unit's spectrotemporal receptive field from
+  TORC (Klein, Depireux, Simon & Shamma 2000) or dynamic moving ripple and ripple noise (Escabi & Schreiner 2002)
+  stimuli made by stimgen, and draws the STRF (the significant pixels outlined, p < 0.002), its ripple transfer
+  function with the best modulation rate and ripple density, or a DMR's conditioned response histogram, with the
+  spikes, rate, energy, phase-locking index and SNR in its corner and, for two or more sets (trial groups or bank
+  items: a DMR against ripple noise), the similarity, rate and magnitude disparity indices. Which stimulus each
+  epoch presented comes from a stimgen presentation log matched to the stimulus line's onsets in order (refused
+  unless the counts match and every interval agrees with the log within a tolerance), or from a trial column naming
+  the variant played with a log, bank or DMR export. New `rippleStimuli` and `rippleStrf` do the work and can be
+  called from scripts; stimgen must be on the path to rebuild the envelopes (without it the layer is skipped with
+  the reason). The editor's Analysis and Display sections and the New panel window have its rows; a template and a
+  panel picture (`analysis/icons/panels/strf.png`, drawn by hand: `tools/makePanelThumbnails` leaves it alone).
 - Dataset browser: a **Cache** menu, and the data a run reads stay in memory. What **Compute** reads for a dataset
   (the spikes file, the sorting, the signals) is kept between runs, so another event, window, trial selection (Hit,
   then Miss), bin or measure reads no file again; the results of each dataset's last 5 settings are kept too, so

@@ -86,8 +86,8 @@ switch key
     case {"panelBox" "panelXLabel" "panelXSide" "panelYLabel" "panelYSide" "panelXShow" "panelYShow"}
         tail = "is a setting of the selected panel's axes: pick a panel that draws data (a legend panel has no axes).";
     case "group"
-        tail = "is an option of heat map, unit correlation and spectrogram panels (and a coherence or phase coherence " + ...
-            "panel drawn over time); " + ...
+        tail = "is an option of heat map, unit correlation, spectrogram and STRF panels (and a coherence or phase " + ...
+            "coherence panel drawn over time); " + ...
             "a heat map of one unit's epochs and a stacked panel (Stack: one row per group) draw every group.";
     case {"layerName" "layerSource" "layerBinding"}
         tail = "is a setting of the picked layer: pick one in the Layers list.";
@@ -159,7 +159,7 @@ T.baseFrom = T.baselineMode;
 T.psthDisplay = o("psth", "");
 T.normalize = o("psth", "");
 for f = ["histStyle" "fill" "smoothLine"]; T.(f) = o("psth", "with Draw as: trace"); end
-T.stack = o(["psth" "continuous" "heatmap" "tuning" "spectrum" "spectrogram" "coherence" "itpc"], ...
+T.stack = o(["psth" "continuous" "heatmap" "tuning" "spectrum" "spectrogram" "coherence" "itpc" "strf"], ...
     "on a PSTH with Draw as: trace, on a heat map with Rows: the layer's units or channels (a raster lists its groups " + ...
     "in blocks already, a firing rate panel puts them along x; a waveforms, probe map, unit correlation or event-trace " + ...
     "panel has no groups over a shared axis to stack)");
@@ -202,7 +202,7 @@ for f = ["metric" "correlation" "fisherZ" "detrend"]; T.(f) = o("corrmap", ""); 
 T.yLim = o(["psth" "continuous" "waveforms" "rate" "tuning" "spectrum" "coherence" "itpc" "trialDist" "trialScatter"], ...
     "on a PSTH with Draw as: trace, on a coherence or phase coherence panel unless drawn over time (an image's scale is its Color limits)");
 T.yLimMode = T.yLim;
-T.cLim = o(["psth" "heatmap" "probemap" "corrmap" "spectrogram" "coherence" "itpc"], ...
+T.cLim = o(["psth" "heatmap" "probemap" "corrmap" "spectrogram" "coherence" "itpc" "strf"], ...
     "on a PSTH with Draw as: heat map, on a coherence or phase coherence panel drawn over time");
 T.spTimeBase = o(["spectrum" "coherence"], "");
 T.spRangeFrom = o(["spectrum" "coherence"], "with Time base: segments of the recording");
@@ -229,6 +229,9 @@ T.trShowSummary = o(["trialDist" "trialHist"], "");
 for f = ["trHistDisplay" "trBins"]; T.(f) = o("trialHist", ""); end
 for f = ["trOpacity" "trXLim"]; T.(f) = o(["trialHist" "trialScatter"], ""); end
 for f = ["trFit" "trCorr" "trMarginals"]; T.(f) = o("trialScatter", ""); end
+for f = ["strfSource" "strfFile" "strfItem" "strfTolerance" "strfRate" "strfAlpha" "strfCrhFm" "strfView" "strfShowSig"]
+    T.(f) = o("strf", "");
+end
 end
 
 
@@ -273,6 +276,8 @@ for i = 1:numel(types)
     if isempty(l); l = types(i); end
     if types(i) == "eventTrace"
         l = "event-trace";
+    elseif types(i) == "strf"
+        l = "STRF";
     elseif l ~= upper(l)
         l = lower(extractBefore(l, 2)) + extractAfter(l, 1);
     end

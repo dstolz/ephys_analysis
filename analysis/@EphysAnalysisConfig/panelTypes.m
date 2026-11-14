@@ -6,7 +6,7 @@ function T = panelTypes()
 %                     "waveforms" | "probemap" | "corrmap" | "rate" |
 %                     "tuning" | "spectrum" | "spectrogram" | "coherence" |
 %                     "itpc" | "eventTrace" | "trialDist" | "trialHist" |
-%                     "trialScatter" | "legend"
+%                     "trialScatter" | "strf" | "legend"
 %     Label           name shown in the app
 %     Short           one word: the type's part of an automatic figure id
 %                     (autoFigureId: "Raster+PSTH units")
@@ -217,6 +217,28 @@ function T = panelTypes()
 %   violin, points or line, a histogram as bars, an outline or an ECDF,
 %   a scatter with a fit per series (TrialFits), a correlation and
 %   marginal histograms; xScale / yScale "log" draw a log axis.
+%   An "strf" panel draws the spectrotemporal receptive field (STRF) of
+%   its first enabled layer's spikes (a unit, or a fixed layer's units
+%   pooled) from TORC or dynamic moving ripple (DMR) / ripple noise
+%   stimuli made by stimgen. options.stim says which stimulus each epoch
+%   presented (rippleStimuli): a stimgen presentation log matched to the
+%   onsets of the panel's line ("log"), or a trial column naming the
+%   variant played ("parameter") with a log, bank or DMR export to read
+%   it from. rippleStrf then estimates, per set of epochs (split "groups":
+%   the trial groups; "item": the stimulus's bank item), the STRF on a
+%   rate Hz grid at lags 0 to maxLag after leaving out skip s from each
+%   onset (Escabi & Schreiner 2002 Eq. 10 for a DMR or ripple noise; Klein
+%   et al. 2000 Eq. 38-39 for TORCs), its significant pixels (sigAlpha),
+%   the ripple transfer function of the significant STRF (rtfPad) with
+%   its best modulation rate and ripple density, a DMR's conditioned
+%   response histogram (crhBins, crhLag), the energy, phase-locking index
+%   and SNR, and the similarity and disparity indices between the sets.
+%   view ("strf" | "rtf" | "crh"), showSig, contour, crhScale, stats,
+%   cLim, group, stack and stackSpacing are the drawing's: switching the
+%   view computes nothing again. Its envelopes are rebuilt by stimgen
+%   (stimgen on the MATLAB path; without it the layer is skipped with the
+%   reason). It is aligned (its ref, window and trial selection), but its
+%   x axis is lag (or modulation rate), not time from the event.
 %   A "legend" panel draws no data: it is where the figure's legend goes
 %   (Style.LegendLocation "auto"), placed and sized as any panel (its rect
 %   a frame the legend sits in, never scaled to fill it). It takes no
@@ -549,6 +571,31 @@ opts.trialScatter = struct( ...
     'xLim',           [], ...           % [] = automatic, else [lo hi] in the x measure's unit
     'yLimMode',       "auto", ...       % as a PSTH's (EphysAnalysisConfig.YLimModes)
     'yLim',           []);
+% the STRF of TORCs and dynamic moving ripples (rippleStimuli: the stimulus each epoch presented; rippleStrf: the analysis)
+opts.strf = struct( ...
+    'stim',       struct( ...           % where each epoch's stimulus (its stimgen generation record) comes from
+        'source',    "log", ...         % "log" (a stimgen presentation log: the k-th onset of the panel's line is presentation k) | "parameter" (a trial column holds the variant played)
+        'file',      "", ...            % the presentation log, or (source "parameter") a log, a stimgen bank (.spl) or a DMR envelope export; absolute or relative to the dataset's output folder
+        'item',      "", ...            % a bank item's name or number ("" = every item of a log; the only one of a bank)
+        'parameter', "", ...            % source "parameter": the trial column holding the variant (combination) index
+        'tolerance', 0.05), ...         % source "log": s, how far an interval between two onsets may differ from the log's
+    'split',      "groups", ...         % one STRF per "groups" (the trial groups) | "item" (bank item: e.g. a DMR and a ripple noise item)
+    'rate',       4000, ...             % Hz: the time grid of the envelope and the STRF's lags (Escabi & Schreiner: 4 kHz)
+    'maxLag',     0.1, ...              % s: the STRF's longest lag (0-100 ms)
+    'skip',       NaN, ...              % s left out after each onset (NaN: a DMR's maxLag; a TORC's one ripple period with two or more, else 0)
+    'sigAlpha',   0.002, ...            % the significance level of each pixel (p < 0.002: 3.09 SD)
+    'rtfPad',     1, ...                % the RTF's zero padding, x in each dimension (1 = none)
+    'crhBins',    [25 0.25], ...        % a DMR's CRH bins: [Fm Hz, ripple density c/o]
+    'crhLag',     0, ...                % s: the CRH counts the Fm and density this long before each spike
+    'view',       "strf", ...           % "strf" | "rtf" (ripple transfer function) | "crh" (conditioned response histogram, a DMR's)
+    'showSig',    false, ...            % view "strf": the significant pixels only (else every pixel, the significant ones outlined)
+    'contour',    true, ...             % view "strf": outline the significant pixels
+    'crhScale',   "count", ...          % view "crh": "count" (spikes, as the paper) | "rate" (spikes per s the stimulus spent in the bin)
+    'stats',      true, ...             % the statistics in the panel's corner (spikes, rate, bTM / bRD, energy, PLI, SNR, the comparison)
+    'cLim',       [], ...
+    'group',      1, ...                % the set drawn (a trial group or bank item; not with stack "groups")
+    'stack',      "off", ...            % "off" (one set) | "groups" (an image row per set, the first on top)
+    'stackSpacing', 1.1);               % stack: the block step, x the block's height (below 1 counts as 1)
 opts.legend = struct( ...
     'orientation', "auto", ...          % "auto" (horizontal when the rect is wider than tall, else vertical) | "vertical" | "horizontal"
     'align',       "center", ...        % where the legend sits in its rect when narrower: "left" | "center" | "right"
@@ -574,6 +621,7 @@ rows = {
     "trialDist",  "Trial distribution", "Dist",       "trial",                 false,  false,     false,   true,      "fixed",        "One value per trial (a delay, duration, count or parameter) by category: swarm, box, violin, points or a line, with group tests"
     "trialHist",  "Trial histogram",   "Hist",        "trial",                 false,  false,     false,   true,      "fixed",        "The distribution of one value per trial: bars, an outline or the cumulative distribution, per series"
     "trialScatter", "Trial scatter",   "Scatter",     "trial",                 false,  false,     false,   true,      "fixed",        "One value per trial against another, per series: points, fits and correlations, marginal histograms"
+    "strf",       "STRF (TORC / DMR)", "STRF",        "point",                 true,   false,     true,    false,     "observation",  "Spectrotemporal receptive field from TORC or dynamic moving ripple stimuli (stimgen): the STRF, its ripple transfer function or conditioned response histogram"
     "legend",    "Legend",            "Legend",      string.empty(1, 0),      false,  false,     false,   false,     "",             "The figure's legend in a panel of its own"
     };
 n = size(rows, 1);

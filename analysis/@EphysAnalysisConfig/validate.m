@@ -806,6 +806,13 @@ for k = 1:numel(obj.Figures)
                 checkSpectral(pj, op, pw, Lp(on), o0, p0, find(on));
             case "eventTrace"
                 checkEventTrace(op, o0);
+            case "strf"
+                pr = pj.ref;
+                if isequal(pr, "default"); pr = fg.ref; end
+                if isequal(pr, "default"); pr = D.EventRef; end
+                checkStrf(op, o0, pr);
+                checkFigGroup(op.group, o0);
+                checkFigLim(op.cLim, o0 + ".cLim", "color");
             case {"trialDist" "trialHist" "trialScatter"}
                 checkTrialOptions(op, o0, A, pj.type);
             case "legend"
@@ -1196,6 +1203,63 @@ issues = table(Section, Field, Severity, Message);
                 hOp.yLimMode + """.");
         elseif hOp.yLimMode == "fixed" && isempty(hOp.yLim)
             add("Figures", hO0 + ".yLim", "error", "yLimMode fixed draws the y axis at yLim: give [lo hi] with lo < hi.");
+        end
+    end
+
+    function checkStrf(hOp, hO0, hRef)
+        %checkStrf  An STRF panel's stimulus (where each epoch's comes from) and its analysis and drawing settings.
+        hS = hOp.stim;
+        if ~ismember(hS.source, ["log" "parameter"])
+            add("Figures", hO0 + ".stim.source", "error", "An STRF panel's stimulus comes from a presentation log (log) " + ...
+                "or a trial parameter naming the variant played (parameter), not """ + hS.source + """.");
+        else   % (no file named yet is not an error: the panel says why it cannot draw, as a template starts)
+            if hS.source == "parameter" && strtrim(hS.parameter) == ""
+                add("Figures", hO0 + ".stim.parameter", "error", "With the stimulus from a trial parameter, name the trial " + ...
+                    "column that holds the variant (combination) index played.");
+            end
+            if hS.source == "log"
+                if ~(isscalar(hS.tolerance) && isfinite(hS.tolerance) && hS.tolerance > 0)
+                    add("Figures", hO0 + ".stim.tolerance", "error", "The tolerance is how far, in s, an interval between two " + ...
+                        "onsets may differ from the log's: a positive number.");
+                end
+                if isstruct(hRef) && (hRef.edge ~= "onset" || hRef.offsetParam ~= "" || (isfield(hRef, 'sequence') && ~isempty(hRef.sequence)))
+                    add("Figures", hO0 + ".stim.source", "error", "A presentation log is matched to the onsets of the stimulus " + ...
+                        "line: align the STRF panel to the onset of " + hRef.line + ", with no offset parameter and no event sequence.");
+                end
+            end
+        end
+        if ~ismember(hOp.split, ["groups" "item"])
+            add("Figures", hO0 + ".split", "error", "An STRF panel's sets are the trial groups (groups) or the bank items (item).");
+        end
+        if ~(isscalar(hOp.rate) && isfinite(hOp.rate) && hOp.rate > 0)
+            add("Figures", hO0 + ".rate", "error", "The STRF's time grid (rate) is a positive number of Hz.");
+        elseif ~(isscalar(hOp.maxLag) && isfinite(hOp.maxLag) && hOp.maxLag * hOp.rate >= 1)
+            add("Figures", hO0 + ".maxLag", "error", "The STRF's longest lag (maxLag, s) must hold at least one step of its grid (1/rate).");
+        elseif hOp.rate < 700
+            add("Figures", hO0 + ".rate", "warning", "A grid under 700 Hz cannot follow the 350 Hz modulations of a " + ...
+                "default DMR (Escabi & Schreiner sampled at 4000 Hz).");
+        end
+        if ~(isscalar(hOp.skip) && (isnan(hOp.skip) || (isfinite(hOp.skip) && hOp.skip >= 0)))
+            add("Figures", hO0 + ".skip", "error", "skip is the time left out after each onset: NaN (automatic) or seconds >= 0.");
+        end
+        if ~(isscalar(hOp.sigAlpha) && hOp.sigAlpha > 0 && hOp.sigAlpha < 1)
+            add("Figures", hO0 + ".sigAlpha", "error", "The pixels' significance level (sigAlpha) lies between 0 and 1 (0.002: 3.09 SD).");
+        end
+        if ~isWhole(hOp.rtfPad)
+            add("Figures", hO0 + ".rtfPad", "error", "The RTF's padding (rtfPad) is a whole number, 1 (none) or more.");
+        end
+        if ~(numel(hOp.crhBins) == 2 && all(isfinite(hOp.crhBins)) && all(hOp.crhBins > 0))
+            add("Figures", hO0 + ".crhBins", "error", "The CRH's bins (crhBins) are [Fm Hz, density c/o], both positive.");
+        end
+        if ~(isscalar(hOp.crhLag) && isfinite(hOp.crhLag) && hOp.crhLag >= 0)
+            add("Figures", hO0 + ".crhLag", "error", "The CRH's lag (crhLag) is seconds >= 0.");
+        end
+        if ~ismember(hOp.view, ["strf" "rtf" "crh"])
+            add("Figures", hO0 + ".view", "error", "An STRF panel draws the STRF (strf), its ripple transfer function (rtf) " + ...
+                "or a DMR's conditioned response histogram (crh).");
+        end
+        if ~ismember(hOp.crhScale, ["count" "rate"])
+            add("Figures", hO0 + ".crhScale", "error", "The CRH draws spike counts (count) or spikes per second of stimulus (rate).");
         end
     end
 

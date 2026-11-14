@@ -467,6 +467,15 @@ MATLAB's while it is on the path. Producing the inputs never calls either
 toolbox; `ChronuxDataset.hasChronux` / `FieldTripExport.hasFieldTrip` report
 whether they are on the path, and `FieldTripExport.validate` checks its
 structures with `ft_datatype_*` when FieldTrip is present.
+[stimgen](https://github.com/dstolz/stimgen) (not bundled; clone it and add
+its root, the folder holding `+stimgen`, to the path) is needed by the analysis
+app's [STRF panel](EphysAnalysisConfig.md#strf-panels-torcs-and-dynamic-moving-ripples)
+to rebuild the envelope each TORC or dynamic moving ripple presentation played
+from its generation record (`stimgen.TORC.envelope_from_record`,
+`stimgen.DMR.envelope_from_record`, `stimgen.DMR.trajectory_from_record`;
+`rippleStrf`), and to generate a stimulus again from a bank
+(`stimgen.StimType.fromStruct`; `rippleStimuli`); without it that panel's layer
+is skipped with the reason. Nothing else calls it.
 [neuroGLM](https://github.com/pillowlab/neuroGLM) (not bundled; clone it and
 add its folder to the path) is needed by the
 [NeuroGLMExport](NeuroGLMExport.md) connector, which builds its experiment and
@@ -691,6 +700,7 @@ suite's temporary preferences, so close it before the run ends.
 | `test_EpochMatrix` (analysis/) | `epochMatrixSettings` (defaults, overlay, checks, cache identity, settings files) and `epochMatrix`: the parts against the per-dataset calls, assembly (rows, groups and their order, sessions), the result fields, the labels (`epochMatrixLabels`), the normalization (`epochMatrixNormalize`), the dataset variables (`var_` columns of `R.rows` and `R.datasets`, the exporters' `variables`), `Recompute`, cancel |
 | `test_DatasetBrowser` (analysis/) | `DatasetBrowser`, headless and with its window: scan, filter, ticks, the settings form, `compute` against `epochMatrix`, `forEach`, the progress strip and cancel, the result file, tags (the tag window and `setTags`, written to the manifests), the trial rasters (`epochMatrixRaster`, `TrialRaster`), FieldTrip structures of the epochs and sessions (`epochMatrixFieldTrip`, `sessionDataFieldTrip`), mTRF packages of the epochs, sessions, trials, an AUX stimulus and spikes (`epochMatrixMTRF`, `sessionDataMTRF`), `DatasetBrowser.open` finding the open window, closing keeping the object, the **Cache** menu (`Caching`, `DatasetCache`: data kept in memory between computes) |
 | `test_TrialMeasure` (analysis/) | `trialMeasure` on a hand-built dataset (delays equal to `stopTimes`, before / after, the gap, which, durations, counts cut at the trial's end, trial parameters, labels), `trialGrouping`, `trialStats` against `ranksum` / `kruskalwallis` / `ttest2` / `anova1` / `pAdjust` and the fits against `polyfit` / `fitlm` / `movmean`, and the trial panels' compute |
+| `test_RippleStrf` (analysis/) | `rippleStrf` on hand-made TORC and DMR records and envelopes (no stimgen): a TORC's STRF equal to a direct sum and to the closed form of a neuron following one pixel, its RTF peak at the stimulus ripple, a DMR's STRF, threshold, CRH, energy and phase-locking index, TORC sets averaged or summed, two sets compared, the refusals; on the synthetic dataset `rippleStimuli` matching a presentation log to the Stim onsets (count, intervals, a bank item) and reading the variant from a trial column, and an STRF figure computed and drawn in its three views |
 | `test_FirstSpikeLatency` (analysis/) | `firstSpikeLatency` on planted spike trains (known latencies, both window ends included, none NaN, groups, the stop mask, the errors) and the latency box plot's statistics against `prctile` and Tukey's fences |
 | `test_PopulationAnalysis` (analysis/) | `populationAnalysis` against the per-dataset calls, the auROC calls pooled over the family, `populationSummary`, the files `writePopulation` writes |
 | `test_ReadNewLines` | `readNewLines` (the run monitor's log tail): whole lines from a byte offset, a partial line left for the next call, CRLF and carriage-return progress lines as a terminal shows them; a missing file or no name reads nothing and keeps the offset |

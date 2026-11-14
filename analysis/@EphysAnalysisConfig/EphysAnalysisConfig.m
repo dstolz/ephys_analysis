@@ -235,7 +235,7 @@ classdef EphysAnalysisConfig
         % How the observed unit is matched across sessions (a figure observes one matched unit), and the panel types
         % combineSessions does not merge (a session figure holds none).
         FigureSessionMatches = ["site" "mapping"]
-        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence" "itpc"]
+        FigureSessionUnmerged = ["probemap" "corrmap" "spectrum" "spectrogram" "coherence" "itpc" "strf"]
         % Probe figures (Figure.probe): how the tiles are laid out (layout), how a physical layout keeps them apart
         % (overlap) and what labels each tile (labels).
         ProbeLayouts = ["schematic" "physical"]
@@ -793,7 +793,8 @@ classdef EphysAnalysisConfig
             %   and "groups" (a row per trial group, the first on top: its
             %   stackSpacing the row step x the row height) on a PSTH, heat
             %   map, tuning curve (a row per series), spectrum, spectrogram,
-            %   coherence and phase coherence (itpc) panel; a continuous panel also "items" (a row
+            %   coherence, phase coherence (itpc) and STRF panel (a row per set:
+            %   trial group or bank item); a continuous panel also "items" (a row
             %   per channel or layer mean, the groups overlaid in each).
             %   None on a raster (it lists its groups in blocks already), a
             %   firing rate panel (its groups go along x), a waveforms, probe
@@ -806,7 +807,7 @@ classdef EphysAnalysisConfig
                 type (1,1) string
             end
             switch type
-                case {"psth" "heatmap" "tuning" "spectrum" "spectrogram" "coherence" "itpc"}
+                case {"psth" "heatmap" "tuning" "spectrum" "spectrogram" "coherence" "itpc" "strf"}
                     modes = ["off" "groups"];
                 case "continuous"
                     modes = ["off" "groups" "items"];

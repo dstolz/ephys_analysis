@@ -42,6 +42,10 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0, 
 %                     time/frequency coherogram: options.overTime),
 %                     Moving window (s)
 %     eventTrace      Lines (LINES: one events layer each), Draw as
+%     strf            Stimuli from (a stimgen presentation log or a trial
+%                     parameter: options.stim.source), Stimulus file
+%                     (options.stim.file), Draw (the STRF, its ripple
+%                     transfer function or a DMR's CRH: options.view)
 %     trialDist, trialHist, trialScatter   no Reads or Binding (a trials
 %                     layer, always fixed): the Trial measure's Kind, From (A's
 %                     line and edge; grayed out for a parameter), To (B's;
@@ -90,7 +94,8 @@ function c = newPanelDialog(fig, F, anchor, lines, params, start, sets, where0, 
 %   current parameters' controls, a struct by name: Source, Partner,
 %   Binding, Sort, BinMs, SmoothMs, Measure, Display, ErrorType, Rows,
 %   Layout, Value, Metric, Correlation, Param, Series, FreqFrom, FreqTo,
-%   Scale, View, WinSec, StepSec, Lines, Kind, From, FromEdge, To, ToEdge, Fit;
+%   Scale, View, WinSec, StepSec, Lines, Kind, From, FromEdge, To, ToEdge, Fit,
+%   StimSource, StimFile, StrfView;
 %   a saved figure's: Alignment), Message,
 %   Ok and Cancel.
 %
@@ -511,6 +516,18 @@ switch t
         end
         specs(end+1, :) = {"Display", "Draw as:", @(gr) uidropdown(gr, "Items", ["solid bars (onset to offset)" "a logic level (a line)"], ...
             "ItemsData", ["bars" "line"], "Value", def.display, "Tooltip", "How each interval of a line is drawn.")};
+    case "strf"
+        specs(end+1, :) = {"StimSource", "Stimuli from:", @(gr) uidropdown(gr, "Items", ["a stimgen presentation log" ...
+            "a trial parameter (the variant played)"], "ItemsData", ["log" "parameter"], ...
+            "Value", among(def.stim.source, ["log" "parameter"]), "Tooltip", "Presentation log: the k-th onset of the " + ...
+            "panel's event line is presentation k of the log StimPlayer wrote. Trial parameter: a trial column holds the " + ...
+            "variant played (name it in the editor's Analysis rows).")};
+        specs(end+1, :) = {"StimFile", "Stimulus file:", @(gr) uieditfield(gr, "text", "Value", def.stim.file, ...
+            "Placeholder", "stimgen_run_....mat, a bank (.spl) or a DMR export", "Tooltip", "The stimgen file: absolute, " + ...
+            "or relative to each dataset's output folder.")};
+        specs(end+1, :) = {"StrfView", "Draw:", @(gr) uidropdown(gr, "Items", ["the STRF" "the ripple transfer function" ...
+            "the conditioned response histogram (DMR)"], "ItemsData", ["strf" "rtf" "crh"], ...
+            "Value", among(def.view, ["strf" "rtf" "crh"]), "Tooltip", "What the panel draws of its analysis.")};
     case {"trialDist" "trialHist" "trialScatter"}   % the first layer's measure (the editor's Trial measure window has every row)
         tm = EphysAnalysisConfig.defaults("TrialMeasure");
         specs(end+1, :) = {"Kind", "Trial measure:", @(gr) uidropdown(gr, "Items", ["Delay from an event to another" ...
@@ -709,6 +726,9 @@ if isfield(P, 'View'); o.overTime = string(P.View.Value) == "time"; end   % a ph
 if isfield(P, 'Orientation'); o.orientation = string(P.Orientation.Value); end
 if isfield(P, 'Columns'); o.columns = round(P.Columns.Value); end
 if isfield(P, 'Fit'); o.fit = string(P.Fit.Value); end
+if isfield(P, 'StimSource'); o.stim.source = string(P.StimSource.Value); end   % an STRF panel's
+if isfield(P, 'StimFile'); o.stim.file = strtrim(string(P.StimFile.Value)); end
+if isfield(P, 'StrfView'); o.view = string(P.StrfView.Value); end
 if isfield(P, 'Kind')   % a trial panel's first layer's measure
     c.Measure = struct('kind', string(P.Kind.Value), ...
         'from', struct('line', strtrim(string(P.From.Value)), 'edge', string(P.FromEdge.Value)), ...

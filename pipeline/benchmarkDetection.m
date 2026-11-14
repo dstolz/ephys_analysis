@@ -55,7 +55,11 @@ function R = benchmarkDetection(opts)
 %                     the detectors' chunks) | any makeSyntheticRecording format
 %     DetectOptions   detectSpikes options (default: the pipeline's,
 %                     EphysPipelineConfig.detectOptions of the default
-%                     Spikes section)
+%                     Spikes section). A Coincidence other than "none"
+%                     takes the sites from SitePositions when given, else
+%                     from the recording's probe; the synthetic recording
+%                     has none, so every coincident copy is kept, as the
+%                     Spikes step does without a probe (settings.coincidence)
 %     ArtifactConfig  EphysDataset artifact settings (default:
 %                     EphysDataset.defaultArtifactConfig, Enabled)
 %     ToleranceMs     0.5    DuplicateMs  3    VisibleFraction  0.5
@@ -77,7 +81,10 @@ function R = benchmarkDetection(opts)
 %     summary    recallHighSNR, recallByUnit (mean over seeds), precision,
 %                maxDuplicatesPerSpike, maxIsolatedHz, artifactRecall,
 %                artifactMinCoverage, artifactMaxEdgeMs, falseArtifacts
-%     settings   the options used; provenance (ephysProvenance)
+%     settings   the options used, with coincidence: per seed, the
+%                Coincidence detection ran with (applied) and why it
+%                differs from the one asked for (note, "" when it does not);
+%                provenance (ephysProvenance)
 %
 %   See also test_DetectionBenchmark, makeSyntheticRecording,
 %   EphysDataset.detectSpikes, EphysDataset.analyzeArtifacts.
@@ -143,6 +150,7 @@ Crows = zeros(0, numel(chanNames));
 Arows = zeros(0, numel(artNames));
 artKinds = strings(0, 1);
 Frows = zeros(0, 3);
+coincidence = struct('seed', {}, 'applied', {}, 'note', {});
 for seed = opts.Seeds
     say(opts, sprintf('seed %d: writing the recording', seed));
     folder = fullfile(root, sprintf('BENCH-%02d_260101_%06d', seed, 120000 + seed));
@@ -162,6 +170,11 @@ for seed = opts.Seeds
     dopt = opts.DetectOptions;
     dopt.Waveforms = false;
     dopt.ArtifactIntervals = T.artifacts;
+    [dopt, note] = coincidenceSites(ds, dopt);
+    applied = "none";                                     % detectSpikes' default
+    if isfield(dopt, 'Coincidence'); applied = string(dopt.Coincidence); end
+    coincidence(end + 1) = struct('seed', seed, 'applied', applied, 'note', note); %#ok<AGROW>
+    if note ~= ""; say(opts, sprintf('seed %d: %s', seed, note)); end
     dArgs = namedargs2cell(dopt);
     [~, ~, info] = ds.detectSpikes(dArgs{:});
     thr = median(info.threshold, 1, 'omitnan');           % per channel (chunk scope: over the chunks)
@@ -264,6 +277,7 @@ summary.falseArtifacts = height(falseArt);
 
 settings = rmfield(opts, {'ProgressFcn'});
 settings.Channels = chans;
+settings.coincidence = coincidence;
 R = struct('units', units, 'channels', channels, 'artifacts', arts, 'falseArtifacts', falseArt, ...
     'summary', summary, 'settings', settings, 'provenance', ephysProvenance());
 if opts.ReportFile ~= ""
@@ -274,6 +288,27 @@ if opts.ReportFile ~= ""
     rep.summary.recallByUnit = table2struct(summary.recallByUnit);
     rep.provenance = provenanceForJson(R.provenance);
     writeJsonFile(opts.ReportFile, rep, NonFinite="string");
+end
+end
+
+
+function [dopt, note] = coincidenceSites(ds, dopt)
+%coincidenceSites  Site positions for the coincidence pass, found as the Spikes step finds them.
+%   A Coincidence other than "none" (the pipeline's default is "remove")
+%   needs each channel's site. SitePositions given in DetectOptions stand;
+%   otherwise they come from the dataset's probe (channelLayout), and
+%   without one every coincident copy is kept (Coincidence "none"), as
+%   EphysDataset.spikesToMat does. NOTE says when that happened.
+note = "";
+if ~isfield(dopt, 'Coincidence') || string(dopt.Coincidence) == "none"; return; end
+if isfield(dopt, 'SitePositions') && ~isempty(dopt.SitePositions); return; end
+L = ds.channelLayout();
+if L.hasProbe
+    dopt.SitePositions = [L.x; L.y].';
+else
+    note = "no probe, so Coincidence """ + string(dopt.Coincidence) + """ is not applied: " + ...
+        "coincident spikes are kept on every channel that detected them";
+    dopt.Coincidence = "none";
 end
 end
 

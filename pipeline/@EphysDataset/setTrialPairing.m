@@ -7,6 +7,9 @@ function [file, saved] = setTrialPairing(obj, P, status, opts)
 %   (TrialPairing) is written to the manifest under behavior.pairing, and
 %   later pairTrials calls reuse it while the session and the trial-line
 %   intervals match its fingerprint. ds.setTrialPairing([]) clears it.
+%   The manifest holds this call's record even when another session saved
+%   a different pairing since this object last read or wrote it; that
+%   session's other edits stay (writeManifest).
 %
 %   An existing <outputFolder>/<Name>_behavior.mat is rewritten with P
 %   (behaviorToMat) unless it already carries this record (status, cuts,
@@ -37,9 +40,9 @@ end
 
 file = "";
 if isempty(P)
-    obj.TrialPairing = struct([]);
+    rec = struct([]);
 else
-    obj.TrialPairing = struct('status', status, ...
+    rec = struct('status', status, ...
         'auto_approved', opts.Auto && status == "approved", ...
         'cut_trials', double(reshape(P.cutTrials, 1, 2)), ...
         'cut_intervals', double(reshape(P.cutIntervals, 1, 2)), ...
@@ -48,7 +51,17 @@ else
         'summary', string(P.summary), ...
         'updated', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')));
 end
+obj.TrialPairing = rec;
 saved = obj.writeManifest();
+if ~isequaln(obj.TrialPairing, rec)
+    % Another session saved a pairing since this object last wrote the
+    % manifest, and REC equals the one this object wrote then (to the
+    % second of "updated"), so the merge took it as unchanged here and kept
+    % the other (mergeManifest). This call records REC: write it again,
+    % now over the merged file.
+    obj.TrialPairing = rec;
+    saved = obj.writeManifest();
+end
 if ~isempty(P)
     file = updateBehaviorFile(obj, P, obj.TrialPairing);
 end

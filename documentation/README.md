@@ -727,6 +727,10 @@ the true artifact periods erased first so the two detectors are scored apart;
 artifacts per true period (found, coverage, edge errors) and per detected
 interval (false ones). `R.summary` holds the headline numbers;
 `ReportFile=` writes everything, with the code version, as JSON.
+The synthetic recordings have no probe, so the default `Coincidence="remove"`
+is not applied and every coincident copy is kept, as the Spikes step does for
+a dataset without one (`R.settings.coincidence` says so per seed). To score
+the coincidence pass, give the sites in `DetectOptions.SitePositions`.
 
 ```matlab
 R = benchmarkDetection(Seeds=1:3);                         % default design and settings

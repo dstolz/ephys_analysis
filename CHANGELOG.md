@@ -635,6 +635,16 @@ says how to cut a release.
 
 ### Fixed
 
+- `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had
+  saved a pairing since the dataset object last wrote the manifest, and the new record was equal to the one the
+  object wrote then (its `updated` time is to the second), the manifest merge took the record as unchanged and kept
+  the other session's. The object and the manifest then held that pairing, while the behavior file was rewritten
+  with the cuts of the given one. The call now records what it is given; the other session's other edits still
+  stay.
+- `benchmarkDetection` stopped with `EphysDataset:detectSpikes:NoSitePositions` since the pipeline's Spikes default
+  became `Coincidence="remove"`: the synthetic recordings have no probe. It now takes the sites from
+  `DetectOptions.SitePositions` or the recording's probe, and without either keeps every coincident copy, as the
+  Spikes step does (`R.settings.coincidence` records it per seed). `test_DetectionBenchmark` runs again.
 - `S_DatasetBrowserToNeuroGLM` ignored the browser's **Artifacts: Exclude epochs**: it always left out every trial
   touching an erased period, so on a dataset with many short erased periods (spikes erased every second or so) the
   session-tiling trials all touched one and the run stopped with "no trial is left". It now passes the trial

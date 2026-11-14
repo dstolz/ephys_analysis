@@ -2653,7 +2653,9 @@ validation to Python.
   their own line; a new such result is `approved` (`autoApproved`).
 - `[file, saved] = setTrialPairing(P, "unreviewed"|"approved", Auto=false)` records
   the cuts and drops in the manifest (`Auto=true` marks an approval as automatic);
-  `setTrialPairing([])` clears it. An existing
+  `setTrialPairing([])` clears it. The manifest holds this call's record even
+  when another session saved a different pairing since this object last read
+  or wrote it (that session's other edits stay). An existing
   `<outputFolder>/<Name>_behavior.mat` that does not already carry this
   record (status, cuts, drops, fingerprint; read from the file's small
   `pairing` variable, not the trials) is rewritten with `P` (`behaviorToMat`),

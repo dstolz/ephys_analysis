@@ -31,7 +31,10 @@ function files = makePanelThumbnails(opts)
 %     Size    [width height] in px (default [112 84])
 %     Types   the panel types drawn (default: every one with a figure
 %             template of its own; the legend panel has none: it shows
-%             another figure's legend)
+%             another figure's legend; not the STRF panel, which needs a
+%             stimgen presentation log of TORCs or DMRs the synthetic
+%             dataset does not have: its picture, analysis/icons/panels/
+%             strf.png, is drawn by hand)
 %
 %   Toolboxes: Image Processing (imresize).
 %
@@ -40,8 +43,8 @@ function files = makePanelThumbnails(opts)
 arguments
     opts.Folder (1,1) string = fullfile(fileparts(fileparts(mfilename("fullpath"))), "analysis", "icons", "panels")
     opts.Size (1,2) double {mustBePositive} = [112 84]
-    opts.Types (1,:) string = intersect(reshape(EphysAnalysisConfig.panelTypes().Type, 1, []), ...
-        EphysAnalysisConfig.figureTemplates().Template, 'stable')
+    opts.Types (1,:) string = setdiff(intersect(reshape(EphysAnalysisConfig.panelTypes().Type, 1, []), ...
+        EphysAnalysisConfig.figureTemplates().Template, 'stable'), "strf", 'stable')
 end
 
 repo = fileparts(fileparts(mfilename("fullpath")));

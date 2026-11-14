@@ -400,6 +400,7 @@ if p.type == "eventTrace"
     op.rowSpacing = E.etRowSpacing.Value;
 end
 if ismember(p.type, EphysAnalysisConfig.TrialPanelTypes); op = gatherTrial(E, op, p.type); end
+if p.type == "strf"; op = gatherStrf(E, op); end
 if own('waveform')
     wv = op.waveform;
     wv.mode = string(E.waveMode.Value);
@@ -419,6 +420,32 @@ if own('waveform')
     wv.showNames = logical(E.waveNames.Value);
     op.waveform = wv;
 end
+end
+
+
+function op = gatherStrf(E, op)
+%gatherStrf  An STRF panel's options as its rows show them (ms in the fields, s in the options; a blank Skip is NaN: automatic).
+st = op.stim;
+st.source = string(E.strfSource.Value);
+st.file = strtrim(string(E.strfFile.Value));
+st.item = strtrim(string(E.strfItem.Value));
+st.parameter = strtrim(string(E.strfParam.Value));
+st.tolerance = E.strfTolerance.Value;
+op.stim = st;
+op.split = string(E.strfSplit.Value);
+op.rate = E.strfRate.Value;
+op.maxLag = E.strfMaxLag.Value / 1000;
+sk = parseScalar(E.strfSkip.Value, NaN);
+op.skip = sk / 1000;   % (NaN stays NaN: automatic)
+op.sigAlpha = E.strfAlpha.Value;
+op.rtfPad = E.strfPad.Value;
+op.crhBins = [E.strfCrhFm.Value E.strfCrhOmega.Value];
+op.crhLag = E.strfCrhLag.Value / 1000;
+op.view = string(E.strfView.Value);
+op.crhScale = string(E.strfCrhScale.Value);
+op.showSig = logical(E.strfShowSig.Value);
+op.contour = logical(E.strfContour.Value);
+op.stats = logical(E.strfStats.Value);
 end
 
 

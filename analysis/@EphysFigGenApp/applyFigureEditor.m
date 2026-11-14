@@ -360,6 +360,9 @@ end
 if p.type == "eventTrace"
     applyEventTrace(E, op);
 end
+if p.type == "strf"
+    applyStrf(E, op);
+end
 if ismember(p.type, EphysAnalysisConfig.TrialPanelTypes)
     applyTrial(E, op, p.type, params);
 end
@@ -434,6 +437,33 @@ offerItems(E.etBaseColor, string(E.etBaseColor.Items), pick(op.baselineColor, "a
 E.etBaseStyle.Value = char(pickFrom(op.baselineStyle, string(E.etBaseStyle.ItemsData), ":"));
 E.etBaseWidth.Value = min(E.etBaseWidth.Limits(2), max(E.etBaseWidth.Limits(1), op.baselineWidth));
 E.etRowSpacing.Value = max(eps, op.rowSpacing);
+end
+
+
+function applyStrf(E, op)
+%applyStrf  An STRF panel's rows: its stimulus (options.stim), its analysis (ms in the fields, s in the options), what it draws.
+st = op.stim;
+E.strfSource.Value = char(pickFrom(st.source, string(E.strfSource.ItemsData), "log"));
+E.strfFile.Value = char(st.file);
+E.strfItem.Value = char(st.item);
+E.strfParam.Value = char(st.parameter);
+if isfinite(st.tolerance) && st.tolerance > 0; E.strfTolerance.Value = st.tolerance; end
+E.strfSplit.Value = char(pickFrom(op.split, string(E.strfSplit.ItemsData), "groups"));
+if isfinite(op.rate) && op.rate > 0; E.strfRate.Value = op.rate; end
+if isfinite(op.maxLag) && op.maxLag > 0; E.strfMaxLag.Value = 1000 * op.maxLag; end
+if isnan(op.skip); E.strfSkip.Value = ''; else; E.strfSkip.Value = char(string(1000 * op.skip)); end
+if op.sigAlpha > 0 && op.sigAlpha < 1; E.strfAlpha.Value = op.sigAlpha; end
+E.strfPad.Value = min(E.strfPad.Limits(2), max(1, round(op.rtfPad)));
+if numel(op.crhBins) == 2 && all(op.crhBins > 0)
+    E.strfCrhFm.Value = op.crhBins(1);
+    E.strfCrhOmega.Value = op.crhBins(2);
+end
+E.strfCrhLag.Value = max(0, 1000 * op.crhLag);
+E.strfView.Value = char(pickFrom(op.view, string(E.strfView.ItemsData), "strf"));
+E.strfCrhScale.Value = char(pickFrom(op.crhScale, string(E.strfCrhScale.ItemsData), "count"));
+E.strfShowSig.Value = logical(op.showSig);
+E.strfContour.Value = logical(op.contour);
+E.strfStats.Value = logical(op.stats);
 end
 
 

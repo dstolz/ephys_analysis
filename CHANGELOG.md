@@ -10,6 +10,18 @@ says how to cut a release.
 
 ### Added
 
+- Analysis app: an **STRF (TORC / DMR)** panel type. It estimates a unit's spectrotemporal receptive field from
+  TORC (Klein, Depireux, Simon & Shamma 2000) or dynamic moving ripple and ripple noise (Escabi & Schreiner 2002)
+  stimuli made by stimgen, and draws the STRF (the significant pixels outlined, p < 0.002), its ripple transfer
+  function with the best modulation rate and ripple density, or a DMR's conditioned response histogram, with the
+  spikes, rate, energy, phase-locking index and SNR in its corner and, for two or more sets (trial groups or bank
+  items: a DMR against ripple noise), the similarity, rate and magnitude disparity indices. Which stimulus each
+  epoch presented comes from a stimgen presentation log matched to the stimulus line's onsets in order (refused
+  unless the counts match and every interval agrees with the log within a tolerance), or from a trial column naming
+  the variant played with a log, bank or DMR export. New `rippleStimuli` and `rippleStrf` do the work and can be
+  called from scripts; stimgen must be on the path to rebuild the envelopes (without it the layer is skipped with
+  the reason). The editor's Analysis and Display sections and the New panel window have its rows; a template and a
+  panel picture (`analysis/icons/panels/strf.png`, drawn by hand: `tools/makePanelThumbnails` leaves it alone).
 - Dataset browser: a **Cache** menu, and the data a run reads stay in memory. What **Compute** reads for a dataset
   (the spikes file, the sorting, the signals) is kept between runs, so another event, window, trial selection (Hit,
   then Miss), bin or measure reads no file again; the results of each dataset's last 5 settings are kept too, so
@@ -623,6 +635,16 @@ says how to cut a release.
 
 ### Fixed
 
+- `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had
+  saved a pairing since the dataset object last wrote the manifest, and the new record was equal to the one the
+  object wrote then (its `updated` time is to the second), the manifest merge took the record as unchanged and kept
+  the other session's. The object and the manifest then held that pairing, while the behavior file was rewritten
+  with the cuts of the given one. The call now records what it is given; the other session's other edits still
+  stay.
+- `benchmarkDetection` stopped with `EphysDataset:detectSpikes:NoSitePositions` since the pipeline's Spikes default
+  became `Coincidence="remove"`: the synthetic recordings have no probe. It now takes the sites from
+  `DetectOptions.SitePositions` or the recording's probe, and without either keeps every coincident copy, as the
+  Spikes step does (`R.settings.coincidence` records it per seed). `test_DetectionBenchmark` runs again.
 - `S_DatasetBrowserToNeuroGLM` ignored the browser's **Artifacts: Exclude epochs**: it always left out every trial
   touching an erased period, so on a dataset with many short erased periods (spikes erased every second or so) the
   session-tiling trials all touched one and the run stopped with "no trial is left". It now passes the trial

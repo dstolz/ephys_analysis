@@ -4,8 +4,9 @@ function ctx = figureEditContext(F, spec, target, opts, root, design, follows, t
 %   figure's title. SPEC is the figure as typed (its label variables not
 %   filled in: ownLabels, each panel's own xLabel and yLabel, start the
 %   "Edit label text..." dialog). Its colormap field: "diverging" with a correlation map
-%   or an auROC or baseline-normalized heat map or spectrogram, "heat"
-%   with another heat map, a probe map, a spectrogram or a coherogram.
+%   or an auROC or baseline-normalized heat map or spectrogram or an STRF
+%   panel's STRF, "heat" with another heat map, a probe map, a
+%   spectrogram, a coherogram or an STRF panel's RTF or CRH.
 %
 %   See also renderFigure, renderProbeFigure.
 panels = spec.panels;
@@ -31,13 +32,21 @@ for k = find(types == "spectrogram")   % a baseline-normalized spectrogram: dive
     o = panels(k).options;
     aurocMap = aurocMap || (isfield(o, 'baseline') && isstruct(o.baseline) && o.baseline.Mode ~= "none");
 end
+strfHeat = false;   % an STRF panel: its STRF diverging (centered on 0), its RTF or CRH heat
+for k = find(types == "strf")
+    if isfield(panels(k).options, 'view') && string(panels(k).options.view) == "strf"
+        aurocMap = true;
+    else
+        strfHeat = true;
+    end
+end
 cohgram = false;
 for k = find(ismember(types, ["coherence" "itpc"]))   % a coherogram (a coherence's, an ITPC's)
     cohgram = cohgram || (isfield(panels(k).options, 'overTime') && panels(k).options.overTime);
 end
 if any(types == "corrmap") || aurocMap
     mapField = "diverging";
-elseif any(heat) || any(ismember(types, ["probemap" "spectrogram"])) || cohgram
+elseif any(heat) || any(ismember(types, ["probemap" "spectrogram"])) || cohgram || strfHeat
     mapField = "heat";
 end
 ordinal = istable(G) && ismember('color', G.Properties.VariableNames) && isOrdinalGroups(G);

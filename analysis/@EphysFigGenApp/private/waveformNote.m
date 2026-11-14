@@ -41,6 +41,8 @@ else
             txt = "A unit correlation map is a units-by-units matrix, no one unit's panel: it has no waveform inset." + alt;
         case {"spectrum" "spectrogram" "coherence" "itpc"}
             txt = "A spectral panel's axis is frequency: it has no waveform inset." + alt;
+        case "strf"
+            txt = "An STRF panel's axes are lag (or modulation rate) and frequency: it has no waveform inset." + alt;
         otherwise
             txt = "This panel draws no spikes, so no waveform: the Waveform section is for a raster, PSTH, " + ...
                 "firing rate, tuning curve or unit waveforms panel.";

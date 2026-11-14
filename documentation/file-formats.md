@@ -1693,6 +1693,9 @@ record to send; nothing is sent from it yet. Compact JSON, written by
 
 - Times carry their zone offset; a rig time written without one (a folder
   name, an old manifest) is read in the lab's time zone.
+- Numbers are written as MATLAB's `jsonencode` writes them: a size of
+  5 GB is `5.0E+9`. Any JSON reader reads them back exactly (whole numbers
+  up to 2^53).
 - Whatever the database stores as JSON (`parameters_json`, the processing
   record's own JSON text; `environment_json`, the writer's provenance without
   its config; `attributes_json`) is kept as text, so it is sent exactly as

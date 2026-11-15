@@ -1221,6 +1221,7 @@ classdef EphysPipelineApp < handle
         onRefreshMetadata(obj)
         onSelectDatasets(obj, mode)
         onBrowseRoot(obj)
+        onOpenFromDatabase(obj, folders)
         onBrowseOutput(obj)
         onBrowseBehaviorDir(obj)
         onAssociateBehavior(obj)

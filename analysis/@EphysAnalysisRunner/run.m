@@ -251,7 +251,8 @@ function file = writeRunRecord(obj, idx, fids, sfids, started, outcome)
 %writeRunRecord  What this run did and with what: <report folder>/analysis_runs/<runId>_<name>.json.
 %   Schema ephys-analysis-run/2: the run id, outcome, start, end, the
 %   datasets, figures and session figures, the report files, the Results
-%   rows, the code and machine (ephysProvenance) and the config. The
+%   rows, the files found through the lab database (fromDatabase), the
+%   code and machine (ephysProvenance) and the config. The
 %   report folder is Report.Folder resolved for the first dataset, whether
 %   or not a report was written. A record that cannot be written is a
 %   warning, never an error.
@@ -278,6 +279,12 @@ try
     rec.sessionFigures = cellstr(sfids);
     rec.reportFiles = cellstr(obj.ReportFiles);
     rec.results = num2cell(table2struct(obj.Results)).';
+    db = struct('dataset', {}, 'files', {});   % what was found in folders the lab database named (DatasetOutputs)
+    for k = reshape(idx, 1, [])
+        f = obj.Outputs(k).databaseFiles();
+        if ~isempty(f); db(end + 1) = struct('dataset', obj.Names(k), 'files', {cellstr(f)}); end %#ok<AGROW>
+    end
+    rec.fromDatabase = db;
     rec.provenance = rmfield(prov, 'config');
     rec.config = cfg.toStruct();
     writeJsonFile(file, rec, NonFinite="string");

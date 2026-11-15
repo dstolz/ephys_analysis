@@ -83,6 +83,24 @@ associations, as long as the recording folder is on this machine. A copy of
 the manifest in the output folder counts too, and the newer file wins, so a
 tag edited in the pipeline app shows even when an older copy is there.
 
+### Files that have moved: the lab database
+
+With the [lab database](database.md) on, a kind the roots hold nothing of is
+looked for in the folders the database names, when the dataset's manifest
+records the step that made it (`processing.<step>`: the file was written,
+and is no longer here). Those folders are the output folders of the
+dataset's session (by its session file's id) that hold its present files,
+copied or moved there by the pipeline's output transfer. They are searched by
+the same rules as the roots: the name, the variables, the `Foreign` checks.
+`pathSource` is then `"database"`, and `databaseFiles()` lists what was found
+this way (the analysis run record's `fromDatabase`). A file there whose size
+is not the one the database registered warns
+(`DatasetOutputs:DatabaseSize`): it is not the file the database names.
+
+The database is asked at most once a `refresh()`, for 2 s at most, and only
+then. While it does not answer, nothing is added and nothing waits. It never
+decides which file is read: a file found in the roots always wins.
+
 Reading a file's variables and provenance opens it, which over a network
 share costs a few tenths of a second a file. Two things keep that down:
 
@@ -128,7 +146,7 @@ Assigning `""` returns that kind to discovery.
 out.SpikesFile    = "E:\shared\subj1_spikes_v2.mat";
 out.SortingDir    = "E:\curated\subj1_day1";
 out.ExtractFiles  = ["D:\a\subj1_LFP.mat" "D:\b\subj1_MUA.mat"];
-out.pathSource("spikes")        % "manual" | "discovered" | "dataset" | "manifest" | ""
+out.pathSource("spikes")        % "manual" | "discovered" | "dataset" | "manifest" | "database" | ""
 ```
 
 ## Loading

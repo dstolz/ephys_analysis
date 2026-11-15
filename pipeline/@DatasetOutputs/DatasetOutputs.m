@@ -53,6 +53,16 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   the associated Epsych2 session (the dataset's BehaviorFile, else the
     %   manifest's behavior.file), which loads into the same struct.
     %
+    %   The lab database: with it on here (LabDBSettings), a kind the roots
+    %   hold nothing of, whose step the manifest records (it was made, and
+    %   has gone from here), is looked for in the output folders the
+    %   database names for the dataset's session (its session file's id;
+    %   LabLocator.sessionFiles), by the same rules: the name, the Foreign
+    %   checks. pathSource is then "database". A file there whose size is
+    %   not the one the database registered warns
+    %   (DatasetOutputs:DatabaseSize). The database is asked at most once a
+    %   refresh, for 2 s at most; while it does not answer, nothing is added.
+    %
     %   Manual paths
     %   ------------
     %   The path properties (ExtractFiles, SpikesFile, NWBFile, SortingDir,
@@ -168,6 +178,14 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         Cache = []
         InfoSignals = []   % combined extract file -> the signal types its info holds (signalFile)
         Filtered (1,:) string = strings(1, 0)   % the filtered columns kept (prepared): their key bases, the least recently used first
+        % What the lab database said, until the next refresh (askDatabase)
+        DbAsked (1,:) string = strings(1, 0)     % the kinds it was asked for
+        DbKnown (1,1) logical = false            % DbDirs and DbTable are its answer
+        DbDirs (1,:) string = strings(1, 0)      % the session's output folders it named, other than the roots
+        DbTable = []                             % its files there (LabLocator.sessionFiles)
+        DbFiles (1,:) string = strings(1, 0)     % the candidates found in DbDirs (pathKey)
+        DbFound (1,:) string = strings(1, 0)     % the same, as found
+        DbSortingDir (1,1) string = ""           % the sort found in DbDirs
     end
 
     properties (Constant)
@@ -228,50 +246,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             end
             obj.clearCache();
             remove(obj.InfoSignals, keys(obj.InfoSignals));
-            T = DatasetOutputs.emptyCandidates();
-            foreign = strings(0, 1);
-            sources = strings(1, 0);   % the recording folders this dataset's files name (sourceFolder)
-            prefix = "^" + string(regexptranslate('escape', char(obj.Name))) + "([_\-. ].*)?";
-            for root = obj.Roots
-                tree = listTree(root, obj.Recursive);   % one walk for every pattern
-                mats = listFiles(tree, "*.mat");
-                for k = 1:numel(mats)
-                    m = mats(k);
-                    if isempty(regexpi(m.name, prefix + "\.mat$", 'once')); continue; end
-                    [kind, owner] = matKind(m);
-                    if kind == ""; continue; end
-                    if ~obj.ownsProvenance(owner)
-                        foreign(end+1, 1) = m.path; %#ok<AGROW>
-                        continue
-                    end
-                    sources = [sources, sourceOf(owner)]; %#ok<AGROW>
-                    sig = "";
-                    if kind == "extract"
-                        tok = regexp(m.name, '_(LFP|MUA|SPIKE|AUX)\.mat$', 'tokens', 'once');
-                        if ~isempty(tok); sig = string(tok{1}); end
-                    end
-                    T = [T; candidateRow(kind, m, sig)]; %#ok<AGROW>
-                end
-                nwbs = listFiles(tree, "*.nwb");
-                for k = 1:numel(nwbs)
-                    m = nwbs(k);
-                    if isempty(regexpi(m.name, prefix + "\.nwb$", 'once')); continue; end
-                    meta = exportMeta(m, @nwbNotes);
-                    if meta.tool ~= "EphysDataset.exportNWB"; continue; end
-                    if ~obj.ownsProvenance(meta)
-                        foreign(end+1, 1) = m.path; %#ok<AGROW>
-                        continue
-                    end
-                    sources = [sources, sourceOf(meta)]; %#ok<AGROW>
-                    T = [T; candidateRow("nwb", m, "")]; %#ok<AGROW>
-                end
-                for kind = ["manifest" "artifacts"]
-                    js = listFiles(tree, obj.Name + "_" + kind + ".json");
-                    for k = 1:numel(js)
-                        T = [T; candidateRow(kind, js(k), "")]; %#ok<AGROW>
-                    end
-                end
-            end
+            obj.resetDatabase();
+            [T, foreign, sources] = obj.scanFolders(obj.Roots, "");
             % The manifest beside the recording these files were made from
             % (their provenance's sourceFolder), so a folder of outputs
             % alone (an OutputRoot opened without the recording root) still
@@ -305,10 +281,19 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             end
         end
 
+        function f = databaseFiles(obj)
+            %databaseFiles  The files found in folders the lab database named since the last refresh (a sort: its folder; 1x0 for none).
+            %   Asks nothing: it says what earlier lookups found (the run
+            %   record's fromDatabase).
+            f = obj.DbFound;
+            if obj.DbSortingDir ~= ""; f = [f, obj.DbSortingDir]; end
+        end
+
         function src = pathSource(obj, kind)
             %pathSource  Where KIND's path comes from.
             %   "manual" (pinned), "discovered" (refresh), "dataset" (the
-            %   EphysDataset's association), "manifest", or "" (none).
+            %   EphysDataset's association), "manifest", "database" (a folder
+            %   the lab database names; see the class help), or "" (none).
             [~, src] = obj.resolve(kind);
         end
 
@@ -905,6 +890,57 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     end
 
     methods (Access = private)
+        function [T, foreign, sources] = scanFolders(obj, roots, only)
+            %scanFolders  The files of this dataset in ROOTS (each searched as refresh does): candidates, foreign files, the recording folders they name.
+            %   ONLY: one kind ("" = every kind).
+            T = DatasetOutputs.emptyCandidates();
+            foreign = strings(0, 1);
+            sources = strings(1, 0);   % the recording folders this dataset's files name (sourceFolder)
+            prefix = "^" + string(regexptranslate('escape', char(obj.Name))) + "([_\-. ].*)?";
+            for root = roots
+                tree = listTree(root, obj.Recursive);   % one walk for every pattern
+                mats = listFiles(tree, "*.mat");
+                for k = 1:numel(mats)
+                    m = mats(k);
+                    if isempty(regexpi(m.name, prefix + "\.mat$", 'once')); continue; end
+                    [kind, owner] = matKind(m);
+                    if kind == "" || (only ~= "" && kind ~= only); continue; end
+                    if ~obj.ownsProvenance(owner)
+                        foreign(end+1, 1) = m.path; %#ok<AGROW>
+                        continue
+                    end
+                    sources = [sources, sourceOf(owner)]; %#ok<AGROW>
+                    sig = "";
+                    if kind == "extract"
+                        tok = regexp(m.name, '_(LFP|MUA|SPIKE|AUX)\.mat$', 'tokens', 'once');
+                        if ~isempty(tok); sig = string(tok{1}); end
+                    end
+                    T = [T; candidateRow(kind, m, sig)]; %#ok<AGROW>
+                end
+                nwbs = listFiles(tree, "*.nwb");
+                if only ~= "" && only ~= "nwb"; nwbs = nwbs([]); end
+                for k = 1:numel(nwbs)
+                    m = nwbs(k);
+                    if isempty(regexpi(m.name, prefix + "\.nwb$", 'once')); continue; end
+                    meta = exportMeta(m, @nwbNotes);
+                    if meta.tool ~= "EphysDataset.exportNWB"; continue; end
+                    if ~obj.ownsProvenance(meta)
+                        foreign(end+1, 1) = m.path; %#ok<AGROW>
+                        continue
+                    end
+                    sources = [sources, sourceOf(meta)]; %#ok<AGROW>
+                    T = [T; candidateRow("nwb", m, "")]; %#ok<AGROW>
+                end
+                for kind = ["manifest" "artifacts"]
+                    if only ~= "" && kind ~= only; continue; end
+                    js = listFiles(tree, obj.Name + "_" + kind + ".json");
+                    for k = 1:numel(js)
+                        T = [T; candidateRow(kind, js(k), "")]; %#ok<AGROW>
+                    end
+                end
+            end
+        end
+
         function keepFiltered(obj, base)
             %keepFiltered  BASE (a filter chain's key base, prepared) is the one used last; the filtered columns of the chains past MaxFiltered are dropped.
             obj.Filtered = [obj.Filtered(obj.Filtered ~= base), base];
@@ -954,9 +990,13 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                             return
                         end
                     end
+                    if obj.DbSortingDir ~= ""
+                        f = obj.DbSortingDir; src = "database";
+                        return
+                    end
                 case "behavior"
                     f = obj.newest(kind);          % <Name>_behavior.mat
-                    if ~isempty(f); src = "discovered"; return; end
+                    if ~isempty(f); src = obj.foundSource(f); return; end
                     if ~isempty(ds) && ds.BehaviorFile ~= ""
                         f = ds.BehaviorFile; src = "dataset";
                         return
@@ -986,10 +1026,113 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                         pick(i) = true;
                     end
                     f = C.File(pick).';
-                    if ~isempty(f); src = "discovered"; end
+                    if ~isempty(f); src = obj.foundSource(f); end
                 otherwise
                     f = obj.newest(kind);
-                    if ~isempty(f); src = "discovered"; end
+                    if ~isempty(f); src = obj.foundSource(f); end
+            end
+            if isempty(f) && obj.askDatabase(kind)
+                [f, src] = obj.resolve(kind);   % again, with the files of the folders the lab database names
+            end
+        end
+
+        function src = foundSource(obj, f)
+            %foundSource  "database" when the files F were found in a folder the lab database named, else "discovered".
+            src = "discovered";
+            if ~isempty(obj.DbFiles) && any(ismember(EphysDataset.pathKey(f), obj.DbFiles)); src = "database"; end
+        end
+
+        function resetDatabase(obj)
+            %resetDatabase  Forget what the lab database said (refresh asks again when a kind is missing).
+            obj.DbAsked = strings(1, 0);
+            obj.DbKnown = false;
+            obj.DbDirs = strings(1, 0);
+            obj.DbTable = [];
+            obj.DbFiles = strings(1, 0);
+            obj.DbFound = strings(1, 0);
+            obj.DbSortingDir = "";
+        end
+
+        function tf = askDatabase(obj, kind)
+            %askDatabase  The files of KIND in the folders the lab database names for this dataset, added to Candidates; true when any was.
+            %   Only for a kind the search roots hold nothing of, whose step
+            %   the manifest records (processing.<step>), with the database on
+            %   here, once per refresh. The folders are those of the session's
+            %   present files (LabLocator.sessionFiles, by the session file's
+            %   id), searched by the same rules as the roots (the name, the
+            %   Foreign checks). A file whose size is not the one the database
+            %   registered for it warns (DatasetOutputs:DatabaseSize). Never
+            %   errors: a database that does not answer adds nothing.
+            tf = false;
+            step = DatasetOutputs.stepOf(kind);
+            if step == "" || any(obj.DbAsked == kind); return; end
+            obj.DbAsked(end + 1) = kind;
+            try
+                if ~LabCapture.enabled(); return; end
+                m = obj.manifestStruct();
+                if ~(isfield(m, 'processing') && isstruct(m.processing) && isfield(m.processing, step) ...
+                        && isstruct(m.processing.(step))); return; end
+                [dirs, F] = obj.databaseFolders();
+            catch
+                return
+            end
+            if isempty(dirs); return; end
+            if kind == "sorting"
+                for d = dirs
+                    p = string(EphysDataset.resolvePhyDir(d));
+                    if isfile(fullfile(p, 'params.py'))
+                        obj.DbSortingDir = p;
+                        under = startsWith(EphysDataset.pathKey(F.path), EphysDataset.pathKey(p) + "/");
+                        obj.checkSizes(F.path(under & isfile(F.path)), F);
+                        tf = true;
+                        return
+                    end
+                end
+                return
+            end
+            [T, foreign] = obj.scanFolders(dirs, kind);
+            T = T(~ismember(lower(T.File), lower(obj.Candidates.File)), :);
+            if ~isempty(foreign)
+                obj.Foreign = unique([obj.Foreign; foreign], 'stable');
+            end
+            if height(T) == 0; return; end
+            obj.Candidates = sortrows([obj.Candidates; T], 'Modified', 'descend');
+            obj.DbFiles = [obj.DbFiles, reshape(EphysDataset.pathKey(T.File), 1, [])];
+            obj.DbFound = [obj.DbFound, reshape(string(T.File), 1, [])];
+            obj.checkSizes(T.File, F);
+            tf = true;
+        end
+
+        function [dirs, F] = databaseFolders(obj)
+            %databaseFolders  The output folders of this dataset's session the lab database names, other than the roots; and its files there (LabLocator.sessionFiles).
+            if obj.DbKnown
+                dirs = obj.DbDirs; F = obj.DbTable;
+                return
+            end
+            obj.DbKnown = true;
+            dirs = strings(1, 0);
+            F = [];
+            folder = obj.Folder;
+            if ~isempty(obj.Dataset); folder = obj.Dataset.Folder; end
+            ses = LabCapture.readSession(folder, obj.Name);
+            if ses.session_id == ""; return; end
+            F = LabLocator.sessionFiles(ses.session_id);
+            dirs = unique(reshape(F.folder(F.folder ~= ""), 1, []), 'stable');
+            dirs = dirs(~ismember(EphysDataset.pathKey(dirs), EphysDataset.pathKey(obj.Roots)));
+            dirs = dirs(arrayfun(@(d) isfolder(d), dirs));
+            obj.DbDirs = dirs;
+            obj.DbTable = F;
+        end
+
+        function checkSizes(~, files, F)
+            %checkSizes  Warn of each of FILES whose size is not the one the database registered for it (F: path, bytes).
+            for f = reshape(string(files), 1, [])
+                k = find(EphysDataset.pathKey(F.path) == EphysDataset.pathKey(f), 1);
+                if isempty(k) || isnan(F.bytes(k)); continue; end
+                d = dir(f);
+                if isempty(d) || d(1).bytes == F.bytes(k); continue; end
+                warning('DatasetOutputs:DatabaseSize', ['%s is %d bytes; the lab database registered %d bytes ' ...
+                    'for it: it is not the file the database names (changed since, or another one).'], f, d(1).bytes, F.bytes(k));
             end
         end
 
@@ -1189,6 +1332,15 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 string(fullfile(fileparts(up1), nm + ext))];
             hit = find(arrayfun(@isfile, tried), 1);
             if ~isempty(hit); f = tried(hit); end
+        end
+
+        function step = stepOf(kind)
+            %stepOf  The processing record (the manifest's processing.<step>) that writes KIND's files ("" for the manifest).
+            switch kind
+                case "extract";  step = "signals";
+                case "manifest"; step = "";
+                otherwise;       step = kind;   % spikes, nwb, sorting, behavior, artifacts
+            end
         end
 
         function kind = checkKind(kind)

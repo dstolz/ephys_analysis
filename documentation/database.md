@@ -152,6 +152,47 @@ matched by its path alone.
 The lamp counts them: **· N to send**, or **· N need you** (held or failed;
 the lamp turns red).
 
+## Finding recordings
+
+**File → Open from database...** finds recordings in the lab database: by
+subject, project, the days they were recorded (from, to) and tags.
+**Search** (Enter) lists each session with where it is on this computer (its
+storage root mapped here, and whether the folder is there now) and the
+folders here that hold its outputs, wherever they were copied to. **Open**
+(Ctrl+Enter) opens the sessions selected:
+
+- **The analysis app** shows their output folders (the source's folders
+  mode; the config's figures stay, and the config is unsaved until you save
+  it).
+- **The pipeline app** makes the folder that holds the session folders the
+  project root, scans it, and ticks those sessions (the others unticked).
+  It turns **Recursive** on when a session is deeper than the folders
+  directly in the root.
+- **The dataset browser** makes the folder that holds their output folders
+  the root, scans it, and ticks those recordings.
+
+A session that is not on this computer (its storage root not mapped here,
+or its folder not there) is named in the message and left out. Sessions on
+different drives or shares cannot be opened together in the pipeline app or
+the browser: they have no folder in common. The status bar names a folder
+the scan did not find as a dataset.
+
+The database only says where to look: the apps read the files they find
+there as always. A dataset's output folder is known from its files' rows,
+which name each file's place in it (`dataset_rel`, [file formats](file-formats.md)),
+never guessed from a path. While the database does not answer, the last
+search is shown, with its date.
+
+When a dataset's file is not in its folders but its manifest says it was
+written, the apps also look in the folders the database names for its
+session (a copy or a move by the output transfer), by the same rules as in
+its own folders; a file found in its own folders always wins. See
+[DatasetOutputs](DatasetOutputs.md#files-that-have-moved-the-lab-database).
+
+In scripts: `T = LabLocator.sessions(Subject="G-0421")`,
+`LabLocator.outputFolders(T)`, and `LabLocator.commonFolder(folders)` (the
+folder that holds them, as the apps use it).
+
 ## Where a dataset stands
 
 - **The manifest viewer's Database tab** lists the dataset's steps and the
@@ -233,6 +274,7 @@ work without the database.
 | [`LabHasher`](../pipeline/LabHasher.m), [`fileSha256`](../pipeline/fileSha256.m) | SHA-256 in MATLAB and out of process |
 | [`LabSync`](../pipeline/LabSync.m) | sending: the timer, `flush`, `suspend`, the session and the person of a record, what a refusal means |
 | [`SubjectAssignDialog`](../pipeline/SubjectAssignDialog.m) | the window for a subject the database does not have |
+| [`LabLocator`](../pipeline/LabLocator.m), [`LabLocatorDialog`](../pipeline/LabLocatorDialog.m) | finding recordings through the database, and where they are here |
 | [`LabDBBackend`](../pipeline/LabDBBackend.m) | what the toolbox asks of the database; the only seam to CarasLabDB |
 | [`LabDBCarasBackend`](../pipeline/LabDBCarasBackend.m) | that seam through the CarasLabDB class |
 | [`LabDBFakeBackend`](../pipeline/LabDBFakeBackend.m) | an in-memory database for the tests |

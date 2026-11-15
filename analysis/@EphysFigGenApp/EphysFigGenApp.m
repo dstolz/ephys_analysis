@@ -585,6 +585,7 @@ classdef EphysFigGenApp < handle
         onGenerateScript(obj, kind, file)
         onOpenPipelineApp(obj)
         openSource(obj, source, opts)
+        openFolders(obj, folders)
         p = defaultConfigFolder(obj)
 
         % --- Data tab ---

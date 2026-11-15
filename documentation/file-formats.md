@@ -1425,8 +1425,10 @@ the report folder being `Report.Folder` resolved for the first dataset
 (whether or not a report was written). Written by `EphysAnalysisRunner.run`;
 schema `ephys-analysis-run/2`: `runId`, `name`, `outcome` (`finished` |
 `canceled`), `started`, `finished`, `seconds`, `datasets`,
-`figures` (the figure ids the run drew per dataset; a figure drawn across the datasets is not among them), `sessionFigures` (the session figures run: figures with `sessions.enabled`, drawn across the datasets), `reportFiles`, `results` (the runner's Results rows), `provenance` and
-`config` (the analysis config). `EphysAnalysisRunner.RunRecordFile` names it.
+`figures` (the figure ids the run drew per dataset; a figure drawn across the datasets is not among them), `sessionFigures` (the session figures run: figures with `sessions.enabled`, drawn across the datasets), `reportFiles`, `results` (the runner's Results rows), `fromDatabase` (per
+dataset, `dataset` and `files`: the files, or a sort's folder, found in folders
+the lab database named because they were not in the dataset's own folders;
+`[]` when none), `provenance` and `config` (the analysis config). `EphysAnalysisRunner.RunRecordFile` names it.
 The pipeline's Analysis step writes one too (its `config.Source` is the
 pipeline's project and selected datasets), and the pipeline run's record
 lists the step's rows (`analysis:<figure id>`, `analysis:report`).

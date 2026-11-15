@@ -513,6 +513,58 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.verifySubstring(msg, "1 ticked");
         end
 
+        function outputsFoundThroughTheDatabase(tc)
+            ds = tc.dataset();
+            key = @(p) EphysDataset.pathKey(string(p));
+            f = string(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat"));
+            detected = struct("t", 1); conversion = struct("dataset", ds.Name); %#ok<NASGU>
+            save(f, "detected", "conversion");
+            r = EphysDataset.processingRecord("file", f, struct("runId", "run1"), struct("A", 1));
+            ds.setProcessing("spikes", r, StartedAt=datetime("now", "TimeZone", "local") - seconds(3));
+            ev = ds.Processing.spikes.event_id;
+            ds.writeManifest();   % the manifest records the step
+            LabSync.flush(Budget=10);
+            s = LabDBSettings.load();
+            [~, relOld] = LabRoots.locate(f, s);
+            old = tc.Fake.Artifacts.artifact_id(tc.Fake.Artifacts.relative_path == relOld);
+            tc.verifySize(old, [1 1]);
+            tc.verifyEqual(DatasetOutputs(ds).pathSource("spikes"), "discovered", "here: the search roots decide");
+
+            % moved elsewhere, as the output transfer records a move: a file at the new place, the old one moved
+            there = string(fullfile(tc.Top, "moved", ds.Name));
+            mkdir(there);
+            copy = string(fullfile(there, ds.Name + "_spikes.mat"));
+            movefile(f, copy);
+            [~, rel] = LabRoots.locate(copy, s);
+            d = dir(copy);
+            b = LabDB.connect();
+            id = LabBundles.newId();
+            b.addArtifact(struct("ArtifactId", id, "ProducedByEventId", ev, "StorageRootId", 1, "RelativePath", rel, ...
+                "Checksum", fileSha256(copy), "SizeBytes", d.bytes, "Role", "spikes", "Format", "mat", ...
+                "AttributesJson", string(jsonencode(struct("kind", "threshold_spikes", "dataset_rel", ds.Name + "_spikes.mat")))));
+            b.addDisposition(struct("ArtifactId", old, "Disposition", "moved", "SuccessorArtifactId", id, ...
+                "OccurredAt", datetime("now", "TimeZone", "local"), "Note", "", "AttributesJson", "{}"));
+            out = DatasetOutputs(ds);
+            tc.verifyEqual(key(out.SpikesFile), key(copy), "found in the folder the database names");
+            tc.verifyEqual(out.pathSource("spikes"), "database");
+            tc.verifyEqual(key(out.databaseFiles()), key(copy), "for the run record (fromDatabase)");
+            tc.verifyFalse(out.has("nwb"), "a step the manifest does not record: not looked for");
+
+            % other bytes at that place than the database registered: the search's pick, with a warning
+            extra = 1; %#ok<NASGU>
+            save(copy, "detected", "conversion", "extra");
+            out = DatasetOutputs(ds);
+            tc.verifyWarning(@() out.pathSource("spikes"), "DatasetOutputs:DatabaseSize");
+
+            % offline: the local search only, and no long wait
+            tc.Fake.Reachable = false;
+            LabDB.disconnect();
+            out = DatasetOutputs(ds);
+            t0 = tic;
+            tc.verifyFalse(out.has("spikes"));
+            tc.verifyLessThan(toc(t0), 5);
+        end
+
         function aDiscardedRecordIsKept(tc)
             ds = tc.dataset();
             id = tc.captureStep(ds);

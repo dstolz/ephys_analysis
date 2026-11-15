@@ -183,6 +183,12 @@ which name each file's place in it (`dataset_rel`, [file formats](file-formats.m
 never guessed from a path. While the database does not answer, the last
 search is shown, with its date.
 
+When a dataset's file is not in its folders but its manifest says it was
+written, the apps also look in the folders the database names for its
+session (a copy or a move by the output transfer), by the same rules as in
+its own folders; a file found in its own folders always wins. See
+[DatasetOutputs](DatasetOutputs.md#files-that-have-moved-the-lab-database).
+
 In scripts: `T = LabLocator.sessions(Subject="G-0421")`,
 `LabLocator.outputFolders(T)`, and `LabLocator.commonFolder(folders)` (the
 folder that holds them, as the apps use it).

@@ -26,6 +26,7 @@ classdef LabLocator
     %
     %     [T, asOf, note] = LabLocator.sessions(...)
     %     F = LabLocator.outputFolders(T)    % every row's outputs, unique
+    %     F = LabLocator.sessionFiles(id)    % one session's files here (DatasetOutputs)
     %     [root, depth] = LabLocator.commonFolder(F)   % the folder that holds them
     %
     %   See also LabLocatorDialog, LabRoots, LabDB.
@@ -82,18 +83,8 @@ classdef LabLocator
                     started = S.started_at(k);
                     started.TimeZone = "local";   % unzoned: read as this computer's time; zoned: converted
                 end
-                A = b.artifacts(struct("SessionId", string(S.session_id(k)), "PresentOnly", true));
-                outs = strings(1, 0);
-                for j = 1:height(A)
-                    if string(A.role(j)) == "raw"; continue; end
-                    rn = LabLocator.rootName(roots, A.storage_root_id(j));
-                    if rn == ""; continue; end
-                    p = LabRoots.resolve(rn, string(A.relative_path(j)), s);
-                    if p == ""; continue; end
-                    of = LabLocator.datasetFolder(p, LabLocator.attribute(A, j, "dataset_rel"));
-                    if of ~= ""; outs(end + 1) = of; end %#ok<AGROW>
-                end
-                outs = unique(outs, "stable");
+                F = LabLocator.sessionFiles(string(S.session_id(k)), b, roots, s);
+                outs = unique(reshape(F.folder(F.folder ~= ""), 1, []), "stable");
                 outs = outs(arrayfun(@(x) isfolder(x), outs));
                 reach = folder ~= "" && folderReachable(folder, 1);   % a share that does not answer costs 1 s
                 T = [T; table(string(S.session_id(k)), string(S.subject_id(k)), string(S.label(k)), started, ...
@@ -101,6 +92,43 @@ classdef LabLocator
             end
             asOf = datetime("now", "TimeZone", "local");
             LabLocator.keep(T, asOf);
+        end
+
+        function F = sessionFiles(sessionId, b, roots, s)
+            %sessionFiles  A session's present files the database knows, raw files left out, where they are here.
+            %   F = LabLocator.sessionFiles(SESSIONID): a row per file whose
+            %   storage root is mapped here: path (here), bytes (as
+            %   registered), folder (the dataset output folder it is in, from
+            %   its row's dataset_rel; "" when the row names none). No row
+            %   while the database does not answer (2 s at most); no snapshot
+            %   stands in for it.
+            arguments
+                sessionId (1,1) string
+                b = []
+                roots = []
+                s = []
+            end
+            F = table(strings(0, 1), zeros(0, 1), strings(0, 1), 'VariableNames', {'path', 'bytes', 'folder'});
+            if isempty(b)
+                b = LabDB.connect(MaxWait=2);
+                if isempty(b); return; end
+                roots = b.storageRoots();
+                s = LabDBSettings.load();
+            end
+            A = b.artifacts(struct("SessionId", sessionId, "PresentOnly", true));
+            for j = 1:height(A)
+                if string(A.role(j)) == "raw"; continue; end
+                rn = LabLocator.rootName(roots, A.storage_root_id(j));
+                if rn == ""; continue; end
+                p = LabRoots.resolve(rn, string(A.relative_path(j)), s);
+                if p == ""; continue; end
+                bytes = NaN;
+                if any(strcmp(A.Properties.VariableNames, "size_bytes")) && ~ismissing(A.size_bytes(j))
+                    bytes = double(A.size_bytes(j));
+                end
+                of = LabLocator.datasetFolder(p, LabLocator.attribute(A, j, "dataset_rel"));
+                F = [F; table(p, bytes, of, 'VariableNames', F.Properties.VariableNames)]; %#ok<AGROW>
+            end
         end
 
         function F = outputFolders(T)

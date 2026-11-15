@@ -10,6 +10,11 @@ says how to cut a release.
 
 ### Added
 
+- The lab database (CarasLabDB), seventh part: files that have moved. With the database on, a `DatasetOutputs`
+  kind its roots hold nothing of, whose step the manifest records, is looked for in the output folders the database
+  names for the dataset's session (`LabLocator.sessionFiles`), by the same rules; `pathSource` is then
+  `"database"`, a size other than the registered one warns (`DatasetOutputs:DatabaseSize`), and the analysis run
+  record lists those files (`fromDatabase`; `DatasetOutputs.databaseFiles`). Asked once a refresh, 2 s at most.
 - The lab database (CarasLabDB), sixth part: finding recordings. **File → Open from database...**
   (`LabLocatorDialog`) searches the database's sessions by subject, project, days and tags and shows where each is
   on this computer and the output folders that hold its present files. The analysis app opens those folders as the

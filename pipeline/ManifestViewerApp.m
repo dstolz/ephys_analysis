@@ -174,6 +174,84 @@ classdef ManifestViewerApp < handle
                 delete(obj.Fig);
             end
         end
+
+        function ok = checkDatabase(obj)
+            %checkDatabase  Ask the lab database about the Steps and the Files (OK false when it does not answer).
+            ok = false;
+            b = LabDB.connect(MaxWait=2);
+            if isempty(b)
+                obj.DbStateLabel.Text = char(LabDB.status().Message);
+                return
+            end
+            try
+                S = obj.DbStepsTable.Data;
+                for k = 1:size(S, 1)
+                    E = b.eventRows(struct('EventId', string(S{k, 2})));
+                    if height(E) > 0
+                        S{k, 5} = 'in the database';
+                    else
+                        S{k, 5} = 'not in the database';
+                    end
+                end
+                obj.DbStepsTable.Data = S;
+                F = obj.DbFilesTable.Data;
+                for k = 1:size(F, 1)
+                    id = obj.DbFileIds(k);
+                    if id == ""; F{k, 4} = 'no id'; continue; end
+                    A = b.artifacts(struct('ArtifactId', id));
+                    if height(A) == 0
+                        F{k, 4} = 'not registered';
+                        continue
+                    end
+                    D = b.dispositions(id);
+                    if height(D) > 0
+                        F{k, 4} = char(string(D.disposition(1)));   % the latest
+                    else
+                        F{k, 4} = 'present';
+                    end
+                    V = b.verifications(id);
+                    if height(V) > 0
+                        F{k, 5} = char(string(V.status(1)) + " " + string(V.verified_at(1)));
+                    else
+                        F{k, 5} = 'never verified';
+                    end
+                end
+                obj.DbFilesTable.Data = F;
+                ok = true;
+            catch ME
+                obj.DbStateLabel.Text = char("The lab database could not be read: " + string(ME.message));
+            end
+        end
+
+        function txt = showLineage(obj)
+            %showLineage  What the selected file was made from (the database's lineage, "up"), in a window.
+            txt = "";
+            sel = obj.DbFilesTable.Selection;
+            if isempty(sel) || sel(1) > numel(obj.DbFileIds) || obj.DbFileIds(sel(1)) == ""
+                obj.setStatus("Select a file with an id in the Database tab first.");
+                return
+            end
+            b = LabDB.connect(MaxWait=2);
+            if isempty(b)
+                obj.setStatus(LabDB.status().Message);
+                return
+            end
+            id = obj.DbFileIds(sel(1));
+            L = b.lineage(id, "up");
+            lines = "Lineage of " + string(obj.DbFilesTable.Data{sel(1), 1}) + " (artifact " + id + ")";
+            for k = 1:height(L)
+                A = b.artifacts(struct('ArtifactId', string(L.artifact_id(k))));
+                E = b.eventRows(struct('EventId', string(L.event_id(k))));
+                where = string(L.artifact_id(k));
+                if height(A) > 0; where = string(A.relative_path(1)); end
+                kind = "";
+                if height(E) > 0; kind = string(E.event_type(1)); end
+                lines(end + 1, 1) = sprintf('%s%s  made by %s event %s', repmat('  ', 1, L.depth(k)), where, ...
+                    kind, string(L.event_id(k))); %#ok<AGROW>
+            end
+            txt = strjoin(lines, newline);
+            AppDialog.showText("Lineage", lines, Parent=obj.Fig);
+        end
     end
 
     methods (Static)
@@ -664,84 +742,6 @@ classdef ManifestViewerApp < handle
                 end
             end
             obj.DbOutboxTable.Data = out;
-        end
-
-        function ok = checkDatabase(obj)
-            %checkDatabase  Ask the lab database about the Steps and the Files (OK false when it does not answer).
-            ok = false;
-            b = LabDB.connect(MaxWait=2);
-            if isempty(b)
-                obj.DbStateLabel.Text = char(LabDB.status().Message);
-                return
-            end
-            try
-                S = obj.DbStepsTable.Data;
-                for k = 1:size(S, 1)
-                    E = b.eventRows(struct('EventId', string(S{k, 2})));
-                    if height(E) > 0
-                        S{k, 5} = 'in the database';
-                    else
-                        S{k, 5} = 'not in the database';
-                    end
-                end
-                obj.DbStepsTable.Data = S;
-                F = obj.DbFilesTable.Data;
-                for k = 1:size(F, 1)
-                    id = obj.DbFileIds(k);
-                    if id == ""; F{k, 4} = 'no id'; continue; end
-                    A = b.artifacts(struct('ArtifactId', id));
-                    if height(A) == 0
-                        F{k, 4} = 'not registered';
-                        continue
-                    end
-                    D = b.dispositions(id);
-                    if height(D) > 0
-                        F{k, 4} = char(string(D.disposition(1)));   % the latest
-                    else
-                        F{k, 4} = 'present';
-                    end
-                    V = b.verifications(id);
-                    if height(V) > 0
-                        F{k, 5} = char(string(V.status(1)) + " " + string(V.verified_at(1)));
-                    else
-                        F{k, 5} = 'never verified';
-                    end
-                end
-                obj.DbFilesTable.Data = F;
-                ok = true;
-            catch ME
-                obj.DbStateLabel.Text = char("The lab database could not be read: " + string(ME.message));
-            end
-        end
-
-        function txt = showLineage(obj)
-            %showLineage  What the selected file was made from (the database's lineage, "up"), in a window.
-            txt = "";
-            sel = obj.DbFilesTable.Selection;
-            if isempty(sel) || sel(1) > numel(obj.DbFileIds) || obj.DbFileIds(sel(1)) == ""
-                obj.setStatus("Select a file with an id in the Database tab first.");
-                return
-            end
-            b = LabDB.connect(MaxWait=2);
-            if isempty(b)
-                obj.setStatus(LabDB.status().Message);
-                return
-            end
-            id = obj.DbFileIds(sel(1));
-            L = b.lineage(id, "up");
-            lines = "Lineage of " + string(obj.DbFilesTable.Data{sel(1), 1}) + " (artifact " + id + ")";
-            for k = 1:height(L)
-                A = b.artifacts(struct('ArtifactId', string(L.artifact_id(k))));
-                E = b.eventRows(struct('EventId', string(L.event_id(k))));
-                where = string(L.artifact_id(k));
-                if height(A) > 0; where = string(A.relative_path(1)); end
-                kind = "";
-                if height(E) > 0; kind = string(E.event_type(1)); end
-                lines(end + 1, 1) = sprintf('%s%s  made by %s event %s', repmat('  ', 1, L.depth(k)), where, ...
-                    kind, string(L.event_id(k))); %#ok<AGROW>
-            end
-            txt = strjoin(lines, newline);
-            AppDialog.showText("Lineage", lines, Parent=obj.Fig);
         end
 
         function [html, summary] = flowHTML(obj)

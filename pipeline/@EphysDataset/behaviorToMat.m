@@ -63,6 +63,7 @@ arguments
 end
 prov = opts.Provenance;
 if isempty(prov); prov = ephysProvenance(); end
+started = datetime('now', 'TimeZone', 'local');   % for the lab database (setProcessing)
 
 t0 = tic;
 if obj.behaviorSource() ~= "epocs" && (obj.BehaviorFile == "" || ~isfile(obj.BehaviorFile))
@@ -131,7 +132,7 @@ r.n_trials = out.nTrials;
 r.derived_events = cellstr(out.derivedEvents);
 r.derived_failed = cellstr(out.derivedFailed);
 r.extract_files = cellstr(xf);
-obj.Processing.behavior = r;
+obj.setProcessing("behavior", r, StartedAt=started, Provenance=prov);
 end
 
 

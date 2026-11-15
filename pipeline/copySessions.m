@@ -1232,9 +1232,9 @@ elseif isempty(bad)
                     bad(end+1) = stitch.rel + " differs from a fresh stitch of its ePsych files";
                 end
                 for k = 1:numel(stitch.files)
-                    rec.parts(k).sha256Source = sha256File(stitch.files(k));
+                    rec.parts(k).sha256Source = fileSha256(stitch.files(k));
                 end
-                rec.sha256 = sha256File(rec.file);
+                rec.sha256 = fileSha256(rec.file);
             end
         end
     catch ME
@@ -1344,6 +1344,44 @@ for r = rows(:).'
         job.R.Message(r) = job.R.Message(r) + "; manifest not written: " + ME.message;
         if job.R.CopyStatus(r) == "copied"; job.R.CopyStatus(r) = "failed"; end
     end
+    if ismember(job.R.CopyStatus(r), ["copied" "already_present"])
+        captureSession(job, r, dest);
+    end
+end
+end
+
+
+function captureSession(job, r, dest)
+%captureSession  Note the copied session for the lab database (LabCapture.copiedSession).
+%   Its recording files and ePsych file at DEST, with the SHA-256 of each
+%   when the copy was verified by hash. Nothing when the database is off on
+%   this computer; a failure is a warning, never a failed copy.
+try
+    R = job.R;
+    files = job.Files{r};
+    if isempty(files); files = fileRecords(job.Items{r}, dest); end
+    f = struct('path', {}, 'sha256', {}, 'is_epsych', {});
+    for k = 1:numel(files)
+        if files(k).isEpsych && ~isempty(job.Stitches{r}); continue; end   % the stitched file stands for them
+        f(end + 1) = struct('path', string(files(k).destination), ...
+            'sha256', string(files(k).sha256Destination), 'is_epsych', files(k).isEpsych); %#ok<AGROW>
+    end
+    if ~isempty(job.Stitches{r})
+        st = job.StitchRecs{r};
+        if isempty(st); st = stitchRecord(job.Stitches{r}, dest); end
+        f(end + 1) = struct('path', string(st.file), 'sha256', string(st.sha256), 'is_epsych', true);
+    end
+    dur = NaN;
+    if isduration(R.RecordingDuration(r)); dur = seconds(R.RecordingDuration(r)); end
+    info = struct('dest', string(dest), 'subject', R.Subject(r), 'reader', R.Reader(r), ...
+        'recording_time', R.RecordingTime(r), 'recording_duration', dur, ...
+        'source_dir', R.RecordingDir(r), 'files', f, 'epsych_file', R.EpsychFile(r), ...
+        'epsych_time', R.EpsychTime(r), 'epsych_trials', double(R.EpsychTrials(r)), ...
+        'finished', datetime('now', 'TimeZone', 'local'));
+    LabCapture.copiedSession(info);
+catch ME
+    warning('copySessions:LabCapture', 'The copy of %s was not noted for the lab database: %s', ...
+        dest, ME.message);
 end
 end
 
@@ -1554,25 +1592,6 @@ if isfolder(p); return; end
 if ~ok
     error('copySessions:CannotCreate', 'Cannot create %s: %s', p, msg);
 end
-end
-
-
-function h = sha256File(file)
-%sha256File  SHA-256 of a file as lowercase hex, streamed in 64 MB chunks.
-%   Only the stitched ePsych file and its sources are hashed here; every
-%   copied file is hashed by the engine.
-fid = fopen(file, 'r');
-if fid < 0
-    error('copySessions:CannotRead', 'Cannot open %s to hash it.', file);
-end
-closer = onCleanup(@() fclose(fid));
-md = java.security.MessageDigest.getInstance('SHA-256');
-while true
-    b = fread(fid, 64 * 2^20, '*uint8');
-    if isempty(b); break; end
-    md.update(typecast(b, 'int8'));
-end
-h = string(lower(reshape(dec2hex(typecast(md.digest(), 'uint8'), 2).', 1, [])));
 end
 
 

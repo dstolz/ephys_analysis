@@ -59,6 +59,9 @@ function result = launchSorting(obj, result, opts)
 %   Processing.sorting (settleSortRun) once the run is "done" - at once for a
 %   blocking run that exits cleanly, for a background run by whoever next
 %   writes the dataset's manifest after it. A run that fails records nothing.
+%   The record is stamped at launch (LabCapture.launchStamp: its event_id,
+%   started_at, the person who launched it and the code), so the computer
+%   that settles the run records it under that id, for the lab database.
 %   The sort lock (RunLock) taken by runKilosort gets the run's status file,
 %   so another session sees the run is going, and is released when a
 %   blocking run ends.
@@ -113,6 +116,9 @@ try
     RunLock.setStatusFile(obj, statusFile);   % another session sees the run is going
     if isfile(recordFile); delete(recordFile); end
     if isfield(result, 'processing') && ~isempty(result.processing)
+        % The run's id, start and launcher now, so whoever settles it
+        % records it under them, once (LabCapture.launchStamp).
+        result.processing = LabCapture.launchStamp(result.processing);
         writeJsonFile(recordFile, struct('status_file', string(statusFile), 'sorter', sorter, ...
             'record', result.processing), NonFinite="string");   % Processing.sorting once the run is done
     end

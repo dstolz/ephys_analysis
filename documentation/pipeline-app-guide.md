@@ -280,6 +280,10 @@ optional, and the app works the same without it.
   (the server did not answer; keep working) or **attention** (something on
   this computer needs fixing; point at the lamp to see what). Click it to
   open the Database window.
+- **What it keeps:** while the database is on, every step that writes a
+  file, and every session the Copy tab copies, is noted on this computer
+  as it is written, with each file's checksum. Nothing waits for the
+  server.
 
 See [Lab database](database.md) for the details.
 

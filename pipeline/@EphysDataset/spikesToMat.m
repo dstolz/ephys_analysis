@@ -106,6 +106,7 @@ arguments
 end
 prov = opts.Provenance;
 if isempty(prov); prov = ephysProvenance(); end
+started = datetime('now', 'TimeZone', 'local');   % for the lab database (setProcessing)
 
 t0 = tic;
 file = opts.File;
@@ -290,7 +291,7 @@ C = info.coincidence;
 r.coincidence = stringifyNonFinite(struct('mode', C.mode, 'requested', coinc.requested, ...
     'probe', coinc.probeFile, 'radius_um', C.radiusUm, 'jitter_ms', C.jitterMs, ...
     'copies', sum(C.nCopies), 'note', coinc.note));
-obj.Processing.spikes = r;
+obj.setProcessing("spikes", r, StartedAt=started, Provenance=prov);
 try
     progress(opts.ProgressFcn, nSteps, nSteps, "Done");
 catch

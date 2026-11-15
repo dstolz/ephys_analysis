@@ -373,7 +373,9 @@ classdef EphysPipeline < handle
             %   ("finished" | "canceled" | "failed", with the error), when it
             %   started and finished, the steps, the datasets (key, name,
             %   tags, variables as a struct of values, folders), the code and
-            %   machine (provenance), the config and the Results rows. A
+            %   machine (provenance), the config and the Results rows, and
+            %   labEvents: the steps' records this run wrote (dataset key,
+            %   kind, event_id: their ids in the lab database). A
             %   record that cannot be written is a warning
             %   (EphysPipeline:RunRecord), never an error: the run's outputs
             %   are already on disk.
@@ -414,6 +416,7 @@ classdef EphysPipeline < handle
                 rec.results = num2cell(table2struct(obj.Results)).';
                 rec.backgroundRuns = runs;
                 rec.script = obj.ScriptFile;
+                rec.labEvents = EphysPipeline.labEvents(ds, prov.runId);
                 rec.provenance = rmfield(prov, 'config');
                 rec.config = obj.Config.toStruct();
                 writeJsonFile(file, rec, NonFinite="string");
@@ -985,7 +988,7 @@ classdef EphysPipeline < handle
                     created = "";
                     if isfield(c, 'created'); created = string(c.created); end
                     d.recordDetection(EphysDataset.detectionSettings(acfg), auto, ref, ...
-                        File=cacheFile, Created=created);
+                        File=cacheFile, Created=created, Capture=false);   % written by an earlier run
                     d.writeManifest();
                 end
             end
@@ -995,17 +998,26 @@ classdef EphysPipeline < handle
                 lo = 0.5 * obj.prepareWCARFor(d, report, [0 0.5]);
                 cb = @(i, nChunks, name) report(lo + (1 - lo) * (i - 1) / max(nChunks, 1), 1, "detecting: " + string(name));
                 popt = namedargs2cell(EphysPipelineConfig.parallelOptions(obj.Config.Parallel));
+                detectStarted = datetime('now', 'TimeZone', 'local');
                 auto = d.artifactIntervals('IncludeManual', false, 'ProgressFcn', cb, ...
                     'CommonModeUnreferenced', acfg.CommonModeUnreferenced, 'CommonModeThreshold', acfg.CommonModeThreshold, popt{:});
                 source = "computed";
                 how = "computed";
                 recorded = isstruct(d.Processing.artifacts);   % by artifactIntervals, when it detected
-                if recorded; d.Processing.artifacts.run_id = string(obj.provenance().runId); end
                 if a.CacheIntervals
                     writeJsonFile(cacheFile, struct('schema', schema, 'dataset', d.Name, ...
                         'fingerprint', fp, 'intervals', auto, 'nIntervals', size(auto, 1), ...
                         'created', string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'))));
-                    if recorded; d.Processing.artifacts.file = string(cacheFile); end
+                end
+                if recorded
+                    % The detection's record again, now with its run and the
+                    % file it is cached in (setProcessing: the file is one this
+                    % run wrote, for the lab database).
+                    r = d.Processing.artifacts;
+                    r.run_id = string(obj.provenance().runId);
+                    if a.CacheIntervals; r.file = string(cacheFile); end
+                    r.event_id = "";
+                    d.setProcessing("artifacts", r, StartedAt=detectStarted, Provenance=obj.provenance());
                 end
                 d.writeManifest();   % its artifacts and processing blocks now hold this detection
             end
@@ -1430,6 +1442,23 @@ classdef EphysPipeline < handle
             d.SortingDir = string(newFolder);
             d.writeManifest();
             note = "the dataset's sorting folder is now " + string(newFolder);
+        end
+    end
+
+    methods (Static, Hidden)
+        function L = labEvents(ds, runId)
+            %labEvents  The records run RUNID wrote in datasets DS: name, kind, event_id (a cell row of structs).
+            L = {};
+            if string(runId) == ""; return; end
+            for k = 1:numel(ds)
+                P = ds(k).Processing;
+                for kind = string(fieldnames(P)).'
+                    r = P.(kind);
+                    if ~isstruct(r) || ~isscalar(r) || ~isfield(r, 'run_id') || ~isfield(r, 'event_id'); continue; end
+                    if string(r.run_id) ~= string(runId); continue; end
+                    L{end + 1} = struct('name', ds(k).Name, 'kind', kind, 'event_id', string(r.event_id)); %#ok<AGROW>
+                end
+            end
         end
     end
 end

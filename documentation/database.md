@@ -8,11 +8,12 @@ optional. With the database turned off, or out of reach, every app and every
 pipeline run works exactly as before: nothing waits for the server and
 nothing fails because of it.
 
-> Status, 2026-11-14: this page describes the parts that are in place: the
-> settings, the connection, the storage roots and the Database window, shared
-> by every app. Recording the pipeline's steps and the analyses, the outbox
-> that keeps them while the server is away, and finding files through the
-> database are being added; this page will say so when they are.
+> Status, 2026-11-14: in place are the settings, the connection, the storage
+> roots and the Database window, shared by every app, and the outbox: every
+> pipeline step and every copied session is recorded on this computer as it
+> is written. Sending the outbox to the server, recording the analyses and
+> finding files through the database are being added; this page will say so
+> when they are.
 
 ## Set it up
 
@@ -60,6 +61,39 @@ or a share mounted at another letter, therefore cannot file data under the
 wrong root. On Windows, paths are stored with the spelling the files have on
 disk, so a path typed in another case is not a second file.
 
+## What is recorded
+
+Whenever a step writes a file, a record of it is kept on this computer, in
+the *outbox*, until it can be sent. Nothing waits for the server, and a
+record that cannot be kept never stops the step (it is a warning).
+
+| Written by | Recorded as |
+| --- | --- |
+| the artifact detection (when its intervals are kept in a file), `.bin`, Signals, Spikes, Behavior, NWB export | one analysis event per step: `ephys_analysis/<step>`, the record of how the output was made (its own JSON text), the code and the machine, when it started and ended, the files it read and the files it wrote |
+| a sort, once it is done | one analysis event, `kilosort4` or `spikeinterface/<sorter>`, under the id it got when it was launched, whichever computer finds it done |
+| the Copy tab (`copySessions`), per session copied | a recording event with the recording files where they were copied to, and a behavior event with the ePsych file and its trial count |
+
+Previews, results kept in memory, the manifests, locks, logs, caches and the
+favorites and notes are not recorded. A record of a step that wrote nothing
+(an artifact detection kept in memory) is not kept either.
+
+Each file is recorded with its storage root and path, its size, time and
+SHA-256. Files up to **HashInProcessMB** (256 MB) are hashed at once; a larger
+one by a separate process (PowerShell's `Get-FileHash` on Windows,
+`shasum` / `sha256sum` elsewhere), so no step waits for it. A hash is kept
+only for the bytes that were captured: when a file's size or time changes
+before it is hashed, its record is held, with the reason, for you to look at.
+A file a step rewrote is recorded as a new file that replaces the earlier one;
+rewritten with the same bytes, it is the same file.
+
+The records keep their ids, so sending one twice writes it once. The
+dataset's session id is kept in its folder, in `<Name>_labdb.json`, so every
+record of a dataset names the same session, from every computer.
+
+The outbox is the folder `outbox` in this computer's database folder
+(`%LOCALAPPDATA%\ephys_analysis\labdb`). Its format is in
+[file-formats.md](file-formats.md#lab-database-bundle-caraslabdb-bundle1).
+
 ## The lamp
 
 | Lamp | Meaning |
@@ -86,6 +120,19 @@ p  = LabRoots.resolve("nas-main", "G-0421/s1/s1_extract.mat", s);
 `LabDB.connect(Force=true)` tries again at once, while offline. Turn the
 database off for a script with `s.Enabled = false; LabDBSettings.save(s)`.
 
+A writer called from a script records its work as the pipeline does. What
+waits in the outbox:
+
+```matlab
+T = LabOutbox.list();              % id, state, type, captured_at, sealed, file, note
+c = LabOutbox.counts();            % pending, claimed, held, failed, done
+n = LabHasher.work(Budget=30);     % finish the hashes that are still needed
+r = ds.Processing.spikes;          % event_id, outputs (path, bytes, mtime, artifact_id, sha256)
+```
+
+A writer of your own stores its record the same way:
+`ds.setProcessing("spikes", r, StartedAt=t0, Provenance=prov)`.
+
 ## Requirements
 
 - The [CarasLabDB](https://github.com/dstolz/CarasLabDB) repository on the
@@ -106,6 +153,10 @@ work without the database.
 | [`LabDBSettings`](../pipeline/LabDBSettings.m) | the settings, in the app preferences |
 | [`LabDBSecrets`](../pipeline/LabDBSecrets.m) | the password in the MATLAB vault; `useFake` for tests |
 | [`LabRoots`](../pipeline/LabRoots.m) | storage roots: `locate`, `resolve`, the marker files |
+| [`LabCapture`](../pipeline/LabCapture.m) | what a step or a copy records, and the session file; `EphysDataset.setProcessing` calls it |
+| [`LabBundles`](../pipeline/LabBundles.m) | the records as files (`caraslabdb-bundle/1`): build, encode, decode, seal |
+| [`LabOutbox`](../pipeline/LabOutbox.m) | the outbox: put, read, list, claim, finish, move, recover stale claims |
+| [`LabHasher`](../pipeline/LabHasher.m), [`fileSha256`](../pipeline/fileSha256.m) | SHA-256 in MATLAB and out of process |
 | [`LabDBBackend`](../pipeline/LabDBBackend.m) | what the toolbox asks of the database; the only seam to CarasLabDB |
 | [`LabDBCarasBackend`](../pipeline/LabDBCarasBackend.m) | that seam through the CarasLabDB class |
 | [`LabDBFakeBackend`](../pipeline/LabDBFakeBackend.m) | an in-memory database for the tests |
@@ -115,4 +166,6 @@ work without the database.
 
 `test_LabDB` runs everything against `LabDBFakeBackend`, in a temporary
 preference store, a fake vault and a temporary database folder. It needs no
-server and no Database Toolbox, and touches nothing of yours.
+server and no Database Toolbox, and touches nothing of yours. `test_LabCapture`
+checks the bundles (against `pipeline/testdata/labdb/bundle_event_v1.json`),
+the outbox, the hashes and what the steps and copies record, the same way.

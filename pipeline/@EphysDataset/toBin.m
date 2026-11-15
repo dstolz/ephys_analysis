@@ -161,6 +161,7 @@ arguments
 end
 prov = opts.Provenance;
 if isempty(prov); prov = ephysProvenance(); end
+started = datetime('now', 'TimeZone', 'local');   % for the lab database (setProcessing)
 
 if obj.NumFiles == 0
     obj.discoverFiles();
@@ -590,7 +591,9 @@ if EphysDataset.pathKey(binFile) == EphysDataset.pathKey(obj.BinFile)
     r.noise_fill = [];   % the levels the fill was drawn at
     if ~isempty(noiseFill); r.noise_fill = EphysDataset.optionsRecord(noiseFill); end
     r.n_clipped = nClipped;
-    obj.Processing.bin = r;
+    written = string(binFile);
+    if opts.WriteMeta; written(end+1) = string(metaFile); end
+    obj.setProcessing("bin", r, StartedAt=started, Outputs=written, Provenance=prov);
 end
 
 fprintf('Done. %.2f MB written (%s, little-endian); n_chan_bin=%d, fs=%g\n', ...

@@ -10,6 +10,17 @@ says how to cut a release.
 
 ### Added
 
+- The lab database (CarasLabDB), second part: what the toolbox does is recorded on this computer as it is written,
+  in an outbox (`LabOutbox`, under the database folder), for the database. Every writer stores its record with the
+  new `EphysDataset.setProcessing`, which adds `event_id`, `created_at`, `started_at`, `performer`,
+  `code_version` and `outputs` (each file written, with its size, time, id and SHA-256) to the processing record;
+  with the database turned on, the step, the files it read and the files it wrote become a bundle
+  (`caraslabdb-bundle/1`, `LabBundles`), and a copied session (`copySessions`) its recording and behavior events.
+  Small files are hashed at once, large ones by a separate process (`LabHasher`); a file that changed before it
+  was hashed holds its record, with the reason. A sort is stamped with its id when it is launched. The session's
+  id is kept in `<Name>_labdb.json` in the dataset folder; the pipeline run record lists the run's `labEvents`.
+  `fileSha256` (from `copySessions`) is public. Nothing is sent yet; tests `test_LabCapture`. See
+  [documentation/database.md](documentation/database.md).
 - The lab database (CarasLabDB), first part: **File → Database...** in the pipeline app, the analysis app and the
   dataset browser, and a **Database** lamp in the status bar of the pipeline app, the analysis app and the manifest
   viewer (off / connected / offline / attention; a click opens the window). The window holds this computer's

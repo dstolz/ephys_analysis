@@ -264,7 +264,11 @@ classdef EphysDataset < handle
         % reference applied, referenceRecord; the artifact periods erased;
         % the inputs read). Saved to and restored from the manifest's
         % processing block, so it describes the outputs on disk, not the
-        % config as it stands. See processingManifest.
+        % config as it stands. Writers store their record with
+        % setProcessing, which adds what the lab database needs (event_id,
+        % created_at, started_at, performer, code_version and outputs: each
+        % file written with its size, time, id and SHA-256 when known;
+        % LabCapture). See processingManifest.
         Processing (1,1) struct = EphysDataset.emptyProcessing()
 
         % The manifest's "custom" block: the fields a script added with
@@ -419,6 +423,7 @@ classdef EphysDataset < handle
         result = runKilosort(obj, opts)
         result = runSpikeInterface(obj, opts)
         result = launchSorting(obj, result, opts)
+        r      = setProcessing(obj, kind, r, opts)
         [iv, detected] = artifactIntervals(obj, opts)
         L      = channelLayout(obj, opts)
         [Y, ev, info] = deriveSignals(obj, opts)   % "events" is reserved in classdef
@@ -1398,7 +1403,10 @@ classdef EphysDataset < handle
             %   the common reference the detection read through
             %   (referenceInfo). Options: File (the interval cache it is kept
             %   in, "" for none), Created (when it was found; default now),
-            %   RunId (the pipeline run). artifactIntervals calls it, and
+            %   RunId (the pipeline run), StartedAt (when the detection
+            %   started), Provenance (the writer's ephysProvenance) and
+            %   Capture (false for a detection read back from its cache:
+            %   no new file), for setProcessing. artifactIntervals calls it, and
             %   EphysPipeline.artifactIntervalsFor for a detection read
             %   from its cache.
             arguments
@@ -1409,6 +1417,9 @@ classdef EphysDataset < handle
                 opts.File (1,1) string = ""
                 opts.Created (1,1) string = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'))
                 opts.RunId (1,1) string = ""
+                opts.StartedAt (1,1) datetime = NaT
+                opts.Provenance = []
+                opts.Capture (1,1) logical = true
             end
             key = "file";
             if opts.File == ""; key = ""; end
@@ -1418,7 +1429,8 @@ classdef EphysDataset < handle
             r.channels = EphysDataset.formatChannelList(setdiff(1:obj.NumChannels, obj.excludedChannels()));
             r.detected = size(auto, 1);
             r.detected_s = sum(auto(:, 2) - auto(:, 1));
-            obj.Processing.artifacts = r;
+            obj.setProcessing("artifacts", r, StartedAt=opts.StartedAt, Provenance=opts.Provenance, ...
+                Capture=opts.Capture);
         end
 
         function s = behaviorManifest(obj)
@@ -1629,7 +1641,7 @@ classdef EphysDataset < handle
             if nargin > 1
                 if ~isfield(result, 'processing') || isempty(result.processing); return; end
                 if EphysDataset.sortRunState(result.statusFile) == "done"
-                    obj.Processing.sorting = result.processing;
+                    obj.setProcessing("sorting", result.processing);
                 end
                 f = fullfile(fileparts(char(result.statusFile)), char(EphysDataset.SortRecordFile));
                 if isfile(f); delete(f); end
@@ -1650,7 +1662,7 @@ classdef EphysDataset < handle
                 if state == "done" && isstruct(rec.record) && isscalar(rec.record)
                     r = rec.record;
                     if isfield(r, 'exists'); r = rmfield(r, 'exists'); end   % worked out at each write
-                    obj.Processing.sorting = r;
+                    obj.setProcessing("sorting", r);
                 end
                 delete(f);
                 RunLock.releaseEnded(obj);

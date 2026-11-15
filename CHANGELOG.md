@@ -10,6 +10,9 @@ says how to cut a release.
 
 ### Added
 
+- The lab database (CarasLabDB), ninth part: the copy for the analysis app (`AnalysisCopyDialog`, **File → Copy
+  files for the analysis app...**) records each copy of a file a dataset's records name as a file of the step that
+  wrote it, copied from it, as the Transfer section's copies are (`LabCapture.transferred`).
 - The lab database (CarasLabDB), eighth part: phy curation. A scan (`EphysProject.refresh`) records what phy saved
   in a dataset's recorded sort as one `phy` analysis event (`LabCapture.curation`): the sort's files as recorded
   are its inputs, the files phy changed or added its outputs, each changed one replacing its earlier version; a

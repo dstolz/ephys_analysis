@@ -326,9 +326,10 @@ classdef LabSync
                 b = LabOutbox.read(T.id(k));
                 if isempty(b); continue; end
                 if any(ismember(b.after, waiting)); continue; end   % after a record still to be sent
-                if ismember(b.type, ["edges" "files"]) && startsWith(T.note(k), "waiting")
-                    % its files were not there: tried again once something
-                    % was sent since, or after EdgesRetry
+                if startsWith(T.note(k), "waiting")
+                    % its files were not there (edges, files), or a folder's
+                    % raw files are still being hashed (an event): tried
+                    % again once something was sent since, or after EdgesRetry
                     n = LabOutbox.note(T.id(k), "pending");
                     at = NaT("TimeZone", "local");
                     try
@@ -356,8 +357,27 @@ classdef LabSync
                 return
             end
             roots = be.storageRoots();
+            also = strings(1, 0);
+            if any(ev.event_type == ["recording" "behavior"])
+                % A second copy of a recording (or ePsych session) already in
+                % the database: its files are copies of that event's, not a
+                % new recording.
+                [cs, S, E, why, from, also] = LabSync.copyOf(be, b.record.outputs);
+                if cs == "ambiguous"
+                    state = "held";
+                    reason = why;
+                    return
+                elseif cs == "copy"
+                    [state, reason] = LabSync.sendCopy(be, b, S, E, from, roots, s);
+                    return
+                end
+            end
             [sid, subject, why, need] = LabSync.resolveSession(be, b.record.dataset, roots, s);
-            if why ~= ""
+            if need == "wait"
+                state = "pending";
+                reason = why;
+                return
+            elseif why ~= ""
                 state = "held";
                 reason = why;
                 if need ~= ""; flags = need; end
@@ -378,6 +398,10 @@ classdef LabSync
             end
             [ins, unresolved] = LabSync.inputs(be, b.record.inputs, roots, s);
             attr = ev.attributes_json;
+            if ~isempty(also)
+                % some raw files are byte for byte files of other events (a settings file the same in two recordings)
+                attr = LabSync.addMember(attr, "raw_files_also_in_events", string(jsonencode(cellstr(also))));
+            end
             if ~isempty(unresolved)
                 attr = LabSync.addMember(attr, "unresolved_inputs", string(jsonencode(unresolved)));
             end
@@ -444,6 +468,91 @@ classdef LabSync
                 state = "pending";
                 reason = sprintf("waiting: %d input file(s) not in the database yet", missing);
             end
+        end
+
+        function [state, S, E, why, from, also] = copyOf(be, items)
+            %copyOf  Whether the raw files ITEMS are, by their SHA-256, the files of one event already in the database.
+            %   STATE "copy": each is a raw file of event E (session S; FROM
+            %   the artifact each copies): byte for byte the same raw files
+            %   are the same recording, wherever they were copied to.
+            %   "ambiguous": they are all files of more than one event (WHY
+            %   names them). "none": not all of them are files of one event;
+            %   ALSO lists the events some of them are files of (a settings
+            %   file can be the same in two recordings). "unhashed": a
+            %   SHA-256 is not known yet.
+            state = "none"; S = ""; E = ""; why = ""; from = strings(1, 0); also = strings(1, 0);
+            if isempty(items); return; end
+            items = items(string({items.role}) == "raw");
+            if isempty(items); return; end
+            n = numel(items);
+            evs = cell(1, n); ids = cell(1, n); ses = cell(1, n);   % per file: the events, artifacts, sessions it matches
+            for k = 1:n
+                sha = lower(string(items(k).sha256));
+                if strlength(sha) ~= 64
+                    state = "unhashed";
+                    return
+                end
+                A = be.artifacts(struct("Checksum", sha, "Role", "raw"));
+                evs{k} = strings(1, 0); ids{k} = strings(1, 0); ses{k} = strings(1, 0);
+                if height(A) == 0 || ~all(ismember(["artifact_id" "produced_by_event_id" "session_id"], ...
+                        string(A.Properties.VariableNames))); continue; end
+                keep = string(A.artifact_id) ~= string(items(k).artifact_id);   % not the file itself (a record sent again)
+                evs{k} = reshape(string(A.produced_by_event_id(keep)), 1, []);
+                ids{k} = reshape(string(A.artifact_id(keep)), 1, []);
+                ses{k} = reshape(string(A.session_id(keep)), 1, []);
+            end
+            common = unique(evs{1});
+            for k = 2:n; common = intersect(common, evs{k}); end
+            also = unique([strings(1, 0), evs{:}]);
+            if isempty(common); return; end
+            if numel(common) > 1
+                state = "ambiguous";
+                why = "Its raw files are, by their SHA-256, the files of each of " + strjoin("event " + common, ", ") + ...
+                    " already in the database: one recording recorded twice there. Check those events.";
+                return
+            end
+            state = "copy";
+            E = common;
+            from = strings(1, n);
+            for k = 1:n
+                r = find(evs{k} == E, 1);
+                from(k) = ids{k}(r);
+                if k == 1; S = ses{k}(r); end
+            end
+            also = strings(1, 0);
+        end
+
+        function [state, reason] = sendCopy(be, b, S, E, from, roots, s)
+            %sendCopy  Record B's raw files as copies of event E's (session S), and give its folder that session.
+            ev = b.record.event;
+            items = b.record.outputs;
+            items = items(string({items.role}) == "raw");
+            [outs, why] = LabSync.outputs(items, roots, s);
+            if why ~= ""
+                state = "held";
+                reason = why;
+                return
+            end
+            n = 0;
+            for k = 1:numel(outs)
+                o = outs(k);
+                there = be.artifacts(struct("StorageRootId", o.storage_root_id, "RelativePath", o.relative_path));
+                if height(there) > 0 && any(string(there.checksum) == lower(o.checksum)); continue; end   % that file already
+                attr = LabSync.addMember(o.attributes_json, "copied_from", string(jsonencode(from(k))));
+                attr = LabSync.addMember(attr, "copy_of_event", string(jsonencode(E)));
+                attr = LabSync.addMember(attr, "copy_recorded_as", string(jsonencode(ev.event_id)));
+                be.addArtifact(struct("ArtifactId", o.artifact_id, "ProducedByEventId", E, ...
+                    "StorageRootId", o.storage_root_id, "RelativePath", o.relative_path, "Checksum", o.checksum, ...
+                    "SizeBytes", o.size_bytes, "Role", o.role, "Format", o.format, "AttributesJson", attr));
+                n = n + 1;
+            end
+            ds = b.record.dataset;
+            if string(ds.folder) ~= ""
+                LabCapture.copyOfSession(string(ds.folder), string(ds.name), S, ev.event_type, E);
+            end
+            state = "done";
+            reason = sprintf("a copy of the %s %s (session %s), already in the database: %d file(s) recorded as its copies", ...
+                ev.event_type, E, S, n);
         end
 
         function [state, reason] = sendFiles(be, b)
@@ -554,6 +663,17 @@ classdef LabSync
                     return
                 end
             end
+            here = LabCapture.readSession(string(ds.folder), string(ds.name)).session_id;
+            if here ~= "" && here ~= sid
+                % the folder's session file names another session: its folder
+                % is a copy of that session's recording (LabCapture.copyOfSession)
+                T = be.sessions(struct("SessionId", here));
+                if height(T) > 0
+                    sid = here;
+                    subject = string(T.subject_id(1));
+                    return
+                end
+            end
             [root, rel, w] = LabRoots.locate(string(ds.folder), s);
             if root == ""
                 why = "The dataset folder " + ds.folder + " is not under a storage root mapped here (" + w + ...
@@ -577,6 +697,32 @@ classdef LabSync
                 return
             end
             ses = LabCapture.readSession(string(ds.folder), string(ds.name));
+            if ses.recording_event_id ~= "" && height(be.eventRows(struct("EventId", ses.recording_event_id))) == 0
+                % Its recording is not in the database yet: when the record of
+                % it is here, it says whether the folder is a second copy of a
+                % recording that is (then the folder takes that session).
+                [rb, rst] = LabOutbox.read(ses.recording_event_id);
+                if rst ~= "" && rst ~= "discarded"
+                    if ~LabBundles.isSealed(rb)
+                        why = "waiting: the SHA-256 of the folder's raw files, to tell whether it is a copy of a recording in the database";
+                        need = "wait";
+                        return
+                    end
+                    [cs, S, ~, cwhy] = LabSync.copyOf(be, rb.record.outputs);
+                    if cs == "ambiguous"
+                        why = cwhy;
+                        return
+                    elseif cs == "copy"
+                        T = be.sessions(struct("SessionId", S));
+                        if height(T) > 0
+                            sid = S;
+                            subject = string(T.subject_id(1));
+                            LabCapture.copyOfSession(string(ds.folder), string(ds.name), S, "recording", "");
+                            return
+                        end
+                    end
+                end
+            end
             candidate = ses.subject_id;
             if candidate == ""; candidate = string(ds.subject_folder_id); end
             if candidate == ""

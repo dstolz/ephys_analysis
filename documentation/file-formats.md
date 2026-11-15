@@ -1764,7 +1764,10 @@ last 20 times phy was opened on the dataset's sort from the pipeline app:
 `event_id`, `""` when the save changed no file's bytes; `sort_event_id`, the
 sort's event; `results_dir`; `saved`, when phy saved; `files`, each file
 looked at with its size, time, id, SHA-256 and the event that made those
-bytes). Not written while the database is off here.
+bytes) and `copy_of_session_from` (the session id the folder had before
+it was found to be a copy of a recording already in the database, whose
+session it then took; `""` when it is not one). Not written while the
+database is off here.
 
 ## Which writes are atomic
 

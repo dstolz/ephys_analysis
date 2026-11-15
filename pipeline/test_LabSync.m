@@ -254,6 +254,65 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.verifyEqual([c.pending c.held c.failed], [0 0 0]);
         end
 
+        function aSecondCopyIsACopyOfItsRecording(tc)
+            ds = tc.dataset();
+            files = struct("path", cellstr(fullfile(ds.Folder, ds.Files)), "sha256", "", "is_epsych", false);
+            info = struct("dest", ds.Folder, "subject", "SYNTH-01", "reader", "intan", ...
+                "recording_time", datetime(2026, 7, 2, 14, 12, 10), "recording_duration", 30, ...
+                "source_dir", "D:\rig", "files", files, "epsych_file", "", "epsych_time", NaT, ...
+                "epsych_trials", NaN, "finished", datetime("now", "TimeZone", "local"));
+            LabCapture.copiedSession(info);
+            LabHasher.work();
+            LabSync.flush(Budget=10);
+            tc.verifyEqual(height(tc.Fake.Sessions), 1);
+            S = tc.Fake.Sessions.session_id(1);
+            E = LabCapture.readSession(ds.Folder, ds.Name).recording_event_id;
+            raw1 = tc.Fake.Artifacts.artifact_id;
+
+            % the same recording copied again, to the backup: its own session file, a new recording record
+            dest2 = string(fullfile(tc.Top, "backup", "SYNTH-01", ds.Name));
+            for f = reshape(string(ds.Files), 1, [])
+                to = fullfile(dest2, f);
+                if ~isfolder(fileparts(to)); mkdir(fileparts(to)); end
+                copyfile(fullfile(ds.Folder, f), to);
+            end
+            info.dest = dest2;
+            info.files = struct("path", cellstr(fullfile(dest2, ds.Files)), "sha256", "", "is_epsych", false);
+            info.source_dir = "D:\rig";
+            LabCapture.copiedSession(info);
+            LabHasher.work();
+            rec2 = LabCapture.readSession(dest2, ds.Name).recording_event_id;
+            tc.verifyNotEqual(rec2, E);
+
+            % steps on the copy go first, while its recording record is held
+            LabOutbox.move(rec2, "held");
+            ds2 = EphysDataset(dest2);
+            step1 = tc.captureStep(ds2);
+            step2 = tc.captureStep(ds2, uint8(65:200));
+            LabSync.flush(Budget=20);
+            tc.verifyEqual(height(tc.Fake.Sessions), 1, "no second session for one recording");
+            ev = @(id) tc.Fake.Events(string({tc.Fake.Events.event_id}) == id);
+            tc.verifyEqual(ev(step1).session_id, S, "the copy's step: the recording's session, found by its raw files");
+            tc.verifyEqual(ev(step2).session_id, S, "and its next step, through the session file");
+            tc.verifyEqual(LabCapture.readSession(dest2, ds.Name).session_id, S);
+
+            % the copy's recording record, sent: copies of the recording's files, not a recording
+            LabOutbox.move(rec2, "pending");
+            LabSync.flush(Budget=20);
+            tc.verifyEqual(sum(string({tc.Fake.Events.event_type}) == "recording"), 1, "no second recording event");
+            A = tc.Fake.Artifacts(~ismember(tc.Fake.Artifacts.artifact_id, raw1) & tc.Fake.Artifacts.role == "raw", :);
+            tc.verifyEqual(height(A), numel(ds.Files), "each raw file of the copy");
+            tc.verifyTrue(all(A.produced_by_event_id == E) && all(A.session_id == S), "files of the recording, in its session");
+            a = jsondecode(char(A.attributes(1)));
+            tc.verifyTrue(ismember(string(a.copied_from), raw1), "copied from the recording's file");
+            tc.verifySubstring(LabOutbox.note(rec2, "done").reason, "a copy of the recording");
+            tc.verifyEqual(LabCapture.readSession(dest2, ds.Name).recording_event_id, E);
+            I = tc.Fake.Inputs(tc.Fake.Inputs.event_id == step1, :);
+            tc.verifyEqual(sort(I.artifact_id), sort(A.artifact_id), "the steps' raw inputs: the copies, once they are there");
+            c = LabOutbox.counts();
+            tc.verifyEqual([c.pending c.held c.failed], [0 0 0]);
+        end
+
         function anUnreachableServerCostsNoWait(tc)
             ds = tc.dataset();
             id = tc.captureStep(ds);

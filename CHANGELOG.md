@@ -10,6 +10,13 @@ says how to cut a release.
 
 ### Added
 
+- The lab database (CarasLabDB), fifth part: file movement. The pipeline's output transfer records each copy of a
+  step's file as a file of that step (copied from it, checked against its SHA-256), and for a move the source as
+  moved to its copy; with the database on a move checks every copy by SHA-256 and removes a source only once its
+  copy is noted (`OutputTransfer.CanRemoveFcn`, `sha256Of`, `Uid`). A copy into a file already there records that
+  file as replaced. The Clean up tab records each removed file a record names as deleted, or as moved to its new
+  place. New `files` records (`LabBundles.files`, `LabBundles.disposition`), sent by `LabSync`; the backend seam
+  gains `addArtifact` and `addDisposition` (the fake keeps the disposition rules).
 - The lab database (CarasLabDB), fourth part: the manifest viewer's **Database** tab lists a dataset's steps and
   the files they wrote with where each record stands on this computer and the dataset's records in the outbox;
   **Check the database** asks the database whether it has each step and file (present, replaced, moved or deleted,

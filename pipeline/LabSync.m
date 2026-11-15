@@ -258,6 +258,8 @@ classdef LabSync
                 b = LabOutbox.read(claim.id);
                 if b.type == "edges"
                     [state, reason] = LabSync.sendEdges(be, b);
+                elseif b.type == "files"
+                    [state, reason] = LabSync.sendFiles(be, b);
                 else
                     [state, reason, flags] = LabSync.sendEvent(be, b, note);
                 end
@@ -324,7 +326,7 @@ classdef LabSync
                 b = LabOutbox.read(T.id(k));
                 if isempty(b); continue; end
                 if any(ismember(b.after, waiting)); continue; end   % after a record still to be sent
-                if b.type == "edges" && startsWith(T.note(k), "waiting")
+                if ismember(b.type, ["edges" "files"]) && startsWith(T.note(k), "waiting")
                     % its files were not there: tried again once something
                     % was sent since, or after EdgesRetry
                     n = LabOutbox.note(T.id(k), "pending");
@@ -442,6 +444,98 @@ classdef LabSync
                 state = "pending";
                 reason = sprintf("waiting: %d input file(s) not in the database yet", missing);
             end
+        end
+
+        function [state, reason] = sendFiles(be, b)
+            %sendFiles  Register the copies of files record B and its dispositions, each once.
+            %   Waits while the event that produced the files is not in the
+            %   database. A copy whose SHA-256 is not its source's is held. A
+            %   copy that overwrote a file records that file as replaced. A
+            %   file already registered with the same bytes at the same place
+            %   is that file. A disposition already recorded is not recorded
+            %   again.
+            s = LabDBSettings.load();
+            ev = b.record.event_id;
+            if height(be.eventRows(struct("EventId", ev))) == 0
+                state = "pending";
+                reason = "waiting: the event that produced these files (" + ev + ") is not in the database yet";
+                return
+            end
+            roots = be.storageRoots();
+            idOf = containers.Map('KeyType', 'char', 'ValueType', 'char');   % a copy's id -> the row that describes it
+            notes = strings(1, 0);
+            for k = 1:numel(b.record.outputs)
+                it = b.record.outputs(k);
+                a = jsondecode(char(it.attributes_json));
+                if isfield(a, "copied_from_sha256") && strlength(string(a.copied_from_sha256)) == 64 ...
+                        && string(a.copied_from_sha256) ~= it.sha256
+                    state = "held";
+                    reason = "The copy " + it.path + " is not the bytes of the file it copies (SHA-256 " + ...
+                        it.sha256 + ", its source " + string(a.copied_from_sha256) + ").";
+                    return
+                end
+                root = it.root; rel = it.rel;
+                if root == ""; [root, rel] = LabRoots.locate(it.path, s); end
+                rid = roots.root_id(string(roots.name) == root);
+                if root == "" || isempty(rid)
+                    state = "held";
+                    reason = "The copy " + it.path + " is not under a storage root the database has: " + ...
+                        "map or register its root in the Database window.";
+                    return
+                end
+                if height(be.artifacts(struct("ArtifactId", it.artifact_id))) > 0
+                    idOf(char(it.artifact_id)) = char(it.artifact_id);   % sent before
+                    continue
+                end
+                there = be.artifacts(struct("StorageRootId", rid(1), "RelativePath", rel));
+                same = there(string(there.checksum) == it.sha256, :);
+                if height(same) > 0
+                    idOf(char(it.artifact_id)) = char(string(same.artifact_id(1)));
+                    notes(end + 1) = rel + " was registered already"; %#ok<AGROW>
+                    continue
+                end
+                be.addArtifact(struct("ArtifactId", it.artifact_id, "ProducedByEventId", ev, ...
+                    "StorageRootId", double(rid(1)), "RelativePath", rel, "Checksum", it.sha256, ...
+                    "SizeBytes", it.bytes, "Role", it.role, "Format", it.format, ...
+                    "AttributesJson", it.attributes_json));
+                idOf(char(it.artifact_id)) = char(it.artifact_id);
+                if isfield(a, "overwrote") && isequal(a.overwrote, true)
+                    for j = 1:height(there)
+                        old = string(there.artifact_id(j));
+                        if LabSync.disposed(be, old); continue; end
+                        be.addDisposition(struct("ArtifactId", old, "Disposition", "replaced", ...
+                            "SuccessorArtifactId", it.artifact_id, "OccurredAt", LabSync.parseTime(b.captured_at), ...
+                            "Note", "overwritten by a copy", "AttributesJson", "{}"));
+                    end
+                end
+            end
+            for k = 1:numel(b.record.dispositions)
+                d = b.record.dispositions(k);
+                succ = d.successor_artifact_id;
+                if succ ~= "" && isKey(idOf, char(succ)); succ = string(idOf(char(succ))); end
+                D = be.dispositions(d.artifact_id);
+                if height(D) > 0 && any(string(D.disposition) == d.disposition & ...
+                        string(D.successor_artifact_id) == succ)
+                    continue   % recorded before
+                end
+                if height(be.artifacts(struct("ArtifactId", d.artifact_id))) == 0
+                    state = "pending";
+                    reason = "waiting: the file " + d.artifact_id + " is not in the database yet";
+                    return
+                end
+                be.addDisposition(struct("ArtifactId", d.artifact_id, "Disposition", d.disposition, ...
+                    "SuccessorArtifactId", succ, "OccurredAt", LabSync.parseTime(d.occurred_at), ...
+                    "Note", d.note, "AttributesJson", d.attributes_json));
+            end
+            state = "done";
+            reason = sprintf("sent: %d file(s), %d disposition(s)", numel(b.record.outputs), numel(b.record.dispositions));
+            if ~isempty(notes); reason = reason + "; " + strjoin(notes, "; "); end
+        end
+
+        function tf = disposed(be, id)
+            %disposed  True when artifact ID's file is recorded as gone (replaced, moved or deleted, not restored since).
+            D = be.dispositions(id);
+            tf = height(D) > 0 && string(D.disposition(1)) ~= "restored";   % newest first
         end
 
         function [sid, subject, why, need] = resolveSession(be, ds, roots, s)

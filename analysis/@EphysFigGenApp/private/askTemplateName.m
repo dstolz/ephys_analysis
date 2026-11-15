@@ -15,6 +15,7 @@ function [name, description, ok, panel] = askTemplateName(fig, name, description
 %   See also FigureTemplate, askDesignName.
 if nargin < 4; panel = false; end
 ok = false;
+answered = false;   % finish ran (uiresume before uiwait would leave uiwait waiting)
 pos = [300 300 520 230];
 try
     p = getpixelposition(fig);
@@ -52,8 +53,8 @@ styleButton(findall(d, 'Type', 'uibutton'));
 styleButton(okB, 'confirm');
 d.CloseRequestFcn = @(~, ~) finish(false);
 d.UserData = struct('Name', ed, 'Description', de, 'Panel', pb, 'Save', okB, 'Cancel', cancelB);
-focus(ed);
-uiwait(d);
+focus(ed);   % draws the window: a quick answer (a test's timer) can come in here, before uiwait
+if ~answered; uiwait(d); end
 if isvalid(d); delete(d); end
 
     function finish(accept)
@@ -76,6 +77,7 @@ if isvalid(d); delete(d); end
             panel = logical(pb.Value);
             ok = true;
         end
+        answered = true;
         uiresume(d);
     end
 end

@@ -10,6 +10,7 @@ function [txt, ok] = askLabelText(fig, axisName, panel, txt)
 %   character names (\mu, \pm) print as their characters (figureLabelSymbols).
 
 ok = false;
+answered = false;   % finish ran (uiresume before uiwait would leave uiwait waiting)
 pos = [300 300 520 214];
 try
     p = getpixelposition(fig);
@@ -33,8 +34,8 @@ uibutton(bg, 'Text', 'Cancel', 'ButtonPushedFcn', @(~, ~) finish(false));
 styleButton(findall(d, 'Type', 'uibutton'));
 styleButton(okB, 'confirm');
 d.CloseRequestFcn = @(~, ~) finish(false);
-focus(ed);
-uiwait(d);
+focus(ed);   % draws the window: a quick answer (a test's timer) can come in here, before uiwait
+if ~answered; uiwait(d); end
 if isvalid(d); delete(d); end
 
     function insert(s)
@@ -52,6 +53,7 @@ if isvalid(d); delete(d); end
             txt = strtrim(string(ed.Value));
             ok = true;
         end
+        answered = true;
         uiresume(d);
     end
 end

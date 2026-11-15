@@ -8,15 +8,17 @@ classdef LabBundles
     %
     %     format       "caraslabdb-bundle/1"
     %     bundle_id    the event's id (a uuid the toolbox minted)
-    %     type         "event", or "edges" (inputs of an event already sent,
-    %                  whose files were not in the database yet)
+    %     type         "event"; "edges" (inputs of an event already sent,
+    %                  whose files were not in the database yet); or "files"
+    %                  (copies of files an event produced, and what became of
+    %                  files: moved, deleted)
     %     captured_at  when it was captured (zoned, microseconds)
     %     captured_by  host, os_user, db_username, person_id, person_email
     %     after        bundles to send before this one
     %     digest       SHA-256 of the record's canonical JSON text; "" until
     %                  every output's SHA-256 is known (sealed)
     %     record       dataset, event, inputs, outputs ("edges": event_id,
-    %                  inputs)
+    %                  inputs; "files": event_id, artifacts, dispositions)
     %
     %   Everything the database stores as JSON (parameters, environment,
     %   attributes) is kept as JSON text in a string member (*_json), so it
@@ -190,6 +192,55 @@ classdef LabBundles
             b = LabBundles.seal(b);
         end
 
+        function b = files(opts)
+            %files  A bundle of files: copies (Artifacts) of files event EventId produced, and Dispositions.
+            %   Artifacts are items (LabBundles.item) whose attributes_json
+            %   names the file they copy (copied_from, copied_from_sha256);
+            %   Dispositions a struct array (LabBundles.disposition). It is
+            %   sealed when every artifact's SHA-256 is known.
+            arguments
+                opts.EventId (1,1) string
+                opts.Artifacts struct = LabBundles.noItems()
+                opts.Dispositions struct = LabBundles.noDispositions()
+                opts.Attributes (1,1) struct = struct()
+                opts.After (1,:) string = string.empty(1, 0)
+                opts.CapturedBy (1,1) struct = LabBundles.capturedBy()
+            end
+            rec = struct("event_id", opts.EventId, "attributes_json", string(jsonencode(opts.Attributes)), ...
+                "outputs", LabBundles.items(opts.Artifacts), ...
+                "dispositions", LabBundles.dispositionRows(opts.Dispositions));
+            b = struct("format", LabBundles.Format, "bundle_id", LabBundles.newId(), "type", "files", ...
+                "captured_at", LabBundles.now(), "captured_by", opts.CapturedBy, ...
+                "after", opts.After, "digest", "", "record", rec);
+            b = LabBundles.seal(b);
+        end
+
+        function d = disposition(artifactId, what, opts)
+            %disposition  One disposition row: what became of artifact ARTIFACTID's file.
+            %   WHAT is "moved", "deleted", "replaced" or "restored";
+            %   Successor (the artifact id of the file's new place, for
+            %   "moved"), OccurredAt (zoned text; default now), Note,
+            %   Attributes (a struct, e.g. method "recycle").
+            arguments
+                artifactId (1,1) string
+                what (1,1) string {mustBeMember(what, ["moved" "deleted" "replaced" "restored"])}
+                opts.Successor (1,1) string = ""
+                opts.OccurredAt (1,1) string = ""
+                opts.Note (1,1) string = ""
+                opts.Attributes (1,1) struct = struct()
+            end
+            if opts.OccurredAt == ""; opts.OccurredAt = LabBundles.now(); end
+            d = struct("artifact_id", artifactId, "disposition", what, "successor_artifact_id", opts.Successor, ...
+                "occurred_at", opts.OccurredAt, "note", opts.Note, ...
+                "attributes_json", string(jsonencode(opts.Attributes)));
+        end
+
+        function d = noDispositions()
+            %noDispositions  An empty list of disposition rows.
+            d = struct("artifact_id", {}, "disposition", {}, "successor_artifact_id", {}, ...
+                "occurred_at", {}, "note", {}, "attributes_json", {});
+        end
+
         function d = noDataset()
             %noDataset  The dataset block of a record about no dataset.
             d = struct("name", "", "folder", "", "session_id", "", "subject_folder_id", "", ...
@@ -278,6 +329,14 @@ classdef LabBundles
                 b.record = r;
                 return
             end
+            if b.type == "files"
+                r.event_id = string(r.event_id);
+                r.attributes_json = string(r.attributes_json);
+                r.outputs = LabBundles.items(r.outputs);
+                r.dispositions = LabBundles.dispositionRows(r.dispositions);
+                b.record = r;
+                return
+            end
             r.dataset = LabBundles.strings(r.dataset);
             ev = r.event;
             for f = ["event_id" "event_type" "occurred_at" "notes" "attributes_json"]
@@ -344,8 +403,27 @@ classdef LabBundles
         function r = canonicalRecord(rec)
             %canonicalRecord  REC with its lists as cells, so a list of one is still a JSON list.
             r = rec;
-            r.inputs = LabBundles.itemCells(rec.inputs);
+            if isfield(rec, "inputs"); r.inputs = LabBundles.itemCells(rec.inputs); end
             if isfield(rec, "outputs"); r.outputs = LabBundles.itemCells(rec.outputs); end
+            if isfield(rec, "dispositions"); r.dispositions = num2cell(LabBundles.dispositionRows(rec.dispositions)); end
+        end
+
+        function d = dispositionRows(in)
+            %dispositionRows  IN (struct array, cell, [] or decoded) as a row of disposition rows, every field a string.
+            d = LabBundles.noDispositions();
+            if isempty(in); return; end
+            if isstruct(in); in = num2cell(in); end
+            f = string(fieldnames(LabBundles.noDispositions())).';
+            for k = 1:numel(in)
+                x = in{k};
+                row = struct();
+                for g = f
+                    v = "";
+                    if isfield(x, g) && ~isempty(x.(g)); v = string(x.(g)); end
+                    row.(g) = v;
+                end
+                d(1, end + 1) = row; %#ok<AGROW>
+            end
         end
 
         function c = itemCells(items)

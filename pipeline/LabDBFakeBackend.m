@@ -329,6 +329,61 @@ classdef LabDBFakeBackend < LabDBBackend
             end
         end
 
+        function id = addArtifact(obj, a)
+            %addArtifact  As CarasLabDB.addArtifact: the event must be there; one active row per file (root, path, checksum).
+            obj.requireOpen("addArtifact");
+            obj.maybeFail("addArtifact", false);
+            k = find(string({obj.Events.event_id}) == a.ProducedByEventId, 1);
+            if isempty(k)
+                error("LabDB:Refused", "event %s does not exist (fake foreign key)", a.ProducedByEventId);
+            end
+            if any(obj.Artifacts.artifact_id == a.ArtifactId)
+                error("LabDB:Refused", "duplicate key value violates unique constraint artifact_pkey (fake)");
+            end
+            if any(obj.Artifacts.storage_root_id == a.StorageRootId & obj.Artifacts.relative_path == a.RelativePath ...
+                    & obj.Artifacts.checksum == lower(a.Checksum))
+                error("LabDB:Refused", "uq_artifact_file_original: the file is registered already (fake)");
+            end
+            if strlength(a.Checksum) ~= 64
+                error("LabDB:Refused", "checksum must be 64 hexadecimal digits (fake)");
+            end
+            jsondecode(char(a.AttributesJson));
+            obj.Artifacts = [obj.Artifacts; table(string(a.ArtifactId), string(a.ProducedByEventId), ...
+                double(a.StorageRootId), string(a.RelativePath), lower(string(a.Checksum)), double(a.SizeBytes), ...
+                string(a.Role), string(a.Format), obj.Events(k).subject_id, obj.Events(k).session_id, ...
+                string(a.AttributesJson), 'VariableNames', obj.Artifacts.Properties.VariableNames)];
+            id = string(a.ArtifactId);
+        end
+
+        function addDisposition(obj, d)
+            %addDisposition  As CarasLabDB.addArtifactDisposition, with trg_artifact_disposition_policy's rules.
+            obj.requireOpen("addDisposition");
+            obj.maybeFail("addDisposition", false);
+            k = find(obj.Artifacts.artifact_id == d.ArtifactId, 1);
+            if isempty(k)
+                error("LabDB:Refused", "artifact %s does not exist (fake foreign key)", d.ArtifactId);
+            end
+            prev = obj.Dispositions(obj.Dispositions.artifact_id == d.ArtifactId, :);
+            gone = height(prev) > 0 && prev.disposition(end) ~= "restored";
+            if d.Disposition == "restored"
+                if ~gone; error("LabDB:Refused", "the file is present: it cannot be restored (fake)"); end
+            elseif gone
+                error("LabDB:Refused", "the file was recorded as %s already (fake)", prev.disposition(end));
+            end
+            if d.Disposition == "moved"
+                j = find(obj.Artifacts.artifact_id == d.SuccessorArtifactId, 1);
+                if isempty(j) || obj.Artifacts.checksum(j) ~= obj.Artifacts.checksum(k) || ...
+                        (obj.Artifacts.storage_root_id(j) == obj.Artifacts.storage_root_id(k) && ...
+                        obj.Artifacts.relative_path(j) == obj.Artifacts.relative_path(k))
+                    error("LabDB:Refused", "a moved file's successor must be the same bytes at another place (fake)");
+                end
+            elseif d.Disposition == "deleted" && strlength(d.SuccessorArtifactId) > 0
+                error("LabDB:Refused", "a deleted file has no successor (fake)");
+            end
+            obj.Dispositions = [obj.Dispositions; table(string(d.ArtifactId), string(d.Disposition), ...
+                string(d.SuccessorArtifactId), 'VariableNames', obj.Dispositions.Properties.VariableNames)];
+        end
+
         function tf = addEventInput(obj, eventId, artifactId, role)
             obj.requireOpen("addEventInput");
             obj.maybeFail("addEventInput", false);

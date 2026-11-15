@@ -17,7 +17,10 @@ classdef test_LabSync < matlab.unittest.TestCase
     %   recorded as failed; a discarded record kept, never sent; where a
     %   dataset's records stand (LabSync.datasetText, the Review tab's
     %   Database column) and the manifest viewer's Database tab (the steps
-    %   and files here and in the database, a file's lineage).
+    %   and files here and in the database, a file's lineage); a move
+    %   (OutputTransfer): its copy registered under the step's event before
+    %   the source may go, then the source recorded as moved; a copy that is
+    %   not its source's bytes held; a clean-up's deletion recorded.
     %
     %   Usage:  runtests("test_LabSync")
 
@@ -320,6 +323,81 @@ classdef test_LabSync < matlab.unittest.TestCase
             txt = v.showLineage();
             tc.verifySubstring(txt, "SYNTH-01/" + ds.Name + "/" + ds.Name + "_spikes.mat");
             tc.verifySubstring(txt, id, "made by the step's event");
+        end
+
+        function aMoveIsRecordedBeforeTheSourceGoes(tc)
+            ds = tc.dataset();
+            tc.captureStep(ds);
+            LabSync.flush(Budget=10);
+            src = string(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat"));
+            destDir = string(fullfile(tc.Top, "backup", "SYNTH-01", ds.Name));
+            mkdir(destDir);
+            copyfile(src, destDir);
+            d = dir(src);
+            F = struct("Src", src, "Rel", ds.Name + "_spikes.mat", "Bytes", d.bytes, "Time", d.datenum, ...
+                "State", "copied");
+            b = struct("Id", 1, "Dataset", ds.Name, "DestDir", destDir, "State", "copied", "Files", F);
+            X = struct("Method", "move", "Uid", LabBundles.newId(), "IfExists", "version", ...
+                "sha256Of", @(f) "");
+            tc.verifyFalse(LabCapture.copyRecorded(X.Uid, src), "nothing noted yet: the source stays");
+            LabCapture.transferred(ds, b, X);
+            tc.verifyTrue(LabCapture.copyRecorded(X.Uid, src), "the copy is noted: the source may go");
+            delete(src);
+            b.State = "done";
+            b.Files.State = "removed";
+            LabCapture.transferred(ds, b, X);
+            LabCapture.transferred(ds, b, X);   % told twice: noted once
+            T = LabOutbox.list(State="pending");
+            tc.verifyEqual(height(T), 2, "the copy, then its source moved");
+            LabSync.flush(Budget=10);
+            A = tc.Fake.Artifacts;
+            tc.verifyEqual(height(A), 2);
+            tc.verifyEqual(A.produced_by_event_id(2), A.produced_by_event_id(1), "the copy is the step's file too");
+            tc.verifyEqual(A.checksum(2), A.checksum(1));
+            tc.verifyEqual(A.relative_path(2), "backup/SYNTH-01/" + ds.Name + "/" + ds.Name + "_spikes.mat");
+            D = tc.Fake.Dispositions;
+            tc.verifyEqual([D.artifact_id, D.disposition, D.successor_artifact_id], ...
+                [A.artifact_id(1), "moved", A.artifact_id(2)]);
+            c = LabOutbox.counts();
+            tc.verifyEqual([c.pending c.held c.failed], [0 0 0]);
+        end
+
+        function aCopyThatIsNotItsSourceIsHeld(tc)
+            ds = tc.dataset();
+            tc.captureStep(ds);
+            LabSync.flush(Budget=10);
+            src = string(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat"));
+            destDir = string(fullfile(tc.Top, "backup2"));
+            mkdir(destDir);
+            copy = fullfile(destDir, ds.Name + "_spikes.mat");
+            tc.writeBytes(copy, uint8(200:-1:1));   % other bytes than the source's
+            d = dir(src);
+            F = struct("Src", src, "Rel", ds.Name + "_spikes.mat", "Bytes", d.bytes, "Time", d.datenum, ...
+                "State", "copied");
+            b = struct("Id", 1, "Dataset", ds.Name, "DestDir", destDir, "State", "done", "Files", F);
+            X = struct("Method", "copy", "Uid", LabBundles.newId(), "IfExists", "version", "sha256Of", @(f) "");
+            LabCapture.transferred(ds, b, X);
+            LabSync.flush(Budget=10);
+            T = LabOutbox.list(State="held");
+            tc.verifyEqual(height(T), 1);
+            tc.verifySubstring(T.note, "is not the bytes of the file it copies");
+            tc.verifyEqual(height(tc.Fake.Artifacts), 1, "not registered");
+        end
+
+        function aCleanUpDeletionIsRecorded(tc)
+            ds = tc.dataset();
+            tc.captureStep(ds);
+            LabSync.flush(Budget=10);
+            ds.writeManifest();
+            f = string(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat"));
+            d = dir(f);
+            R = table(ds.Name, ds.Folder, f, d.bytes, "removed", "", false, ...
+                'VariableNames', {'Dataset', 'Folder', 'File', 'Bytes', 'Status', 'To', 'Replaced'});
+            delete(f);
+            LabCapture.cleanedUp(R, "recycle");
+            LabSync.flush(Budget=10);
+            D = tc.Fake.Dispositions;
+            tc.verifyEqual([D.artifact_id, D.disposition], [tc.Fake.Artifacts.artifact_id(1), "deleted"]);
         end
 
         function aDiscardedRecordIsKept(tc)

@@ -72,6 +72,8 @@ record that cannot be kept never stops the step (it is a warning).
 | the artifact detection (when its intervals are kept in a file), `.bin`, Signals, Spikes, Behavior, NWB export | one analysis event per step: `ephys_analysis/<step>`, the record of how the output was made (its own JSON text), the code and the machine, when it started and ended, the files it read and the files it wrote |
 | a sort, once it is done | one analysis event, `kilosort4` or `spikeinterface/<sorter>`, under the id it got when it was launched, whichever computer finds it done |
 | the Copy tab (`copySessions`), per session copied | a recording event with the recording files where they were copied to, and a behavior event with the ePsych file and its trial count |
+| the pipeline's output transfer (its Transfer section), per batch | each copy of a file a step wrote, as a file of that step; for a move, the source recorded as moved to its copy. A move with the database on checks every copy by SHA-256, and removes a source only once its copy is noted. A copy that is not its source's bytes is held |
+| the Clean up tab (`runLocalCleanup`) | each file it removes that a record names: deleted or recycled, recorded as deleted; moved, its new place recorded and the file as moved there |
 
 Previews, results kept in memory, the manifests, locks, logs, caches and the
 favorites and notes are not recorded. A record of a step that wrote nothing

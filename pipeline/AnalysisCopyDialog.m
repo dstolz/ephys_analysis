@@ -18,7 +18,10 @@ classdef AnalysisCopyDialog < handle
     %   (large; templates are drawn without it), and the probe .json (put
     %   beside the manifest, where the copy finds it). The manifest,
     %   <Name>_behavior.mat, <Name>_favorites.json and <Name>_notes.json
-    %   (when there is one) are always copied; Refresh lists them again. The datasets table lists
+    %   (when there is one) are always copied; Refresh lists them again. With
+    %   the lab database on, each copy of a file a dataset's records name is
+    %   recorded as a file of the step that wrote it (LabCapture.transferred,
+    %   as the Transfer section's copies). The datasets table lists
     %   each dataset's files and size, and what is missing; untick a row to
     %   leave a dataset out. Settings are remembered (AppPrefs group
     %   AnalysisCopyDialog).
@@ -173,6 +176,7 @@ classdef AnalysisCopyDialog < handle
             try
                 X = OutputTransfer(dest, IfExists=o.IfExists, Verify=o.Verify, ...
                     LogFcn=@(msg) obj.say(msg));
+                X.BatchFcn = @(b) obj.noteCopy(X, b);   % the copies, for the lab database
                 for k = sel
                     AnalysisCopyDialog.addFiles(X, obj.Keys(k), obj.Datasets(k), obj.Files{k});
                 end
@@ -273,6 +277,19 @@ classdef AnalysisCopyDialog < handle
     end
 
     methods (Access = private)
+        function noteCopy(obj, X, b)
+            %noteCopy  What the copy did with a dataset's files, for the lab database (LabCapture.transferred).
+            %   Each copy of a file the dataset's records name becomes a file
+            %   of the step that wrote it, copied from it (nothing when the
+            %   database is off here). Never stops the copy.
+            try
+                k = find([obj.Datasets.Name] == b.Dataset, 1);
+                if ~isempty(k); LabCapture.transferred(obj.Datasets(k), b, X); end
+            catch ME
+                obj.say("Not noted for the lab database: " + string(ME.message));
+            end
+        end
+
         function build(obj, parent, visible)
             %build  The window.
             W = 860; H = 680;

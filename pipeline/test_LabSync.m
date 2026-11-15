@@ -624,6 +624,34 @@ classdef test_LabSync < matlab.unittest.TestCase
                 "the file's latest version is phy's, for a later re-sort, copy or move");
         end
 
+        function anAnalysisCopyIsRecorded(tc)
+            tc.assumeTrue(ispc, "the copy runs robocopy (Windows)");
+            ds = tc.dataset();
+            f = string(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat"));
+            detected = struct("t", 1); conversion = struct("dataset", ds.Name); %#ok<NASGU>
+            save(f, "detected", "conversion");
+            ds.setProcessing("spikes", EphysDataset.processingRecord("file", f, struct("runId", "run1"), struct("A", 1)), ...
+                StartedAt=datetime("now", "TimeZone", "local") - seconds(3));
+            ev = ds.Processing.spikes.event_id;
+            ds.writeManifest();
+            LabSync.flush(Budget=10);
+            orig = tc.Fake.Artifacts.artifact_id(endsWith(tc.Fake.Artifacts.relative_path, ds.Name + "_spikes.mat"));
+            tc.verifySize(orig, [1 1]);
+
+            dlg = AnalysisCopyDialog(ds, Destination=string(fullfile(tc.Top, "laptop")), Visible=false);
+            tc.addTeardown(@() delete(dlg));
+            dlg.start();
+            dlg.wait(120);
+            LabSync.flush(Budget=10);
+            A = tc.Fake.Artifacts(startsWith(tc.Fake.Artifacts.relative_path, "laptop/"), :);
+            tc.verifyEqual(height(A), 1, "the spikes file's copy (the manifest and the rest are no step's file)");
+            tc.verifyEqual(A.produced_by_event_id, ev, "a file of the step that wrote it");
+            tc.verifyEqual(A.checksum, fileSha256(f));
+            a = jsondecode(char(A.attributes));
+            tc.verifyEqual(string(a.copied_from), orig);
+            tc.verifyEqual(string(a.dataset_rel), ds.Name + "_spikes.mat", "its place in the copy of the dataset's folder");
+        end
+
         function aDiscardedRecordIsKept(tc)
             ds = tc.dataset();
             id = tc.captureStep(ds);

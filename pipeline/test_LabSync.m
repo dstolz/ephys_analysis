@@ -426,7 +426,7 @@ classdef test_LabSync < matlab.unittest.TestCase
             LabSync.flush(Budget=10);
             a = jsondecode(char(tc.Fake.Artifacts.attributes(end)));
             tc.verifyEqual(string(a.dataset_rel), "kilosort4/spike_times.npy", "a file's place in its dataset's output folder");
-            T = LabLocator.sessions(Subject="SYNTH-01");
+            [T, asOf] = LabLocator.sessions(Subject="SYNTH-01");   % the last answer now, kept with its time
             tc.verifyEqual(key(T.outputs{1}), key(ds.outputFolder()), "a sort in kilosort4/: the dataset's output folder, not kilosort4");
 
             tc.Fake.Reachable = false;

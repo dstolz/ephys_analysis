@@ -1756,9 +1756,15 @@ session's id in the database, the same on every record and every computer
 that reads the folder), `created_at`, `subject_id` (the database subject a
 person assigned the session to, `SubjectAssignDialog`; absent or `""`: the
 one the folder's name gives), `recording_event_id` and
-`behavior_event_id` (the copied session's events; `""` when none) and `raw`
-(the raw files as captured, bundle items with their ids). Not written while
-the database is off here.
+`behavior_event_id` (the copied session's events; `""` when none), `raw`
+(the raw files as captured, bundle items with their ids), `phy_opened` (the
+last 20 times phy was opened on the dataset's sort from the pipeline app:
+`results_dir`, `at`, `person_id`, `person_email`, `os_user`, `host`) and
+`curations` (what phy saved in a recorded sort, as captured:
+`event_id`, `""` when the save changed no file's bytes; `sort_event_id`, the
+sort's event; `results_dir`; `saved`, when phy saved; `files`, each file
+looked at with its size, time, id, SHA-256 and the event that made those
+bytes). Not written while the database is off here.
 
 ## Which writes are atomic
 

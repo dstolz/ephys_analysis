@@ -25,6 +25,6 @@ obj.applyConfigToProject();
 % SortingDir when set, else the auto-discovered run (<kilosort4>).
 for i = idx
     d = obj.Project.Datasets(i);
-    obj.launchPhy(d.sortingResultsDir(), d.Name);
+    obj.launchPhy(d.sortingResultsDir(), d.Name, d);
 end
 end

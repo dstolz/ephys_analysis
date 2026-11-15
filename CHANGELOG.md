@@ -10,6 +10,13 @@ says how to cut a release.
 
 ### Added
 
+- The lab database (CarasLabDB), eighth part: phy curation. A scan (`EphysProject.refresh`) records what phy saved
+  in a dataset's recorded sort as one `phy` analysis event (`LabCapture.curation`): the sort's files as recorded
+  are its inputs, the files phy changed or added its outputs, each changed one replacing its earlier version; a
+  save that changed no bytes is not an event. **Open in phy** notes the launch (`LabCapture.phyOpened`;
+  `launchPhy` takes the dataset and returns whether phy started), and the event names who opened phy, or that it
+  is not known. The session file keeps both (`phy_opened`, `curations`); a later copy, move or re-sort refers to
+  phy's version of a file.
 - The lab database (CarasLabDB), seventh part: files that have moved. With the database on, a `DatasetOutputs`
   kind its roots hold nothing of, whose step the manifest records, is looked for in the output folders the database
   names for the dataset's session (`LabLocator.sessionFiles`), by the same rules; `pathSource` is then

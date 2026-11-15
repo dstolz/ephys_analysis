@@ -358,7 +358,8 @@ classdef LabCapture
             %readSession  The dataset's session file as a struct (see session); FOUND false, and no id, when there is none.
             ses = struct("format", LabCapture.SessionFormat, "session_id", "", "created_at", "", ...
                 "subject_id", "", "recording_event_id", "", "behavior_event_id", "", ...
-                "raw", LabBundles.noItems());
+                "raw", LabBundles.noItems(), "phy_opened", LabCapture.noOpened(), ...
+                "curations", LabCapture.noCurations());
             found = false;
             if string(folder) == "" || string(name) == ""; return; end
             f = LabCapture.sessionFile(folder, name);
@@ -371,6 +372,39 @@ classdef LabCapture
             end
             if isfield(x, "raw")
                 ses.raw = LabBundles.toItems(x.raw);
+            end
+            if isfield(x, "phy_opened")
+                for o = LabCapture.cells(x.phy_opened)
+                    v = o{1};
+                    e = LabCapture.noOpened();
+                    for fn = string(fieldnames(e)).'
+                        e(1).(fn) = "";
+                        if isfield(v, fn) && ~isempty(v.(fn)); e(1).(fn) = string(v.(fn)); end
+                    end
+                    ses.phy_opened(end + 1) = e;
+                end
+            end
+            if isfield(x, "curations")
+                for c = LabCapture.cells(x.curations)
+                    v = c{1};
+                    e = struct("event_id", "", "sort_event_id", "", "results_dir", "", "saved", "", ...
+                        "files", LabCapture.noKnown());
+                    for fn = ["event_id" "sort_event_id" "results_dir" "saved"]
+                        if isfield(v, fn) && ~isempty(v.(fn)); e.(fn) = string(v.(fn)); end
+                    end
+                    if isfield(v, "files")
+                        for g = LabCapture.cells(v.files)
+                            w = g{1};
+                            b = NaN;
+                            if isfield(w, "bytes") && ~isempty(w.bytes); b = double(w.bytes); end
+                            e.files(end + 1) = struct("path", LabCapture.fieldText(w, "path"), "bytes", b, ...
+                                "mtime", LabCapture.fieldText(w, "mtime"), "artifact_id", LabCapture.fieldText(w, "artifact_id"), ...
+                                "sha256", LabCapture.fieldText(w, "sha256"), "step", "sorting", ...
+                                "event_id", LabCapture.fieldText(w, "event_id"));
+                        end
+                    end
+                    ses.curations(end + 1) = e;
+                end
             end
             found = true;
         end
@@ -389,6 +423,158 @@ classdef LabCapture
             end
             ses.subject_id = string(subjectId);
             LabCapture.writeSession(folder, name, ses);
+        end
+
+        function phyOpened(ds, resultsDir)
+            %phyOpened  Note in dataset DS's session file that phy was opened on RESULTSDIR from the app, by whom.
+            %   The person, login and computer, and when. LabCapture.curation
+            %   names them as who opened phy when it records what phy saved
+            %   there. Nothing when the database is off here.
+            s = LabDBSettings.load();
+            if ~LabCapture.enabled(s); return; end
+            ses = LabCapture.session(ds.Folder, ds.Name, s);
+            if ses.session_id == ""; return; end
+            p = LabCapture.performer(s);
+            e = LabCapture.noOpened();
+            e(1).results_dir = string(resultsDir);
+            e(1).at = LabBundles.now();
+            e(1).person_id = string(p.person_id);
+            e(1).person_email = string(p.person_email);
+            e(1).os_user = string(p.os_user);
+            e(1).host = string(p.host);
+            ses.phy_opened = [ses.phy_opened(max(1, end - 18):end), e];   % the last 20
+            LabCapture.writeSession(ds.Folder, ds.Name, ses);
+        end
+
+        function id = curation(ds)
+            %curation  Capture what phy changed in dataset DS's recorded sort, for the lab database (once per change).
+            %   ID = LabCapture.curation(DS) compares the files of the results
+            %   folder of DS's sort record (Processing.sorting) with the
+            %   versions recorded: the sort's outputs, then the curations of
+            %   that sort since. When some changed or are new and phy saved
+            %   there (EphysDataset.phyStatus "saved"), it captures one
+            %   analysis event, pipeline_name "phy", finished when phy saved:
+            %     inputs   the sort's files as recorded (their ids)
+            %     outputs  the files phy changed or added, each changed one
+            %              replacing the version before (replaces: a
+            %              "replaced" disposition when sent)
+            %   A file saved again with the same bytes is not a change. The
+            %   attributes say who opened phy on the folder from the app
+            %   (opened_by, from phyOpened; started_at is then that time), or
+            %   "unknown"; the event's person is who records it here. The
+            %   session file keeps the curation (curations), so the next look
+            %   finds nothing new. ID is the event's id ("" when none).
+            %   Nothing when the database is off here. EphysProject.refresh
+            %   (a scan) calls it.
+            id = "";
+            s = LabDBSettings.load();
+            if ~LabCapture.enabled(s); return; end
+            P = ds.Processing;
+            if ~isstruct(P) || ~isfield(P, "sorting"); return; end
+            r = P.sorting;
+            if ~isstruct(r) || ~isscalar(r) || ~isfield(r, "results_dir") || ~isfield(r, "event_id") ...
+                    || ~LabCapture.isId(r.event_id); return; end
+            d = string(r.results_dir);
+            if ~isscalar(d) || d == "" || ~isfolder(d); return; end
+            known = LabCapture.knownOutputs(ds);
+            if ~isempty(known); known = known([known.step] == "sorting"); end
+            changed = strings(1, 0);
+            for p = LabCapture.recordFiles("sorting", struct("results_dir", d))
+                k = LabCapture.findKnown(known, p);
+                if k > 0 && LabBundles.sameSnapshot(known(k), LabBundles.snapshot(p)); continue; end
+                changed(end + 1) = p; %#ok<AGROW>
+            end
+            if isempty(changed); return; end
+            st = EphysDataset.phyStatus(d);
+            if st.state ~= "saved"; return; end   % changed, but not by phy (a sort still writing)
+            ses = LabCapture.session(ds.Folder, ds.Name, s);
+            if ses.session_id == ""; return; end   % no session file to keep it in: it would be captured again
+            saved = st.saved;
+            saved.TimeZone = "local";   % a file's time on this computer
+            outDir = LabCapture.outputFolderOf(ds);
+            items = LabBundles.noItems();
+            for p = changed
+                [role, kd, attr] = LabCapture.roleOf("sorting", p, r);
+                rel = LabCapture.datasetRel(p, outDir);
+                if rel ~= ""; attr.dataset_rel = rel; end
+                attr.curated_in = "phy";
+                it = LabBundles.item(p, Role=role, Kind=kd, Attributes=attr);
+                if isnan(it.bytes); continue; end
+                it.artifact_id = LabBundles.newId();
+                k = LabCapture.findKnown(known, p);
+                if k > 0; it.replaces = known(k).artifact_id; end
+                items(end + 1) = it; %#ok<AGROW>
+            end
+            items = LabCapture.locate(items, s);
+            items = LabCapture.hashSmall(items, s);
+            files = LabCapture.noKnown();
+            keep = true(1, numel(items));
+            id = LabBundles.newId();
+            for j = 1:numel(items)
+                k = LabCapture.findKnown(known, items(j).path);
+                ev = id;
+                if k > 0 && strlength(known(k).sha256) == 64 && known(k).sha256 == items(j).sha256
+                    keep(j) = false;   % saved again with the same bytes: the same file
+                    items(j).artifact_id = known(k).artifact_id;
+                    ev = known(k).event_id;
+                end
+                files(end + 1) = struct("path", items(j).path, "bytes", items(j).bytes, "mtime", items(j).mtime, ...
+                    "artifact_id", items(j).artifact_id, "sha256", items(j).sha256, "step", "sorting", "event_id", ev); %#ok<AGROW>
+            end
+            entry = struct("event_id", "", "sort_event_id", string(r.event_id), "results_dir", d, ...
+                "saved", LabBundles.timeText(saved), "files", files);
+            outputs = items(keep);
+            if isempty(outputs)
+                id = "";
+            else
+                entry.event_id = id;
+                ins = LabBundles.noItems();
+                seen = strings(1, 0);
+                for k = numel(known):-1:1   % each file's latest version, as recorded
+                    key = EphysDataset.pathKey(known(k).path);
+                    if any(seen == key); continue; end
+                    seen(end + 1) = key; %#ok<AGROW>
+                    [role, kd] = LabCapture.roleOf("sorting", known(k).path, r);
+                    it = LabBundles.item(known(k).path, Role=role, Kind=kd, ...
+                        Snapshot=struct("bytes", known(k).bytes, "mtime", known(k).mtime));
+                    it.artifact_id = known(k).artifact_id;
+                    it.sha256 = known(k).sha256;
+                    ins(end + 1) = it; %#ok<AGROW>
+                end
+                ins = LabCapture.locate(fliplr(ins), s);
+                o = LabCapture.lastOpened(ses, d, saved);
+                started = "";
+                opened = "unknown";
+                if ~isempty(o)
+                    started = o.at;
+                    opened = rmfield(o, "results_dir");
+                end
+                detail = struct("pipeline_name", "phy", "parameters_json", "{}", ...
+                    "environment_json", "{}", "started_at", started, "finished_at", LabBundles.timeText(saved), ...
+                    "status", "succeeded");
+                occurred = started;
+                if occurred == ""; occurred = LabBundles.timeText(saved); end
+                attr = struct("step", "curation", "tool", "phy", "dataset", ds.Name, "results_dir", d, ...
+                    "sort_event_id", string(r.event_id), "opened_by", opened, ...
+                    "phy_labels", {cellstr(st.labels)}, "phy_label_counts", st.counts, "phy_clusters", st.clusters);
+                b = LabBundles.event(EventId=id, EventType="analysis", OccurredAt=occurred, Detail=detail, ...
+                    Attributes=attr, Performer=LabCapture.performer(s), Dataset=LabCapture.datasetBlock(ds, ses, s), ...
+                    Inputs=ins, Outputs=outputs, CapturedBy=LabBundles.capturedBy(s));
+                b = LabBundles.seal(b);
+            end
+            % The session file first: a curation it does not keep would be
+            % captured again at the next look, a second event for one save.
+            before = ses;
+            ses.curations(end + 1) = entry;
+            LabCapture.writeSession(ds.Folder, ds.Name, ses);
+            if isempty(outputs); return; end
+            try
+                LabOutbox.put(b);
+            catch ME
+                LabCapture.writeSession(ds.Folder, ds.Name, before);   % not captured: looked for again next time
+                rethrow(ME);
+            end
+            LabCapture.startLarge(b, s);
         end
 
         function transferred(ds, b, X)
@@ -587,7 +773,61 @@ classdef LabCapture
         function writeSession(folder, name, ses)
             x = ses;
             x.raw = num2cell(ses.raw);
+            x.phy_opened = num2cell(ses.phy_opened);
+            c = cell(1, numel(ses.curations));
+            for k = 1:numel(ses.curations)
+                e = ses.curations(k);
+                e.files = num2cell(rmfield(e.files, "step"));
+                c{k} = e;
+            end
+            x.curations = c;
             writeJsonFile(LabCapture.sessionFile(folder, name), x);
+        end
+
+        function c = cells(v)
+            %cells  A decoded JSON list (a struct array, a cell, [] or one struct) as a row cell of structs.
+            if isempty(v); c = {}; return; end
+            if isstruct(v); c = reshape(num2cell(v), 1, []); return; end
+            if iscell(v); c = reshape(v(cellfun(@isstruct, v)), 1, []); return; end
+            c = {};
+        end
+
+        function e = noOpened()
+            e = struct("results_dir", {}, "at", {}, "person_id", {}, "person_email", {}, "os_user", {}, "host", {});
+        end
+
+        function e = noCurations()
+            e = struct("event_id", {}, "sort_event_id", {}, "results_dir", {}, "saved", {}, "files", {});
+        end
+
+        function k = noKnown()
+            k = struct("path", {}, "bytes", {}, "mtime", {}, "artifact_id", {}, "sha256", {}, "step", {}, "event_id", {});
+        end
+
+        function known = curatedOutputs(known, P, ses)
+            %curatedOutputs  KNOWN, then the files of the curations of the sort record P.sorting (session file SES), oldest first.
+            if ~isstruct(P) || ~isscalar(P) || ~isfield(P, "sorting") || ~isstruct(P.sorting) || ~isscalar(P.sorting) ...
+                    || ~isfield(P.sorting, "event_id"); return; end
+            sortId = string(P.sorting.event_id);
+            for c = reshape(ses.curations, 1, [])
+                if c.sort_event_id ~= sortId; continue; end
+                known = [known, reshape(c.files, 1, [])]; %#ok<AGROW>
+            end
+        end
+
+        function o = lastOpened(ses, d, upTo)
+            %lastOpened  The last time phy was opened from the app on folder D, at or before UPTO (2 s allowed; [] when none).
+            o = [];
+            for k = numel(ses.phy_opened):-1:1
+                e = ses.phy_opened(k);
+                if EphysDataset.pathKey(e.results_dir) ~= EphysDataset.pathKey(d); continue; end
+                try
+                    at = datetime(e.at, "InputFormat", LabBundles.TimeFormat, "TimeZone", "local");
+                catch
+                    continue
+                end
+                if at <= upTo + seconds(2); o = e; return; end   % a file's time may be kept to the second (or two)
+            end
         end
 
         function tf = isId(v)
@@ -769,6 +1009,9 @@ classdef LabCapture
                         "step", k, "event_id", ev); %#ok<AGROW>
                 end
             end
+            if isa(ds, "EphysDataset")
+                known = LabCapture.curatedOutputs(known, P, LabCapture.readSession(ds.Folder, ds.Name));
+            end
         end
 
         function [known, evs] = knownFiles(ds, folder, name)
@@ -783,6 +1026,7 @@ classdef LabCapture
             [ses, found] = LabCapture.readSession(folder, name);
             evs = struct("recording", ses.recording_event_id, "behavior", ses.behavior_event_id);
             if ~found; return; end
+            if ~isa(ds, "EphysDataset"); known = LabCapture.curatedOutputs(known, ds, ses); end
             for k = 1:numel(ses.raw)
                 it = ses.raw(k);
                 ev = ses.recording_event_id;

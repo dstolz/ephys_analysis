@@ -1,5 +1,9 @@
-function launchPhy(obj, resultsDir, label)
+function ok = launchPhy(obj, resultsDir, label, ds)
 %launchPhy  Run `phy template-gui params.py` detached in RESULTSDIR.
+%   OK = launchPhy(obj, RESULTSDIR, LABEL, DS): OK is true once phy was
+%   started. With the dataset DS, the launch is noted for the lab database
+%   (LabCapture.phyOpened: who opened phy on the folder, and when), so the
+%   next scan records what phy saved there as that person's curation.
 %   RESULTSDIR must be the folder that holds params.py (the dataset's
 %   kilosort4 or si_<sorter> run folder). LABEL names the source in the log (e.g. the dataset name). The launch command comes from the "Phy
 %   command" field; phy lives in its own conda env (see INSTALL.md), so the
@@ -13,6 +17,8 @@ function launchPhy(obj, resultsDir, label)
 %
 %   See also EphysPipelineApp.onLaunchPhy, EphysPipelineApp.onReviewOpenPhy.
 
+ok = false;
+if nargin < 4; ds = []; end
 resultsDir = char(resultsDir);
 paramsPy   = fullfile(resultsDir, 'params.py');
 if ~isfile(paramsPy)
@@ -46,6 +52,14 @@ if status ~= 0
     return
 end
 obj.setStatus(sprintf("Launched phy for %s.", label));
+ok = true;
+if ~isempty(ds)
+    try
+        LabCapture.phyOpened(ds, string(resultsDir));
+    catch ME
+        warning('EphysPipelineApp:launchPhy:Note', 'The phy launch could not be noted for the lab database: %s', ME.message);
+    end
+end
 end
 
 function phyCmd = defaultPhyCmd(obj)

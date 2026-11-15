@@ -1353,7 +1353,7 @@ classdef EphysPipelineApp < handle
         onResetSIParams(obj)
         txt = siDefaultParams(obj, sorter)
         onLaunchPhy(obj, idx)
-        launchPhy(obj, resultsDir, label)
+        ok = launchPhy(obj, resultsDir, label, ds)
         startKSMonitor(obj)
         stopKSMonitor(obj)
         pollKSRuns(obj)

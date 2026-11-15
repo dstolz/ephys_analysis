@@ -436,6 +436,9 @@ read again, a progress callback, a best-effort clean-up) stay quiet.
   R2024a or later) keeps the database password (`LabDBSecrets`), and
   `tcpclient` checks that the server answers before a connection is opened
   (`LabDBCarasBackend.probe`). See [Lab database](database.md).
+- Text Analytics Toolbox (`editDistance`, which ranks the lab database's
+  subjects nearest a folder's subject id first when a folder names a subject
+  the database does not have, `SubjectAssignDialog`).
 - No Report Generator: the analysis module's PDF reports are vector pages
   from `print -dpdf -vector`, joined with the Apache PDFBox library that MATLAB
   ships on its Java class path (`java/jarext/pdfbox.jar`,

@@ -115,6 +115,7 @@ canceled = false;
 obj.BatchYLim = struct('figure', cell(1, 0), 'id', cell(1, 0), 'lim', cell(1, 0), 'n', cell(1, 0));
 obj.clearBatchCache();
 cacheBack = onCleanup(@() obj.clearBatchCache());   % the figures kept while measuring go with the run
+quiet = LabSync.suspend(); %#ok<NASGU>   % nothing is sent to the lab database while the run draws (LabSync)
 if (doExport || doReport) && ~isempty(idx)   % "batch" panels: one y range over the run's every observation, measured first
     for id = fids
         try

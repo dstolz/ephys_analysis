@@ -23,7 +23,8 @@ classdef test_LabDB < matlab.unittest.TestCase
 
     methods (TestMethodSetup)
         function isolate(tc)
-            tc.Restore = {AppPrefs.useTemporary(), LabDBSecrets.useFake(), LabDB.useTemporary()};
+            tc.Restore = {AppPrefs.useTemporary(), LabDBSecrets.useFake(), LabDB.useTemporary(), ...
+                LabSync.useManual()};
             tc.Fake = LabDBFakeBackend();
             fake = tc.Fake;
             tc.Restore{end+1} = LabDB.useBackend(@() fake);

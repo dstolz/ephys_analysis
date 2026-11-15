@@ -9,9 +9,9 @@ pipeline run works exactly as before: nothing waits for the server and
 nothing fails because of it.
 
 > Status, 2026-11-14: in place are the settings, the connection, the storage
-> roots and the Database window, shared by every app, and the outbox: every
+> roots and the Database window, shared by every app; the outbox, where every
 > pipeline step and every copied session is recorded on this computer as it
-> is written. Sending the outbox to the server, recording the analyses and
+> is written; and sending it to the server. Recording the analyses and
 > finding files through the database are being added; this page will say so
 > when they are.
 
@@ -36,8 +36,8 @@ status bar of the pipeline app, the analysis app or the manifest viewer.
    which lab person you are in the database.
 
 The settings are kept with the app preferences (group `LabDB`). The window's
-keys are Ctrl+S (save), F5 (test the connection), Esc or Ctrl+W (close) and
-Ctrl+? (the list).
+keys are Ctrl+S (save), F5 (test the connection), Ctrl+R (send now), Esc or
+Ctrl+W (close) and Ctrl+? (the list).
 
 ## Storage roots
 
@@ -94,6 +94,62 @@ The outbox is the folder `outbox` in this computer's database folder
 (`%LOCALAPPDATA%\ephys_analysis\labdb`). Its format is in
 [file-formats.md](file-formats.md#lab-database-bundle-caraslabdb-bundle1).
 
+## Sending
+
+What waits in the outbox is sent when the database answers:
+
+- **While an app is open,** every 15 s, one record at a time, oldest first.
+  Each try waits 2 s at most for the server. Nothing is sent while a pipeline
+  run or an analysis run is going.
+- **At the end of a pipeline run** (for up to 10 s), and at the end of a
+  scheduled copy (up to a minute). What is left is sent later.
+- **From the Database window:** **Send now** (Ctrl+R).
+
+Sending a record twice writes it once: the database keeps each record's id
+and digest. A connection that breaks while a record is sent leaves it
+waiting; it is sent again later, and the database answers that it has it.
+
+**The session.** A record's session is the one its dataset's session file
+names. The first record of a dataset creates it, in the storage root of the
+dataset's folder, for the subject the folder's name gives.
+
+**A subject the database does not have** holds the dataset's records. A
+window asks what to do (or **Assign subjects...** in the Database window):
+
+- **Create subject**: add it to the database (its id, project, species and
+  sex);
+- **Assign to existing**: the folder name may be misspelled; the subjects
+  are listed nearest first.
+
+The choice is noted in the dataset's session file (and, when you tick it, in
+those of the other datasets whose folders name the same subject). Folders
+are never renamed. A scheduled copy, which no one watches, leaves the records
+held until an app shows the window.
+
+**Who did the work.** Every record names the person: the one set up on the
+computer that captured it, or else the person your login is. A record
+captured under another login waits for you to choose **Send as me** in the
+Database window; the database notes that it was sent on that person's
+behalf, and stamps your login.
+
+**Inputs.** Each file a step read is linked to the step when the database has
+that file. When it does not have it yet (the copy that registers it is still
+waiting), the link is sent later. A file this computer cannot name (one it
+did not capture) is listed with the record (`unresolved_inputs`), never
+matched by its path alone.
+
+**When the database refuses a record**, it is kept with the reason:
+
+| In the outbox | Means | What to do |
+| --- | --- | --- |
+| to send | waits for the server, or for its SHA-256 | nothing |
+| held | waits for you: a subject, a storage root to map or register, another login, a file that changed after it was captured, a conflict (the same id sent with other content) | read the note; fix it, then **Release** |
+| failed | the database refused it, for the reason given | fix the cause, then **Retry** |
+| discarded | you chose never to send it (**Discard...**, which asks first); it is kept, with who and why | nothing |
+
+The lamp counts them: **· N to send**, or **· N need you** (held or failed;
+the lamp turns red).
+
 ## The lamp
 
 | Lamp | Meaning |
@@ -102,6 +158,8 @@ The outbox is the folder `outbox` in this computer's database folder
 | Database: connected | the connection is open |
 | Database: offline | the server did not answer; the apps keep working, and a new try waits a pause that grows with each failure (5 s, 10 s, ... up to 5 minutes) |
 | Database: attention | the server answered, but something here must be fixed: no password stored, the login refused, CarasLabDB or the Database Toolbox missing. The tooltip says what |
+| ... · N to send | N records wait to be sent |
+| ... · N need you | N records are held or failed (the lamp is red): see the outbox in the Database window |
 
 Before opening a connection, the toolbox checks that the server accepts one
 within **ConnectTimeout** (default 5 s). An unreachable server therefore costs
@@ -121,12 +179,13 @@ p  = LabRoots.resolve("nas-main", "G-0421/s1/s1_extract.mat", s);
 database off for a script with `s.Enabled = false; LabDBSettings.save(s)`.
 
 A writer called from a script records its work as the pipeline does. What
-waits in the outbox:
+waits in the outbox, and sending it:
 
 ```matlab
 T = LabOutbox.list();              % id, state, type, captured_at, sealed, file, note
-c = LabOutbox.counts();            % pending, claimed, held, failed, done
+c = LabOutbox.counts();            % pending, claimed, held, failed, done, discarded
 n = LabHasher.work(Budget=30);     % finish the hashes that are still needed
+r = LabSync.flush(Budget=30);      % send for up to 30 s: sent, pending, held, failed, message
 r = ds.Processing.spikes;          % event_id, outputs (path, bytes, mtime, artifact_id, sha256)
 ```
 
@@ -157,6 +216,8 @@ work without the database.
 | [`LabBundles`](../pipeline/LabBundles.m) | the records as files (`caraslabdb-bundle/1`): build, encode, decode, seal |
 | [`LabOutbox`](../pipeline/LabOutbox.m) | the outbox: put, read, list, claim, finish, move, recover stale claims |
 | [`LabHasher`](../pipeline/LabHasher.m), [`fileSha256`](../pipeline/fileSha256.m) | SHA-256 in MATLAB and out of process |
+| [`LabSync`](../pipeline/LabSync.m) | sending: the timer, `flush`, `suspend`, the session and the person of a record, what a refusal means |
+| [`SubjectAssignDialog`](../pipeline/SubjectAssignDialog.m) | the window for a subject the database does not have |
 | [`LabDBBackend`](../pipeline/LabDBBackend.m) | what the toolbox asks of the database; the only seam to CarasLabDB |
 | [`LabDBCarasBackend`](../pipeline/LabDBCarasBackend.m) | that seam through the CarasLabDB class |
 | [`LabDBFakeBackend`](../pipeline/LabDBFakeBackend.m) | an in-memory database for the tests |
@@ -168,4 +229,7 @@ work without the database.
 preference store, a fake vault and a temporary database folder. It needs no
 server and no Database Toolbox, and touches nothing of yours. `test_LabCapture`
 checks the bundles (against `pipeline/testdata/labdb/bundle_event_v1.json`),
-the outbox, the hashes and what the steps and copies record, the same way.
+the outbox, the hashes and what the steps and copies record, the same way, and
+`test_LabSync` the sending: once, a lost answer, a conflict, subjects to
+assign, another login, a copy and the step that read it, an unreachable
+server, a failed step, a discarded record.

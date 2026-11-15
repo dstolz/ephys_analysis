@@ -207,6 +207,72 @@ classdef LabCapture
             LabCapture.startLarge(b, s);
         end
 
+        function failure(ds, kind, opts)
+            %failure  Capture a step that failed, or was canceled while it ran: a failed event, no outputs.
+            %   LabCapture.failure(DS, KIND, Outcome="failed" | "canceled",
+            %   Message=, Seconds=, Parameters= (the step's settings, a
+            %   struct), Provenance=). Nothing a failed step left on disk is
+            %   registered. Nothing when the database is off here.
+            arguments
+                ds (1,1) EphysDataset
+                kind (1,1) string
+                opts.Outcome (1,1) string {mustBeMember(opts.Outcome, ["failed" "canceled"])} = "failed"
+                opts.Message (1,1) string = ""
+                opts.Seconds (1,1) double = 0
+                opts.Parameters = struct()
+                opts.Provenance = []
+                opts.RunId (1,1) string = ""
+            end
+            s = LabDBSettings.load();
+            if ~LabCapture.enabled(s); return; end
+            finished = datetime("now", "TimeZone", "local");
+            started = finished - seconds(max(0, opts.Seconds));
+            ins = LabBundles.noItems();
+            for p = unique(LabCapture.defaultInputs(ds, kind, struct()), "stable")
+                [role, kd] = LabCapture.inputRole(ds, p);
+                ins(end + 1) = LabBundles.item(p, Role=role, Kind=kd); %#ok<AGROW>
+            end
+            known = LabCapture.knownOutputs(ds);
+            ses = LabCapture.session(ds.Folder, ds.Name, s);
+            for k = 1:numel(ins)
+                j = LabCapture.findKnown(known, ins(k).path);
+                if j > 0 && LabBundles.sameSnapshot(known(j), ins(k))
+                    ins(k).artifact_id = known(j).artifact_id;
+                    ins(k).sha256 = known(j).sha256;
+                else
+                    j = LabCapture.findKnown(ses.raw, ins(k).path);
+                    if j > 0 && LabBundles.sameSnapshot(ses.raw(j), ins(k))
+                        ins(k).artifact_id = ses.raw(j).artifact_id;
+                        ins(k).sha256 = ses.raw(j).sha256;
+                    end
+                end
+            end
+            ins = LabCapture.locate(ins, s);
+            env = "{}";
+            if isstruct(opts.Provenance) && ~isempty(opts.Provenance)
+                p2 = opts.Provenance;
+                if isfield(p2, "config"); p2 = rmfield(p2, "config"); end
+                env = string(jsonencode(provenanceForJson(p2)));
+            end
+            par = "{}";
+            if isstruct(opts.Parameters) && isscalar(opts.Parameters)
+                par = string(jsonencode(stringifyNonFinite(opts.Parameters)));
+            end
+            detail = struct("pipeline_name", LabCapture.pipelineName(kind, struct()), ...
+                "code_version", LabCapture.codeVersion(opts.Provenance), ...
+                "parameters_json", par, "environment_json", env, ...
+                "started_at", LabBundles.timeText(started), "finished_at", LabBundles.timeText(finished), ...
+                "status", "failed");
+            attr = struct("step", kind, "dataset", ds.Name, "run_id", opts.RunId, ...
+                "outcome", opts.Outcome, "error", opts.Message);
+            perf = LabCapture.performer(s);
+            b = LabBundles.event(EventId=LabBundles.newId(), EventType="analysis", ...
+                OccurredAt=LabBundles.timeText(started), Detail=detail, Attributes=attr, ...
+                Performer=perf, Dataset=LabCapture.datasetBlock(ds, ses, s), Inputs=ins, ...
+                CapturedBy=LabBundles.capturedBy(s));
+            LabOutbox.put(LabBundles.seal(b));
+        end
+
         function copiedSession(info)
             %copiedSession  Capture a session copySessions copied: its recording, and its ePsych session.
             %   INFO: dest (the session folder), subject, reader (the reader's
@@ -285,6 +351,43 @@ classdef LabCapture
             LabCapture.writeSession(dest, name, ses);
         end
 
+        function [ses, found] = readSession(folder, name)
+            %readSession  The dataset's session file as a struct (see session); FOUND false, and no id, when there is none.
+            ses = struct("format", LabCapture.SessionFormat, "session_id", "", "created_at", "", ...
+                "subject_id", "", "recording_event_id", "", "behavior_event_id", "", ...
+                "raw", LabBundles.noItems());
+            found = false;
+            if string(folder) == "" || string(name) == ""; return; end
+            f = LabCapture.sessionFile(folder, name);
+            if ~isfile(f); return; end
+            x = readJsonFile(f, ErrorOnFail=false);
+            if ~(isstruct(x) && isfield(x, "session_id") && LabCapture.isId(x.session_id)); return; end
+            ses.session_id = lower(string(x.session_id));
+            for k = ["created_at" "subject_id" "recording_event_id" "behavior_event_id"]
+                if isfield(x, k) && ~isempty(x.(k)); ses.(k) = string(x.(k)); end
+            end
+            if isfield(x, "raw")
+                ses.raw = LabBundles.toItems(x.raw);
+            end
+            found = true;
+        end
+
+        function assignSubject(folder, name, subjectId)
+            %assignSubject  Note in the dataset's session file the database subject its session belongs to.
+            %   The folder and its name are not changed. "" goes back to the
+            %   subject the folder name gives.
+            [ses, found] = LabCapture.readSession(folder, name);
+            if ~found
+                ses = LabCapture.session(folder, name);
+                if ses.session_id == ""
+                    error("LabCapture:NoSessionFile", "The session file of %s cannot be written in %s.", ...
+                        name, folder);
+                end
+            end
+            ses.subject_id = string(subjectId);
+            LabCapture.writeSession(folder, name, ses);
+        end
+
         function f = sessionFile(folder, name)
             %sessionFile  The dataset's session file: <FOLDER>/<NAME>_labdb.json.
             f = string(fullfile(folder, name + "_labdb.json"));
@@ -292,29 +395,16 @@ classdef LabCapture
 
         function ses = session(folder, name, s)
             %session  The dataset's session file as a struct, written with a new session id when missing.
-            %   Fields: format, session_id, created_at, subject_folder_id
-            %   (filled later), recording_event_id, behavior_event_id, raw
-            %   (the raw files as captured, LabBundles items). A folder that
-            %   cannot be written gives session_id "" (resolved when sent).
+            %   Fields: format, session_id, created_at, subject_id (the
+            %   database subject a person assigned the session to, "" when
+            %   the folder's own is meant; SubjectAssignDialog),
+            %   recording_event_id, behavior_event_id, raw (the raw files as
+            %   captured, LabBundles items). A folder that cannot be written
+            %   gives session_id "" (resolved when sent).
             if nargin < 3; s = LabDBSettings.load(); end %#ok<NASGU>
-            ses = struct("format", LabCapture.SessionFormat, "session_id", "", "created_at", "", ...
-                "recording_event_id", "", "behavior_event_id", "", "raw", LabBundles.noItems());
-            if string(folder) == "" || ~isfolder(folder) || string(name) == ""
+            [ses, found] = LabCapture.readSession(folder, name);
+            if found || string(folder) == "" || ~isfolder(folder) || string(name) == ""
                 return   % no folder of its own: the session is found when the record is sent
-            end
-            f = LabCapture.sessionFile(folder, name);
-            if isfile(f)
-                x = readJsonFile(f, ErrorOnFail=false);
-                if isstruct(x) && isfield(x, "session_id") && LabCapture.isId(x.session_id)
-                    ses.session_id = lower(string(x.session_id));
-                    for k = ["created_at" "recording_event_id" "behavior_event_id"]
-                        if isfield(x, k); ses.(k) = string(x.(k)); end
-                    end
-                    if isfield(x, "raw")
-                        ses.raw = LabBundles.toItems(x.raw);
-                    end
-                    return
-                end
             end
             ses.session_id = LabBundles.newId();
             ses.created_at = LabBundles.now();

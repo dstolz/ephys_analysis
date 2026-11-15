@@ -13,6 +13,8 @@ classdef LabOutbox
     %               captured, a subject to assign, ...); the note says why
     %     failed    the database refused it; the note gives its reason
     %     done      sent (kept as a local log)
+    %     discarded put aside by a person, never to be sent (kept, with who
+    %               and why)
     %
     %   A bundle is <bundle_id>.json (LabBundles); a note beside it,
     %   <bundle_id>.note.json, says when and why it moved. Files are written
@@ -26,14 +28,14 @@ classdef LabOutbox
     %     n = LabOutbox.counts()              % one count per state
     %     claim = LabOutbox.claim(id)         % [] when another process has it
     %     LabOutbox.heartbeat(claim)
-    %     LabOutbox.finish(claim, "done" | "failed" | "held" | "pending", Reason=)
-    %     LabOutbox.move(id, state, Reason=)  % hold, release, retry
+    %     LabOutbox.finish(claim, "done" | "failed" | "held" | "pending", Reason=, Flags=)
+    %     LabOutbox.move(id, state, Reason=, Flags=)  % hold, release, retry, discard
     %     n = LabOutbox.recoverStale(MaxAge=120)
     %
     %   See also LabBundles, LabCapture, LabHasher, LabDB.folder.
 
     properties (Constant)
-        States = ["pending" "claimed" "held" "failed" "done"]
+        States = ["pending" "claimed" "held" "failed" "done" "discarded"]
     end
 
     methods (Static)
@@ -127,14 +129,19 @@ classdef LabOutbox
         end
 
         function n = note(id, state)
-            %note  The note of bundle ID in STATE: state, reason, at, host ("" each when none).
-            n = struct("state", "", "reason", "", "at", "", "host", "");
+            %note  The note of bundle ID in STATE: state, reason, at, host ("" each when none), flags.
+            %   FLAGS (a string row) are what a person decided for it, e.g.
+            %   "on_behalf" (send it although another login captured it).
+            n = struct("state", "", "reason", "", "at", "", "host", "", "flags", strings(1, 0));
             f = fullfile(LabOutbox.root(), state, LabOutbox.checkId(id) + ".note.json");
             if ~isfile(f); return; end
             x = readJsonFile(f, ErrorOnFail=false);
             if ~isstruct(x); return; end
-            for k = string(fieldnames(n)).'
+            for k = ["state" "reason" "at" "host"]
                 if isfield(x, k); n.(k) = string(x.(k)); end
+            end
+            if isfield(x, "flags") && ~isempty(x.flags)
+                n.flags = reshape(string(x.flags), 1, []);
             end
         end
 
@@ -166,8 +173,10 @@ classdef LabOutbox
                 claim (1,1) struct
                 state (1,1) string {mustBeMember(state, ["done" "failed" "held" "pending"])}
                 opts.Reason (1,1) string = ""
+                opts.Flags (1,:) string = string(missing)   % replace the flags (default: keep them)
             end
-            LabOutbox.moveTo(claim.id, "claimed", state, opts.Reason);
+            flags = LabOutbox.flagsFor(claim.id, "claimed", opts.Flags);
+            LabOutbox.moveTo(claim.id, "claimed", state, opts.Reason, flags);
             hb = fullfile(LabOutbox.root(), "claimed", claim.id + ".claim.json");
             if isfile(hb); delete(hb); end
         end
@@ -176,8 +185,9 @@ classdef LabOutbox
             %move  Move bundle ID (not claimed) to STATE: hold it, release it, retry a failed one.
             arguments
                 id (1,1) string
-                state (1,1) string {mustBeMember(state, ["pending" "held" "failed" "done"])}
+                state (1,1) string {mustBeMember(state, ["pending" "held" "failed" "done" "discarded"])}
                 opts.Reason (1,1) string = ""
+                opts.Flags (1,:) string = string(missing)   % replace the flags (default: keep them)
             end
             [~, from] = LabOutbox.readText(id);
             if from == ""
@@ -185,8 +195,10 @@ classdef LabOutbox
             elseif from == "claimed"
                 error("LabOutbox:State", "Bundle %s is being sent; it cannot be moved now.", id);
             end
-            if from == state; return; end
-            LabOutbox.moveTo(LabOutbox.checkId(id), from, state, opts.Reason);
+            keep = isscalar(opts.Flags) && ismissing(opts.Flags);
+            if from == state && keep; return; end
+            LabOutbox.moveTo(LabOutbox.checkId(id), from, state, opts.Reason, ...
+                LabOutbox.flagsFor(id, from, opts.Flags));
         end
 
         function n = recoverStale(opts)
@@ -252,17 +264,31 @@ classdef LabOutbox
             end
         end
 
-        function moveTo(id, from, to, reason)
-            src = LabOutbox.file(id, from);
-            dst = LabOutbox.file(id, to);
-            [ok, msg] = movefile(src, dst);
-            if ~ok
-                error("LabOutbox:Move", "Bundle %s could not be moved from %s to %s: %s", id, from, to, msg);
-            end
+        function moveTo(id, from, to, reason, flags)
+            if nargin < 5; flags = strings(1, 0); end
             old = fullfile(LabOutbox.root(), from, id + ".note.json");
+            if from ~= to
+                src = LabOutbox.file(id, from);
+                dst = LabOutbox.file(id, to);
+                [ok, msg] = movefile(src, dst);
+                if ~ok
+                    error("LabOutbox:Move", "Bundle %s could not be moved from %s to %s: %s", id, from, to, msg);
+                end
+            end
             if isfile(old); delete(old); end
-            n = struct("state", to, "reason", reason, "at", LabBundles.now(), "host", LabBundles.host());
+            n = struct("state", to, "reason", reason, "at", LabBundles.now(), "host", LabBundles.host(), ...
+                "flags", {cellstr(flags)});
             writeJsonFile(fullfile(LabOutbox.root(), to, id + ".note.json"), n);
+        end
+
+        function f = flagsFor(id, state, given)
+            %flagsFor  GIVEN, or the flags of the note bundle ID has in STATE when GIVEN is missing.
+            if isscalar(given) && ismissing(given)
+                n = LabOutbox.note(id, state);
+                f = n.flags;
+            else
+                f = given;
+            end
         end
 
         function moveNote(id, from, to)

@@ -10,6 +10,18 @@ says how to cut a release.
 
 ### Added
 
+- The lab database (CarasLabDB), third part: what waits in the outbox is sent (`LabSync`): every 15 s while an
+  app is open, one record at a time and 2 s at most per try, not during a pipeline or analysis run; at the end of
+  a run (10 s) and of a scheduled copy (a minute); and with **Send now** (Ctrl+R) in the Database window, which
+  now lists the outbox with Retry, Hold, Release, Send as me, Discard and Details. A record's session is created
+  in its folder's storage root; a subject the database does not have holds the records until the new
+  `SubjectAssignDialog` creates it or assigns the session to an existing subject (ranked by `editDistance`; the
+  folder is never renamed). Each record names its person; one captured under another login waits for "Send as
+  me". Inputs the database does not have yet are sent later; those this computer cannot name are listed, not
+  guessed. A failed or canceled step is recorded as a failed event. The lamp counts what waits ("· N to send",
+  "· N need you"). The backend seam gains subjects, projects, species, persons, `addSubject`, `addSession`,
+  `recordEvent` and `addEventInput` (`LabDBFakeBackend` keeps CarasLabDB's rules). Needs the Text Analytics
+  Toolbox (`editDistance`). Tests `test_LabSync`.
 - The lab database (CarasLabDB), second part: what the toolbox does is recorded on this computer as it is written,
   in an outbox (`LabOutbox`, under the database folder), for the database. Every writer stores its record with the
   new `EphysDataset.setProcessing`, which adds `event_id`, `created_at`, `started_at`, `performer`,

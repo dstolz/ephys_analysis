@@ -74,6 +74,13 @@ classdef OutputTransfer < handle
     %     LogFcn       @(msg), one line per batch queued and ended
     %     ProgressFcn  @(info) as the copy moves (info: see progress)
     %     BatchFcn     @(batch) whenever a batch changes state
+    %     CanRemoveFcn @(src, copy) -> logical, asked before a move removes
+    %                  a source (false: it stays here); the lab database
+    %                  uses it so no file goes before its copy is recorded
+    %     Uid          this transfer's own id (a uuid)
+    %
+    %   sha256Of(src) is the SHA-256 the engine took of a file it copied
+    %   with Verify="hash" (source and copy alike), "" otherwise.
     %
     %   Methods: add, poll, close, cancel, wait, progress, statusOf, table,
     %   datasetFolder; static versionFolder (where a new transfer would put
@@ -86,6 +93,7 @@ classdef OutputTransfer < handle
         LogFcn = @(msg) fprintf('%s\n', msg)   % one line per batch queued and ended
         ProgressFcn = []   % ProgressFcn(info) as the copy moves (info: see progress)
         BatchFcn = []      % BatchFcn(batch) whenever a batch changes state
+        CanRemoveFcn = []  % CanRemoveFcn(src, copy) -> logical, before a move removes a source
     end
 
     properties (SetAccess = private)
@@ -97,6 +105,7 @@ classdef OutputTransfer < handle
         Closed      (1,1) logical = false      % close() was called: no more batches
         Canceled   (1,1) logical = false      % cancel() was called
         Message     (1,1) string = ""          % what the copy engine said last
+        Uid         (1,1) string = ""          % this transfer's own id
     end
 
     properties (Dependent)
@@ -118,6 +127,7 @@ classdef OutputTransfer < handle
         Moved             % containers.Map: lower-case source folders whose OnMoved was called
         Job = []          % the copy engine's job in flight
         Polling (1,1) logical = false
+        Sums              % containers.Map: lower-case source path -> its SHA-256 (Verify "hash")
     end
 
     methods
@@ -143,6 +153,15 @@ classdef OutputTransfer < handle
             if ~isempty(opts.LogFcn); obj.LogFcn = opts.LogFcn; end
             obj.Folders = containers.Map('KeyType', 'char', 'ValueType', 'any');
             obj.Moved = containers.Map('KeyType', 'char', 'ValueType', 'logical');
+            obj.Sums = containers.Map('KeyType', 'char', 'ValueType', 'char');
+            obj.Uid = string(lower(char(java.util.UUID.randomUUID().toString())));
+        end
+
+        function h = sha256Of(obj, src)
+            %sha256Of  The SHA-256 the engine took of source SRC and its copy ("" when it took none).
+            h = "";
+            k = char(lower(string(src)));
+            if isKey(obj.Sums, k); h = string(obj.Sums(k)); end
         end
 
         function tf = get.Done(obj)
@@ -516,6 +535,18 @@ classdef OutputTransfer < handle
                 tf = obj.Done;
             else
                 tf = isempty(obj.Job) && all(ismember(obj.states(), [OutputTransfer.Final "copied"]));
+            end
+        end
+
+        function tf = mayRemove(obj, src, copy)
+            %mayRemove  CanRemoveFcn's answer for SRC (true without one; false when it fails).
+            tf = true;
+            if isempty(obj.CanRemoveFcn); return; end
+            try
+                tf = logical(obj.CanRemoveFcn(src, copy));
+            catch ME
+                tf = false;
+                warning('OutputTransfer:CanRemoveFcn', 'CanRemoveFcn failed, %s stays: %s', src, ME.message);
             end
         end
 
@@ -954,6 +985,8 @@ classdef OutputTransfer < handle
                         elseif h.src ~= h.dst
                             bad(end+1) = F.Rel(m) + " SHA-256 differs"; %#ok<AGROW>
                             F.State(m) = "failed";
+                        else
+                            obj.Sums(char(lower(F.Src(m)))) = char(lower(h.dst));   % the copy's bytes, checked
                         end
                     end
                 end
@@ -1099,6 +1132,10 @@ classdef OutputTransfer < handle
                     if keep(m); continue; end
                     if ~OutputTransfer.sameFile(cur.Bytes(m), cur.Time(m), F.Bytes(m), F.Time(m))
                         left = left + 1;   % changed since it was copied: it stays
+                        continue
+                    end
+                    if ~obj.mayRemove(F.Src(m), OutputTransfer.joined(b.DestDir, F.Rel(m)))
+                        left = left + 1;   % its copy is not recorded yet: it stays
                         continue
                     end
                     try

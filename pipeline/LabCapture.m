@@ -388,6 +388,168 @@ classdef LabCapture
             LabCapture.writeSession(folder, name, ses);
         end
 
+        function transferred(ds, b, X)
+            %transferred  Note what an OutputTransfer did with dataset DS's files, for the lab database.
+            %   Called on every change of batch B of transfer X (the
+            %   pipeline's BatchFcn). Once a batch is copied (a copy that is
+            %   "done", or a move that is "copied"), each copy of a file the
+            %   dataset's records name becomes a new file produced by the same
+            %   event, with copied_from (its id, path and SHA-256); a copy into
+            %   a file already there (IfExists "overwrite") says so. Once a
+            %   move is "done", each source it removed is recorded as moved to
+            %   its copy. A file no record names is not registered (counted).
+            %   Nothing when the database is off here.
+            if ~LabCapture.enabled(); return; end
+            copied = (b.State == "done" && X.Method == "copy") || (b.State == "copied" && X.Method == "move");
+            moved = b.State == "done" && X.Method == "move";
+            if ~copied && ~moved; return; end
+            key = X.Uid + "/" + b.Id + "/" + LabCapture.ternary(copied, "copied", "moved");
+            if LabCapture.ledger(key) ~= ""; return; end   % noted already
+            s = LabDBSettings.load();
+            F = b.Files;
+            [known, evs] = LabCapture.knownFiles(ds);
+            if copied
+                rows = find(F.State == "copied").';
+                groups = struct("event", {}, "items", {});
+                untracked = 0;
+                for m = rows
+                    src = F.Src(m);
+                    copy = string(fullfile(b.DestDir, F.Rel(m)));
+                    j = LabCapture.findKnown(known, src);
+                    if j == 0 || ~LabBundles.sameSnapshot(known(j), LabBundles.snapshot(src))
+                        untracked = untracked + 1;
+                        LabCapture.ledger(X.Uid + "|" + lower(src), "untracked");
+                        continue
+                    end
+                    ev = known(j).event_id;
+                    if ev == ""; untracked = untracked + 1; LabCapture.ledger(X.Uid + "|" + lower(src), "untracked"); continue; end
+                    [role, kd, attr] = LabCapture.roleOfKnown(known(j), evs);
+                    attr.copied_from = known(j).artifact_id;
+                    attr.copied_from_path = src;
+                    attr.copied_from_sha256 = known(j).sha256;
+                    attr.overwrote = X.IfExists == "overwrite";
+                    attr.transfer = X.Uid;
+                    it = LabBundles.item(copy, Role=role, Kind=kd, Attributes=attr, ArtifactId=LabBundles.newId(), ...
+                        Sha256=X.sha256Of(src));
+                    if isnan(it.bytes); continue; end
+                    g = find(string({groups.event}) == ev, 1);
+                    if isempty(g)
+                        groups(end + 1) = struct("event", ev, "items", it); %#ok<AGROW>
+                    else
+                        groups(g).items(end + 1) = it;
+                    end
+                    LabCapture.ledger(X.Uid + "|" + lower(src), it.artifact_id + " " + known(j).artifact_id);
+                end
+                ids = strings(1, 0);
+                for g = 1:numel(groups)
+                    items = LabCapture.hashSmall(LabCapture.locate(groups(g).items, s), s);
+                    fb = LabBundles.files(EventId=groups(g).event, Artifacts=items, After=groups(g).event, ...
+                        Attributes=struct("tool", "OutputTransfer", "method", X.Method, "dataset", ds.Name, ...
+                        "untracked_files", untracked), CapturedBy=LabBundles.capturedBy(s));
+                    LabOutbox.put(fb);
+                    LabCapture.startLarge(fb, s);
+                    ids(end + 1) = fb.bundle_id; %#ok<AGROW>
+                end
+                LabCapture.ledger(key, strjoin([ids, "-"], " "));
+            else
+                rows = find(F.State == "removed").';
+                D = struct("event", {}, "rows", {});
+                for m = rows
+                    e = LabCapture.ledger(X.Uid + "|" + lower(F.Src(m)));
+                    if e == "" || e == "untracked"; continue; end
+                    parts = split(e, " ");
+                    copyId = parts(1); srcId = parts(2);
+                    j = find([known.artifact_id] == srcId, 1);
+                    if isempty(j); continue; end
+                    d = LabBundles.disposition(srcId, "moved", Successor=copyId, ...
+                        Attributes=struct("transfer", X.Uid, "to", string(fullfile(b.DestDir, F.Rel(m)))));
+                    g = find(string({D.event}) == known(j).event_id, 1);
+                    if isempty(g)
+                        D(end + 1) = struct("event", known(j).event_id, "rows", d); %#ok<AGROW>
+                    else
+                        D(g).rows(end + 1) = d;
+                    end
+                end
+                before = split(LabCapture.ledger(X.Uid + "/" + b.Id + "/copied"), " ").';
+                before = before(before ~= "" & before ~= "-");
+                for g = 1:numel(D)
+                    fb = LabBundles.files(EventId=D(g).event, Dispositions=D(g).rows, After=before, ...
+                        Attributes=struct("tool", "OutputTransfer", "method", "move", "dataset", ds.Name), ...
+                        CapturedBy=LabBundles.capturedBy(s));
+                    LabOutbox.put(fb);
+                end
+                LabCapture.ledger(key, "done");
+            end
+        end
+
+        function tf = copyRecorded(uid, src)
+            %copyRecorded  True when transfer UID's copy of SRC is noted (or SRC is a file no record names): SRC may go.
+            tf = LabCapture.ledger(string(uid) + "|" + lower(string(src))) ~= "";
+        end
+
+        function cleanedUp(R, method)
+            %cleanedUp  Note what runLocalCleanup did with the files it removed, for the lab database.
+            %   R: its result rows (Dataset, Folder, File, Bytes, Status, To,
+            %   Replaced). A file a record of its dataset names (the
+            %   manifest's processing outputs, or the session file's raw
+            %   files), with the size the record gives: deleted or recycled,
+            %   it is recorded as deleted (attributes.method); moved, its new
+            %   place is a new file produced by the same event (its SHA-256
+            %   taken there) and the old one is recorded as moved to it.
+            %   Nothing when the database is off here.
+            if ~LabCapture.enabled() || isempty(R); return; end
+            s = LabDBSettings.load();
+            R = R(R.Status == "removed", :);
+            for folder = unique(R.Folder).'
+                Rf = R(R.Folder == folder, :);
+                name = Rf.Dataset(1);
+                P = struct();
+                m = readJsonFile(fullfile(folder, name + "_manifest.json"), ErrorOnFail=false);
+                if isstruct(m) && isfield(m, "processing") && isstruct(m.processing); P = m.processing; end
+                [known, evs] = LabCapture.knownFiles(P, folder, name);
+                groups = struct("event", {}, "items", {}, "rows", {});
+                for k = 1:height(Rf)
+                    j = LabCapture.findKnown(known, Rf.File(k));
+                    if j == 0 || ~(isnan(known(j).bytes) || known(j).bytes == double(Rf.Bytes(k))) ...
+                            || known(j).event_id == ""
+                        continue   % a file no record names, or other bytes than recorded
+                    end
+                    it = LabBundles.noItems();
+                    if method == "move"
+                        [role, kd, attr] = LabCapture.roleOfKnown(known(j), evs);
+                        attr.copied_from = known(j).artifact_id;
+                        attr.copied_from_path = Rf.File(k);
+                        attr.copied_from_sha256 = known(j).sha256;
+                        attr.overwrote = isequal(Rf.Replaced(k), true);
+                        attr.tool = "runLocalCleanup";
+                        it = LabBundles.item(string(Rf.To(k)), Role=role, Kind=kd, Attributes=attr, ...
+                            ArtifactId=LabBundles.newId());
+                        d = LabBundles.disposition(known(j).artifact_id, "moved", Successor=it.artifact_id, ...
+                            Attributes=struct("method", "move", "tool", "runLocalCleanup", "to", string(Rf.To(k))));
+                    else
+                        d = LabBundles.disposition(known(j).artifact_id, "deleted", ...
+                            Attributes=struct("method", method, "tool", "runLocalCleanup"));
+                    end
+                    ev = known(j).event_id;
+                    g = find(string({groups.event}) == ev, 1);
+                    if isempty(g)
+                        groups(end + 1) = struct("event", ev, "items", it, "rows", d); %#ok<AGROW>
+                    else
+                        groups(g).items = [groups(g).items, it];
+                        groups(g).rows(end + 1) = d;
+                    end
+                end
+                for g = 1:numel(groups)
+                    items = LabCapture.hashSmall(LabCapture.locate(groups(g).items, s), s);
+                    fb = LabBundles.files(EventId=groups(g).event, Artifacts=items, Dispositions=groups(g).rows, ...
+                        After=groups(g).event, Attributes=struct("tool", "runLocalCleanup", "method", method, ...
+                        "dataset", name), CapturedBy=LabBundles.capturedBy(s));
+                    LabOutbox.put(fb);
+                    LabCapture.startLarge(fb, s);
+                end
+            end
+        end
+
         function f = sessionFile(folder, name)
             %sessionFile  The dataset's session file: <FOLDER>/<NAME>_labdb.json.
             f = string(fullfile(folder, name + "_labdb.json"));
@@ -575,15 +737,21 @@ classdef LabCapture
         end
 
         function known = knownOutputs(ds)
-            %knownOutputs  Every output the dataset's records list, newest record last.
-            known = struct("path", {}, "bytes", {}, "mtime", {}, "artifact_id", {}, "sha256", {});
-            P = ds.Processing;
+            %knownOutputs  Every output the dataset's records list, newest record last (DS: an EphysDataset or a processing block).
+            %   Fields path, bytes, mtime, artifact_id, sha256, step (the
+            %   record's kind) and event_id (the event that wrote it).
+            known = struct("path", {}, "bytes", {}, "mtime", {}, "artifact_id", {}, "sha256", {}, ...
+                "step", {}, "event_id", {});
+            if isa(ds, "EphysDataset"); P = ds.Processing; else; P = ds; end
+            if ~isstruct(P) || ~isscalar(P); return; end
             for k = string(fieldnames(P)).'
                 r = P.(k);
                 if ~isstruct(r) || ~isscalar(r) || ~isfield(r, "outputs"); continue; end
                 o = r.outputs;
                 if isstruct(o); o = num2cell(o); end
                 if ~iscell(o); continue; end
+                ev = "";
+                if isfield(r, "event_id"); ev = string(r.event_id); end
                 for j = 1:numel(o)
                     x = o{j};
                     if ~isstruct(x) || ~all(isfield(x, ["path" "bytes" "mtime" "artifact_id"])); continue; end
@@ -592,9 +760,56 @@ classdef LabCapture
                     if isempty(sha); sha = ""; end
                     b = double(x.bytes); if isempty(b); b = NaN; end
                     known(end + 1) = struct("path", string(x.path), "bytes", b, ...
-                        "mtime", string(x.mtime), "artifact_id", string(x.artifact_id), "sha256", sha); %#ok<AGROW>
+                        "mtime", string(x.mtime), "artifact_id", string(x.artifact_id), "sha256", sha, ...
+                        "step", k, "event_id", ev); %#ok<AGROW>
                 end
             end
+        end
+
+        function [known, evs] = knownFiles(ds, folder, name)
+            %knownFiles  The files the dataset's records name: its processing outputs and its session file's raw files.
+            %   EVS: the session file's recording and behavior event ids.
+            if isa(ds, "EphysDataset")
+                known = LabCapture.knownOutputs(ds);
+                folder = ds.Folder; name = ds.Name;
+            else
+                known = LabCapture.knownOutputs(ds);
+            end
+            [ses, found] = LabCapture.readSession(folder, name);
+            evs = struct("recording", ses.recording_event_id, "behavior", ses.behavior_event_id);
+            if ~found; return; end
+            for k = 1:numel(ses.raw)
+                it = ses.raw(k);
+                ev = ses.recording_event_id;
+                step = "raw";
+                if it.kind == "epsych"; ev = ses.behavior_event_id; step = "epsych"; end
+                known(end + 1) = struct("path", it.path, "bytes", it.bytes, "mtime", it.mtime, ...
+                    "artifact_id", it.artifact_id, "sha256", it.sha256, "step", step, "event_id", ev); %#ok<AGROW>
+            end
+        end
+
+        function [role, kind, attr] = roleOfKnown(k, ~)
+            %roleOfKnown  The role, kind and attributes of a copy of known file K.
+            switch k.step
+                case "raw";    role = "raw"; kind = "raw";    attr = struct();
+                case "epsych"; role = "raw"; kind = "epsych"; attr = struct();
+                otherwise
+                    [role, kind, attr] = LabCapture.roleOf(k.step, k.path, struct());
+            end
+        end
+
+        function v = ledger(key, value)
+            %ledger  What this MATLAB noted under KEY ("" when nothing); with VALUE, note it.
+            persistent m
+            if isempty(m); m = containers.Map('KeyType', 'char', 'ValueType', 'char'); end
+            key = char(key);
+            if nargin > 1
+                m(key) = char(value);
+                v = string(value);
+                return
+            end
+            v = "";
+            if isKey(m, key); v = string(m(key)); end
         end
 
         function k = findKnown(known, p)

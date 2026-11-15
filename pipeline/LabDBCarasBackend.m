@@ -218,6 +218,37 @@ classdef LabDBCarasBackend < LabDBBackend
             T = obj.Db.artifactLineage(artifactId, Direction=direction);
         end
 
+        function id = addArtifact(obj, a)
+            %addArtifact  One file produced by event a.ProducedByEventId, under that event's subject and session.
+            obj.requireOpen();
+            E = obj.Db.getEvents(EventId=a.ProducedByEventId, ActiveOnly=false);
+            args = {"ArtifactId", a.ArtifactId, "ProducedByEventId", a.ProducedByEventId, ...
+                "StorageRootId", a.StorageRootId, "RelativePath", a.RelativePath, "Checksum", a.Checksum, ...
+                "Attributes", CarasLabDB.jsonText(a.AttributesJson)};
+            if isfinite(a.SizeBytes); args = [args, {"SizeBytes", a.SizeBytes}]; end
+            for f = ["Role" "Format"]
+                if strlength(a.(f)) > 0; args = [args, {char(f), a.(f)}]; end %#ok<AGROW>
+            end
+            if height(E) > 0
+                if ~ismissing(string(E.subject_id(1))) && string(E.subject_id(1)) ~= ""
+                    args = [args, {"SubjectId", string(E.subject_id(1))}];
+                end
+                if ~ismissing(string(E.session_id(1))) && string(E.session_id(1)) ~= ""
+                    args = [args, {"SessionId", string(E.session_id(1))}];
+                end
+            end
+            id = string(obj.Db.addArtifact(args{:}));
+        end
+
+        function addDisposition(obj, d)
+            obj.requireOpen();
+            args = {"ArtifactId", d.ArtifactId, "Disposition", d.Disposition, "OccurredAt", d.OccurredAt, ...
+                "Attributes", CarasLabDB.jsonText(d.AttributesJson)};
+            if strlength(d.SuccessorArtifactId) > 0; args = [args, {"SuccessorArtifactId", d.SuccessorArtifactId}]; end
+            if strlength(d.Note) > 0; args = [args, {"Note", d.Note}]; end
+            obj.Db.addArtifactDisposition(args{:});
+        end
+
         function delete(obj)
             obj.close();
         end

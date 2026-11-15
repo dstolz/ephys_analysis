@@ -1696,6 +1696,15 @@ not in the database yet: `"record": { "event_id", "inputs": [<item>, ...] }`.
 `LabSync` writes one when the database leaves inputs out, and sends it again
 until every file is there.
 
+A `files` bundle holds copies of files an event produced and what became of
+files: `"record": { "event_id", "attributes_json", "outputs": [<item>, ...],
+"dispositions": [ { "artifact_id", "disposition": "moved" | "deleted" |
+"replaced" | "restored", "successor_artifact_id", "occurred_at", "note",
+"attributes_json" }, ... ] }`. A copy's `attributes_json` names the file it
+copies (`copied_from`, `copied_from_path`, `copied_from_sha256`) and says
+whether it overwrote a file (`overwrote`). `OutputTransfer` (through the
+pipeline) and `runLocalCleanup` write them.
+
 - Times carry their zone offset; a rig time written without one (a folder
   name, an old manifest) is read in the lab's time zone.
 - Numbers are written as MATLAB's `jsonencode` writes them: a size of

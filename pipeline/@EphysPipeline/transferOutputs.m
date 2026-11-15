@@ -94,14 +94,33 @@ T = obj.Config.Transfer;
 if strtrim(T.Destination) == ""
     error('EphysPipeline:NoTransferDestination', 'Transfer.Destination is not set: the outputs have nowhere to go.');
 end
-X = OutputTransfer(T.Destination, Method=T.Method, IfExists=T.IfExists, Verify=T.Verify, ...
+verify = T.Verify;
+lab = LabCapture.enabled();
+if lab && T.Method == "move" && verify ~= "hash"
+    % A move recorded in the lab database must give each file's new place
+    % with its SHA-256, checked against the source's before it goes.
+    verify = "hash";
+    obj.log("[transfer] the lab database is on: the move checks every copy by SHA-256");
+end
+X = OutputTransfer(T.Destination, Method=T.Method, IfExists=T.IfExists, Verify=verify, ...
     LogFcn=@(msg) obj.log("[transfer] %s", msg));
 X.BatchFcn = @(b) restate(obj, X, b);
+if lab
+    % A source goes only once its copy is noted for the lab database.
+    X.CanRemoveFcn = @(src, copy) LabCapture.copyRecorded(X.Uid, src);
+end
 end
 
 
 function restate(obj, X, b)
 %restate  The dataset's "transfer" result row, made at its first batch and restated after.
+%   Also what the transfer did, for the lab database (LabCapture.transferred).
+try
+    d = obj.Project.Datasets([obj.Project.Datasets.Name] == b.Dataset);
+    if ~isempty(d); LabCapture.transferred(d(1), b, X); end
+catch ME
+    obj.log("[transfer] %s: not noted for the lab database: %s", b.Dataset, ME.message);
+end
 [st, msg, folder] = X.statusOf(b.Key);
 R = obj.Results;
 if any(R.Step == "transfer" & R.Dataset == b.Dataset & R.Output == folder)

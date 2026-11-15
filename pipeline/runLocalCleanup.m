@@ -40,7 +40,9 @@ function R = runLocalCleanup(T, opts)
 %
 %   Each dataset that had files removed gets <Folder>/<Name>_cleanup.json,
 %   a record of what was removed, how, and where it went (a later clean up
-%   appends a run to it).
+%   appends a run to it). With the lab database on, each removed file a
+%   record of its dataset names is noted for it: deleted (or recycled) as
+%   deleted, moved as moved to its new place (LabCapture.cleanedUp).
 %
 %   Options
 %     Method       "delete" | "recycle" | "move" (default "delete")
@@ -132,6 +134,11 @@ for folder = unique(R.Folder(R.Status == "removed")).'
     catch ME
         say(opts.LogFcn, "Clean-up record not written in " + folder + ": " + ME.message);
     end
+end
+try
+    LabCapture.cleanedUp(R, opts.Method);   % what became of the files, for the lab database
+catch ME
+    say(opts.LogFcn, "The clean-up was not noted for the lab database: " + ME.message);
 end
 end
 

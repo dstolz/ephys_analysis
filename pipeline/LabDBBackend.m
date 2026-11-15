@@ -29,6 +29,12 @@ classdef (Abstract) LabDBBackend < handle
     %     T = b.dispositions(id)     % what became of artifact ID's file, newest first (disposition, ...)
     %     T = b.lineage(id, dir)     % depth, event_id, artifact_id; dir "up" (what it came from) or "down"
     %
+    %     id = b.addArtifact(a)      % a: ArtifactId, ProducedByEventId, StorageRootId, RelativePath,
+    %                                %   Checksum, SizeBytes, Role, Format, AttributesJson (one file, filed
+    %                                %   under its event's subject and session)
+    %     b.addDisposition(d)        % d: ArtifactId, Disposition, SuccessorArtifactId ("" none),
+    %                                %   OccurredAt (zoned), Note, AttributesJson
+    %
     %   recordEvent's REQ: EventType, EventId, Digest, OccurredAt (zoned),
     %   SubjectId, SessionId, Notes, AttributesJson (JSON text), RecordedBy
     %   (a person id), Detail (the type's columns; parameters_json and
@@ -68,5 +74,7 @@ classdef (Abstract) LabDBBackend < handle
         T = verifications(obj, artifactId)
         T = dispositions(obj, artifactId)
         T = lineage(obj, artifactId, direction)
+        id = addArtifact(obj, a)
+        addDisposition(obj, d)
     end
 end

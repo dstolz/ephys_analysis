@@ -10,7 +10,9 @@ function refreshReviewDatasets(obj, opts)
 %   EphysDataset.phyStatus; "opened" when phy opened it but saved nothing)
 %   and how many sorts it has (reviewSorts). The Sort cell is the sort picked
 %   for review (reviewSortChoice; "(in use)" when none), a dropdown of the
-%   sorts the datasets have (ColumnFormat). Rows are in the table's remembered sort (tableSort
+%   sorts the datasets have (ColumnFormat). Database says where the
+%   dataset's records stand for the lab database (LabSync.datasetText; ""
+%   while it is off here). Rows are in the table's remembered sort (tableSort
 %   "ReviewDatasets"), the active dataset's row selected; ReviewDatasetRows
 %   maps each row of Data to its dataset, so a click picks the right one in
 %   any order (onReviewDatasetSelected).
@@ -46,7 +48,8 @@ if active >= 1 && active <= n && ~ismember(active, idx)
 end
 readNow = ~isempty(obj.Tabs) && isvalid(obj.Tabs) && obj.Tabs.SelectedTab == obj.TabReview;
 
-C = cell(numel(idx), 8);
+C = cell(numel(idx), 9);
+labOn = LabCapture.enabled();
 for k = 1:numel(idx)
     i = idx(k);
     d = obj.Project.Datasets(i);
@@ -82,6 +85,8 @@ for k = 1:numel(idx)
         obj.ReviewDatasetStats(j).sorts = numel(obj.ReviewSorts) - d.sortingMissing();
     end
     C{k, 1} = char(d.Name);
+    C{k, 9} = '';
+    if labOn; C{k, 9} = char(LabSync.datasetText(d.Processing)); end   % read from this computer's outbox
     if stale
         C(k, 2:8) = {'', '', [], [], [], '', []};
     else

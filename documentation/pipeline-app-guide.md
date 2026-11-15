@@ -285,7 +285,9 @@ optional, and the app works the same without it.
   as it is written, with each file's checksum, and sent to the database
   when it answers: after a run, and every few seconds while the app is
   open. Nothing waits for the server. The lamp says **· N to send** while
-  some wait.
+  some wait. The Review tab's **Database** column says the same for
+  each dataset, and the manifest viewer's **Database** tab lists its
+  steps and files.
 - **Records wait for you** when the lamp says **· N need you**: open the
   Database window and read the outbox. A folder whose subject the database
   does not have asks for it in a small window: create the subject, or pick

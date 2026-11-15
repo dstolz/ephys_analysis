@@ -86,6 +86,14 @@ classdef ManifestViewerApp < handle
         VariablesTable                   % the variables now: Label, Name, Value, Units, Description, Created, Updated
         VariableHistoryTable             % every change: Time, Change, Variable, What changed, User (never a value)
         VariablesNote                    % "3 variables, 7 changes" (or why there are none)
+        DatabaseTab
+        DbStateLabel                     % the session (its file) and what the database was last asked
+        DbStepsTable                     % Step, Event, Written, Here, In the database
+        DbFilesTable                     % File, Size, SHA-256, Here, In the database, Verified
+        DbOutboxTable                    % State, Captured, What, Note: the dataset's records in the outbox
+        DbCheckButton
+        DbLineageButton
+        DbFileIds string = strings(0, 1) % the artifact id of each Files row
         TimeAxes
         ProbeAxes
         Tree
@@ -166,9 +174,101 @@ classdef ManifestViewerApp < handle
                 delete(obj.Fig);
             end
         end
+
+        function ok = checkDatabase(obj)
+            %checkDatabase  Ask the lab database about the Steps and the Files (OK false when it does not answer).
+            ok = false;
+            b = LabDB.connect(MaxWait=2);
+            if isempty(b)
+                obj.DbStateLabel.Text = char(LabDB.status().Message);
+                return
+            end
+            try
+                S = obj.DbStepsTable.Data;
+                for k = 1:size(S, 1)
+                    E = b.eventRows(struct('EventId', string(S{k, 2})));
+                    if height(E) > 0
+                        S{k, 5} = 'in the database';
+                    else
+                        S{k, 5} = 'not in the database';
+                    end
+                end
+                obj.DbStepsTable.Data = S;
+                F = obj.DbFilesTable.Data;
+                for k = 1:size(F, 1)
+                    id = obj.DbFileIds(k);
+                    if id == ""; F{k, 4} = 'no id'; continue; end
+                    A = b.artifacts(struct('ArtifactId', id));
+                    if height(A) == 0
+                        F{k, 4} = 'not registered';
+                        continue
+                    end
+                    D = b.dispositions(id);
+                    if height(D) > 0
+                        F{k, 4} = char(string(D.disposition(1)));   % the latest
+                    else
+                        F{k, 4} = 'present';
+                    end
+                    V = b.verifications(id);
+                    if height(V) > 0
+                        F{k, 5} = char(string(V.status(1)) + " " + string(V.verified_at(1)));
+                    else
+                        F{k, 5} = 'never verified';
+                    end
+                end
+                obj.DbFilesTable.Data = F;
+                ok = true;
+            catch ME
+                obj.DbStateLabel.Text = char("The lab database could not be read: " + string(ME.message));
+            end
+        end
+
+        function txt = showLineage(obj)
+            %showLineage  What the selected file was made from (the database's lineage, "up"), in a window.
+            txt = "";
+            sel = obj.DbFilesTable.Selection;
+            if isempty(sel) || sel(1) > numel(obj.DbFileIds) || obj.DbFileIds(sel(1)) == ""
+                obj.setStatus("Select a file with an id in the Database tab first.");
+                return
+            end
+            b = LabDB.connect(MaxWait=2);
+            if isempty(b)
+                obj.setStatus(LabDB.status().Message);
+                return
+            end
+            id = obj.DbFileIds(sel(1));
+            L = b.lineage(id, "up");
+            lines = "Lineage of " + string(obj.DbFilesTable.Data{sel(1), 1}) + " (artifact " + id + ")";
+            for k = 1:height(L)
+                A = b.artifacts(struct('ArtifactId', string(L.artifact_id(k))));
+                E = b.eventRows(struct('EventId', string(L.event_id(k))));
+                where = string(L.artifact_id(k));
+                if height(A) > 0; where = string(A.relative_path(1)); end
+                kind = "";
+                if height(E) > 0; kind = string(E.event_type(1)); end
+                lines(end + 1, 1) = sprintf('%s%s  made by %s event %s', repmat('  ', 1, L.depth(k)), where, ...
+                    kind, string(L.event_id(k))); %#ok<AGROW>
+            end
+            txt = strjoin(lines, newline);
+            AppDialog.showText("Lineage", lines, Parent=obj.Fig);
+        end
     end
 
     methods (Static)
+        function t = hereText(id)
+            %hereText  Where record ID stands in this computer's outbox, in words.
+            t = "";
+            if ~LabCapture.enabled(); return; end
+            switch LabOutbox.stateOf(id)
+                case "done";               t = "sent";
+                case {"pending", "claimed"}; t = "to send";
+                case "held";               t = "held: " + LabOutbox.note(id, "held").reason;
+                case "failed";             t = "failed: " + LabOutbox.note(id, "failed").reason;
+                case "discarded";          t = "discarded";
+                otherwise;                 t = "not recorded here";
+            end
+        end
+
         function T = summaryRows(m, opts)
             %summaryRows  The Summary table of a decoded manifest struct.
             arguments
@@ -249,6 +349,30 @@ classdef ManifestViewerApp < handle
                 'ColumnName', {'Time', 'Change', 'Variable', 'What changed', 'User'}, ...
                 'ColumnWidth', {140, 80, 200, '1x', 100});
 
+            obj.DatabaseTab = uitab(obj.Tabs, 'Title', 'Database');
+            tg = uigridlayout(obj.DatabaseTab, [6 1]);
+            tg.RowHeight = {'fit', 30, '1x', 'fit', '1x', '0.7x'};
+            obj.DbStateLabel = uilabel(tg, 'Text', '', 'WordWrap', 'on');
+            bar = uigridlayout(tg, [1 3]);
+            bar.ColumnWidth = {'fit', 'fit', '1x'};
+            bar.Padding = [0 0 0 0];
+            obj.DbCheckButton = uibutton(bar, 'Text', 'Check the database', ...
+                'Tooltip', 'Ask the lab database what it has of these records and files (2 s at most).', ...
+                'ButtonPushedFcn', @(~,~) obj.checkDatabase());
+            obj.DbLineageButton = uibutton(bar, 'Text', 'Lineage of the file...', ...
+                'Tooltip', 'What the selected file was made from, as the database records it.', ...
+                'ButtonPushedFcn', @(~,~) obj.showLineage());
+            styleButton([obj.DbCheckButton, obj.DbLineageButton]);
+            obj.DbStepsTable = uitable(tg, 'RowName', {}, 'ColumnName', ...
+                {'Step', 'Event', 'Written', 'Here', 'In the database'}, ...
+                'ColumnWidth', {90, 250, 170, 140, '1x'});
+            uilabel(tg, 'Text', 'Files the steps wrote (the processing records'' outputs):', 'FontWeight', 'bold');
+            obj.DbFilesTable = uitable(tg, 'RowName', {}, 'SelectionType', 'row', 'Multiselect', 'off', ...
+                'ColumnName', {'File', 'Size', 'SHA-256', 'In the database', 'Verified'}, ...
+                'ColumnWidth', {'2x', 90, 130, 150, '1x'});
+            obj.DbOutboxTable = uitable(tg, 'RowName', {}, 'ColumnName', {'State', 'Captured', 'What', 'Note'}, ...
+                'ColumnWidth', {80, 170, 140, '1x'});
+
             obj.FlowTab = uitab(obj.Tabs, 'Title', 'Flow chart');
             tg = uigridlayout(obj.FlowTab, [2 1]);
             tg.RowHeight = {30, '1x'};
@@ -325,6 +449,7 @@ classdef ManifestViewerApp < handle
                 removeStyle(obj.SummaryTable);
                 delete(obj.Tree.Children);
                 obj.renderVariables([]);
+                obj.renderDatabase([]);
                 cla(obj.TimeAxes, 'reset');
                 cla(obj.ProbeAxes, 'reset');
                 obj.StatusLabel.Text = strjoin([err, note], ' ');
@@ -337,6 +462,7 @@ classdef ManifestViewerApp < handle
             obj.Rows = manifestSummary(m, obj.DefaultProbeFile);
             obj.renderSummary();
             obj.renderVariables(m);
+            obj.renderDatabase(m);
             obj.renderTimeline(m);
             obj.renderProbe(m);
             obj.renderTree(m);
@@ -545,6 +671,78 @@ classdef ManifestViewerApp < handle
             obj.VariablesNote.Text = note;
         end
 
+
+        function renderDatabase(obj, m)
+            %renderDatabase  The Database tab from the manifest and this computer's outbox (the database is asked on Check).
+            %   Steps: each processing record with an event id, and where its
+            %   record is here: sent, to send, held or failed (with why),
+            %   discarded, or not recorded here (captured while the database
+            %   was off, or on another computer). Files: every output of
+            %   those records. Outbox: the dataset's records waiting here.
+            steps = cell(0, 5);
+            files = cell(0, 5);
+            ids = strings(0, 1);
+            P = struct();
+            if isstruct(m) && isfield(m, 'processing') && isstruct(m.processing); P = m.processing; end
+            for k = string(fieldnames(P)).'
+                r = P.(k);
+                if ~isstruct(r) || ~isscalar(r) || ~isfield(r, 'event_id'); continue; end
+                id = txtOf(r.event_id);
+                steps(end + 1, :) = {char(k), char(id), char(txtOf(getf(r, 'created_at', ""))), ...
+                    char(ManifestViewerApp.hereText(id)), ''}; %#ok<AGROW>
+                o = getf(r, 'outputs', []);
+                if isstruct(o); o = num2cell(o); end
+                if ~iscell(o); o = {}; end
+                for j = 1:numel(o)
+                    x = o{j};
+                    if ~isstruct(x); continue; end
+                    sha = txtOf(getf(x, 'sha256', ""));
+                    if strlength(sha) == 64; sha = extractBefore(sha, 13) + "..."; else; sha = "not yet"; end
+                    files(end + 1, :) = {char(txtOf(getf(x, 'path', ""))), ...
+                        char(fmtNum(numOf(getf(x, 'bytes', NaN)), " B")), char(sha), '', ''}; %#ok<AGROW>
+                    ids(end + 1, 1) = txtOf(getf(x, 'artifact_id', "")); %#ok<AGROW>
+                end
+            end
+            obj.DbStepsTable.Data = steps;
+            obj.DbFilesTable.Data = files;
+            obj.DbFileIds = ids;
+
+            ses = "";
+            if isstruct(m) && obj.File ~= ""
+                folder = string(fileparts(obj.File));
+                [S, found] = LabCapture.readSession(folder, txtOf(getf(m, 'name', "")));
+                if found
+                    ses = "Session " + S.session_id;
+                    if S.subject_id ~= ""; ses = ses + ", assigned to subject " + S.subject_id; end
+                    ses = ses + " (" + LabCapture.sessionFile(folder, txtOf(getf(m, 'name', ""))) + ").";
+                else
+                    ses = "No session file yet: the dataset's first record for the lab database writes one.";
+                end
+            end
+            if ~LabCapture.enabled()
+                ses = strtrim(ses + " The lab database is off on this computer: nothing is recorded or sent.");
+            end
+            obj.DbStateLabel.Text = char(ses);
+
+            out = cell(0, 4);
+            if isstruct(m) && obj.File ~= "" && LabCapture.enabled()
+                folder = EphysDataset.pathKey(string(fileparts(obj.File)));
+                T = LabOutbox.list();
+                for k = 1:height(T)
+                    try
+                        b = LabOutbox.read(T.id(k));
+                    catch
+                        continue
+                    end
+                    if b.type ~= "event" || EphysDataset.pathKey(b.record.dataset.folder) ~= folder; continue; end
+                    what = b.record.event.event_type;
+                    a = jsondecode(char(b.record.event.attributes_json));
+                    if isfield(a, 'step'); what = what + " " + string(a.step); end
+                    out(end + 1, :) = {char(T.state(k)), char(T.captured_at(k)), char(what), char(T.note(k))}; %#ok<AGROW>
+                end
+            end
+            obj.DbOutboxTable.Data = out;
+        end
 
         function [html, summary] = flowHTML(obj)
             %flowHTML  The Flow chart's page, opening on the level and direction last picked.

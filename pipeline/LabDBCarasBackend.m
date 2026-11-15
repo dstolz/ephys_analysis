@@ -197,6 +197,27 @@ classdef LabDBCarasBackend < LabDBBackend
             tf = obj.Db.addEventInput(args{:});
         end
 
+        function T = eventRows(obj, filters)
+            obj.requireOpen();
+            args = namedargs2cell(filters);
+            T = obj.Db.getEvents(args{:});
+        end
+
+        function T = verifications(obj, artifactId)
+            obj.requireOpen();
+            T = obj.Db.getArtifactVerifications(ArtifactId=artifactId);
+        end
+
+        function T = dispositions(obj, artifactId)
+            obj.requireOpen();
+            T = obj.Db.getArtifactDispositions(ArtifactId=artifactId);
+        end
+
+        function T = lineage(obj, artifactId, direction)
+            obj.requireOpen();
+            T = obj.Db.artifactLineage(artifactId, Direction=direction);
+        end
+
         function delete(obj)
             obj.close();
         end

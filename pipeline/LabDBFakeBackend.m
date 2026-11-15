@@ -45,6 +45,8 @@ classdef LabDBFakeBackend < LabDBBackend
         Persons table = table("00000000-0000-4000-8000-0000000000a1", "jdoe@example.edu", "J. Doe", ...
             'VariableNames', {'person_id', 'email', 'full_name'})
         Fail struct = struct("Method", {}, "Identifier", {}, "Message", {}, "AfterWrite", {})
+        Verifications table = table(strings(0, 1), strings(0, 1), NaT(0, 1, "TimeZone", "UTC"), ...
+            'VariableNames', {'artifact_id', 'status', 'verified_at'})
     end
 
     properties (SetAccess = private)
@@ -277,6 +279,54 @@ classdef LabDBFakeBackend < LabDBBackend
             out.SkippedInputs = skipped;
             out.SkippedReplaces = skippedRep;
             obj.maybeFail("recordEvent", true);
+        end
+
+        function T = eventRows(obj, filters)
+            obj.requireOpen("eventRows");
+            E = obj.Events;
+            T = table(string({E.event_id}).', string({E.event_type}).', string({E.session_id}).', ...
+                string({E.subject_id}).', string({E.digest}).', ...
+                'VariableNames', {'event_id', 'event_type', 'session_id', 'subject_id', 'client_digest'});
+            T = LabDBFakeBackend.filterRows(T, filters);
+        end
+
+        function T = verifications(obj, artifactId)
+            obj.requireOpen("verifications");
+            T = obj.Verifications(obj.Verifications.artifact_id == string(artifactId), :);
+            T = sortrows(T, 'verified_at', 'descend');
+        end
+
+        function T = dispositions(obj, artifactId)
+            obj.requireOpen("dispositions");
+            T = flipud(obj.Dispositions(obj.Dispositions.artifact_id == string(artifactId), :));   % newest first
+        end
+
+        function T = lineage(obj, artifactId, direction)
+            %lineage  Depth, event_id, artifact_id: the files and events ARTIFACTID came from ("up") or led to ("down").
+            obj.requireOpen("lineage");
+            T = table(zeros(0, 1), strings(0, 1), strings(0, 1), 'VariableNames', {'depth', 'event_id', 'artifact_id'});
+            front = string(artifactId);
+            seen = strings(0, 1);
+            d = 0;
+            while ~isempty(front) && d < 50
+                next = strings(0, 1);
+                for a = reshape(front, 1, [])
+                    if any(seen == a); continue; end
+                    seen(end + 1, 1) = a; %#ok<AGROW>
+                    k = find(obj.Artifacts.artifact_id == a, 1);
+                    if isempty(k); continue; end
+                    ev = obj.Artifacts.produced_by_event_id(k);
+                    T = [T; table(d, ev, a, 'VariableNames', T.Properties.VariableNames)]; %#ok<AGROW>
+                    if direction == "up"
+                        next = [next; obj.Inputs.artifact_id(obj.Inputs.event_id == ev)]; %#ok<AGROW>
+                    else
+                        evs = obj.Inputs.event_id(obj.Inputs.artifact_id == a);
+                        next = [next; obj.Artifacts.artifact_id(ismember(obj.Artifacts.produced_by_event_id, evs))]; %#ok<AGROW>
+                    end
+                end
+                front = unique(next);
+                d = d + 1;
+            end
         end
 
         function tf = addEventInput(obj, eventId, artifactId, role)

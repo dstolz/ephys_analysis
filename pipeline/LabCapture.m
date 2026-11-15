@@ -126,9 +126,12 @@ classdef LabCapture
             if isempty(outPaths); outPaths = LabCapture.recordFiles(kind, r); end
             outPaths = unique(reshape(string(outPaths), 1, []), "stable");
             known = LabCapture.knownOutputs(ds);
+            outDir = LabCapture.outputFolderOf(ds);
             items = LabBundles.noItems();
             for p = outPaths
                 [role, kd, attr] = LabCapture.roleOf(kind, p, r);
+                rel = LabCapture.datasetRel(p, outDir);
+                if rel ~= ""; attr.dataset_rel = rel; end
                 it = LabBundles.item(p, Role=role, Kind=kd, Attributes=attr);
                 if isnan(it.bytes); continue; end   % listed but not written: nothing to record
                 k = LabCapture.findKnown(known, p);
@@ -429,6 +432,8 @@ classdef LabCapture
                     attr.copied_from_sha256 = known(j).sha256;
                     attr.overwrote = X.IfExists == "overwrite";
                     attr.transfer = X.Uid;
+                    rel = LabCapture.carriedRel(LabCapture.datasetRel(src, LabCapture.outputFolderOf(ds)), copy);
+                    if rel ~= ""; attr.dataset_rel = rel; end
                     it = LabBundles.item(copy, Role=role, Kind=kd, Attributes=attr, ArtifactId=LabBundles.newId(), ...
                         Sha256=X.sha256Of(src));
                     if isnan(it.bytes); continue; end
@@ -810,6 +815,36 @@ classdef LabCapture
             end
             v = "";
             if isKey(m, key); v = string(m(key)); end
+        end
+
+        function rel = datasetRel(p, folder)
+            %datasetRel  P's path inside the dataset's output folder FOLDER, "/" between folders ("" when it is not in it).
+            %   Kept as attributes.dataset_rel, so the folder that holds a
+            %   dataset's outputs is known from a file's row exactly
+            %   (LabLocator), never guessed from its path.
+            rel = "";
+            if folder == "" || p == ""; return; end
+            kp = EphysProject.normalizeKey(p);
+            kf = EphysProject.normalizeKey(folder) + "/";
+            if ispc; hit = startsWith(lower(kp), lower(kf)); else; hit = startsWith(kp, kf); end
+            if hit; rel = extractAfter(kp, strlength(kf)); end
+        end
+
+        function rel = carriedRel(rel, p)
+            %carriedRel  REL for P, a copy of a file at REL in its dataset's folder: when P ends in REL, else "".
+            if rel == ""; return; end
+            kp = EphysProject.normalizeKey(p);
+            if ispc; hit = endsWith(lower(kp), "/" + lower(rel)); else; hit = endsWith(kp, "/" + rel); end
+            if ~hit; rel = ""; end
+        end
+
+        function f = outputFolderOf(ds)
+            %outputFolderOf  The dataset's output folder ("" when it has none).
+            f = "";
+            try
+                f = string(ds.outputFolder());
+            catch
+            end
         end
 
         function k = findKnown(known, p)

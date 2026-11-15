@@ -132,6 +132,9 @@ classdef DatasetBrowser < handle
     %
     %   Methods (each control's action has one)
     %     scan(B, Root=, NamePattern=)       find the datasets (the Scan button)
+    %     MSG = openFromDatabase(B, FOLDERS) recordings found in the lab database (their output
+    %                                        folders): the folder holding them as the root, scanned,
+    %                                        them ticked (File > Open from database...: LabLocatorDialog)
     %     setFilter(B, Subjects=, ExcludeSubjects=, Tags=, TagMode=, ExcludeTags=, Search=)
     %     clearFilter(B); tick(B, KEYS, TF); tickShown(B); untickAll(B)
     %     sortBy(B, COLUMN, DIRECTION); clearSort(B); setListSource(B, KEY)
@@ -848,6 +851,60 @@ classdef DatasetBrowser < handle
             clear stopper
             B.refreshAll();
             B.changed("scan");
+        end
+
+        function msg = openFromDatabase(B, folders)
+            %openFromDatabase  Recordings found in the lab database, as the ticked datasets (File > Open from database...).
+            %   openFromDatabase(B) opens LabLocatorDialog; the output folders
+            %   of the recordings picked come back here. MSG =
+            %   openFromDatabase(B, FOLDERS) takes the output folders FOLDERS
+            %   (scripts, tests). The root becomes the folder that holds them
+            %   all (LabLocator.commonFolder: the copy of an output root they
+            %   are in, or the project root when the outputs are beside the
+            %   recordings), it is scanned (scan), and those datasets are
+            %   ticked, every other one unticked. MSG, also on the status
+            %   line, names a folder the scan did not find as a dataset.
+            %   Folders with no folder in common change nothing
+            %   (DatasetBrowser:NoCommonFolder).
+            arguments
+                B
+                folders (1,:) string = strings(1, 0)
+            end
+            msg = "";
+            if nargin < 2
+                LabLocatorDialog.open(Parent=B.Fig, What="outputs", OnDone=@(f) B.uiRun(@() B.openFromDatabase(f)));
+                return
+            end
+            folders = regexprep(strtrim(folders), '[\\/]+$', '');
+            folders = unique(folders(strlength(folders) > 0), "stable");
+            if isempty(folders); return; end
+            root = LabLocator.commonFolder(folders);
+            if root == ""
+                error('DatasetBrowser:NoCommonFolder', ['The %d output folders have no folder in common (other drives ' ...
+                    'or shares): pick the recordings of one drive or share.'], numel(folders));
+            end
+            B.scan(Root=root);
+            want = EphysDataset.pathKey(folders);
+            r = B.Runner;
+            keys = strings(0, 1);
+            found = false(1, numel(folders));
+            for k = 1:numel(r.Keys)
+                out = r.Outputs(k);
+                here = string(r.datasetFolder(k));
+                if ~isempty(out.Dataset); here = [here, string(out.Dataset.Folder)]; end %#ok<AGROW>
+                hit = ismember(want, EphysDataset.pathKey(here));
+                if ~any(hit); continue; end
+                found = found | hit;
+                keys(end + 1, 1) = r.Keys(k); %#ok<AGROW>
+            end
+            B.untickAll();
+            if ~isempty(keys); B.tick(keys); end
+            msg = sprintf("Opened %d recording(s) from the lab database: the root is %s, %d ticked.", ...
+                numel(folders), root, numel(keys));
+            if any(~found)
+                msg = msg + " Not found as datasets by the scan: " + strjoin(folders(~found), ", ") + ".";
+            end
+            B.setStatus(msg);
         end
 
         % --- filter and ticks ----------------------------------------------------------------
@@ -2293,6 +2350,9 @@ classdef DatasetBrowser < handle
             uimenu(c.FileMenu, "Text", "Database...", "Separator", "on", ...
                 "Tooltip", "The lab database on this computer: set it up, test it, see what waits to be sent.", ...
                 "MenuSelectedFcn", @(~, ~) LabDBPanel.open(Parent=f));
+            uimenu(c.FileMenu, "Text", "Open from database...", ...
+                "Tooltip", "Find recordings in the lab database and tick them here: the root becomes the folder that holds their outputs, scanned.", ...
+                "MenuSelectedFcn", @(~, ~) B.uiRun(@() B.openFromDatabase()));
             LabSync.start(Parent=f, IfEnabled=true);   % what waits for the lab database is sent while it is open
             uimenu(c.FileMenu, "Text", "Close", "Separator", "on", "MenuSelectedFcn", @(~, ~) B.close());
 

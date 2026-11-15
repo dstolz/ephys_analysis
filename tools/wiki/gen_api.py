@@ -1114,6 +1114,7 @@ def main(do_splice=True):
         "LabOutbox": pdir("pipeline", "LabOutbox.m"),
         "LabCapture": pdir("pipeline", "LabCapture.m"),
         "LabSync": pdir("pipeline", "LabSync.m"),
+        "LabLocator": pdir("pipeline", "LabLocator.m"),
         "EphysAnalysisConfig": pdir("analysis", "@EphysAnalysisConfig"),
         "EphysAnalysisRunner": pdir("analysis", "@EphysAnalysisRunner"),
         "EphysAnalysisScript": pdir("analysis", "@EphysAnalysisScript"),

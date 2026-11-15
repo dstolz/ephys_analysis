@@ -10,6 +10,16 @@ says how to cut a release.
 
 ### Added
 
+- The lab database (CarasLabDB), sixth part: finding recordings. **File → Open from database...**
+  (`LabLocatorDialog`) searches the database's sessions by subject, project, days and tags and shows where each is
+  on this computer and the output folders that hold its present files. The analysis app opens those folders as the
+  source (`EphysFigGenApp.openFolders`, the folders mode). The pipeline app makes the folder that holds the
+  sessions the project root, scans it and ticks them (`EphysPipelineApp.onOpenFromDatabase`). The dataset browser
+  does the same with their output folders (`DatasetBrowser.openFromDatabase`). `LabLocator.sessions` answers from
+  the last search while the database does not answer, with its date; `LabLocator.commonFolder`. A step's outputs,
+  and their copies by the output transfer, record their place in the dataset's output folder
+  (`attributes.dataset_rel`), from which the output folder is found. The fake backend's `artifacts` honors
+  `PresentOnly`.
 - The lab database (CarasLabDB), fifth part: file movement. The pipeline's output transfer records each copy of a
   step's file as a file of that step (copied from it, checked against its SHA-256), and for a move the source as
   moved to its copy; with the database on a move checks every copy by SHA-256 and removes a source only once its

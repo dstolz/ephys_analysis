@@ -200,6 +200,10 @@ optional, and the app works the same without it.
 - **Its state**, in the Database window, is **connected**, **offline**
   (the server did not answer; keep working) or **attention** (something on
   this computer needs fixing; point at the lamp to see what).
+- **Find recordings:** **File → Open from database...**. Type a subject,
+  pick a project or days, **Search**, select the sessions and **Open**: the
+  folder that holds their outputs becomes the root, it is scanned, and
+  those recordings are ticked.
 - **Records wait for you** when the lamp says **· N need you**: open the
   Database window and read the outbox. A folder whose subject the database
   does not have asks for it in a small window: create the subject, or pick

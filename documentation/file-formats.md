@@ -1705,6 +1705,14 @@ copies (`copied_from`, `copied_from_path`, `copied_from_sha256`) and says
 whether it overwrote a file (`overwrote`). `OutputTransfer` (through the
 pipeline) and `runLocalCleanup` write them.
 
+An output's `attributes_json` has `dataset_rel` when the file is in its
+dataset's output folder: its path inside that folder, with `/` between
+folders (`kilosort4/spike_times.npy`). A copy made by the pipeline's output
+transfer keeps it, since the transfer keeps each dataset's layout. A file
+outside the output folder (a `.bin` in its own folder) has none, and neither
+has a file a clean up moved. `LabLocator` takes a dataset's output folder
+from it.
+
 - Times carry their zone offset; a rig time written without one (a folder
   name, an old manifest) is read in the lab's time zone.
 - Numbers are written as MATLAB's `jsonencode` writes them: a size of

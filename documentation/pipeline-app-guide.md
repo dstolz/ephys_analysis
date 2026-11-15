@@ -288,6 +288,10 @@ optional, and the app works the same without it.
   some wait. The Review tab's **Database** column says the same for
   each dataset, and the manifest viewer's **Database** tab lists its
   steps and files.
+- **Find recordings:** **File → Open from database...**. Type a subject,
+  pick a project or days, **Search**, select the sessions and **Open**: the
+  folder that holds them becomes the project root, it is scanned, and those
+  sessions are ticked.
 - **Records wait for you** when the lamp says **· N need you**: open the
   Database window and read the outbox. A folder whose subject the database
   does not have asks for it in a small window: create the subject, or pick

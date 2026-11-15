@@ -127,6 +127,15 @@ classdef LabDBFakeBackend < LabDBBackend
         function T = artifacts(obj, filters)
             obj.requireOpen("artifacts");
             T = LabDBFakeBackend.filterRows(obj.Artifacts, filters);
+            if isfield(filters, "PresentOnly") && isequal(filters.PresentOnly, true)
+                % as lab.artifact_present: not replaced, moved or deleted since (or restored)
+                gone = false(height(T), 1);
+                for k = 1:height(T)
+                    D = obj.Dispositions(obj.Dispositions.artifact_id == T.artifact_id(k), :);
+                    gone(k) = height(D) > 0 && D.disposition(end) ~= "restored";
+                end
+                T = T(~gone, :);
+            end
         end
 
         function T = subjects(obj, filters)

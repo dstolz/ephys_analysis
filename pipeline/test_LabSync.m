@@ -20,7 +20,10 @@ classdef test_LabSync < matlab.unittest.TestCase
     %   and files here and in the database, a file's lineage); a move
     %   (OutputTransfer): its copy registered under the step's event before
     %   the source may go, then the source recorded as moved; a copy that is
-    %   not its source's bytes held; a clean-up's deletion recorded.
+    %   not its source's bytes held; a clean-up's deletion recorded; finding
+    %   recordings through the database (LabLocator: where a session and its
+    %   outputs are here, the filters, the last answer while offline) and
+    %   picking them (LabLocatorDialog).
     %
     %   Usage:  runtests("test_LabSync")
 
@@ -398,6 +401,116 @@ classdef test_LabSync < matlab.unittest.TestCase
             LabSync.flush(Budget=10);
             D = tc.Fake.Dispositions;
             tc.verifyEqual([D.artifact_id, D.disposition], [tc.Fake.Artifacts.artifact_id(1), "deleted"]);
+        end
+
+        function findingRecordingsThroughTheDatabase(tc)
+            ds = tc.dataset();
+            tc.captureStep(ds);
+            LabSync.flush(Budget=10);
+            key = @(p) EphysDataset.pathKey(string(p));
+            [T, asOf, note] = LabLocator.sessions(Subject="SYNTH-01");
+            tc.verifyEqual(height(T), 1);
+            tc.verifyEqual(note, "");
+            tc.verifyFalse(isnat(asOf));
+            tc.verifyEqual(key(T.folder), key(ds.Folder), "the session folder, where it is here");
+            tc.verifyTrue(T.reachable);
+            tc.verifyEqual(key(T.outputs{1}), key(ds.outputFolder()), "where its outputs are here");
+            tc.verifyEqual(height(LabLocator.sessions(Subject="OTHER")), 0);
+            tc.verifyEqual(height(LabLocator.sessions(From=datetime(2026, 7, 3))), 0, "recorded before that day");
+            tc.verifyEqual(height(LabLocator.sessions(From=datetime(2026, 7, 2), To=datetime(2026, 7, 2))), 1);
+            tc.verifyEqual(key(LabLocator.outputFolders(T)), key(ds.outputFolder()));
+            ks = string(fullfile(ds.outputFolder(), "kilosort4"));
+            mkdir(ks);
+            tc.writeBytes(fullfile(ks, "spike_times.npy"), uint8(1:32));
+            ds.setProcessing("sorting", EphysDataset.processingRecord("results_dir", ks, struct("runId", "run1"), struct("A", 1)));
+            LabSync.flush(Budget=10);
+            a = jsondecode(char(tc.Fake.Artifacts.attributes(end)));
+            tc.verifyEqual(string(a.dataset_rel), "kilosort4/spike_times.npy", "a file's place in its dataset's output folder");
+            T = LabLocator.sessions(Subject="SYNTH-01");
+            tc.verifyEqual(key(T.outputs{1}), key(ds.outputFolder()), "a sort in kilosort4/: the dataset's output folder, not kilosort4");
+
+            tc.Fake.Reachable = false;
+            LabDB.disconnect();
+            [T2, asOf2, note2] = LabLocator.sessions(Subject="SYNTH-01");
+            tc.verifySubstring(note2, "does not answer");
+            tc.verifyEqual(height(T2), 1, "the last answer, while offline");
+            tc.verifyLessThan(abs(seconds(asOf2 - asOf)), 1e-3, "and when it was made (kept to the microsecond)");
+            tc.Fake.Reachable = true;
+
+            dlg = LabLocatorDialog.open(Visible=false, OnDone=@(f) assignin("base", "labLocatorPicked", f));
+            tc.addTeardown(@() dlg.cancel());
+            tc.addTeardown(@() evalin("base", "clear labLocatorPicked"));
+            dlg.Ctl.Subject.Value = 'SYNTH-01';
+            LabDB.connect(Force=true);
+            dlg.search();
+            tc.verifyEqual(height(dlg.Results), 1);
+            dlg.select(1);
+            F = dlg.ok();
+            picked = evalin("base", "labLocatorPicked");
+            tc.verifyEqual(key(F), key(ds.outputFolder()));
+            tc.verifyEqual(key(picked), key(ds.outputFolder()), "OnDone gets the output folders");
+        end
+
+        function theFolderThatHoldsSessions(tc)
+            t = tc.Top;
+            key = @(p) EphysDataset.pathKey(string(p));
+            [r, d] = LabLocator.commonFolder([fullfile(t, "A", "s1"), fullfile(t, "A", "s2")]);
+            tc.verifyEqual(key(r), key(fullfile(t, "A")));
+            tc.verifyEqual(d, [1 1]);
+            [r, d] = LabLocator.commonFolder([fullfile(t, "A", "s1"), fullfile(t, "B", "x", "s2")]);
+            tc.verifyEqual(key(r), key(t));
+            tc.verifyEqual(d, [2 3]);
+            [r, d] = LabLocator.commonFolder(string(fullfile(t, "A", "s1")) + filesep);
+            tc.verifyEqual(key(r), key(fullfile(t, "A")), "a lone session: its parent");
+            tc.verifyEqual(d, 1);
+            [r, d] = LabLocator.commonFolder([fullfile(t, "A"), fullfile(t, "A", "s1")]);
+            tc.verifyEqual(key(r), key(t), "a session that holds another: its parent");
+            tc.verifyEqual(d, [1 2]);
+            if ispc
+                tc.verifyEqual(LabLocator.commonFolder(["C:\a\s1" "D:\b\s2"]), "", "two drives");
+                tc.verifyEqual(LabLocator.commonFolder(["\\nas\a\s1" "\\nas\b\s2"]), "", "two shares of a server");
+                tc.verifyEqual(LabLocator.commonFolder(["\\nas\a\s1" "\\nas\a\s2"]), "\\nas\a");
+                tc.verifyEqual(LabLocator.commonFolder(["D:\s1" "d:\s2"]), "D:\", "a drive's top, case ignored");
+            else
+                tc.verifyEqual(LabLocator.commonFolder(["/a/s1" "/b/s2"]), "", "nothing but /");
+            end
+        end
+
+        function openingRecordingsInTheApps(tc)
+            tc.applyFixture(matlab.unittest.fixtures.SuppressedWarningsFixture( ...
+                ["EphysProject:NoData" "EphysProject:OutputsOnly"]));
+            ds = tc.dataset();
+            other = string(fullfile(tc.Top, "SYNTH-01", "SYNTH-01_260703_101010"));
+            makeSyntheticRecording(other, Subject="SYNTH-01", Format="one-file-per-signal", ...
+                NumChannels=2, NumTrials=4, Fs=2000, SortedOutput=false, Artifacts=false, WriteManifest=false);
+            key = @(p) EphysDataset.pathKey(string(p));
+
+            app = EphysPipelineApp;
+            tc.addTeardown(@() delete(app.Fig));
+            app.RecursiveCheckBox.Value = false;
+            app.onOpenFromDatabase(ds.Folder);
+            tc.verifyEqual(key(app.RootPathField.Value), key(fullfile(tc.Top, "SYNTH-01")), "the root: the session's parent");
+            tc.verifyEqual(app.Project.NumDatasets, 2, "the root scanned: both sessions in it");
+            T = app.DatasetsTable.Data;
+            ticked = [app.Project.Datasets(T.DatasetIdx(T.Select)).Folder];
+            tc.verifyEqual(key(ticked), key(ds.Folder), "only the session picked is ticked");
+            tc.verifySubstring(string(app.StatusBar.Text), "1 ticked");
+
+            app.onOpenFromDatabase([string(ds.Folder), string(fullfile(tc.Top, "elsewhere", "gone"))]);
+            tc.verifyEqual(key(app.RootPathField.Value), key(tc.Top));
+            tc.verifyTrue(app.RecursiveCheckBox.Value, "a session deeper than the root's folders: Recursive on");
+            tc.verifySubstring(string(app.StatusBar.Text), "Recursive is on");
+            tc.verifySubstring(string(app.StatusBar.Text), "Not found as datasets by the scan: " + fullfile(tc.Top, "elsewhere", "gone"));
+
+            B = DatasetBrowser("", Visible=false, Scan=false);
+            tc.addTeardown(@() delete(B));
+            msg = B.openFromDatabase(string(ds.outputFolder()));
+            tc.verifyEqual(key(B.Root), key(fullfile(tc.Top, "SYNTH-01")));
+            tc.verifyEqual(height(B.Table), 2);
+            tc.verifyEqual(numel(B.Selected), 1, msg);
+            S = B.Table;
+            tc.verifyEqual(S.Name(S.Key == B.Selected), string(ds.Name), "the browser ticks the recording picked");
+            tc.verifySubstring(msg, "1 ticked");
         end
 
         function aDiscardedRecordIsKept(tc)

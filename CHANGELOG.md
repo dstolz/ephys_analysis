@@ -14,7 +14,7 @@ says how to cut a release.
   the files they wrote with where each record stands on this computer and the dataset's records in the outbox;
   **Check the database** asks the database whether it has each step and file (present, replaced, moved or deleted,
   last verified), and **Lineage of the file...** shows what a file was made from. The pipeline app's Review tab has
-  a **Database** column ("4 sent, 1 to send"; `LabSync.datasetText`). The backend seam gains `events`,
+  a **Database** column ("4 sent, 1 to send"; `LabSync.datasetText`). The backend seam gains `eventRows`,
   `verifications`, `dispositions` (newest first) and `lineage`; `LabOutbox.stateOf`.
 - The lab database (CarasLabDB), third part: what waits in the outbox is sent (`LabSync`): every 15 s while an
   app is open, one record at a time and 2 s at most per try, not during a pipeline or analysis run; at the end of

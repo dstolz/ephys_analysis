@@ -677,7 +677,7 @@ classdef ManifestViewerApp < handle
             try
                 S = obj.DbStepsTable.Data;
                 for k = 1:size(S, 1)
-                    E = b.events(struct('EventId', string(S{k, 2})));
+                    E = b.eventRows(struct('EventId', string(S{k, 2})));
                     if height(E) > 0
                         S{k, 5} = 'in the database';
                     else
@@ -732,7 +732,7 @@ classdef ManifestViewerApp < handle
             lines = "Lineage of " + string(obj.DbFilesTable.Data{sel(1), 1}) + " (artifact " + id + ")";
             for k = 1:height(L)
                 A = b.artifacts(struct('ArtifactId', string(L.artifact_id(k))));
-                E = b.events(struct('EventId', string(L.event_id(k))));
+                E = b.eventRows(struct('EventId', string(L.event_id(k))));
                 where = string(L.artifact_id(k));
                 if height(A) > 0; where = string(A.relative_path(1)); end
                 kind = "";

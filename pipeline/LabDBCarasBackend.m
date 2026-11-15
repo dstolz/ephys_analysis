@@ -197,7 +197,7 @@ classdef LabDBCarasBackend < LabDBBackend
             tf = obj.Db.addEventInput(args{:});
         end
 
-        function T = events(obj, filters)
+        function T = eventRows(obj, filters)
             obj.requireOpen();
             args = namedargs2cell(filters);
             T = obj.Db.getEvents(args{:});

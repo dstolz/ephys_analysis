@@ -281,8 +281,8 @@ classdef LabDBFakeBackend < LabDBBackend
             obj.maybeFail("recordEvent", true);
         end
 
-        function T = events(obj, filters)
-            obj.requireOpen("events");
+        function T = eventRows(obj, filters)
+            obj.requireOpen("eventRows");
             E = obj.Events;
             T = table(string({E.event_id}).', string({E.event_type}).', string({E.session_id}).', ...
                 string({E.subject_id}).', string({E.digest}).', ...

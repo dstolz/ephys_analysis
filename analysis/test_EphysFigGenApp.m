@@ -6757,22 +6757,45 @@ function t = answerDialog(name, fcn)
 %answerDialog  Answer the modal window NAME from a timer, as a user would: FCN(UserData) gets its controls.
 %   The window is created inside the call under test (which waits in uiwait);
 %   the timer looks for it every half second and runs FCN once. A failing FCN
-%   closes the window, so the call under test returns instead of waiting.
+%   closes the window, so the call under test returns instead of waiting. So
+%   does a window still open 20 s after its answer, and the log says so: a
+%   check fails instead of the run waiting for good. A timer that ran out
+%   (2 minutes of ticks) with no window to answer says that too.
 t = timer('ExecutionMode', 'fixedSpacing', 'Period', 0.5, 'StartDelay', 0.5, 'TasksToExecute', 240, ...
-    'TimerFcn', @(tm, ~) answerTick(tm, name, fcn));
+    'TimerFcn', @(tm, ~) answerTick(tm, name, fcn), 'StopFcn', @(tm, ~) answerStopped(tm, name));
 start(t);
 end
 
 
 function answerTick(tm, name, fcn)
+u = tm.UserData;
+if isstruct(u)   % answered: the window must go
+    if ~isvalid(u.window)
+        stop(tm);
+    elseif toc(u.at) > 20
+        fprintf(2, '  (the window "%s" was still open 20 s after its answer: closed, so the call under test returns)\n', name);
+        delete(u.window);
+        stop(tm);
+    end
+    return
+end
 f = findall(0, 'Type', 'figure', 'Name', name);
 if isempty(f) || ~isstruct(f(1).UserData); return; end   % not built yet: the window sets its UserData last
-stop(tm);
+tm.UserData = struct('window', f(1), 'at', tic);
 try
     fcn(f(1).UserData);
 catch ME
     fprintf(2, '  (the answer to "%s" failed: %s)\n', name, ME.message);
     delete(f);
+    stop(tm);
+end
+end
+
+
+function answerStopped(tm, name)
+%answerStopped  A timer that ran out with no window NAME to answer says so (one stopped by its caller does not).
+if ~isstruct(tm.UserData) && tm.TasksExecuted >= tm.TasksToExecute
+    fprintf(2, '  (no window "%s" to answer appeared in %d ticks)\n', name, tm.TasksToExecute);
 end
 end
 

@@ -12,6 +12,8 @@ function report = refresh(obj, opts)
 %     3. writeManifest()    - rewrite the manifest with the fresh metadata;
 %                             a dataset that had no manifest (a scan finds
 %                             it for the first time) first takes NewTags
+%     4. with the lab database on, what phy saved in the recorded sort
+%        since it was recorded is captured (LabCapture.curation)
 %   A dataset without its recording (EphysDataset.hasRecording false: a
 %   folder of pipeline outputs) takes its metadata from those outputs, and
 %   nothing is written to its folder, which is often a backup.
@@ -123,6 +125,14 @@ for i = 1:n
                 isNew(i) = d.writeManifest() && first;
             end
             okMan(i) = true;
+            if opts.ApplyManifest && d.hasRecording()
+                try
+                    LabCapture.curation(d);   % what phy saved in the recorded sort, for the lab database (when it is on)
+                catch ME2
+                    warning('EphysProject:refresh:Curation', ...
+                        'What phy saved for %s could not be recorded for the lab database: %s', d.Name, ME2.message);
+                end
+            end
         end
     catch ME
         if msg(i) ~= ""; msg(i) = msg(i) + "; "; end

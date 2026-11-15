@@ -7,7 +7,14 @@ function onReviewOpenPhy(obj)
         uialert(obj.Fig, "Select a valid results folder first.", "phy");
         return
     end
-    obj.launchPhy(f, f);
+    ds = [];   % the dataset whose sort this is, so the launch is noted for the lab database
+    if ~isempty(obj.Project)
+        for i = 1:obj.Project.NumDatasets
+            d = obj.Project.Datasets(i);
+            if EphysDataset.pathKey(d.sortingResultsDir()) == EphysDataset.pathKey(f); ds = d; break; end
+        end
+    end
+    obj.launchPhy(f, f, ds);
     % The Datasets table's row reads phy's state again; what phy saves
     % later shows when the tab is next opened or shows the dataset.
     obj.refreshReviewDatasets(Datasets=obj.SelectedDatasetIdx);

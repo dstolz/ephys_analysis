@@ -565,6 +565,65 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.verifyLessThan(toc(t0), 5);
         end
 
+        function aPhyCurationIsRecorded(tc)
+            ds = tc.dataset();
+            tab = char(9);
+            ks = string(fullfile(ds.outputFolder(), "kilosort4"));
+            mkdir(ks);
+            tc.writeBytes(fullfile(ks, "params.py"), uint8('dat_path = "x.bin"'));
+            tc.writeBytes(fullfile(ks, "spike_clusters.npy"), uint8(1:40));
+            tc.writeBytes(fullfile(ks, "cluster_group.tsv"), uint8(['cluster_id' tab 'KSLabel' newline '0' tab 'good' newline]));
+            ds.setProcessing("sorting", EphysDataset.processingRecord("results_dir", ks, struct("runId", "run1"), struct("A", 1)));
+            sortId = ds.Processing.sorting.event_id;
+            LabSync.flush(Budget=10);
+            A0 = tc.Fake.Artifacts;
+            tc.verifyEqual(LabCapture.curation(ds), "", "nothing changed since the sort");
+
+            % phy opened from the app, then saved: labels set, a merge (spike_clusters), cluster_info
+            LabCapture.phyOpened(ds, ks);
+            pause(1.1);   % the save after the launch, also where a file's time is kept to the second
+            tc.writeBytes(fullfile(ks, "cluster_group.tsv"), uint8(['cluster_id' tab 'group' newline '0' tab 'mua' newline]));
+            tc.writeBytes(fullfile(ks, "spike_clusters.npy"), uint8(41:100));
+            tc.writeBytes(fullfile(ks, "cluster_info.tsv"), uint8(['cluster_id' tab 'group' newline '0' tab 'mua' newline]));
+            id = LabCapture.curation(ds);
+            tc.verifyNotEqual(id, "");
+            tc.verifyEqual(LabCapture.curation(ds), "", "one save is captured once");
+            LabSync.flush(Budget=10);
+            e = tc.Fake.Events(string({tc.Fake.Events.event_id}) == id);
+            tc.verifySize(e, [1 1]);
+            tc.verifyEqual(string(e.detail.status), "succeeded");
+            a = jsondecode(char(e.attributes));
+            tc.verifyEqual(string(a.tool), "phy");
+            tc.verifyEqual(string(a.sort_event_id), sortId);
+            tc.verifyEqual(string(a.opened_by.os_user), LabBundles.osUser(), "who opened phy from the app");
+            tc.verifyEqual(string(a.phy_labels), "mua");
+
+            A = tc.Fake.Artifacts(tc.Fake.Artifacts.produced_by_event_id == id, :);
+            name = @(p) regexprep(string(p), '^.*[\\/]', '');
+            tc.verifyEqual(sort(name(A.relative_path)), ["cluster_group.tsv"; "cluster_info.tsv"; "spike_clusters.npy"]);
+            D = tc.Fake.Dispositions;
+            old = A0.artifact_id(ismember(name(A0.relative_path), ["cluster_group.tsv" "spike_clusters.npy"]));
+            tc.verifyEqual(sort(D.artifact_id(D.disposition == "replaced")), sort(old), "the versions phy changed: replaced");
+            I = tc.Fake.Inputs(tc.Fake.Inputs.event_id == id, :);
+            tc.verifyEqual(sort(I.artifact_id), sort(A0.artifact_id), "its inputs: the sort as recorded");
+
+            % a later look at a file saved again with the same bytes: nothing new
+            bytes = fileread(fullfile(ks, "cluster_info.tsv"));
+            pause(1.1);
+            tc.writeBytes(fullfile(ks, "cluster_info.tsv"), uint8(bytes));
+            tc.verifyEqual(LabCapture.curation(ds), "", "the same bytes again: no curation");
+            ses = LabCapture.readSession(ds.Folder, ds.Name);
+            tc.verifyEqual(ses.curations(end).event_id, "", "a save that changed no bytes: noted, no event");
+
+            % a re-sort later replaces phy's version of a file, not the sort's first one
+            tc.writeBytes(fullfile(ks, "cluster_info.tsv"), uint8(['cluster_id' tab 'group' newline '0' tab 'good' newline '1' tab 'mua' newline]));
+            ds.setProcessing("sorting", EphysDataset.processingRecord("results_dir", ks, struct("runId", "run2"), struct("A", 2)));
+            b = LabOutbox.read(ds.Processing.sorting.event_id);
+            o = b.record.outputs(name(string({b.record.outputs.path})) == "cluster_info.tsv");
+            tc.verifyEqual(o.replaces, A.artifact_id(name(A.relative_path) == "cluster_info.tsv"), ...
+                "the file's latest version is phy's, for a later re-sort, copy or move");
+        end
+
         function aDiscardedRecordIsKept(tc)
             ds = tc.dataset();
             id = tc.captureStep(ds);

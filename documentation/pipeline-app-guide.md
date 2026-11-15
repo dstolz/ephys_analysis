@@ -288,6 +288,9 @@ optional, and the app works the same without it.
   some wait. The Review tab's **Database** column says the same for
   each dataset, and the manifest viewer's **Database** tab lists its
   steps and files.
+- **Curating in phy:** what you save in phy is recorded at the next
+  **Scan**, as a phy step of the sort, with the files it changed. Open phy
+  with **Open in phy** so the record names you as who opened it.
 - **Find recordings:** **File → Open from database...**. Type a subject,
   pick a project or days, **Search**, select the sessions and **Open**: the
   folder that holds them becomes the project root, it is scanned, and those

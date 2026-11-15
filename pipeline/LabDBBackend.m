@@ -24,6 +24,10 @@ classdef (Abstract) LabDBBackend < handle
     %                                %   RelativePath, StartedAt (zoned or NaT)
     %     out = b.recordEvent(req)   % one event, its inputs and outputs, once (LabSync)
     %     tf = b.addEventInput(eventId, artifactId, role)   % false when it was there
+    %     T = b.events(filters)      % filters: EventId, SessionId (event_id, event_type, occurred_at, ...)
+    %     T = b.verifications(id)    % the checks of artifact ID, newest first (status, verified_at, ...)
+    %     T = b.dispositions(id)     % what became of artifact ID's file, newest first (disposition, ...)
+    %     T = b.lineage(id, dir)     % depth, event_id, artifact_id; dir "up" (what it came from) or "down"
     %
     %   recordEvent's REQ: EventType, EventId, Digest, OccurredAt (zoned),
     %   SubjectId, SessionId, Notes, AttributesJson (JSON text), RecordedBy
@@ -60,5 +64,9 @@ classdef (Abstract) LabDBBackend < handle
         id = addSession(obj, a)
         out = recordEvent(obj, req)
         tf = addEventInput(obj, eventId, artifactId, role)
+        T = events(obj, filters)
+        T = verifications(obj, artifactId)
+        T = dispositions(obj, artifactId)
+        T = lineage(obj, artifactId, direction)
     end
 end

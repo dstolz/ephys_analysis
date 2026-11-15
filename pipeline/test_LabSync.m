@@ -14,7 +14,10 @@ classdef test_LabSync < matlab.unittest.TestCase
     %   session sent before the step that read its files, and inputs sent
     %   later as an edges record; an unreachable server costs no wait and
     %   leaves the outbox as it was; no sending while suspended; a failed step
-    %   recorded as failed; a discarded record kept, never sent.
+    %   recorded as failed; a discarded record kept, never sent; where a
+    %   dataset's records stand (LabSync.datasetText, the Review tab's
+    %   Database column) and the manifest viewer's Database tab (the steps
+    %   and files here and in the database, a file's lineage).
     %
     %   Usage:  runtests("test_LabSync")
 
@@ -285,6 +288,38 @@ classdef test_LabSync < matlab.unittest.TestCase
             a = jsondecode(char(e.attributes));
             tc.verifyEqual(string(a.outcome), "canceled");
             tc.verifyEmpty(tc.Fake.Artifacts, "nothing a failed step left is registered");
+        end
+
+        function whereADatasetsRecordsStand(tc)
+            ds = tc.dataset();
+            tc.verifyEqual(LabSync.datasetText(ds.Processing), "", "no record yet");
+            id = tc.captureStep(ds);
+            tc.verifyEqual(LabSync.datasetText(ds.Processing), "1 to send");
+            LabSync.flush(Budget=10);
+            tc.verifyEqual(LabSync.datasetText(ds.Processing), "1 sent");
+            tc.Fake.Verifications = table(tc.Fake.Artifacts.artifact_id(1), "ok", ...
+                datetime("now", "TimeZone", "UTC"), 'VariableNames', {'artifact_id', 'status', 'verified_at'});
+
+            ds.writeManifest();
+            v = ManifestViewerApp(ds);
+            tc.addTeardown(@() delete(v));
+            tc.addTeardown(@() delete(findall(groot, 'Tag', 'AppDialogText')));
+            S = v.DbStepsTable.Data;
+            tc.verifyEqual(string(S(:, 1)), "spikes");
+            tc.verifyEqual(string(S{1, 2}), id);
+            tc.verifyEqual(string(S{1, 4}), "sent", "where the record is on this computer");
+            tc.verifySubstring(string(v.DbStateLabel.Text), LabCapture.readSession(ds.Folder, ds.Name).session_id);
+            O = v.DbOutboxTable.Data;
+            tc.verifyEqual(string(O(:, 1)), "done", "the dataset's records in the outbox");
+            tc.verifyTrue(v.checkDatabase());
+            tc.verifyEqual(string(v.DbStepsTable.Data{1, 5}), "in the database");
+            F = v.DbFilesTable.Data;
+            tc.verifyEqual(string(F{1, 4}), "present");
+            tc.verifySubstring(string(F{1, 5}), "ok");
+            v.DbFilesTable.Selection = 1;
+            txt = v.showLineage();
+            tc.verifySubstring(txt, "SYNTH-01/" + ds.Name + "/" + ds.Name + "_spikes.mat");
+            tc.verifySubstring(txt, id, "made by the step's event");
         end
 
         function aDiscardedRecordIsKept(tc)

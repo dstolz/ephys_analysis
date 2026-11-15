@@ -150,6 +150,19 @@ matched by its path alone.
 The lamp counts them: **· N to send**, or **· N need you** (held or failed;
 the lamp turns red).
 
+## Where a dataset stands
+
+- **The manifest viewer's Database tab** lists the dataset's steps and the
+  files they wrote, with where each record is on this computer (sent, to
+  send, held or failed with why, discarded, or not recorded here: captured
+  while the database was off, or on another computer), and the dataset's
+  records in the outbox. **Check the database** asks the database (2 s at
+  most) whether it has each step, whether each file is present (or was
+  replaced, moved or deleted) and when it was last verified. **Lineage of
+  the file...** shows what the selected file was made from.
+- **The pipeline app's Review tab** has a **Database** column: the
+  dataset's records, as "4 sent, 1 to send".
+
 ## The lamp
 
 | Lamp | Meaning |

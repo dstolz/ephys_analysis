@@ -197,6 +197,38 @@ classdef LabSync
             end
         end
 
+        function [t, c] = datasetText(P)
+            %datasetText  Where the records of processing block P stand: "4 sent, 1 to send, 1 needs you".
+            %   C counts sent, waiting, need (held or failed), discarded and
+            %   elsewhere (no record in this computer's outbox: captured
+            %   while the database was off, or on another computer). "" when
+            %   no record has an event id.
+            c = struct("sent", 0, "waiting", 0, "need", 0, "discarded", 0, "elsewhere", 0);
+            t = "";
+            if ~isstruct(P) || ~isscalar(P); return; end
+            any_ = false;
+            for k = string(fieldnames(P)).'
+                r = P.(k);
+                if ~isstruct(r) || ~isscalar(r) || ~isfield(r, "event_id"); continue; end
+                any_ = true;
+                switch LabOutbox.stateOf(string(r.event_id))
+                    case "done";                  c.sent = c.sent + 1;
+                    case {"pending", "claimed"};  c.waiting = c.waiting + 1;
+                    case {"held", "failed"};      c.need = c.need + 1;
+                    case "discarded";             c.discarded = c.discarded + 1;
+                    otherwise;                    c.elsewhere = c.elsewhere + 1;
+                end
+            end
+            if ~any_; return; end
+            parts = strings(1, 0);
+            if c.sent > 0; parts(end + 1) = c.sent + " sent"; end
+            if c.waiting > 0; parts(end + 1) = c.waiting + " to send"; end
+            if c.need > 0; parts(end + 1) = c.need + LabSync.plural(c.need, " needs you", " need you"); end
+            if c.discarded > 0; parts(end + 1) = c.discarded + " discarded"; end
+            if c.elsewhere > 0; parts(end + 1) = c.elsewhere + " not recorded here"; end
+            t = strjoin(parts, ", ");
+        end
+
         function release(folderId, subjectId, datasets)
             %release  Note SUBJECTID in the session files of DATASETS (table: name, folder) and send their held records again.
             %   FOLDERID is the subject id the folders' names give; the
@@ -266,6 +298,10 @@ classdef LabSync
             st.Parent = [];
             st.Suspended = 0;
             LabSync.state(st);
+        end
+
+        function t = plural(n, one, many)
+            if n == 1; t = one; else; t = many; end
         end
 
         function resume()

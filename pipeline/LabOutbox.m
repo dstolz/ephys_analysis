@@ -26,6 +26,7 @@ classdef LabOutbox
     %     LabOutbox.update(b)                 % rewrite a pending or claimed bundle
     %     T = LabOutbox.list(State="pending") % id, state, type, captured_at, sealed, note
     %     n = LabOutbox.counts()              % one count per state
+    %     st = LabOutbox.stateOf(id)          % "" when it is not here
     %     claim = LabOutbox.claim(id)         % [] when another process has it
     %     LabOutbox.heartbeat(claim)
     %     LabOutbox.finish(claim, "done" | "failed" | "held" | "pending", Reason=, Flags=)
@@ -118,6 +119,19 @@ classdef LabOutbox
             T = table(id, st, ty, at, sealed, fl, nt, ...
                 'VariableNames', {'id', 'state', 'type', 'captured_at', 'sealed', 'file', 'note'});
             T = sortrows(T, 'captured_at');
+        end
+
+        function st = stateOf(id)
+            %stateOf  The state bundle ID is in ("" when this computer's outbox does not have it).
+            st = "";
+            try
+                id = LabOutbox.checkId(id);
+            catch
+                return
+            end
+            for s = LabOutbox.States
+                if isfile(fullfile(LabOutbox.root(), s, id + ".json")); st = s; return; end
+            end
         end
 
         function c = counts()

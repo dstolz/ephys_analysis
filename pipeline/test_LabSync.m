@@ -599,7 +599,7 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.verifyEqual(string(a.phy_labels), "mua");
 
             A = tc.Fake.Artifacts(tc.Fake.Artifacts.produced_by_event_id == id, :);
-            name = @(p) regexprep(string(p), '^.*/', '');
+            name = @(p) regexprep(string(p), '^.*[\\/]', '');
             tc.verifyEqual(sort(name(A.relative_path)), ["cluster_group.tsv"; "cluster_info.tsv"; "spike_clusters.npy"]);
             D = tc.Fake.Dispositions;
             old = A0.artifact_id(ismember(name(A0.relative_path), ["cluster_group.tsv" "spike_clusters.npy"]));
@@ -612,9 +612,16 @@ classdef test_LabSync < matlab.unittest.TestCase
             pause(1.1);
             tc.writeBytes(fullfile(ks, "cluster_info.tsv"), uint8(bytes));
             tc.verifyEqual(LabCapture.curation(ds), "", "the same bytes again: no curation");
-            k = LabCapture.knownOutputs(ds);
-            tc.verifyEqual(k(end).artifact_id, A.artifact_id(name(A.relative_path) == "cluster_info.tsv"), ...
-                "the file's latest version is phy's, for a later copy or move");
+            ses = LabCapture.readSession(ds.Folder, ds.Name);
+            tc.verifyEqual(ses.curations(end).event_id, "", "a save that changed no bytes: noted, no event");
+
+            % a re-sort later replaces phy's version of a file, not the sort's first one
+            tc.writeBytes(fullfile(ks, "cluster_info.tsv"), uint8(['cluster_id' tab 'group' newline '0' tab 'good' newline '1' tab 'mua' newline]));
+            ds.setProcessing("sorting", EphysDataset.processingRecord("results_dir", ks, struct("runId", "run2"), struct("A", 2)));
+            b = LabOutbox.read(ds.Processing.sorting.event_id);
+            o = b.record.outputs(name(string({b.record.outputs.path})) == "cluster_info.tsv");
+            tc.verifyEqual(o.replaces, A.artifact_id(name(A.relative_path) == "cluster_info.tsv"), ...
+                "the file's latest version is phy's, for a later re-sort, copy or move");
         end
 
         function aDiscardedRecordIsKept(tc)

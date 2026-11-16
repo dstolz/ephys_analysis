@@ -313,6 +313,60 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.verifyEqual([c.pending c.held c.failed], [0 0 0]);
         end
 
+        function aFigureRunIsRecorded(tc)
+            ds = tc.dataset();
+            key = @(p) EphysDataset.pathKey(string(p));
+            f = string(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat"));
+            detected = struct("t", 1); conversion = struct("dataset", ds.Name); %#ok<NASGU>
+            save(f, "detected", "conversion");
+            ds.setProcessing("spikes", EphysDataset.processingRecord("file", f, struct("runId", "run1"), struct("A", 1)), ...
+                StartedAt=datetime("now", "TimeZone", "local") - seconds(3));
+            LabSync.flush(Budget=10);
+            orig = tc.Fake.Artifacts.artifact_id(endsWith(tc.Fake.Artifacts.relative_path, ds.Name + "_spikes.mat"));
+            tc.verifySize(orig, [1 1]);
+
+            % the read ledger: what the loads read, a cached read once
+            out = DatasetOutputs(ds, CacheData=true);
+            out.clearReads();
+            out.load("spikes");
+            out.load("spikes");
+            tc.verifyEqual(height(out.Reads), 1);
+            tc.verifyEqual(key(out.Reads.path), key(f));
+
+            rep = string(fullfile(ds.outputFolder(), "report.html"));
+            tc.writeBytes(rep, uint8('<html>1</html>'));
+            away = string(fullfile(tempname, "fig.png"));   % no storage root holds it
+            mkdir(fileparts(away));
+            tc.addTeardown(@() rmdir(fileparts(away), "s"));
+            tc.writeBytes(away, uint8(1:10));
+            r = struct("Outputs", out, "Names", string(ds.Name), "ReportFiles", rep, "Config", EphysAnalysisConfig(), ...
+                "Results", table(string(ds.Name), "f1", "figure", "done", "", away, 1, ...
+                'VariableNames', {'Dataset', 'Plot', 'Kind', 'Status', 'Message', 'Files', 'Seconds'}));
+            id = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"));
+            tc.verifyNotEqual(id, "");
+            LabSync.flush(Budget=10);
+            e = tc.Fake.Events(string({tc.Fake.Events.event_id}) == id);
+            tc.verifySize(e, [1 1]);
+            tc.verifyEqual(string(e.detail.pipeline_name), "ephys_analysis/figures");
+            tc.verifyEqual(string(e.detail.status), "succeeded");
+            tc.verifyEqual(e.session_id, tc.Fake.Sessions.session_id(1), "a run of one dataset: its session");
+            I = tc.Fake.Inputs(tc.Fake.Inputs.event_id == id, :);
+            tc.verifyEqual(I.artifact_id, orig, "its input: the spikes file it read, by its id");
+            A = tc.Fake.Artifacts(tc.Fake.Artifacts.produced_by_event_id == id, :);
+            tc.verifyEqual(height(A), 1, "the report (the figure outside the roots is not recorded)");
+            tc.verifyTrue(endsWith(A.relative_path, "/report.html"));
+            a = jsondecode(char(e.attributes));
+            tc.verifyEqual(key(string(a.unrecorded_outputs)), key(away), "listed instead");
+
+            % the next run writes the report again, other bytes: it replaces the first
+            tc.writeBytes(rep, uint8('<html>2</html>'));
+            id2 = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"));
+            LabSync.flush(Budget=10);
+            tc.verifyNotEqual(id2, "");
+            D = tc.Fake.Dispositions;
+            tc.verifyEqual(D.artifact_id(D.disposition == "replaced"), A.artifact_id, "the report the run rewrote: replaced");
+        end
+
         function anUnreachableServerCostsNoWait(tc)
             ds = tc.dataset();
             id = tc.captureStep(ds);

@@ -115,6 +115,12 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %                                files, such as units with their
     %                                quality metrics)
     %
+    %   Reads, the read ledger: every file a load (or readUnits: the sort's
+    %   result files) read since clearReads(out), with its size and time as
+    %   first read, cached reads included. EphysAnalysisRunner.run clears it
+    %   at each run and gives what it holds to the lab database as the
+    %   run's inputs (LabCapture.analysisRun). The manifest is left out.
+    %
     %   See also EphysDataset.outputs, EphysPipeline.outputsFor, DatasetTracker,
     %   EphysDataset.toMat, EphysDataset.spikesToMat, EphysDataset.behaviorToMat,
     %   EphysDataset.exportNWB.
@@ -132,6 +138,9 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         Candidates table = DatasetOutputs.emptyCandidates()  % every file found
         Foreign (:,1) string = strings(0, 1)  % files named like this dataset's whose provenance names another
         LastRefreshed datetime = NaT
+        % The files the loads read since clearReads (path, bytes, mtime as
+        % first read): the read ledger, a run's inputs for the lab database
+        Reads table = table(strings(0, 1), zeros(0, 1), strings(0, 1), 'VariableNames', {'path', 'bytes', 'mtime'})
     end
 
     properties (Dependent)
@@ -178,6 +187,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
         Cache = []
         InfoSignals = []   % combined extract file -> the signal types its info holds (signalFile)
         Filtered (1,:) string = strings(1, 0)   % the filtered columns kept (prepared): their key bases, the least recently used first
+        ReadDirs (1,:) string = strings(1, 0)   % the sort folders the read ledger lists already (pathKey)
         % What the lab database said, until the next refresh (askDatabase)
         DbAsked (1,:) string = strings(1, 0)     % the kinds it was asked for
         DbKnown (1,1) logical = false            % DbDirs and DbTable are its answer
@@ -289,6 +299,12 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             if obj.DbSortingDir ~= ""; f = [f, obj.DbSortingDir]; end
         end
 
+        function clearReads(obj)
+            %clearReads  Start the read ledger again (EphysAnalysisRunner.run does at each run).
+            obj.Reads = obj.Reads([], :);
+            obj.ReadDirs = strings(1, 0);
+        end
+
         function src = pathSource(obj, kind)
             %pathSource  Where KIND's path comes from.
             %   "manual" (pinned), "discovered" (refresh), "dataset" (the
@@ -341,6 +357,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 files = obj.resolve(kind);
             end
             key = char(strjoin([kind, vars, files], "|"));
+            obj.noteRead(kind, files);   % read now, or from what an earlier read kept: this data is used
             if obj.CacheData && isKey(obj.Cache, key)
                 S = obj.Cache(key);
                 return
@@ -389,6 +406,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 obj.missing("sorting");
             end
             d = obj.resolve("sorting");
+            obj.noteRead("sorting", d);
             if ~isempty(obj.Dataset)
                 [units, info] = obj.Dataset.readSortedUnits('ResultsDir', d, varargin{:});
                 return
@@ -1033,6 +1051,34 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             end
             if isempty(f) && obj.askDatabase(kind)
                 [f, src] = obj.resolve(kind);   % again, with the files of the folders the lab database names
+            end
+        end
+
+        function noteRead(obj, kind, files)
+            %noteRead  Add FILES, read for KIND, to the read ledger (once each; a sort: its result files).
+            %   The manifest is no data file of the dataset's (not recorded).
+            if kind == "manifest" || isempty(files); return; end
+            files = reshape(string(files), 1, []);
+            if kind == "sorting"
+                d = files(1);
+                if any(obj.ReadDirs == EphysDataset.pathKey(d)); return; end   % listed once a ledger
+                obj.ReadDirs(end + 1) = EphysDataset.pathKey(d);
+                L = dir(d);
+                L = L(~[L.isdir]);
+                names = string({L.name});
+                keep = ~ismember(names, LabCapture.SortingSkip) & ~startsWith(names, ".") ...
+                    & ~endsWith(names, [".log" ".tmp" ".partial"]);
+                files = string(fullfile(d, names(keep)));
+            end
+            have = EphysDataset.pathKey(obj.Reads.path);
+            for p = files
+                if any(have == EphysDataset.pathKey(p)); continue; end
+                d = dir(p);
+                if isempty(d) || d(1).isdir; continue; end
+                snap = LabBundles.snapshot(p);
+                obj.Reads = [obj.Reads; table(p, double(snap.bytes), string(snap.mtime), ...
+                    'VariableNames', obj.Reads.Properties.VariableNames)];
+                have(end + 1) = EphysDataset.pathKey(p); %#ok<AGROW>
             end
         end
 

@@ -101,6 +101,14 @@ The database is asked at most once a `refresh()`, for 2 s at most, and only
 then. While it does not answer, nothing is added and nothing waits. It never
 decides which file is read: a file found in the roots always wins.
 
+### What was read: the read ledger
+
+`Reads` lists every file a load read since `clearReads()` (the sort's result
+files for `readUnits` and the `Units` property), with its size and time as
+first read; a read served from what `CacheData` kept counts too, once. The
+manifest is left out. `EphysAnalysisRunner.run` clears it at each run and,
+with the [lab database](database.md) on, gives it as the run's inputs.
+
 Reading a file's variables and provenance opens it, which over a network
 share costs a few tenths of a second a file. Two things keep that down:
 

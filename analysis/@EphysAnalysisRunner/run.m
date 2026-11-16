@@ -36,6 +36,11 @@ function T = run(obj, opts)
 %   runDataset, whose caption says "y shared across <n> observations").
 %   A session figure measures its own observations (runSessionFigure).
 %
+%   With the lab database on here, the run is recorded as one analysis
+%   event (LabCapture.analysisRun): the files it read (each dataset's read
+%   ledger, DatasetOutputs.Reads) as its inputs, its reports, run record
+%   and figure files as its outputs.
+%
 %   The run record (schema "ephys-analysis-run/2") holds the run id,
 %   outcome, start, end and seconds, the datasets, figures and session
 %   figures, the report files, the Results rows, the code and machine
@@ -105,6 +110,7 @@ else
 end
 obj.Results = EphysAnalysisRunner.emptyResults();
 obj.ReportFiles = string.empty(1, 0);
+for k = idx; obj.Outputs(k).clearReads(); end   % what this run reads: its inputs for the lab database
 P = cfg.Report;
 perDataset = doReport && P.PerDataset;
 if doReport && ~perDataset
@@ -197,6 +203,12 @@ if ~isempty(idx)
     outcome = "finished";
     if canceled; outcome = "canceled"; end
     obj.RunRecordFile = writeRunRecord(obj, idx, fids, sfids, started, outcome);
+    try
+        LabCapture.analysisRun(obj, idx, Started=started, Finished=datetime('now'), Outcome=outcome, ...
+            RunRecord=obj.RunRecordFile);   % for the lab database, when it is on here
+    catch ME
+        warning('EphysAnalysisRunner:LabCapture', 'The run was not noted for the lab database: %s', ME.message);
+    end
 end
 try
     obj.progress(1, "Done");

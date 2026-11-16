@@ -10,6 +10,14 @@ says how to cut a release.
 
 ### Added
 
+- The lab database (CarasLabDB), tenth part: a second copy of a recording. When a session the Copy tab copied has
+  raw files that are byte for byte (SHA-256) the raw files of one recording already in the database, `LabSync`
+  records them as copies of that recording's files, in its session (`copy_of_event`, `copied_from`), and the
+  folder's session file takes that session (`LabCapture.copyOfSession`, `copy_of_session_from`); no second session
+  or recording event is made. A step of the folder sent first finds the session through the recording's record
+  here, and waits while its raw files are hashed. Raw files of more than one recording at once hold the record
+  with the reason; a recording that shares only some files with another (a settings file) is a new one, the other
+  events noted (`raw_files_also_in_events`). A waiting event record steps aside like a waiting files record.
 - The lab database (CarasLabDB), ninth part: the copy for the analysis app (`AnalysisCopyDialog`, **File → Copy
   files for the analysis app...**) records each copy of a file a dataset's records name as a file of the step that
   wrote it, copied from it, as the Transfer section's copies are (`LabCapture.transferred`).

@@ -359,7 +359,7 @@ classdef LabCapture
             ses = struct("format", LabCapture.SessionFormat, "session_id", "", "created_at", "", ...
                 "subject_id", "", "recording_event_id", "", "behavior_event_id", "", ...
                 "raw", LabBundles.noItems(), "phy_opened", LabCapture.noOpened(), ...
-                "curations", LabCapture.noCurations());
+                "curations", LabCapture.noCurations(), "copy_of_session_from", "");
             found = false;
             if string(folder) == "" || string(name) == ""; return; end
             f = LabCapture.sessionFile(folder, name);
@@ -367,7 +367,7 @@ classdef LabCapture
             x = readJsonFile(f, ErrorOnFail=false);
             if ~(isstruct(x) && isfield(x, "session_id") && LabCapture.isId(x.session_id)); return; end
             ses.session_id = lower(string(x.session_id));
-            for k = ["created_at" "subject_id" "recording_event_id" "behavior_event_id"]
+            for k = ["created_at" "subject_id" "recording_event_id" "behavior_event_id" "copy_of_session_from"]
                 if isfield(x, k) && ~isempty(x.(k)); ses.(k) = string(x.(k)); end
             end
             if isfield(x, "raw")
@@ -422,6 +422,33 @@ classdef LabCapture
                 end
             end
             ses.subject_id = string(subjectId);
+            LabCapture.writeSession(folder, name, ses);
+        end
+
+        function copyOfSession(folder, name, sessionId, kind, eventId)
+            %copyOfSession  Note in a dataset's session file that its folder is a copy of session SESSIONID.
+            %   LabCapture.copyOfSession(FOLDER, NAME, SESSIONID, KIND, EVENTID):
+            %   the folder's raw files are, byte for byte, those of a recording
+            %   already in the database (LabSync): the session file takes that
+            %   session's id, and for KIND "recording" or "behavior" with
+            %   EVENTID, that event as the one its raw files belong to. The id
+            %   it had is kept as copy_of_session_from. The folder is not
+            %   changed otherwise.
+            [ses, found] = LabCapture.readSession(folder, name);
+            if ~found || ses.session_id == string(sessionId)
+                if found && eventId ~= ""
+                    if kind == "recording"; ses.recording_event_id = string(eventId); end
+                    if kind == "behavior"; ses.behavior_event_id = string(eventId); end
+                    LabCapture.writeSession(folder, name, ses);
+                end
+                return
+            end
+            ses.copy_of_session_from = ses.session_id;
+            ses.session_id = string(sessionId);
+            if eventId ~= ""
+                if kind == "recording"; ses.recording_event_id = string(eventId); end
+                if kind == "behavior"; ses.behavior_event_id = string(eventId); end
+            end
             LabCapture.writeSession(folder, name, ses);
         end
 

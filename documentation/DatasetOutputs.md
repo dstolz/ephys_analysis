@@ -104,7 +104,8 @@ decides which file is read: a file found in the roots always wins.
 ### What was read: the read ledger
 
 `Reads` lists every file a load read since `clearReads()` (the sort's result
-files for `readUnits` and the `Units` property), with its size and time as
+files for `readUnits` and the `Units` property, the sorted data file for
+`readWaveforms`), with its size and time as
 first read; a read served from what `CacheData` kept counts too, once. The
 manifest is left out. `EphysAnalysisRunner.run` clears it at each run and,
 with the [lab database](database.md) on, gives it as the run's inputs.

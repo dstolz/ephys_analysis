@@ -116,7 +116,8 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %                                quality metrics)
     %
     %   Reads, the read ledger: every file a load (or readUnits: the sort's
-    %   result files) read since clearReads(out), with its size and time as
+    %   result files; readWaveforms: the sorted data file) read since
+    %   clearReads(out), with its size and time as
     %   first read, cached reads included. EphysAnalysisRunner.run clears it
     %   at each run and gives what it holds to the lab database as the
     %   run's inputs (LabCapture.analysisRun). The manifest is left out.
@@ -437,6 +438,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 c = obj.Cache(key);
                 W = c.W;
                 info = c.info;
+                if isfield(info, 'dataFile'); obj.noteRead("bin", info.dataFile); end   % the sorted data they were cut from
                 return
             end
             U = obj.load("sorting");
@@ -446,6 +448,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
             end
             [W, info] = EphysDataset.readPhyWaveforms(d, U.samples{row}, Channels=U.ksChannel(row), ...
                 MaxSpikes=opts.MaxSpikes);
+            if isfield(info, 'dataFile'); obj.noteRead("bin", info.dataFile); end   % the sorted data they were cut from
             W = reshape(W, size(W, 1), []);
             if obj.CacheData
                 obj.Cache(key) = struct('W', W, 'info', info);

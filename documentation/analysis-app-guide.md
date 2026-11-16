@@ -300,6 +300,8 @@ optional, and the app works the same without it.
 - **Find recordings:** **File → Open from database...**. Type a subject,
   pick a project or days, **Search**, select the sessions and **Open**: the
   app shows their output folders.
+- **What a run records:** each **Run** is noted with the files it read and
+  the report and figure files it wrote (those under a mapped storage root).
 - **Records wait for you** when the lamp says **· N need you**: open the
   Database window and read the outbox. A folder whose subject the database
   does not have asks for it in a small window: create the subject, or pick

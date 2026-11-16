@@ -604,6 +604,150 @@ classdef LabCapture
             LabCapture.startLarge(b, s);
         end
 
+        function id = analysisRun(r, idx, opts)
+            %analysisRun  Capture a run of figures (EphysAnalysisRunner.run) for the lab database: one analysis event.
+            %   ID = LabCapture.analysisRun(R, IDX, Started=, Finished=,
+            %   Outcome=, RunRecord=), after runner R ran its datasets IDX:
+            %     inputs   the files the run read (each dataset's read ledger,
+            %              DatasetOutputs.Reads), each by its id when the
+            %              dataset's records name that file as it was read;
+            %              one they do not name is an input this computer
+            %              cannot name (listed when sent, never guessed)
+            %     outputs  the report files, the run record and the figure
+            %              files it wrote that lie under a storage root mapped
+            %              here (the others listed in unrecorded_outputs); a
+            %              file an earlier run here wrote at the same place
+            %              with other bytes is replaced by it
+            %   pipeline_name "ephys_analysis/figures", parameters the
+            %   analysis config, the code and the machine, when it started
+            %   and finished; status succeeded, or failed with
+            %   attributes.outcome "canceled". The event names a session only
+            %   when the run covers one dataset. ID: the event's id ("" when
+            %   nothing was captured: the database off here, or nothing read
+            %   or written).
+            arguments
+                r
+                idx (1,:) double
+                opts.Started (1,1) datetime
+                opts.Finished (1,1) datetime
+                opts.Outcome (1,1) string = "finished"
+                opts.RunRecord (1,1) string = ""
+            end
+            id = "";
+            s = LabDBSettings.load();
+            if ~LabCapture.enabled(s); return; end
+            ins = LabBundles.noItems();
+            for k = idx
+                out = r.Outputs(k);
+                R = out.Reads;
+                if height(R) == 0; continue; end
+                if ~isempty(out.Dataset)
+                    known = LabCapture.knownFiles(out.Dataset);
+                else
+                    P = struct();
+                    try
+                        m = out.Manifest;
+                        if isfield(m, "processing") && isstruct(m.processing); P = m.processing; end
+                    catch
+                    end
+                    known = LabCapture.knownFiles(P, out.Folder, out.Name);
+                end
+                for j = 1:height(R)
+                    snap = struct("bytes", R.bytes(j), "mtime", R.mtime(j));
+                    c = LabCapture.findKnown(known, R.path(j));
+                    if c > 0 && LabBundles.sameSnapshot(known(c), snap)
+                        [role, kd] = LabCapture.roleOfKnown(known(c), []);
+                        it = LabBundles.item(R.path(j), Role=role, Kind=kd, Snapshot=snap);
+                        it.artifact_id = known(c).artifact_id;
+                        it.sha256 = known(c).sha256;
+                    else
+                        it = LabBundles.item(R.path(j), Role="derived", Kind="", Snapshot=snap);
+                    end
+                    ins(end + 1) = it; %#ok<AGROW>
+                end
+            end
+            ins = LabCapture.locate(ins, s);
+
+            % what it wrote
+            want = struct("path", {}, "role", {}, "kind", {}, "dataset", {});
+            for p = reshape(string(r.ReportFiles), 1, [])
+                want(end + 1) = struct("path", p, "role", "report", "kind", "report", "dataset", ""); %#ok<AGROW>
+            end
+            if opts.RunRecord ~= ""
+                want(end + 1) = struct("path", opts.RunRecord, "role", "report", "kind", "run_record", "dataset", "");
+            end
+            T = r.Results;
+            for j = 1:height(T)
+                for p = reshape(strtrim(split(string(T.Files(j)), ";")), 1, [])
+                    if p == ""; continue; end
+                    want(end + 1) = struct("path", p, "role", "figure", "kind", "figure", "dataset", string(T.Dataset(j))); %#ok<AGROW>
+                end
+            end
+            items = LabBundles.noItems();
+            unrecorded = strings(1, 0);
+            seen = strings(1, 0);
+            for w = want
+                key = EphysDataset.pathKey(w.path);
+                if any(seen == key) || ~isfile(w.path); continue; end
+                seen(end + 1) = key; %#ok<AGROW>
+                if LabRoots.locate(w.path, s) == ""
+                    unrecorded(end + 1) = w.path; %#ok<AGROW>
+                    continue
+                end
+                attr = struct();
+                if w.dataset ~= ""; attr.dataset = w.dataset; end
+                items(end + 1) = LabBundles.item(w.path, Role=w.role, Kind=w.kind, Attributes=attr, ...
+                    ArtifactId=LabBundles.newId()); %#ok<AGROW>
+            end
+            items = LabCapture.hashSmall(LabCapture.locate(items, s), s);
+            for j = 1:numel(items)
+                % a file an earlier run here wrote at this place: the same bytes are that file, other bytes replace it
+                prev = split(LabCapture.outputLedger(items(j).path), " ");
+                if numel(prev) == 2 && prev(1) ~= ""
+                    if strlength(items(j).sha256) == 64 && items(j).sha256 == prev(2)
+                        items(j).artifact_id = prev(1);
+                    else
+                        items(j).replaces = prev(1);
+                    end
+                end
+            end
+            if isempty(ins) && isempty(items); return; end
+
+            cfg = r.Config;
+            prov = ephysProvenance();
+            p2 = prov;
+            if isfield(p2, "config"); p2 = rmfield(p2, "config"); end
+            started = opts.Started;
+            if isempty(started.TimeZone); started.TimeZone = "local"; end
+            finished = opts.Finished;
+            if isempty(finished.TimeZone); finished.TimeZone = "local"; end
+            ok = opts.Outcome == "finished";
+            detail = struct("pipeline_name", "ephys_analysis/figures", ...
+                "code_version", LabCapture.codeVersion(prov), ...
+                "parameters_json", string(jsonencode(stringifyNonFinite(cfg.toStruct()))), ...   % as the run record writes it
+                "environment_json", string(jsonencode(provenanceForJson(p2))), ...
+                "started_at", LabBundles.timeText(started), "finished_at", LabBundles.timeText(finished), ...
+                "status", LabCapture.ternary(ok, "succeeded", "failed"));
+            attr = struct("step", "analysis", "tool", "EphysAnalysisRunner", "config_name", string(cfg.Name), ...
+                "datasets", {cellstr(string(r.Names(idx)))}, "outcome", opts.Outcome, ...
+                "unrecorded_outputs", {cellstr(unrecorded)});
+            dsb = LabBundles.noDataset();
+            if isscalar(idx) && ~isempty(r.Outputs(idx).Dataset)
+                ds = r.Outputs(idx).Dataset;
+                dsb = LabCapture.datasetBlock(ds, LabCapture.session(ds.Folder, ds.Name, s), s);
+            end
+            id = LabBundles.newId();
+            b = LabBundles.event(EventId=id, EventType="analysis", OccurredAt=LabBundles.timeText(started), ...
+                Detail=detail, Attributes=attr, Performer=LabCapture.performer(s), Dataset=dsb, ...
+                Inputs=ins, Outputs=items, CapturedBy=LabBundles.capturedBy(s));
+            b = LabBundles.seal(b);
+            LabOutbox.put(b);
+            LabCapture.startLarge(b, s);
+            for j = 1:numel(items)
+                LabCapture.outputLedger(items(j).path, items(j).artifact_id + " " + items(j).sha256);
+            end
+        end
+
         function transferred(ds, b, X)
             %transferred  Note what an OutputTransfer did with dataset DS's files, for the lab database.
             %   Called on every change of batch B of transfer X (the
@@ -1072,6 +1216,31 @@ classdef LabCapture
                 otherwise
                     [role, kind, attr] = LabCapture.roleOf(k.step, k.path, struct());
             end
+        end
+
+        function v = outputLedger(p, value)
+            %outputLedger  The last analysis output recorded here at path P ("<artifact id> <sha256>", "" when none); with VALUE, note it.
+            %   Kept in <LabDB.folder()>/analysis_outputs.json, so a run after a
+            %   restart still knows the file it replaces.
+            f = fullfile(LabDB.folder(), "analysis_outputs.json");
+            key = EphysDataset.pathKey(p);
+            x = struct("format", "ephys-labdb-outputs/1", "entries", {{}});
+            if isfile(f)
+                y = readJsonFile(f, ErrorOnFail=false);
+                if isstruct(y) && isfield(y, "entries"); x.entries = LabCapture.cells(y.entries); end
+            end
+            keys = strings(1, numel(x.entries));
+            for k = 1:numel(x.entries); keys(k) = string(x.entries{k}.path); end
+            k = find(keys == key, 1);
+            if nargin < 2
+                v = "";
+                if ~isempty(k); v = string(x.entries{k}.value); end
+                return
+            end
+            v = string(value);
+            e = struct("path", key, "value", v);
+            if isempty(k); x.entries{end + 1} = e; else; x.entries{k} = e; end
+            writeJsonFile(f, x);
         end
 
         function v = ledger(key, value)

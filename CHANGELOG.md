@@ -10,6 +10,13 @@ says how to cut a release.
 
 ### Added
 
+- The lab database (CarasLabDB), eleventh part: runs of figures. `EphysAnalysisRunner.run` (the analysis app's Run,
+  the pipeline's Analysis step) records each run as one analysis event (`LabCapture.analysisRun`,
+  `ephys_analysis/figures`): the files it read as its inputs, from a new read ledger in `DatasetOutputs` (`Reads`,
+  `clearReads`; cached reads included, the manifest left out), by their ids where the datasets' records name them;
+  its reports, run record and figure files under a mapped storage root as its outputs (others in
+  `unrecorded_outputs`); a report rewritten at the same place replaces the earlier one (kept in
+  `analysis_outputs.json` in this computer's database folder). A session only when the run covers one dataset.
 - The lab database (CarasLabDB), tenth part: a second copy of a recording. When a session the Copy tab copied has
   raw files that are byte for byte (SHA-256) the raw files of one recording already in the database, `LabSync`
   records them as copies of that recording's files, in its session (`copy_of_event`, `copied_from`), and the

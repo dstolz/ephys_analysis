@@ -11,7 +11,7 @@ function refreshReviewDatasets(obj, opts)
 %   and how many sorts it has (reviewSorts). The Sort cell is the sort picked
 %   for review (reviewSortChoice; "(in use)" when none), a dropdown of the
 %   sorts the datasets have (ColumnFormat). Database says where the
-%   dataset's records stand for the lab database (LabSync.datasetText; ""
+%   dataset's records stand for the lab database (labclient.Sync.datasetText; ""
 %   while it is off here). Rows are in the table's remembered sort (tableSort
 %   "ReviewDatasets"), the active dataset's row selected; ReviewDatasetRows
 %   maps each row of Data to its dataset, so a click picks the right one in
@@ -86,7 +86,7 @@ for k = 1:numel(idx)
     end
     C{k, 1} = char(d.Name);
     C{k, 9} = '';
-    if labOn; C{k, 9} = char(LabSync.datasetText(d.Processing)); end   % read from this computer's outbox
+    if labOn; C{k, 9} = char(labclient.Sync.datasetText(d.Processing)); end   % read from this computer's outbox
     if stale
         C(k, 2:8) = {'', '', [], [], [], '', []};
     else

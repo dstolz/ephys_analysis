@@ -8,6 +8,33 @@ says how to cut a release.
 
 ## [Unreleased]
 
+### Changed
+
+- The lab database client moved out to the CarasLabDB repository, as its `+labclient` package, so every toolbox of
+  the lab (this one, EPsych) records through one client: one settings struct, one vault password, one storage-root
+  map, one outbox and one lamp per computer. `LabDB`, `LabDBSettings`, `LabDBSecrets`, `LabRoots`, `LabBundles`,
+  `LabOutbox`, `LabHasher`, `fileSha256`, `LabDBBackend`, `LabDBCarasBackend`, `LabDBFakeBackend`, `LabDBPanel`,
+  `LabDBLamp`, `SubjectAssignDialog` and the sending of `LabSync` are now `labclient.DB`, `Settings`, `Secrets`,
+  `Roots`, `Bundles`, `Outbox`, `Hasher`, `fileSha256`, `Backend`, `CarasBackend`, `FakeBackend`, `Panel`, `Lamp`,
+  `SubjectAssignDialog` and `Sync`. This repository keeps `LabCapture`, `LabLocator` and `LabLocatorDialog`, and
+  gains `LabBridge` (the door to the package, safe while it is missing: the lamp reads "attention", the apps work
+  without the database) and `useCarasLabDB` (finds a CarasLabDB checkout beside this one or in `CARASLABDB_DIR`).
+  The CarasLabDB repository must now be on the MATLAB path (documentation/database.md, Requirements). The toolbox
+  hands the client its session-file hooks (`readSession`, `copyOfSession`, `assignSubject`) as tool
+  `ephys_analysis`; its datasets' records say so (`dataset.tool`), and a MATLAB that does not run it (EPsych's)
+  leaves them in the shared outbox untouched.
+- The settings moved from the app preferences (group `LabDB`) to the client's (group `CarasLabDBClient`), and the
+  outbox, hashes and caches from `%LOCALAPPDATA%\ephys_analysis\labdb` to `%LOCALAPPDATA%\caraslabdb\client`. The
+  first start after the move takes them over once and logs it (`migration_from_ephys_analysis.log`): the settings are
+  copied when the client has none, the files are moved unless a file is already at the destination (never
+  overwritten), and what was being sent stays. `EPHYS_LABDB_DIR` is now `CARASLABDB_CLIENT_DIR`.
+- The subjects nearest a folder's subject id are ranked by an edit distance the client computes itself, so the
+  Text Analytics Toolbox is no longer needed. The out-of-process hash job uses .NET's SHA-256 only (no
+  `Get-FileHash`), which works from a PowerShell whose module path is another PowerShell's.
+- `test_LabDB` now tests `LabBridge`; the client's own tests (bundles, the golden bundle
+  `bundle_event_v1.json`, the outbox, the hashes, the window, the lamp, sending) are in the CarasLabDB repository,
+  `tests/matlab/LabClientTests.m`.
+
 ### Added
 
 - The lab database (CarasLabDB), eleventh part: runs of figures. `EphysAnalysisRunner.run` (the analysis app's Run,

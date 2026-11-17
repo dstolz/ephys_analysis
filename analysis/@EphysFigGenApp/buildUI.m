@@ -46,7 +46,7 @@ RS.Cancel = uibutton(bg, "Text", "Cancel", "Icon", buttonIcon("stop"), "Tooltip"
     "ButtonPushedFcn", @(~,~) obj.onCancelRun());
 RS.Cancel.Layout.Column = 3;
 obj.RunStrip = RS;
-LabDBLamp(barGrid, Row=1, Column=2, Parent=obj.Fig);   % the lab database's state; a click opens its window
+LabBridge.lamp(barGrid, Row=1, Column=2, Parent=obj.Fig);   % the lab database's state; a click opens its window
 
 obj.Splash.step("Data", "Building the Data tab ..."); obj.buildDataTab();
 obj.Splash.step("Alignment", "Building the Alignment tab ..."); obj.buildAlignTab();

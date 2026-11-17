@@ -178,9 +178,9 @@ classdef ManifestViewerApp < handle
         function ok = checkDatabase(obj)
             %checkDatabase  Ask the lab database about the Steps and the Files (OK false when it does not answer).
             ok = false;
-            b = LabDB.connect(MaxWait=2);
+            b = LabBridge.connect(MaxWait=2);
             if isempty(b)
-                obj.DbStateLabel.Text = char(LabDB.status().Message);
+                obj.DbStateLabel.Text = char(LabBridge.statusMessage());
                 return
             end
             try
@@ -231,9 +231,9 @@ classdef ManifestViewerApp < handle
                 obj.setStatus("Select a file with an id in the Database tab first.");
                 return
             end
-            b = LabDB.connect(MaxWait=2);
+            b = LabBridge.connect(MaxWait=2);
             if isempty(b)
-                obj.setStatus(LabDB.status().Message);
+                obj.setStatus(LabBridge.statusMessage());
                 return
             end
             id = obj.DbFileIds(sel(1));
@@ -259,11 +259,11 @@ classdef ManifestViewerApp < handle
             %hereText  Where record ID stands in this computer's outbox, in words.
             t = "";
             if ~LabCapture.enabled(); return; end
-            switch LabOutbox.stateOf(id)
+            switch labclient.Outbox.stateOf(id)
                 case "done";               t = "sent";
                 case {"pending", "claimed"}; t = "to send";
-                case "held";               t = "held: " + LabOutbox.note(id, "held").reason;
-                case "failed";             t = "failed: " + LabOutbox.note(id, "failed").reason;
+                case "held";               t = "held: " + labclient.Outbox.note(id, "held").reason;
+                case "failed";             t = "failed: " + labclient.Outbox.note(id, "failed").reason;
                 case "discarded";          t = "discarded";
                 otherwise;                 t = "not recorded here";
             end
@@ -326,7 +326,7 @@ classdef ManifestViewerApp < handle
                 'ButtonPushedFcn', @(~,~) obj.onRewrite());
             styleButton([obj.OpenButton, obj.FolderButton, obj.RewriteButton]);
             styleButton(obj.ReloadButton, 'primary');
-            LabDBLamp(top, Row=1, Column=7, Parent=obj.Fig);   % the lab database's state; a click opens its window
+            LabBridge.lamp(top, Row=1, Column=7, Parent=obj.Fig);   % the lab database's state; a click opens its window
 
             obj.Tabs = uitabgroup(g, 'SelectionChangedFcn', @(~,~) obj.refreshFlowChart());
 
@@ -727,10 +727,10 @@ classdef ManifestViewerApp < handle
             out = cell(0, 4);
             if isstruct(m) && obj.File ~= "" && LabCapture.enabled()
                 folder = EphysDataset.pathKey(string(fileparts(obj.File)));
-                T = LabOutbox.list();
+                T = labclient.Outbox.list();
                 for k = 1:height(T)
                     try
-                        b = LabOutbox.read(T.id(k));
+                        b = labclient.Outbox.read(T.id(k));
                     catch
                         continue
                     end

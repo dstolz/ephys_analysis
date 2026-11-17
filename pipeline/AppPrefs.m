@@ -151,6 +151,15 @@ classdef AppPrefs
                 file (1,1) string
             end
             setenv(AppPrefs.EnvVar, char(file));
+            % The lab database client (labclient, shared with other toolboxes)
+            % keeps its settings in a store of its own: a test run that keeps
+            % these preferences in a file keeps those in a file beside it, so
+            % it never reads or writes the owner's database settings.
+            if file == ""
+                setenv("CARASLABDB_CLIENT_PREFS_FILE", "");
+            else
+                setenv("CARASLABDB_CLIENT_PREFS_FILE", char(file + "_labclient.mat"));
+            end
         end
 
         function restore = useTemporary()
@@ -170,6 +179,9 @@ classdef AppPrefs
             %endTemporary  Delete the temporary file and restore the previous store.
             if isfile(file)
                 delete(file);
+            end
+            if isfile(file + "_labclient.mat")
+                delete(file + "_labclient.mat");
             end
             AppPrefs.useFile(previous);
         end

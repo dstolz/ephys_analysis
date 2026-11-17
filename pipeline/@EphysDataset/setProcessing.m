@@ -9,7 +9,7 @@ function r = setProcessing(obj, kind, r, opts)
 %   and lists the files it wrote (outputs: path, bytes, mtime,
 %   artifact_id, sha256 when known); when the lab database is turned on
 %   here, it also writes the record to the outbox for the database
-%   (LabOutbox). That never stops the writer: a failure there is a warning
+%   (labclient.Outbox). That never stops the writer: a failure there is a warning
 %   (EphysDataset:setProcessing:Capture) and the record is kept as the
 %   writer made it.
 %
@@ -27,7 +27,7 @@ function r = setProcessing(obj, kind, r, opts)
 %                 (a record of files written earlier, e.g. a detection read
 %                 back from its cache)
 %
-%   See also LabCapture, LabOutbox, EphysDataset.processingRecord.
+%   See also LabCapture, labclient.Outbox, EphysDataset.processingRecord.
 
 arguments
     obj (1,1) EphysDataset

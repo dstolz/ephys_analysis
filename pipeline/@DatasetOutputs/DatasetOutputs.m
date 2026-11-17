@@ -53,7 +53,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
     %   the associated Epsych2 session (the dataset's BehaviorFile, else the
     %   manifest's behavior.file), which loads into the same struct.
     %
-    %   The lab database: with it on here (LabDBSettings), a kind the roots
+    %   The lab database: with it on here (labclient.Settings), a kind the roots
     %   hold nothing of, whose step the manifest records (it was made, and
     %   has gone from here), is looked for in the output folders the
     %   database names for the dataset's session (its session file's id;
@@ -1078,7 +1078,7 @@ classdef DatasetOutputs < handle & matlab.mixin.CustomDisplay
                 if any(have == EphysDataset.pathKey(p)); continue; end
                 d = dir(p);
                 if isempty(d) || d(1).isdir; continue; end
-                snap = LabBundles.snapshot(p);
+                snap = LabBridge.snapshot(p);
                 obj.Reads = [obj.Reads; table(p, double(snap.bytes), string(snap.mtime), ...
                     'VariableNames', obj.Reads.Properties.VariableNames)];
                 have(end + 1) = EphysDataset.pathKey(p); %#ok<AGROW>

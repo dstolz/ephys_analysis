@@ -6,7 +6,7 @@ classdef LabLocator
     %     session_id, subject_id, label, started_at
     %     root, rel     the session folder's storage root and path below it
     %     folder        that folder on this computer ("" when its root is not
-    %                   mapped here, LabRoots)
+    %                   mapped here, labclient.Roots)
     %     reachable     the folder is there now (folderReachable)
     %     outputs       the folders here that hold the session's outputs:
     %                   for each of its files the database knows are present
@@ -29,7 +29,7 @@ classdef LabLocator
     %     F = LabLocator.sessionFiles(id)    % one session's files here (DatasetOutputs)
     %     [root, depth] = LabLocator.commonFolder(F)   % the folder that holds them
     %
-    %   See also LabLocatorDialog, LabRoots, LabDB.
+    %   See also LabLocatorDialog, labclient.Roots, labclient.DB.
 
     methods (Static)
         function [T, asOf, note] = sessions(opts)
@@ -43,17 +43,17 @@ classdef LabLocator
             end
             asOf = NaT("TimeZone", "local");
             note = "";
-            b = LabDB.connect(MaxWait=2);
+            b = LabBridge.connect(MaxWait=2);
             if isempty(b)
                 [T, asOf] = LabLocator.cached();
-                note = "The lab database does not answer: " + LabDB.status().Message;
+                note = "The lab database does not answer: " + LabBridge.statusMessage();
                 if ~isnat(asOf)
                     note = note + " Shown: the last answer, of " + string(asOf, "yyyy-MM-dd HH:mm") + ...
                         " (its filters may differ).";
                 end
                 return
             end
-            s = LabDBSettings.load();
+            s = LabCapture.settings();
             f = struct();
             if opts.Subject ~= ""; f.SubjectId = opts.Subject; end
             if ~isempty(opts.Tags); f.Tags = opts.Tags; end
@@ -76,7 +76,7 @@ classdef LabLocator
                 rootName = LabLocator.rootName(roots, S.storage_root_id(k));
                 rel = string(S.relative_path(k));
                 folder = "";
-                if rootName ~= ""; folder = LabRoots.resolve(rootName, rel, s); end
+                if rootName ~= ""; folder = labclient.Roots.resolve(rootName, rel, s); end
                 started = NaT("TimeZone", "local");
                 if any(strcmp(S.Properties.VariableNames, "started_at")) && isdatetime(S.started_at) ...
                         && ~isnat(S.started_at(k))
@@ -110,17 +110,17 @@ classdef LabLocator
             end
             F = table(strings(0, 1), zeros(0, 1), strings(0, 1), 'VariableNames', {'path', 'bytes', 'folder'});
             if isempty(b)
-                b = LabDB.connect(MaxWait=2);
+                b = LabBridge.connect(MaxWait=2);
                 if isempty(b); return; end
                 roots = b.storageRoots();
-                s = LabDBSettings.load();
+                s = LabCapture.settings();
             end
             A = b.artifacts(struct("SessionId", sessionId, "PresentOnly", true));
             for j = 1:height(A)
                 if string(A.role(j)) == "raw"; continue; end
                 rn = LabLocator.rootName(roots, A.storage_root_id(j));
                 if rn == ""; continue; end
-                p = LabRoots.resolve(rn, string(A.relative_path(j)), s);
+                p = labclient.Roots.resolve(rn, string(A.relative_path(j)), s);
                 if p == ""; continue; end
                 bytes = NaN;
                 if any(strcmp(A.Properties.VariableNames, "size_bytes")) && ~ismissing(A.size_bytes(j))
@@ -203,26 +203,27 @@ classdef LabLocator
             %cached  The last answer kept on this computer, and when it was made (empty and NaT when none).
             T = LabLocator.empty();
             asOf = NaT("TimeZone", "local");
+            if ~LabBridge.available(); return; end   % no client, no kept answer
             f = LabLocator.cacheFile();
             if ~isfile(f); return; end
             x = readJsonFile(f, ErrorOnFail=false);
             if ~isstruct(x) || ~isfield(x, "sessions"); return; end
             try
-                asOf = datetime(string(x.as_of), "InputFormat", LabBundles.TimeFormat, "TimeZone", "local");
+                asOf = datetime(string(x.as_of), "InputFormat", labclient.Bundles.TimeFormat, "TimeZone", "local");
             catch
             end
             rows = x.sessions;
             if isstruct(rows); rows = num2cell(rows); end
             if ~iscell(rows); return; end
-            s = LabDBSettings.load();
+            s = LabCapture.settings();
             for k = 1:numel(rows)
                 r = rows{k};
                 started = NaT("TimeZone", "local");
                 if strlength(string(r.started_at)) > 0
-                    started = datetime(string(r.started_at), "InputFormat", LabBundles.TimeFormat, "TimeZone", "local");
+                    started = datetime(string(r.started_at), "InputFormat", labclient.Bundles.TimeFormat, "TimeZone", "local");
                 end
                 folder = "";
-                if string(r.root) ~= ""; folder = LabRoots.resolve(string(r.root), string(r.rel), s); end
+                if string(r.root) ~= ""; folder = labclient.Roots.resolve(string(r.root), string(r.rel), s); end
                 outs = reshape(string(r.outputs), 1, []);
                 if isempty(outs); outs = strings(1, 0); end
                 T = [T; table(string(r.session_id), string(r.subject_id), string(r.label), started, ...
@@ -234,7 +235,7 @@ classdef LabLocator
 
     methods (Static, Access = private)
         function f = cacheFile()
-            d = fullfile(LabDB.folder(), "snapshot");
+            d = fullfile(labclient.DB.folder(), "snapshot");
             if ~isfolder(d); mkdir(d); end
             f = string(fullfile(d, "sessions.json"));
         end
@@ -244,11 +245,11 @@ classdef LabLocator
             rows = cell(1, height(T));
             for k = 1:height(T)
                 rows{k} = struct("session_id", T.session_id(k), "subject_id", T.subject_id(k), ...
-                    "label", T.label(k), "started_at", LabBundles.timeText(T.started_at(k)), ...
+                    "label", T.label(k), "started_at", labclient.Bundles.timeText(T.started_at(k)), ...
                     "root", T.root(k), "rel", T.rel(k), "outputs", {cellstr(T.outputs{k})});
             end
             try
-                writeJsonFile(LabLocator.cacheFile(), struct("as_of", LabBundles.timeText(asOf), "sessions", {rows}));
+                writeJsonFile(LabLocator.cacheFile(), struct("as_of", labclient.Bundles.timeText(asOf), "sessions", {rows}));
             catch
                 % a snapshot that cannot be written is only no snapshot
             end

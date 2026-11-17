@@ -1232,9 +1232,9 @@ elseif isempty(bad)
                     bad(end+1) = stitch.rel + " differs from a fresh stitch of its ePsych files";
                 end
                 for k = 1:numel(stitch.files)
-                    rec.parts(k).sha256Source = fileSha256(stitch.files(k));
+                    rec.parts(k).sha256Source = LabBridge.sha256(stitch.files(k));
                 end
-                rec.sha256 = fileSha256(rec.file);
+                rec.sha256 = LabBridge.sha256(rec.file);
             end
         end
     catch ME

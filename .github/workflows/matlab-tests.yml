@@ -76,6 +76,18 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      # The lab database client (the labclient package) is in the CarasLabDB repository; the Lab*
+      # suites need it. It goes beside this checkout, where useCarasLabDB looks (run_all_tests
+      # calls it), and outside this repository's tree, so no suite that reads the tree finds it.
+      # The repository is public: no token.
+      - name: Check out CarasLabDB beside this repository
+        shell: pwsh
+        run: |
+          $dest = Join-Path (Split-Path -Parent $env:GITHUB_WORKSPACE) "CarasLabDB"
+          git clone --depth 1 https://github.com/dstolz/CarasLabDB.git $dest
+          if ($LASTEXITCODE -ne 0) { throw "CarasLabDB could not be cloned." }
+          git -C $dest log -1 --format="CarasLabDB at %H (%cs)"
+
       - name: Set up MATLAB
         uses: matlab-actions/setup-matlab@v3
         with:

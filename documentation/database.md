@@ -8,12 +8,14 @@ optional. With the database turned off, or out of reach, every app and every
 pipeline run works exactly as before: nothing waits for the server and
 nothing fails because of it.
 
-> Status, 2026-11-14: in place are the settings, the connection, the storage
-> roots and the Database window, shared by every app; the outbox, where every
-> pipeline step and every copied session is recorded on this computer as it
-> is written; and sending it to the server. Recording the analyses and
-> finding files through the database are being added; this page will say so
-> when they are.
+> Status, 2026-11-18: everything on this page is in place: the settings, the
+> connection, the storage roots and the Database window; the outbox, where
+> every pipeline step, copied session, file movement, phy curation and run of
+> figures is recorded on this computer as it is written; sending it to the
+> server; and finding recordings and files through the database. The client
+> itself is the `labclient` package of the CarasLabDB repository (see
+> [One client for every toolbox](#one-client-for-every-toolbox-on-the-computer)
+> and [Requirements](#requirements)).
 
 ## Set it up
 
@@ -236,6 +238,11 @@ can send, and leaves a record about a dataset of another toolbox for a MATLAB
 that runs that toolbox. This toolbox registers its own (the dataset session
 files, `LabCapture.readSession` and the others) under the name
 `ephys_analysis`; `LabBridge` does it, the first time anything is captured.
+A record written before records named their toolbox (every record from
+before the client was shared) names none. The client assumes no toolbox for
+it; this toolbox wrote those records, says so when it registers
+(`TakesUntagged=true`), and sends them. In a MATLAB that does not run this
+toolbox they wait, untouched.
 
 The settings are kept in the MATLAB preferences, group `CarasLabDBClient`;
 the outbox, the hashes and the caches in `%LOCALAPPDATA%\caraslabdb\client`.

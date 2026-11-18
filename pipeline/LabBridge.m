@@ -29,6 +29,10 @@ classdef LabBridge
     %   lamp, the window and a flush, so a MATLAB that captured a dataset's
     %   record is one that can send it. A MATLAB without them (EPsych's, say)
     %   leaves those records in the shared outbox for one that has them.
+    %   The records this toolbox wrote before records named their tool (no
+    %   dataset.tool: every record from before the client was shared) are
+    %   its own too, and it says so when it registers (TakesUntagged=true);
+    %   the client assumes no tool for them, so they would wait unsent.
     %
     %   See also LabCapture, useCarasLabDB, labclient.Sync, labclient.Lamp.
 
@@ -130,12 +134,17 @@ classdef LabBridge
 
         function registerTool()
             %registerTool  Give the client this toolbox's session-file hooks (once per MATLAB).
+            %   TakesUntagged: a dataset record that names no tool was written
+            %   by this toolbox, before its records said so (dataset.tool), and
+            %   the outbox taken over from then holds such records. The client
+            %   sends them only through the tool that says they are its own.
             if ~LabBridge.available() || labclient.Sync.hasTool(LabBridge.Tool); return; end
             labclient.Sync.registerTool(LabBridge.Tool, struct( ...
                 "readSession", @(folder, name) LabCapture.readSession(folder, name), ...
                 "copyOfSession", @(folder, name, sessionId, kind, eventId) ...
                     LabCapture.copyOfSession(folder, name, sessionId, kind, eventId), ...
-                "assignSubject", @(folder, name, subjectId) LabCapture.assignSubject(folder, name, subjectId)));
+                "assignSubject", @(folder, name, subjectId) LabCapture.assignSubject(folder, name, subjectId)), ...
+                TakesUntagged=true);
         end
 
         function s = offSettings()

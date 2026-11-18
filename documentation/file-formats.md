@@ -1662,7 +1662,7 @@ run records it under that id.
 
 Path: `<labclient.DB.folder()>/outbox/<state>/<bundle_id>.json`, `<state>` one of
 `pending`, `claimed`, `held`, `failed`, `done`, `discarded`; `labclient.DB.folder()` is
-`%LOCALAPPDATA%\ephys_analysis\labdb` (or `EPHYS_LABDB_DIR`). Written by
+`%LOCALAPPDATA%\caraslabdb\client` (or `CARASLABDB_CLIENT_DIR`). Written by
 `LabCapture` when the [lab database](database.md) is turned on here, one per
 record to send, and sent by `labclient.Sync`. Compact JSON, written by
 `labclient.Bundles.encode` only (atomically, `writeJsonFile`):
@@ -1679,7 +1679,9 @@ record to send, and sent by `labclient.Sync`. Compact JSON, written by
   "record": {
     "dataset": { "name", "folder", "session_id", "subject_folder_id", "recording_start", "tool" },
                   "tool" is the toolbox that owns the dataset ("ephys_analysis"): left out while
-                  "", and read as "ephys_analysis" for a folder with none
+                  "". A record of a folder with none (written before records named their
+                  toolbox) is sent only by the toolbox registered as taking those records
+                  (labclient.Sync.registerTool, TakesUntagged=true), which is this one
     "subject_id": <the subject of an event of no dataset, left out while "">,
     "event":   { "event_id", "event_type": "analysis" | "recording" | "behavior" | "husbandry",
                  "occurred_at", "notes", "performer": { "person_id", "person_email" },

@@ -22,7 +22,9 @@ says how to cut a release.
   The CarasLabDB repository must now be on the MATLAB path (documentation/database.md, Requirements). The toolbox
   hands the client its session-file hooks (`readSession`, `copyOfSession`, `assignSubject`) as tool
   `ephys_analysis`; its datasets' records say so (`dataset.tool`), and a MATLAB that does not run it (EPsych's)
-  leaves them in the shared outbox untouched.
+  leaves them in the shared outbox untouched. The records written before records named their tool (every record in
+  an outbox taken over from before the move) name none: the client assumes no tool for them, and this toolbox
+  registers as the one that takes them (`TakesUntagged=true`), so they are still sent.
 - The settings moved from the app preferences (group `LabDB`) to the client's (group `CarasLabDBClient`), and the
   outbox, hashes and caches from `%LOCALAPPDATA%\ephys_analysis\labdb` to `%LOCALAPPDATA%\caraslabdb\client`. The
   first start after the move takes them over once and logs it (`migration_from_ephys_analysis.log`): the settings are

@@ -53,6 +53,9 @@ classdef test_LabDB < matlab.unittest.TestCase
             labclient.Settings.save(s);
             tc.verifyTrue(LabCapture.enabled());
             tc.verifyTrue(labclient.Sync.hasTool("ephys_analysis"), "the first time it is true");
+            tc.verifyEqual(labclient.Sync.untaggedTool(), LabBridge.Tool, ...
+                "the records that name no tool are this toolbox's: it wrote them");
+            tc.verifyTrue(labclient.Sync.hasTool(labclient.Bundles.Untagged), "so they can be sent from here");
             h = labclient.Sync.hooks("ephys_analysis");
             top = string(tempname);
             mkdir(top);
@@ -85,7 +88,10 @@ classdef test_LabDB < matlab.unittest.TestCase
             tc.verifyEqual(labclient.Bundles.toolOf(b), "ephys_analysis");
             old = labclient.Bundles.event(EventId=labclient.Bundles.newId(), EventType="analysis", ...
                 OccurredAt=labclient.Bundles.now(), Dataset=struct("name", "n", "folder", "/f/n"));
-            tc.verifyEqual(labclient.Bundles.toolOf(old), "ephys_analysis", "a record from before the package: this tool");
+            tc.verifyEqual(labclient.Bundles.toolOf(old), labclient.Bundles.Untagged, ...
+                "a record from before records named their tool: the client assumes none");
+            LabBridge.registerTool();
+            tc.verifyEqual(labclient.Sync.untaggedTool(), LabBridge.Tool, "this toolbox takes them: it wrote them");
         end
 
         function theTestPreferenceStoreCarriesToTheClient(tc)

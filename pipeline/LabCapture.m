@@ -13,11 +13,11 @@ classdef LabCapture
     %     outputs      each file it wrote: path, bytes, mtime, artifact_id,
     %                  sha256 (when known)
     %
-    %   and, when the lab database is turned on here (LabDBSettings.Enabled),
-    %   writes a bundle for it to the outbox (LabOutbox): the event, the files
+    %   and, when the lab database is turned on here (labclient.Settings.Enabled),
+    %   writes a bundle for it to the outbox (labclient.Outbox): the event, the files
     %   it read (inputs, with their ids when this computer knows them) and the
-    %   files it wrote, each as storage root and path (LabRoots). Small files
-    %   are hashed at once, large ones out of process (LabHasher). Nothing is
+    %   files it wrote, each as storage root and path (labclient.Roots). Small files
+    %   are hashed at once, large ones out of process (labclient.Hasher). Nothing is
     %   sent from here, and nothing here ever stops a step: a failure is a
     %   warning (LabCapture:Failed).
     %
@@ -31,7 +31,7 @@ classdef LabCapture
     %     LabCapture.copiedSession(info)     % copySessions, per session copied
     %     tf = LabCapture.enabled()
     %
-    %   See also EphysDataset.setProcessing, LabOutbox, LabBundles, LabHasher, LabRoots.
+    %   See also EphysDataset.setProcessing, labclient.Outbox, labclient.Bundles, labclient.Hasher, labclient.Roots.
 
     properties (Constant)
         SessionFormat = "ephys-labdb-session/1"
@@ -43,15 +43,31 @@ classdef LabCapture
     methods (Static)
         function tf = enabled(s)
             %enabled  True when records are to be kept for the lab database on this computer.
-            if nargin < 1; s = LabDBSettings.load(); end
-            tf = s.Enabled;
+            %   The shared client's own test (labclient.Sync.enabled: the
+            %   settings say Enabled and CarasLabDB can be used), false while
+            %   the labclient package is not on the path (LabBridge).
+            %   Registers this toolbox's hooks with the client the first time
+            %   it is true, so what is captured here can also be sent from here.
+            if ~LabBridge.available(); tf = false; return; end
+            if nargin < 1; s = labclient.Settings.load(); end
+            tf = labclient.Sync.enabled(s);
+            if tf; LabBridge.registerTool(); end
+        end
+
+        function s = settings()
+            %settings  The shared client's settings (labclient.Settings.load), or switched-off ones while the package is missing.
+            if LabBridge.available()
+                s = labclient.Settings.load();
+            else
+                s = LabBridge.offSettings();
+            end
         end
 
         function p = performer(s)
             %performer  Who is doing the work here: person_id, person_email (as set up), os_user, host.
-            if nargin < 1; s = LabDBSettings.load(); end
+            if nargin < 1; s = LabCapture.settings(); end
             p = struct("person_id", s.PersonId, "person_email", s.PersonEmail, ...
-                "os_user", LabBundles.osUser(), "host", LabBundles.host());
+                "os_user", LabBridge.osUser(), "host", LabBridge.host());
         end
 
         function v = codeVersion(prov)
@@ -76,8 +92,8 @@ classdef LabCapture
                 r (1,1) struct
                 opts.Provenance = []
             end
-            r.event_id = LabBundles.newId();
-            r.started_at = LabBundles.now();
+            r.event_id = LabBridge.newId();
+            r.started_at = LabBridge.now();
             r.performer = LabCapture.performer();
             r.code_version = LabCapture.codeVersion(opts.Provenance);
         end
@@ -105,15 +121,15 @@ classdef LabCapture
                 opts.Provenance = []
                 opts.Capture (1,1) logical = true
             end
-            s = LabDBSettings.load();
+            s = LabCapture.settings();
             on = LabCapture.enabled(s);
             if ~isfield(r, "event_id") || ~LabCapture.isId(r.event_id)
-                r.event_id = LabBundles.newId();
+                r.event_id = LabBridge.newId();
             end
-            r.created_at = LabBundles.timeText(opts.FinishedAt);
+            r.created_at = LabBridge.timeText(opts.FinishedAt);
             if ~isfield(r, "started_at") || string(r.started_at) == ""
                 r.started_at = "";
-                if ~isnat(opts.StartedAt); r.started_at = LabBundles.timeText(LabCapture.zoned(opts.StartedAt, s)); end
+                if ~isnat(opts.StartedAt); r.started_at = LabBridge.timeText(LabCapture.zoned(opts.StartedAt, s)); end
             end
             if ~isfield(r, "performer") || ~isstruct(r.performer)
                 r.performer = LabCapture.performer(s);
@@ -127,19 +143,19 @@ classdef LabCapture
             outPaths = unique(reshape(string(outPaths), 1, []), "stable");
             known = LabCapture.knownOutputs(ds);
             outDir = LabCapture.outputFolderOf(ds);
-            items = LabBundles.noItems();
+            items = LabBridge.noItems();
             for p = outPaths
                 [role, kd, attr] = LabCapture.roleOf(kind, p, r);
                 rel = LabCapture.datasetRel(p, outDir);
                 if rel ~= ""; attr.dataset_rel = rel; end
-                it = LabBundles.item(p, Role=role, Kind=kd, Attributes=attr);
+                it = LabBridge.item(p, Role=role, Kind=kd, Attributes=attr);
                 if isnan(it.bytes); continue; end   % listed but not written: nothing to record
                 k = LabCapture.findKnown(known, p);
-                if k > 0 && LabBundles.sameSnapshot(known(k), it)
+                if k > 0 && LabBridge.sameSnapshot(known(k), it)
                     it.artifact_id = known(k).artifact_id;   % this step left the file as it was
                     it.sha256 = known(k).sha256;
                 else
-                    it.artifact_id = LabBundles.newId();
+                    it.artifact_id = LabBridge.newId();
                     if k > 0; it.replaces = known(k).artifact_id; end
                 end
                 items(end + 1) = it; %#ok<AGROW>
@@ -167,17 +183,17 @@ classdef LabCapture
             if isempty(inPaths); inPaths = LabCapture.defaultInputs(ds, kind, r); end
             inPaths = unique(reshape(string(inPaths), 1, []), "stable");
             ses = LabCapture.session(ds.Folder, ds.Name, s);
-            ins = LabBundles.noItems();
+            ins = LabBridge.noItems();
             for p = inPaths
                 [role, kd] = LabCapture.inputRole(ds, p);
-                it = LabBundles.item(p, Role=role, Kind=kd);
+                it = LabBridge.item(p, Role=role, Kind=kd);
                 k = LabCapture.findKnown(known, p);
-                if k > 0 && LabBundles.sameSnapshot(known(k), it)
+                if k > 0 && LabBridge.sameSnapshot(known(k), it)
                     it.artifact_id = known(k).artifact_id;
                     it.sha256 = known(k).sha256;
                 else
                     k = LabCapture.findKnown(ses.raw, p);
-                    if k > 0 && LabBundles.sameSnapshot(ses.raw(k), it)
+                    if k > 0 && LabBridge.sameSnapshot(ses.raw(k), it)
                         it.artifact_id = ses.raw(k).artifact_id;
                         it.sha256 = ses.raw(k).sha256;
                     end
@@ -201,12 +217,12 @@ classdef LabCapture
             occurred = string(r.started_at);
             if occurred == ""; occurred = string(r.created_at); end
             attr = struct("step", kind, "dataset", ds.Name, "run_id", LabCapture.fieldText(r, "run_id"));
-            b = LabBundles.event(EventId=string(r.event_id), EventType="analysis", ...
+            b = labclient.Bundles.event(EventId=string(r.event_id), EventType="analysis", ...
                 OccurredAt=occurred, Detail=detail, Attributes=attr, ...
                 Performer=r.performer, Dataset=LabCapture.datasetBlock(ds, ses, s), ...
-                Inputs=ins, Outputs=items, CapturedBy=LabBundles.capturedBy(s));
-            b = LabBundles.seal(b);
-            LabOutbox.put(b);
+                Inputs=ins, Outputs=items, CapturedBy=labclient.Bundles.capturedBy(s));
+            b = labclient.Bundles.seal(b);
+            labclient.Outbox.put(b);
             LabCapture.startLarge(b, s);
         end
 
@@ -226,25 +242,25 @@ classdef LabCapture
                 opts.Provenance = []
                 opts.RunId (1,1) string = ""
             end
-            s = LabDBSettings.load();
+            s = LabCapture.settings();
             if ~LabCapture.enabled(s); return; end
             finished = datetime("now", "TimeZone", "local");
             started = finished - seconds(max(0, opts.Seconds));
-            ins = LabBundles.noItems();
+            ins = LabBridge.noItems();
             for p = unique(LabCapture.defaultInputs(ds, kind, struct()), "stable")
                 [role, kd] = LabCapture.inputRole(ds, p);
-                ins(end + 1) = LabBundles.item(p, Role=role, Kind=kd); %#ok<AGROW>
+                ins(end + 1) = LabBridge.item(p, Role=role, Kind=kd); %#ok<AGROW>
             end
             known = LabCapture.knownOutputs(ds);
             ses = LabCapture.session(ds.Folder, ds.Name, s);
             for k = 1:numel(ins)
                 j = LabCapture.findKnown(known, ins(k).path);
-                if j > 0 && LabBundles.sameSnapshot(known(j), ins(k))
+                if j > 0 && LabBridge.sameSnapshot(known(j), ins(k))
                     ins(k).artifact_id = known(j).artifact_id;
                     ins(k).sha256 = known(j).sha256;
                 else
                     j = LabCapture.findKnown(ses.raw, ins(k).path);
-                    if j > 0 && LabBundles.sameSnapshot(ses.raw(j), ins(k))
+                    if j > 0 && LabBridge.sameSnapshot(ses.raw(j), ins(k))
                         ins(k).artifact_id = ses.raw(j).artifact_id;
                         ins(k).sha256 = ses.raw(j).sha256;
                     end
@@ -264,16 +280,16 @@ classdef LabCapture
             detail = struct("pipeline_name", LabCapture.pipelineName(kind, struct()), ...
                 "code_version", LabCapture.codeVersion(opts.Provenance), ...
                 "parameters_json", par, "environment_json", env, ...
-                "started_at", LabBundles.timeText(started), "finished_at", LabBundles.timeText(finished), ...
+                "started_at", LabBridge.timeText(started), "finished_at", LabBridge.timeText(finished), ...
                 "status", "failed");
             attr = struct("step", kind, "dataset", ds.Name, "run_id", opts.RunId, ...
                 "outcome", opts.Outcome, "error", opts.Message);
             perf = LabCapture.performer(s);
-            b = LabBundles.event(EventId=LabBundles.newId(), EventType="analysis", ...
-                OccurredAt=LabBundles.timeText(started), Detail=detail, Attributes=attr, ...
+            b = labclient.Bundles.event(EventId=LabBridge.newId(), EventType="analysis", ...
+                OccurredAt=LabBridge.timeText(started), Detail=detail, Attributes=attr, ...
                 Performer=perf, Dataset=LabCapture.datasetBlock(ds, ses, s), Inputs=ins, ...
-                CapturedBy=LabBundles.capturedBy(s));
-            LabOutbox.put(LabBundles.seal(b));
+                CapturedBy=labclient.Bundles.capturedBy(s));
+            labclient.Outbox.put(labclient.Bundles.seal(b));
         end
 
         function copiedSession(info)
@@ -285,7 +301,7 @@ classdef LabCapture
             %   Once per session folder: one captured before (its
             %   recording_event_id in the session file) is left as it was.
             %   Nothing when the database is off here.
-            s = LabDBSettings.load();
+            s = LabCapture.settings();
             if ~LabCapture.enabled(s); return; end
             dest = string(info.dest);
             [~, name] = fileparts(dest);
@@ -296,18 +312,18 @@ classdef LabCapture
             ver = LabCapture.codeVersion();
             dsb = struct("name", name, "folder", dest, "session_id", ses.session_id, ...
                 "subject_folder_id", string(info.subject), ...
-                "recording_start", LabCapture.timeOrEmpty(info.recording_time, s));
+                "recording_start", LabCapture.timeOrEmpty(info.recording_time, s), "tool", LabBridge.Tool);
             files = info.files;
-            raw = LabBundles.noItems();
-            ep = LabBundles.noItems();
+            raw = LabBridge.noItems();
+            ep = LabBridge.noItems();
             for k = 1:numel(files)
                 p = string(files(k).path);
                 if files(k).is_epsych
-                    it = LabBundles.item(p, Role="raw", Kind="epsych", ArtifactId=LabBundles.newId(), ...
+                    it = LabBridge.item(p, Role="raw", Kind="epsych", ArtifactId=LabBridge.newId(), ...
                         Sha256=string(files(k).sha256));
                     if ~isnan(it.bytes); ep(end + 1) = it; end %#ok<AGROW>
                 else
-                    it = LabBundles.item(p, Role="raw", Kind="raw", ArtifactId=LabBundles.newId(), ...
+                    it = LabBridge.item(p, Role="raw", Kind="raw", ArtifactId=LabBridge.newId(), ...
                         Sha256=string(files(k).sha256), Attributes=struct("reader", string(info.reader)));
                     if ~isnan(it.bytes); raw(end + 1) = it; end %#ok<AGROW>
                 end
@@ -315,38 +331,38 @@ classdef LabCapture
             raw = LabCapture.hashSmall(LabCapture.locate(raw, s), s);
             ep = LabCapture.hashSmall(LabCapture.locate(ep, s), s);
 
-            recId = LabBundles.newId();
+            recId = LabBridge.newId();
             detail = struct();
             sys = LabCapture.acquisitionSystem(string(info.reader));
             if sys ~= ""; detail.acquisition_system_code = sys; end
             if isfinite(info.recording_duration); detail.duration_s = double(info.recording_duration); end
             occurred = LabCapture.timeOrEmpty(info.recording_time, s);
-            if occurred == ""; occurred = LabBundles.timeText(info.finished); end
+            if occurred == ""; occurred = LabBridge.timeText(info.finished); end
             attr = struct("copied_from", string(info.source_dir), "captured_by_tool", "copySessions", ...
                 "code_version", ver, "occurred_at_source", ...
                 LabCapture.ternary(LabCapture.timeOrEmpty(info.recording_time, s) == "", ...
                 "copy finished (no recording time known)", "recording folder name"));
-            b = LabBundles.event(EventId=recId, EventType="recording", OccurredAt=occurred, ...
+            b = labclient.Bundles.event(EventId=recId, EventType="recording", OccurredAt=occurred, ...
                 Detail=detail, Attributes=attr, Performer=perf, Dataset=dsb, Outputs=raw, ...
-                CapturedBy=LabBundles.capturedBy(s));
-            b = LabBundles.seal(b);
-            LabOutbox.put(b);
+                CapturedBy=labclient.Bundles.capturedBy(s));
+            b = labclient.Bundles.seal(b);
+            labclient.Outbox.put(b);
             LabCapture.startLarge(b, s);
             ses.recording_event_id = recId;
             ses.raw = raw;
 
             if ~isempty(ep)
-                behId = LabBundles.newId();
+                behId = LabBridge.newId();
                 bd = struct();
                 if isfinite(info.epsych_trials); bd.trials_completed = double(info.epsych_trials); end
                 occ = LabCapture.timeOrEmpty(info.epsych_time, s);
                 if occ == ""; occ = occurred; end
-                b2 = LabBundles.event(EventId=behId, EventType="behavior", OccurredAt=occ, ...
+                b2 = labclient.Bundles.event(EventId=behId, EventType="behavior", OccurredAt=occ, ...
                     Detail=bd, Attributes=struct("captured_by_tool", "copySessions", "code_version", ver), ...
-                    Performer=perf, Dataset=dsb, Outputs=ep, CapturedBy=LabBundles.capturedBy(s), ...
+                    Performer=perf, Dataset=dsb, Outputs=ep, CapturedBy=labclient.Bundles.capturedBy(s), ...
                     After=recId);
-                b2 = LabBundles.seal(b2);
-                LabOutbox.put(b2);
+                b2 = labclient.Bundles.seal(b2);
+                labclient.Outbox.put(b2);
                 LabCapture.startLarge(b2, s);
                 ses.behavior_event_id = behId;
                 ses.raw = [raw, ep];
@@ -358,7 +374,7 @@ classdef LabCapture
             %readSession  The dataset's session file as a struct (see session); FOUND false, and no id, when there is none.
             ses = struct("format", LabCapture.SessionFormat, "session_id", "", "created_at", "", ...
                 "subject_id", "", "recording_event_id", "", "behavior_event_id", "", ...
-                "raw", LabBundles.noItems(), "phy_opened", LabCapture.noOpened(), ...
+                "raw", LabBridge.noItems(), "phy_opened", LabCapture.noOpened(), ...
                 "curations", LabCapture.noCurations(), "copy_of_session_from", "");
             found = false;
             if string(folder) == "" || string(name) == ""; return; end
@@ -371,7 +387,7 @@ classdef LabCapture
                 if isfield(x, k) && ~isempty(x.(k)); ses.(k) = string(x.(k)); end
             end
             if isfield(x, "raw")
-                ses.raw = LabBundles.toItems(x.raw);
+                ses.raw = LabBridge.toItems(x.raw);
             end
             if isfield(x, "phy_opened")
                 for o = LabCapture.cells(x.phy_opened)
@@ -429,7 +445,7 @@ classdef LabCapture
             %copyOfSession  Note in a dataset's session file that its folder is a copy of session SESSIONID.
             %   LabCapture.copyOfSession(FOLDER, NAME, SESSIONID, KIND, EVENTID):
             %   the folder's raw files are, byte for byte, those of a recording
-            %   already in the database (LabSync): the session file takes that
+            %   already in the database (labclient.Sync): the session file takes that
             %   session's id, and for KIND "recording" or "behavior" with
             %   EVENTID, that event as the one its raw files belong to. The id
             %   it had is kept as copy_of_session_from. The folder is not
@@ -457,14 +473,14 @@ classdef LabCapture
             %   The person, login and computer, and when. LabCapture.curation
             %   names them as who opened phy when it records what phy saved
             %   there. Nothing when the database is off here.
-            s = LabDBSettings.load();
+            s = LabCapture.settings();
             if ~LabCapture.enabled(s); return; end
             ses = LabCapture.session(ds.Folder, ds.Name, s);
             if ses.session_id == ""; return; end
             p = LabCapture.performer(s);
             e = LabCapture.noOpened();
             e(1).results_dir = string(resultsDir);
-            e(1).at = LabBundles.now();
+            e(1).at = LabBridge.now();
             e(1).person_id = string(p.person_id);
             e(1).person_email = string(p.person_email);
             e(1).os_user = string(p.os_user);
@@ -494,7 +510,7 @@ classdef LabCapture
             %   Nothing when the database is off here. EphysProject.refresh
             %   (a scan) calls it.
             id = "";
-            s = LabDBSettings.load();
+            s = LabCapture.settings();
             if ~LabCapture.enabled(s); return; end
             P = ds.Processing;
             if ~isstruct(P) || ~isfield(P, "sorting"); return; end
@@ -508,7 +524,7 @@ classdef LabCapture
             changed = strings(1, 0);
             for p = LabCapture.recordFiles("sorting", struct("results_dir", d))
                 k = LabCapture.findKnown(known, p);
-                if k > 0 && LabBundles.sameSnapshot(known(k), LabBundles.snapshot(p)); continue; end
+                if k > 0 && LabBridge.sameSnapshot(known(k), LabBridge.snapshot(p)); continue; end
                 changed(end + 1) = p; %#ok<AGROW>
             end
             if isempty(changed); return; end
@@ -519,15 +535,15 @@ classdef LabCapture
             saved = st.saved;
             saved.TimeZone = "local";   % a file's time on this computer
             outDir = LabCapture.outputFolderOf(ds);
-            items = LabBundles.noItems();
+            items = LabBridge.noItems();
             for p = changed
                 [role, kd, attr] = LabCapture.roleOf("sorting", p, r);
                 rel = LabCapture.datasetRel(p, outDir);
                 if rel ~= ""; attr.dataset_rel = rel; end
                 attr.curated_in = "phy";
-                it = LabBundles.item(p, Role=role, Kind=kd, Attributes=attr);
+                it = LabBridge.item(p, Role=role, Kind=kd, Attributes=attr);
                 if isnan(it.bytes); continue; end
-                it.artifact_id = LabBundles.newId();
+                it.artifact_id = LabBridge.newId();
                 k = LabCapture.findKnown(known, p);
                 if k > 0; it.replaces = known(k).artifact_id; end
                 items(end + 1) = it; %#ok<AGROW>
@@ -536,7 +552,7 @@ classdef LabCapture
             items = LabCapture.hashSmall(items, s);
             files = LabCapture.noKnown();
             keep = true(1, numel(items));
-            id = LabBundles.newId();
+            id = LabBridge.newId();
             for j = 1:numel(items)
                 k = LabCapture.findKnown(known, items(j).path);
                 ev = id;
@@ -549,20 +565,20 @@ classdef LabCapture
                     "artifact_id", items(j).artifact_id, "sha256", items(j).sha256, "step", "sorting", "event_id", ev); %#ok<AGROW>
             end
             entry = struct("event_id", "", "sort_event_id", string(r.event_id), "results_dir", d, ...
-                "saved", LabBundles.timeText(saved), "files", files);
+                "saved", LabBridge.timeText(saved), "files", files);
             outputs = items(keep);
             if isempty(outputs)
                 id = "";
             else
                 entry.event_id = id;
-                ins = LabBundles.noItems();
+                ins = LabBridge.noItems();
                 seen = strings(1, 0);
                 for k = numel(known):-1:1   % each file's latest version, as recorded
                     key = EphysDataset.pathKey(known(k).path);
                     if any(seen == key); continue; end
                     seen(end + 1) = key; %#ok<AGROW>
                     [role, kd] = LabCapture.roleOf("sorting", known(k).path, r);
-                    it = LabBundles.item(known(k).path, Role=role, Kind=kd, ...
+                    it = LabBridge.item(known(k).path, Role=role, Kind=kd, ...
                         Snapshot=struct("bytes", known(k).bytes, "mtime", known(k).mtime));
                     it.artifact_id = known(k).artifact_id;
                     it.sha256 = known(k).sha256;
@@ -577,17 +593,17 @@ classdef LabCapture
                     opened = rmfield(o, "results_dir");
                 end
                 detail = struct("pipeline_name", "phy", "parameters_json", "{}", ...
-                    "environment_json", "{}", "started_at", started, "finished_at", LabBundles.timeText(saved), ...
+                    "environment_json", "{}", "started_at", started, "finished_at", LabBridge.timeText(saved), ...
                     "status", "succeeded");
                 occurred = started;
-                if occurred == ""; occurred = LabBundles.timeText(saved); end
+                if occurred == ""; occurred = LabBridge.timeText(saved); end
                 attr = struct("step", "curation", "tool", "phy", "dataset", ds.Name, "results_dir", d, ...
                     "sort_event_id", string(r.event_id), "opened_by", opened, ...
                     "phy_labels", {cellstr(st.labels)}, "phy_label_counts", st.counts, "phy_clusters", st.clusters);
-                b = LabBundles.event(EventId=id, EventType="analysis", OccurredAt=occurred, Detail=detail, ...
+                b = labclient.Bundles.event(EventId=id, EventType="analysis", OccurredAt=occurred, Detail=detail, ...
                     Attributes=attr, Performer=LabCapture.performer(s), Dataset=LabCapture.datasetBlock(ds, ses, s), ...
-                    Inputs=ins, Outputs=outputs, CapturedBy=LabBundles.capturedBy(s));
-                b = LabBundles.seal(b);
+                    Inputs=ins, Outputs=outputs, CapturedBy=labclient.Bundles.capturedBy(s));
+                b = labclient.Bundles.seal(b);
             end
             % The session file first: a curation it does not keep would be
             % captured again at the next look, a second event for one save.
@@ -596,7 +612,7 @@ classdef LabCapture
             LabCapture.writeSession(ds.Folder, ds.Name, ses);
             if isempty(outputs); return; end
             try
-                LabOutbox.put(b);
+                labclient.Outbox.put(b);
             catch ME
                 LabCapture.writeSession(ds.Folder, ds.Name, before);   % not captured: looked for again next time
                 rethrow(ME);
@@ -634,9 +650,9 @@ classdef LabCapture
                 opts.RunRecord (1,1) string = ""
             end
             id = "";
-            s = LabDBSettings.load();
+            s = LabCapture.settings();
             if ~LabCapture.enabled(s); return; end
-            ins = LabBundles.noItems();
+            ins = LabBridge.noItems();
             for k = idx
                 out = r.Outputs(k);
                 R = out.Reads;
@@ -655,13 +671,13 @@ classdef LabCapture
                 for j = 1:height(R)
                     snap = struct("bytes", R.bytes(j), "mtime", R.mtime(j));
                     c = LabCapture.findKnown(known, R.path(j));
-                    if c > 0 && LabBundles.sameSnapshot(known(c), snap)
+                    if c > 0 && LabBridge.sameSnapshot(known(c), snap)
                         [role, kd] = LabCapture.roleOfKnown(known(c), []);
-                        it = LabBundles.item(R.path(j), Role=role, Kind=kd, Snapshot=snap);
+                        it = LabBridge.item(R.path(j), Role=role, Kind=kd, Snapshot=snap);
                         it.artifact_id = known(c).artifact_id;
                         it.sha256 = known(c).sha256;
                     else
-                        it = LabBundles.item(R.path(j), Role="derived", Kind="", Snapshot=snap);
+                        it = LabBridge.item(R.path(j), Role="derived", Kind="", Snapshot=snap);
                     end
                     ins(end + 1) = it; %#ok<AGROW>
                 end
@@ -683,21 +699,21 @@ classdef LabCapture
                     want(end + 1) = struct("path", p, "role", "figure", "kind", "figure", "dataset", string(T.Dataset(j))); %#ok<AGROW>
                 end
             end
-            items = LabBundles.noItems();
+            items = LabBridge.noItems();
             unrecorded = strings(1, 0);
             seen = strings(1, 0);
             for w = want
                 key = EphysDataset.pathKey(w.path);
                 if any(seen == key) || ~isfile(w.path); continue; end
                 seen(end + 1) = key; %#ok<AGROW>
-                if LabRoots.locate(w.path, s) == ""
+                if labclient.Roots.locate(w.path, s) == ""
                     unrecorded(end + 1) = w.path; %#ok<AGROW>
                     continue
                 end
                 attr = struct();
                 if w.dataset ~= ""; attr.dataset = w.dataset; end
-                items(end + 1) = LabBundles.item(w.path, Role=w.role, Kind=w.kind, Attributes=attr, ...
-                    ArtifactId=LabBundles.newId()); %#ok<AGROW>
+                items(end + 1) = LabBridge.item(w.path, Role=w.role, Kind=w.kind, Attributes=attr, ...
+                    ArtifactId=LabBridge.newId()); %#ok<AGROW>
             end
             items = LabCapture.hashSmall(LabCapture.locate(items, s), s);
             for j = 1:numel(items)
@@ -726,22 +742,22 @@ classdef LabCapture
                 "code_version", LabCapture.codeVersion(prov), ...
                 "parameters_json", string(jsonencode(stringifyNonFinite(cfg.toStruct()))), ...   % as the run record writes it
                 "environment_json", string(jsonencode(provenanceForJson(p2))), ...
-                "started_at", LabBundles.timeText(started), "finished_at", LabBundles.timeText(finished), ...
+                "started_at", LabBridge.timeText(started), "finished_at", LabBridge.timeText(finished), ...
                 "status", LabCapture.ternary(ok, "succeeded", "failed"));
             attr = struct("step", "analysis", "tool", "EphysAnalysisRunner", "config_name", string(cfg.Name), ...
                 "datasets", {cellstr(string(r.Names(idx)))}, "outcome", opts.Outcome, ...
                 "unrecorded_outputs", {cellstr(unrecorded)});
-            dsb = LabBundles.noDataset();
+            dsb = labclient.Bundles.noDataset();
             if isscalar(idx) && ~isempty(r.Outputs(idx).Dataset)
                 ds = r.Outputs(idx).Dataset;
                 dsb = LabCapture.datasetBlock(ds, LabCapture.session(ds.Folder, ds.Name, s), s);
             end
-            id = LabBundles.newId();
-            b = LabBundles.event(EventId=id, EventType="analysis", OccurredAt=LabBundles.timeText(started), ...
+            id = LabBridge.newId();
+            b = labclient.Bundles.event(EventId=id, EventType="analysis", OccurredAt=LabBridge.timeText(started), ...
                 Detail=detail, Attributes=attr, Performer=LabCapture.performer(s), Dataset=dsb, ...
-                Inputs=ins, Outputs=items, CapturedBy=LabBundles.capturedBy(s));
-            b = LabBundles.seal(b);
-            LabOutbox.put(b);
+                Inputs=ins, Outputs=items, CapturedBy=labclient.Bundles.capturedBy(s));
+            b = labclient.Bundles.seal(b);
+            labclient.Outbox.put(b);
             LabCapture.startLarge(b, s);
             for j = 1:numel(items)
                 LabCapture.outputLedger(items(j).path, items(j).artifact_id + " " + items(j).sha256);
@@ -765,7 +781,7 @@ classdef LabCapture
             if ~copied && ~moved; return; end
             key = X.Uid + "/" + b.Id + "/" + LabCapture.ternary(copied, "copied", "moved");
             if LabCapture.ledger(key) ~= ""; return; end   % noted already
-            s = LabDBSettings.load();
+            s = LabCapture.settings();
             F = b.Files;
             [known, evs] = LabCapture.knownFiles(ds);
             if copied
@@ -776,7 +792,7 @@ classdef LabCapture
                     src = F.Src(m);
                     copy = string(fullfile(b.DestDir, F.Rel(m)));
                     j = LabCapture.findKnown(known, src);
-                    if j == 0 || ~LabBundles.sameSnapshot(known(j), LabBundles.snapshot(src))
+                    if j == 0 || ~LabBridge.sameSnapshot(known(j), LabBridge.snapshot(src))
                         untracked = untracked + 1;
                         LabCapture.ledger(X.Uid + "|" + lower(src), "untracked");
                         continue
@@ -791,7 +807,7 @@ classdef LabCapture
                     attr.transfer = X.Uid;
                     rel = LabCapture.carriedRel(LabCapture.datasetRel(src, LabCapture.outputFolderOf(ds)), copy);
                     if rel ~= ""; attr.dataset_rel = rel; end
-                    it = LabBundles.item(copy, Role=role, Kind=kd, Attributes=attr, ArtifactId=LabBundles.newId(), ...
+                    it = LabBridge.item(copy, Role=role, Kind=kd, Attributes=attr, ArtifactId=LabBridge.newId(), ...
                         Sha256=X.sha256Of(src));
                     if isnan(it.bytes); continue; end
                     g = find(string({groups.event}) == ev, 1);
@@ -805,10 +821,10 @@ classdef LabCapture
                 ids = strings(1, 0);
                 for g = 1:numel(groups)
                     items = LabCapture.hashSmall(LabCapture.locate(groups(g).items, s), s);
-                    fb = LabBundles.files(EventId=groups(g).event, Artifacts=items, After=groups(g).event, ...
+                    fb = labclient.Bundles.files(EventId=groups(g).event, Artifacts=items, After=groups(g).event, ...
                         Attributes=struct("tool", "OutputTransfer", "method", X.Method, "dataset", ds.Name, ...
-                        "untracked_files", untracked), CapturedBy=LabBundles.capturedBy(s));
-                    LabOutbox.put(fb);
+                        "untracked_files", untracked), CapturedBy=labclient.Bundles.capturedBy(s));
+                    labclient.Outbox.put(fb);
                     LabCapture.startLarge(fb, s);
                     ids(end + 1) = fb.bundle_id; %#ok<AGROW>
                 end
@@ -823,7 +839,7 @@ classdef LabCapture
                     copyId = parts(1); srcId = parts(2);
                     j = find([known.artifact_id] == srcId, 1);
                     if isempty(j); continue; end
-                    d = LabBundles.disposition(srcId, "moved", Successor=copyId, ...
+                    d = labclient.Bundles.disposition(srcId, "moved", Successor=copyId, ...
                         Attributes=struct("transfer", X.Uid, "to", string(fullfile(b.DestDir, F.Rel(m)))));
                     g = find(string({D.event}) == known(j).event_id, 1);
                     if isempty(g)
@@ -835,10 +851,10 @@ classdef LabCapture
                 before = split(LabCapture.ledger(X.Uid + "/" + b.Id + "/copied"), " ").';
                 before = before(before ~= "" & before ~= "-");
                 for g = 1:numel(D)
-                    fb = LabBundles.files(EventId=D(g).event, Dispositions=D(g).rows, After=before, ...
+                    fb = labclient.Bundles.files(EventId=D(g).event, Dispositions=D(g).rows, After=before, ...
                         Attributes=struct("tool", "OutputTransfer", "method", "move", "dataset", ds.Name), ...
-                        CapturedBy=LabBundles.capturedBy(s));
-                    LabOutbox.put(fb);
+                        CapturedBy=labclient.Bundles.capturedBy(s));
+                    labclient.Outbox.put(fb);
                 end
                 LabCapture.ledger(key, "done");
             end
@@ -860,7 +876,7 @@ classdef LabCapture
             %   taken there) and the old one is recorded as moved to it.
             %   Nothing when the database is off here.
             if ~LabCapture.enabled() || isempty(R); return; end
-            s = LabDBSettings.load();
+            s = LabCapture.settings();
             R = R(R.Status == "removed", :);
             for folder = unique(R.Folder).'
                 Rf = R(R.Folder == folder, :);
@@ -876,7 +892,7 @@ classdef LabCapture
                             || known(j).event_id == ""
                         continue   % a file no record names, or other bytes than recorded
                     end
-                    it = LabBundles.noItems();
+                    it = LabBridge.noItems();
                     if method == "move"
                         [role, kd, attr] = LabCapture.roleOfKnown(known(j), evs);
                         attr.copied_from = known(j).artifact_id;
@@ -884,12 +900,12 @@ classdef LabCapture
                         attr.copied_from_sha256 = known(j).sha256;
                         attr.overwrote = isequal(Rf.Replaced(k), true);
                         attr.tool = "runLocalCleanup";
-                        it = LabBundles.item(string(Rf.To(k)), Role=role, Kind=kd, Attributes=attr, ...
-                            ArtifactId=LabBundles.newId());
-                        d = LabBundles.disposition(known(j).artifact_id, "moved", Successor=it.artifact_id, ...
+                        it = LabBridge.item(string(Rf.To(k)), Role=role, Kind=kd, Attributes=attr, ...
+                            ArtifactId=LabBridge.newId());
+                        d = labclient.Bundles.disposition(known(j).artifact_id, "moved", Successor=it.artifact_id, ...
                             Attributes=struct("method", "move", "tool", "runLocalCleanup", "to", string(Rf.To(k))));
                     else
-                        d = LabBundles.disposition(known(j).artifact_id, "deleted", ...
+                        d = labclient.Bundles.disposition(known(j).artifact_id, "deleted", ...
                             Attributes=struct("method", method, "tool", "runLocalCleanup"));
                     end
                     ev = known(j).event_id;
@@ -903,10 +919,10 @@ classdef LabCapture
                 end
                 for g = 1:numel(groups)
                     items = LabCapture.hashSmall(LabCapture.locate(groups(g).items, s), s);
-                    fb = LabBundles.files(EventId=groups(g).event, Artifacts=items, Dispositions=groups(g).rows, ...
+                    fb = labclient.Bundles.files(EventId=groups(g).event, Artifacts=items, Dispositions=groups(g).rows, ...
                         After=groups(g).event, Attributes=struct("tool", "runLocalCleanup", "method", method, ...
-                        "dataset", name), CapturedBy=LabBundles.capturedBy(s));
-                    LabOutbox.put(fb);
+                        "dataset", name), CapturedBy=labclient.Bundles.capturedBy(s));
+                    labclient.Outbox.put(fb);
                     LabCapture.startLarge(fb, s);
                 end
             end
@@ -921,17 +937,17 @@ classdef LabCapture
             %session  The dataset's session file as a struct, written with a new session id when missing.
             %   Fields: format, session_id, created_at, subject_id (the
             %   database subject a person assigned the session to, "" when
-            %   the folder's own is meant; SubjectAssignDialog),
+            %   the folder's own is meant; labclient.SubjectAssignDialog),
             %   recording_event_id, behavior_event_id, raw (the raw files as
-            %   captured, LabBundles items). A folder that cannot be written
+            %   captured, labclient.Bundles items). A folder that cannot be written
             %   gives session_id "" (resolved when sent).
-            if nargin < 3; s = LabDBSettings.load(); end %#ok<NASGU>
+            if nargin < 3; s = LabCapture.settings(); end %#ok<NASGU>
             [ses, found] = LabCapture.readSession(folder, name);
             if found || string(folder) == "" || ~isfolder(folder) || string(name) == ""
                 return   % no folder of its own: the session is found when the record is sent
             end
-            ses.session_id = LabBundles.newId();
-            ses.created_at = LabBundles.now();
+            ses.session_id = LabBridge.newId();
+            ses.created_at = LabBridge.now();
             try
                 LabCapture.writeSession(folder, name, ses);
             catch
@@ -993,7 +1009,7 @@ classdef LabCapture
                 e = ses.phy_opened(k);
                 if EphysDataset.pathKey(e.results_dir) ~= EphysDataset.pathKey(d); continue; end
                 try
-                    at = datetime(e.at, "InputFormat", LabBundles.TimeFormat, "TimeZone", "local");
+                    at = datetime(e.at, "InputFormat", labclient.Bundles.TimeFormat, "TimeZone", "local");
                 catch
                     continue
                 end
@@ -1020,7 +1036,7 @@ classdef LabCapture
         function t = timeOrEmpty(dt, s)
             t = "";
             if isdatetime(dt) && isscalar(dt) && ~isnat(dt)
-                t = LabBundles.timeText(LabCapture.zoned(dt, s));
+                t = LabBridge.timeText(LabCapture.zoned(dt, s));
             end
         end
 
@@ -1220,9 +1236,9 @@ classdef LabCapture
 
         function v = outputLedger(p, value)
             %outputLedger  The last analysis output recorded here at path P ("<artifact id> <sha256>", "" when none); with VALUE, note it.
-            %   Kept in <LabDB.folder()>/analysis_outputs.json, so a run after a
+            %   Kept in <labclient.DB.folder()>/analysis_outputs.json, so a run after a
             %   restart still knows the file it replaces.
-            f = fullfile(LabDB.folder(), "analysis_outputs.json");
+            f = fullfile(labclient.DB.folder(), "analysis_outputs.json");
             key = EphysDataset.pathKey(p);
             x = struct("format", "ephys-labdb-outputs/1", "entries", {{}});
             if isfile(f)
@@ -1297,17 +1313,17 @@ classdef LabCapture
 
         function items = locate(items, s)
             for k = 1:numel(items)
-                [root, rel] = LabRoots.locate(items(k).path, s);
+                [root, rel] = labclient.Roots.locate(items(k).path, s);
                 items(k).root = root;
                 items(k).rel = rel;
             end
         end
 
         function items = hashSmall(items, s)
-            limit = LabHasher.limitBytes(s);
+            limit = labclient.Hasher.limitBytes(s);
             for k = 1:numel(items)
                 if strlength(items(k).sha256) == 64 || items(k).bytes > limit; continue; end
-                h = LabHasher.hashNow(items(k));   % "" when it changed meanwhile: left to LabHasher.work
+                h = labclient.Hasher.hashNow(items(k));   % "" when it changed meanwhile: left to labclient.Hasher.work
                 items(k).sha256 = h;
             end
         end
@@ -1315,11 +1331,11 @@ classdef LabCapture
         function startLarge(b, s)
             %startLarge  Start hashing the outputs of B too large to hash here.
             o = b.record.outputs;
-            limit = LabHasher.limitBytes(s);
+            limit = labclient.Hasher.limitBytes(s);
             for k = 1:numel(o)
                 if strlength(o(k).sha256) == 64 || o(k).bytes <= limit; continue; end
                 try
-                    LabHasher.start(o(k), b.bundle_id + "_" + k);
+                    labclient.Hasher.start(o(k), b.bundle_id + "_" + k);
                 catch ME
                     warning("LabCapture:Hash", "Could not start hashing %s: %s", o(k).path, ME.message);
                 end
@@ -1339,7 +1355,7 @@ classdef LabCapture
             id = EphysDataset.nameIdentity(ds.Name, ds.NamePattern);
             d = struct("name", ds.Name, "folder", ds.Folder, "session_id", ses.session_id, ...
                 "subject_folder_id", id.subject, ...
-                "recording_start", LabCapture.timeOrEmpty(id.recordingStart, s));
+                "recording_start", LabCapture.timeOrEmpty(id.recordingStart, s), "tool", LabBridge.Tool);
         end
 
         function n = pipelineName(kind, r)

@@ -6,7 +6,7 @@ function buildMenus(obj)
 %   Copy files for the analysis app (AnalysisCopyDialog; onCopyForAnalysis),
 %   Channel mapper (ChannelMapperApp; onOpenChannelMapper),
 %   "Scan the project at startup" (a check item, on by default, kept as the
-%   AutoScan preference; read by startupScan), Database... (LabDBPanel),
+%   AutoScan preference; read by startupScan), Database... (LabBridge.openWindow, labclient.Panel),
 %   Open from database... (recordings found in the lab database as the
 %   ticked datasets: onOpenFromDatabase) and Close. Dataset chooses
 %   the active dataset, the one every tab's single-dataset controls work
@@ -61,7 +61,7 @@ obj.AutoScanMenu = uimenu(obj.FileMenu, "Text", "Scan the project at startup", "
     "MenuSelectedFcn", @(src,~) toggleAutoScan(obj, src));
 uimenu(obj.FileMenu, "Text", "Database...", "Separator", "on", ...
     "Tooltip", "The lab database on this computer: set it up, test it, see what waits to be sent.", ...
-    "MenuSelectedFcn", @(~,~) LabDBPanel.open(Parent=obj.Fig));
+    "MenuSelectedFcn", @(~,~) LabBridge.openWindow(Parent=obj.Fig));
 uimenu(obj.FileMenu, "Text", "Open from database...", ...
     "Tooltip", "Find recordings in the lab database and make them this project's ticked datasets: the root becomes the folder that holds them, scanned.", ...
     "MenuSelectedFcn", @(~,~) obj.onOpenFromDatabase());

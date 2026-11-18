@@ -8,12 +8,14 @@ optional. With the database turned off, or out of reach, every app and every
 pipeline run works exactly as before: nothing waits for the server and
 nothing fails because of it.
 
-> Status, 2026-11-14: in place are the settings, the connection, the storage
-> roots and the Database window, shared by every app; the outbox, where every
-> pipeline step and every copied session is recorded on this computer as it
-> is written; and sending it to the server. Recording the analyses and
-> finding files through the database are being added; this page will say so
-> when they are.
+> Status, 2026-11-18: everything on this page is in place: the settings, the
+> connection, the storage roots and the Database window; the outbox, where
+> every pipeline step, copied session, file movement, phy curation and run of
+> figures is recorded on this computer as it is written; sending it to the
+> server; and finding recordings and files through the database. The client
+> itself is the `labclient` package of the CarasLabDB repository (see
+> [One client for every toolbox](#one-client-for-every-toolbox-on-the-computer)
+> and [Requirements](#requirements)).
 
 ## Set it up
 
@@ -35,7 +37,7 @@ status bar of the pipeline app, the analysis app or the manifest viewer.
 7. Click **Test connection** (F5). The window says what came of it, and
    which lab person you are in the database.
 
-The settings are kept with the app preferences (group `LabDB`). The window's
+The settings are kept in the client's preferences (group `CarasLabDBClient`, the same for every toolbox on the computer). The window's
 keys are Ctrl+S (save), F5 (test the connection), Ctrl+R (send now), Esc or
 Ctrl+W (close) and Ctrl+? (the list).
 
@@ -95,7 +97,7 @@ dataset's session id is kept in its folder, in `<Name>_labdb.json`, so every
 record of a dataset names the same session, from every computer.
 
 The outbox is the folder `outbox` in this computer's database folder
-(`%LOCALAPPDATA%\ephys_analysis\labdb`). Its format is in
+(`%LOCALAPPDATA%\caraslabdb\client`, shared with the other toolboxes). Its format is in
 [file-formats.md](file-formats.md#lab-database-bundle-caraslabdb-bundle1).
 
 ## Sending
@@ -223,72 +225,116 @@ Before opening a connection, the toolbox checks that the server accepts one
 within **ConnectTimeout** (default 5 s). An unreachable server therefore costs
 a few seconds once, not a window that hangs.
 
+
+## One client for every toolbox on the computer
+
+The client, the Database window and its lamp are not part of this toolbox:
+they are the `+labclient` package of the CarasLabDB repository, shared with
+the lab's other MATLAB toolboxes (EPsych records its sessions and weights
+through it). A computer is set up once, whichever toolbox records: one set of
+settings, one vault password, one map of storage roots, one outbox, one lamp.
+Records from several MATLABs wait in the one outbox; a MATLAB sends what it
+can send, and leaves a record about a dataset of another toolbox for a MATLAB
+that runs that toolbox. This toolbox registers its own (the dataset session
+files, `LabCapture.readSession` and the others) under the name
+`ephys_analysis`; `LabBridge` does it, the first time anything is captured.
+A record written before records named their toolbox (every record from
+before the client was shared) names none. The client assumes no toolbox for
+it; this toolbox wrote those records, says so when it registers
+(`TakesUntagged=true`), and sends them. In a MATLAB that does not run this
+toolbox they wait, untouched.
+
+The settings are kept in the MATLAB preferences, group `CarasLabDBClient`;
+the outbox, the hashes and the caches in `%LOCALAPPDATA%\caraslabdb\client`.
+**The first time this toolbox starts after the client was shared**, it takes
+over what it had kept before, once, and says so in
+`migration_from_ephys_analysis.log` in the new folder: the settings of the
+app preferences (group `LabDB`, preference `Settings`), copied when the
+client has none yet, and every file of `%LOCALAPPDATA%\ephys_analysis\labdb`
+(the outbox and its notes, the hashes, the finder's cache) that is not at
+the same place in the new folder yet, which is moved. A file already there is
+never overwritten; what was being sent (`outbox\claimed`) stays where it is.
+
 ## In scripts
 
 ```matlab
-b  = LabDB.connect();        % the open connection, or [] (never an error)
-st = LabDB.status();         % State, Message, Since, NextTry
-s  = LabDBSettings.load();   % this computer's settings
-[root, rel, why] = LabRoots.locate("Z:\data\G-0421\s1\s1_extract.mat", s);
-p  = LabRoots.resolve("nas-main", "G-0421/s1/s1_extract.mat", s);
+b  = labclient.DB.connect();        % the open connection, or [] (never an error)
+st = labclient.DB.status();         % State, Message, Since, NextTry
+s  = labclient.Settings.load();     % this computer's settings
+[root, rel, why] = labclient.Roots.locate("Z:\data\G-0421\s1\s1_extract.mat", s);
+p  = labclient.Roots.resolve("nas-main", "G-0421/s1/s1_extract.mat", s);
 ```
 
-`LabDB.connect(Force=true)` tries again at once, while offline. Turn the
-database off for a script with `s.Enabled = false; LabDBSettings.save(s)`.
+`labclient.DB.connect(Force=true)` tries again at once, while offline. Turn
+the database off for a script with `s.Enabled = false;
+labclient.Settings.save(s)`.
 
 A writer called from a script records its work as the pipeline does. What
 waits in the outbox, and sending it:
 
 ```matlab
-T = LabOutbox.list();              % id, state, type, captured_at, sealed, file, note
-c = LabOutbox.counts();            % pending, claimed, held, failed, done, discarded
-n = LabHasher.work(Budget=30);     % finish the hashes that are still needed
-r = LabSync.flush(Budget=30);      % send for up to 30 s: sent, pending, held, failed, message
+T = labclient.Outbox.list();       % id, state, type, captured_at, sealed, file, note
+c = labclient.Outbox.counts();     % pending, claimed, held, failed, done, discarded
+n = labclient.Hasher.work(Budget=30);   % finish the hashes that are still needed
+r = LabBridge.flush(Budget=30);    % send for up to 30 s: sent, pending, held, failed, message
 r = ds.Processing.spikes;          % event_id, outputs (path, bytes, mtime, artifact_id, sha256)
 ```
 
 A writer of your own stores its record the same way:
-`ds.setProcessing("spikes", r, StartedAt=t0, Provenance=prov)`.
+`ds.setProcessing("spikes", r, StartedAt=t0, Provenance=prov)`. A script that
+sends with `labclient.Sync.flush` itself should call `LabBridge.registerTool()`
+first (anything captured in that MATLAB has done it already), or the records
+of datasets wait for a MATLAB that has.
 
 ## Requirements
 
 - The [CarasLabDB](https://github.com/dstolz/CarasLabDB) repository on the
-  MATLAB path (its `@CarasLabDB` class folder), a version that has
-  `recordEvent`. Older checkouts are not supported.
+  MATLAB path (its `+labclient` package and its `@CarasLabDB` class folder),
+  a version whose `labclient.Api.Version` is 3 or later
+  (`LabBridge.ClientVersion`) and that has `recordEvent`. An older checkout is
+  not used: the lamp reads "Database: attention" and says to update it
+  (`git pull` in the CarasLabDB folder), and the apps work without the
+  database until then. `useCarasLabDB` puts it on the path when it is
+  a folder `CarasLabDB` beside this repository (or beside the folder that
+  holds it), or the folder the environment variable `CARASLABDB_DIR` names;
+  `run_all_tests` calls it. Otherwise add the checkout to the path yourself
+  (`addpath('C:\src\CarasLabDB')`).
 - The Database Toolbox (CarasLabDB connects with its native `postgresql`
   interface).
 - MATLAB R2024a or later for the vault (`setSecret`, `getSecret`).
 
-Without these, the lamp says **attention** with the reason, and the apps
-work without the database.
+Without these, the lamp says **attention** with the reason (the
+`labclient` package missing is told in the same way as the CarasLabDB class
+missing), and the apps work without the database: nothing is recorded or
+sent, and the few things every step stamps in its record (a uuid, a time, a
+file's size) are done by `LabBridge` itself.
 
 ## Where the code is
 
+The client is in the CarasLabDB repository (`+labclient`: `DB`, `Settings`,
+`Secrets`, `Roots`, `Bundles`, `Outbox`, `Hasher`, `Sync`, `SubjectCache`,
+`Backend`, `CarasBackend`, `FakeBackend`, `Panel`, `Lamp`,
+`SubjectAssignDialog`, `Prefs`, `fileSha256`, `pathKey`); see its README. In
+this repository:
+
 | File | What |
 | --- | --- |
-| [`LabDB`](../pipeline/LabDB.m) | the connection and its state (one per MATLAB): `connect`, `status`, `disconnect`, `folder`, and `useBackend` / `useTemporary` for tests |
-| [`LabDBSettings`](../pipeline/LabDBSettings.m) | the settings, in the app preferences |
-| [`LabDBSecrets`](../pipeline/LabDBSecrets.m) | the password in the MATLAB vault; `useFake` for tests |
-| [`LabRoots`](../pipeline/LabRoots.m) | storage roots: `locate`, `resolve`, the marker files |
+| [`LabBridge`](../pipeline/LabBridge.m) | the door to the client: whether it is on the path, the lamp, the window, the sending timer, `suspend` and `flush` (all safe with the client missing), this toolbox's tool hooks, the take-over of the earlier settings and outbox |
+| [`useCarasLabDB`](../pipeline/useCarasLabDB.m) | puts a CarasLabDB checkout on the path |
 | [`LabCapture`](../pipeline/LabCapture.m) | what a step or a copy records, and the session file; `EphysDataset.setProcessing` calls it |
-| [`LabBundles`](../pipeline/LabBundles.m) | the records as files (`caraslabdb-bundle/1`): build, encode, decode, seal |
-| [`LabOutbox`](../pipeline/LabOutbox.m) | the outbox: put, read, list, claim, finish, move, recover stale claims |
-| [`LabHasher`](../pipeline/LabHasher.m), [`fileSha256`](../pipeline/fileSha256.m) | SHA-256 in MATLAB and out of process |
-| [`LabSync`](../pipeline/LabSync.m) | sending: the timer, `flush`, `suspend`, the session and the person of a record, what a refusal means |
-| [`SubjectAssignDialog`](../pipeline/SubjectAssignDialog.m) | the window for a subject the database does not have |
 | [`LabLocator`](../pipeline/LabLocator.m), [`LabLocatorDialog`](../pipeline/LabLocatorDialog.m) | finding recordings through the database, and where they are here |
-| [`LabDBBackend`](../pipeline/LabDBBackend.m) | what the toolbox asks of the database; the only seam to CarasLabDB |
-| [`LabDBCarasBackend`](../pipeline/LabDBCarasBackend.m) | that seam through the CarasLabDB class |
-| [`LabDBFakeBackend`](../pipeline/LabDBFakeBackend.m) | an in-memory database for the tests |
-| [`LabDBPanel`](../pipeline/LabDBPanel.m), [`LabDBLamp`](../pipeline/LabDBLamp.m) | the Database window and the status-bar lamp |
 
 ## Tests
 
-`test_LabDB` runs everything against `LabDBFakeBackend`, in a temporary
-preference store, a fake vault and a temporary database folder. It needs no
-server and no Database Toolbox, and touches nothing of yours. `test_LabCapture`
-checks the bundles (against `pipeline/testdata/labdb/bundle_event_v1.json`),
-the outbox, the hashes and what the steps and copies record, the same way, and
-`test_LabSync` the sending: once, a lost answer, a conflict, subjects to
-assign, another login, a copy and the step that read it, an unreachable
-server, a failed step, a discarded record.
+`test_LabDB` tests this toolbox's side: `LabBridge`, the hooks it registers,
+the hand-over of the test preference store to the client and the take-over of
+the earlier settings and outbox. `test_LabCapture` checks what the steps and
+copies record, in a temporary preference store and a temporary client folder,
+and `test_LabSync` the sending of those records against the client's in-memory
+database (`labclient.FakeBackend`): once, a lost answer, a conflict, subjects
+to assign, another login, a copy and the step that read it, an unreachable
+server, a failed step, a discarded record. They need no server and no
+Database Toolbox, and touch nothing of yours. The client's own tests (the
+bundles, the outbox, the hashes, the settings, the window, the lamp, the
+records of no dataset, the subject cache) are in the CarasLabDB repository,
+`tests/matlab/LabClientTests.m`.

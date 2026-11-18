@@ -164,5 +164,5 @@ obj.StatusBar.Layout.Row = 1; obj.StatusBar.Layout.Column = 1;
 obj.StatusHint = uilabel(sg, "Text", "", "FontAngle", "italic", "FontColor", [0.15 0.45 0.75], ...
     "HorizontalAlignment", "right", "VerticalAlignment", "center");
 obj.StatusHint.Layout.Row = 1; obj.StatusHint.Layout.Column = 2;
-LabDBLamp(sg, Row=1, Column=3, Parent=obj.Fig);   % the lab database's state; a click opens its window
+LabBridge.lamp(sg, Row=1, Column=3, Parent=obj.Fig);   % the lab database's state; a click opens its window
 end

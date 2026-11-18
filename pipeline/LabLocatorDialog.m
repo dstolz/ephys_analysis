@@ -199,7 +199,7 @@ classdef LabLocatorDialog < handle
             %projects  The project dropdown: any, then the database's projects (none while it does not answer).
             items = {'any project'};
             data = {''};
-            b = LabDB.connect(MaxWait=2);
+            b = LabBridge.connect(MaxWait=2);
             if isempty(b); return; end
             try
                 P = b.projects();

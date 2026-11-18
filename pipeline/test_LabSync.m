@@ -1,21 +1,21 @@
 classdef test_LabSync < matlab.unittest.TestCase
-    %test_LabSync  Sending the outbox to the lab database (LabSync), against the in-memory fake.
+    %test_LabSync  Sending the outbox to the lab database (labclient.Sync), against the in-memory fake.
     %   Everything runs in a temporary preference store, a fake password
-    %   vault, a temporary database folder and LabDBFakeBackend; no timer
-    %   runs (LabSync.useManual): the tests send by hand.
+    %   vault, a temporary database folder and labclient.FakeBackend; no timer
+    %   runs (labclient.Sync.useManual): the tests send by hand.
     %
     %   Covered: a step sent once (its session created in the folder's root,
     %   its file registered with its SHA-256, the person named, inputs this
     %   computer cannot name listed, not guessed), sent again is "existing";
     %   a commit whose answer was lost; the same id with other content held
     %   as a conflict; a subject the database does not have holds the record
-    %   until it is assigned (SubjectAssignDialog: an existing subject, or a
+    %   until it is assigned (labclient.SubjectAssignDialog: an existing subject, or a
     %   new one); a record of another login held until "Send as me"; a copied
     %   session sent before the step that read its files, and inputs sent
     %   later as an edges record; an unreachable server costs no wait and
     %   leaves the outbox as it was; no sending while suspended; a failed step
     %   recorded as failed; a discarded record kept, never sent; where a
-    %   dataset's records stand (LabSync.datasetText, the Review tab's
+    %   dataset's records stand (labclient.Sync.datasetText, the Review tab's
     %   Database column) and the manifest viewer's Database tab (the steps
     %   and files here and in the database, a file's lineage); a move
     %   (OutputTransfer): its copy registered under the step's event before
@@ -35,24 +35,24 @@ classdef test_LabSync < matlab.unittest.TestCase
 
     methods (TestMethodSetup)
         function isolate(tc)
-            tc.Restore = {AppPrefs.useTemporary(), LabDBSecrets.useFake(), LabDB.useTemporary(), ...
-                LabSync.useManual()};
-            tc.Fake = LabDBFakeBackend();
+            tc.Restore = {AppPrefs.useTemporary(), labclient.Secrets.useFake(), labclient.DB.useTemporary(), ...
+                labclient.Sync.useManual()};
+            tc.Fake = labclient.FakeBackend();
             tc.Fake.Roots = table(1, "nas", "the lab's NAS", 'VariableNames', {'root_id', 'name', 'description'});
             tc.Fake.Subjects = table(["SYNTH-01"; "SYNTH-1"; "G-0421"], ["P1"; "P1"; "P1"], ...
                 ["mus_musculus"; "mus_musculus"; "meriones_unguiculatus"], ["F"; "M"; "U"], ...
                 'VariableNames', {'subject_id', 'project_id', 'species_code', 'sex'});
             fake = tc.Fake;
-            tc.Restore{end + 1} = LabDB.useBackend(@() fake);
+            tc.Restore{end + 1} = labclient.DB.useBackend(@() fake);
             tc.Top = string(tempname);
             mkdir(tc.Top);
-            s = LabDBSettings.defaults();
+            s = labclient.Settings.defaults();
             s.Enabled = true;
             s.Server = "labdb.test";
             s.Username = "jdoe";
             s.Roots = struct("Name", "nas", "Path", tc.Top);
-            LabDBSettings.save(s);
-            LabDBSecrets.setFake(LabDBSettings.load(), fake.Password);
+            labclient.Settings.save(s);
+            labclient.Secrets.setFake(labclient.Settings.load(), fake.Password);
             tc.addTeardown(@() tc.cleanUp());
         end
     end
@@ -98,9 +98,9 @@ classdef test_LabSync < matlab.unittest.TestCase
         function aStepIsSentOnce(tc)
             ds = tc.dataset();
             id = tc.captureStep(ds);
-            r = LabSync.flush(Budget=10);
+            r = labclient.Sync.flush(Budget=10);
             tc.verifyEqual(r.sent, 1, r.message);
-            [~, st] = LabOutbox.read(id);
+            [~, st] = labclient.Outbox.read(id);
             tc.verifyEqual(st, "done");
             e = tc.Fake.Events(1);
             tc.verifyEqual(e.event_id, id);
@@ -113,17 +113,17 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.verifyEqual([S.subject_id, S.label, S.relative_path], ...
                 ["SYNTH-01", ds.Name, "SYNTH-01/" + ds.Name]);
             A = tc.Fake.Artifacts;
-            tc.verifyEqual(A.checksum, fileSha256(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat")));
+            tc.verifyEqual(A.checksum, labclient.fileSha256(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat")));
             tc.verifyEqual(A.produced_by_event_id, id);
             a = jsondecode(char(e.attributes));
             tc.verifyEqual(numel(a.unresolved_inputs), numel(ds.Files), ...
                 "raw files this computer cannot name are listed, not guessed");
             tc.verifyEmpty(tc.Fake.Inputs);
 
-            LabOutbox.move(id, "pending");   % sent again
-            tc.verifyEqual(LabSync.flush(Budget=10).sent, 1);
+            labclient.Outbox.move(id, "pending");   % sent again
+            tc.verifyEqual(labclient.Sync.flush(Budget=10).sent, 1);
             tc.verifyEqual(tc.events(), 1, "the same record twice: written once");
-            tc.verifySubstring(LabOutbox.note(id, "done").reason, "already in the database");
+            tc.verifySubstring(labclient.Outbox.note(id, "done").reason, "already in the database");
         end
 
         function aCommitWhoseAnswerWasLost(tc)
@@ -131,47 +131,47 @@ classdef test_LabSync < matlab.unittest.TestCase
             id = tc.captureStep(ds);
             tc.Fake.Fail = struct("Method", "recordEvent", "Identifier", "CarasLabDB:transactionInterrupted", ...
                 "Message", "the connection was reset", "AfterWrite", true);
-            b = LabDB.connect(Force=true);
-            r = LabSync.sendNext(b);
+            b = labclient.DB.connect(Force=true);
+            r = labclient.Sync.sendNext(b);
             tc.verifyEqual(r.outcome, "pending", "a broken connection: it waits");
-            tc.verifyEqual(LabDB.status().State, "offline");
+            tc.verifyEqual(labclient.DB.status().State, "offline");
             tc.verifyEqual(tc.events(), 1, "the commit went through");
-            b = LabDB.connect(Force=true);
-            r = LabSync.sendNext(b);
+            b = labclient.DB.connect(Force=true);
+            r = labclient.Sync.sendNext(b);
             tc.verifyEqual(r.outcome, "done");
             tc.verifySubstring(r.reason, "already in the database");
             tc.verifyEqual(tc.events(), 1);
-            [~, st] = LabOutbox.read(id);
+            [~, st] = labclient.Outbox.read(id);
             tc.verifyEqual(st, "done");
         end
 
         function sameIdOtherContentIsAConflict(tc)
             ds = tc.dataset();
             id = tc.captureStep(ds);
-            LabSync.flush(Budget=10);
-            LabOutbox.move(id, "pending");
-            b = LabOutbox.read(id);
+            labclient.Sync.flush(Budget=10);
+            labclient.Outbox.move(id, "pending");
+            b = labclient.Outbox.read(id);
             b.record.event.notes = "changed after it was sent";
-            LabOutbox.update(LabBundles.seal(b));
-            LabSync.flush(Budget=10);
-            [~, st] = LabOutbox.read(id);
+            labclient.Outbox.update(labclient.Bundles.seal(b));
+            labclient.Sync.flush(Budget=10);
+            [~, st] = labclient.Outbox.read(id);
             tc.verifyEqual(st, "held");
-            tc.verifySubstring(LabOutbox.note(id, "held").reason, "Conflict");
+            tc.verifySubstring(labclient.Outbox.note(id, "held").reason, "Conflict");
             tc.verifyEqual(tc.events(), 1, "nothing written");
         end
 
         function aSubjectToAssign(tc)
             ds = tc.dataset("SYNTH-O1");   % a letter O for a zero
             id = tc.captureStep(ds);
-            LabSync.flush(Budget=10);
-            [~, st] = LabOutbox.read(id);
+            labclient.Sync.flush(Budget=10);
+            [~, st] = labclient.Outbox.read(id);
             tc.verifyEqual(st, "held");
-            tc.verifySubstring(LabOutbox.note(id, "held").reason, "SYNTH-O1 is not in the database");
-            T = LabSync.subjectHolds();
+            tc.verifySubstring(labclient.Outbox.note(id, "held").reason, "SYNTH-O1 is not in the database");
+            T = labclient.Sync.subjectHolds();
             tc.verifyEqual(T.folder_id, "SYNTH-O1");
             tc.verifyEmpty(tc.Fake.Sessions, "no session for a subject that is not there");
 
-            dlg = SubjectAssignDialog.open(FolderId="SYNTH-O1", Visible=false);
+            dlg = labclient.SubjectAssignDialog.open(FolderId="SYNTH-O1", Visible=false);
             tc.addTeardown(@() dlg.cancel());
             items = string(dlg.Ctl.List.Items);
             tc.verifyEqual(items(1), "SYNTH-01", "the nearest subject first");
@@ -181,9 +181,9 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.verifyEqual(LabCapture.readSession(ds.Folder, ds.Name).subject_id, "SYNTH-01", ...
                 "noted in the session file; the folder keeps its name");
             tc.verifyTrue(isfolder(ds.Folder));
-            [~, st] = LabOutbox.read(id);
+            [~, st] = labclient.Outbox.read(id);
             tc.verifyEqual(st, "pending", "released");
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             tc.verifyEqual(tc.Fake.Sessions.subject_id, "SYNTH-01");
             tc.verifyEqual(tc.events(), 1);
         end
@@ -191,34 +191,34 @@ classdef test_LabSync < matlab.unittest.TestCase
         function aNewSubject(tc)
             ds = tc.dataset("NEW-7");
             id = tc.captureStep(ds);
-            LabSync.flush(Budget=10);
-            dlg = SubjectAssignDialog.open(FolderId="NEW-7", Visible=false);
+            labclient.Sync.flush(Budget=10);
+            dlg = labclient.SubjectAssignDialog.open(FolderId="NEW-7", Visible=false);
             tc.addTeardown(@() dlg.cancel());
             dlg.choose("create");
             dlg.Ctl.Sex.Value = 'F';
             dlg.ok();
             tc.verifyTrue(any(tc.Fake.Subjects.subject_id == "NEW-7"), "created in the database");
             tc.verifyEqual(tc.Fake.Subjects.sex(tc.Fake.Subjects.subject_id == "NEW-7"), "F");
-            LabSync.flush(Budget=10);
-            [~, st] = LabOutbox.read(id);
+            labclient.Sync.flush(Budget=10);
+            [~, st] = labclient.Outbox.read(id);
             tc.verifyEqual(st, "done");
         end
 
         function anotherLoginWaitsForSendAsMe(tc)
             ds = tc.dataset();
             id = tc.captureStep(ds);
-            b = LabOutbox.read(id);
+            b = labclient.Outbox.read(id);
             b.captured_by.db_username = "asmith";
-            LabOutbox.update(b);   % the envelope, not the record: the digest stays
-            LabSync.flush(Budget=10);
-            [~, st] = LabOutbox.read(id);
+            labclient.Outbox.update(b);   % the envelope, not the record: the digest stays
+            labclient.Sync.flush(Budget=10);
+            [~, st] = labclient.Outbox.read(id);
             tc.verifyEqual(st, "held");
-            tc.verifySubstring(LabOutbox.note(id, "held").reason, "asmith");
-            p = LabDBPanel.open(Visible=false);
+            tc.verifySubstring(labclient.Outbox.note(id, "held").reason, "asmith");
+            p = labclient.Panel.open(Visible=false);
             tc.addTeardown(@() p.close());
             p.release(id, OnBehalf=true);
-            LabSync.flush(Budget=10);
-            [~, st] = LabOutbox.read(id);
+            labclient.Sync.flush(Budget=10);
+            [~, st] = labclient.Outbox.read(id);
             tc.verifyEqual(st, "done");
             a = jsondecode(char(tc.Fake.Events(1).attributes));
             tc.verifyEqual(string(a.sent_on_behalf_of), "asmith");
@@ -233,24 +233,24 @@ classdef test_LabSync < matlab.unittest.TestCase
                 "epsych_trials", NaN, "finished", datetime("now", "TimeZone", "local"));
             LabCapture.copiedSession(info);
             ses = LabCapture.readSession(ds.Folder, ds.Name);
-            LabHasher.work();
+            labclient.Hasher.work();
             step = tc.captureStep(ds);
-            b = LabOutbox.read(step);
+            b = labclient.Outbox.read(step);
             tc.verifyTrue(all([b.record.inputs.artifact_id] ~= ""), "the raw files' ids, from the session file");
 
             % The step goes first (the recording is held): its inputs wait.
-            LabOutbox.move(ses.recording_event_id, "held");
-            LabSync.flush(Budget=10);
-            [~, st] = LabOutbox.read(step);
+            labclient.Outbox.move(ses.recording_event_id, "held");
+            labclient.Sync.flush(Budget=10);
+            [~, st] = labclient.Outbox.read(step);
             tc.verifyEqual(st, "done");
-            tc.verifySubstring(LabOutbox.note(step, "done").reason, "sent later");
+            tc.verifySubstring(labclient.Outbox.note(step, "done").reason, "sent later");
             tc.verifyEmpty(tc.Fake.Inputs);
-            LabOutbox.move(ses.recording_event_id, "pending");
-            LabSync.flush(Budget=10);
+            labclient.Outbox.move(ses.recording_event_id, "pending");
+            labclient.Sync.flush(Budget=10);
             tc.verifyEqual(tc.events(), 2);
             tc.verifyEqual(height(tc.Fake.Inputs), numel(ds.Files), "the edges, once the raw files are there");
             tc.verifyTrue(all(tc.Fake.Inputs.event_id == step));
-            c = LabOutbox.counts();
+            c = labclient.Outbox.counts();
             tc.verifyEqual([c.pending c.held c.failed], [0 0 0]);
         end
 
@@ -262,8 +262,8 @@ classdef test_LabSync < matlab.unittest.TestCase
                 "source_dir", "D:\rig", "files", files, "epsych_file", "", "epsych_time", NaT, ...
                 "epsych_trials", NaN, "finished", datetime("now", "TimeZone", "local"));
             LabCapture.copiedSession(info);
-            LabHasher.work();
-            LabSync.flush(Budget=10);
+            labclient.Hasher.work();
+            labclient.Sync.flush(Budget=10);
             tc.verifyEqual(height(tc.Fake.Sessions), 1);
             S = tc.Fake.Sessions.session_id(1);
             E = LabCapture.readSession(ds.Folder, ds.Name).recording_event_id;
@@ -280,16 +280,16 @@ classdef test_LabSync < matlab.unittest.TestCase
             info.files = struct("path", cellstr(fullfile(dest2, ds.Files)), "sha256", "", "is_epsych", false);
             info.source_dir = "D:\rig";
             LabCapture.copiedSession(info);
-            LabHasher.work();
+            labclient.Hasher.work();
             rec2 = LabCapture.readSession(dest2, ds.Name).recording_event_id;
             tc.verifyNotEqual(rec2, E);
 
             % steps on the copy go first, while its recording record is held
-            LabOutbox.move(rec2, "held");
+            labclient.Outbox.move(rec2, "held");
             ds2 = EphysDataset(dest2);
             step1 = tc.captureStep(ds2);
             step2 = tc.captureStep(ds2, uint8(65:200));
-            LabSync.flush(Budget=20);
+            labclient.Sync.flush(Budget=20);
             tc.verifyEqual(height(tc.Fake.Sessions), 1, "no second session for one recording");
             ev = @(id) tc.Fake.Events(string({tc.Fake.Events.event_id}) == id);
             tc.verifyEqual(ev(step1).session_id, S, "the copy's step: the recording's session, found by its raw files");
@@ -297,19 +297,19 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.verifyEqual(LabCapture.readSession(dest2, ds.Name).session_id, S);
 
             % the copy's recording record, sent: copies of the recording's files, not a recording
-            LabOutbox.move(rec2, "pending");
-            LabSync.flush(Budget=20);
+            labclient.Outbox.move(rec2, "pending");
+            labclient.Sync.flush(Budget=20);
             tc.verifyEqual(sum(string({tc.Fake.Events.event_type}) == "recording"), 1, "no second recording event");
             A = tc.Fake.Artifacts(~ismember(tc.Fake.Artifacts.artifact_id, raw1) & tc.Fake.Artifacts.role == "raw", :);
             tc.verifyEqual(height(A), numel(ds.Files), "each raw file of the copy");
             tc.verifyTrue(all(A.produced_by_event_id == E) && all(A.session_id == S), "files of the recording, in its session");
             a = jsondecode(char(A.attributes(1)));
             tc.verifyTrue(ismember(string(a.copied_from), raw1), "copied from the recording's file");
-            tc.verifySubstring(LabOutbox.note(rec2, "done").reason, "a copy of the recording");
+            tc.verifySubstring(labclient.Outbox.note(rec2, "done").reason, "a copy of the recording");
             tc.verifyEqual(LabCapture.readSession(dest2, ds.Name).recording_event_id, E);
             I = tc.Fake.Inputs(tc.Fake.Inputs.event_id == step1, :);
             tc.verifyEqual(sort(I.artifact_id), sort(A.artifact_id), "the steps' raw inputs: the copies, once they are there");
-            c = LabOutbox.counts();
+            c = labclient.Outbox.counts();
             tc.verifyEqual([c.pending c.held c.failed], [0 0 0]);
         end
 
@@ -321,7 +321,7 @@ classdef test_LabSync < matlab.unittest.TestCase
             save(f, "detected", "conversion");
             ds.setProcessing("spikes", EphysDataset.processingRecord("file", f, struct("runId", "run1"), struct("A", 1)), ...
                 StartedAt=datetime("now", "TimeZone", "local") - seconds(3));
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             orig = tc.Fake.Artifacts.artifact_id(endsWith(tc.Fake.Artifacts.relative_path, ds.Name + "_spikes.mat"));
             tc.verifySize(orig, [1 1]);
 
@@ -344,7 +344,7 @@ classdef test_LabSync < matlab.unittest.TestCase
                 'VariableNames', {'Dataset', 'Plot', 'Kind', 'Status', 'Message', 'Files', 'Seconds'}));
             id = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"));
             tc.verifyNotEqual(id, "");
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             e = tc.Fake.Events(string({tc.Fake.Events.event_id}) == id);
             tc.verifySize(e, [1 1]);
             tc.verifyEqual(string(e.detail.pipeline_name), "ephys_analysis/figures");
@@ -361,7 +361,7 @@ classdef test_LabSync < matlab.unittest.TestCase
             % the next run writes the report again, other bytes: it replaces the first
             tc.writeBytes(rep, uint8('<html>2</html>'));
             id2 = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"));
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             tc.verifyNotEqual(id2, "");
             D = tc.Fake.Dispositions;
             tc.verifyEqual(D.artifact_id(D.disposition == "replaced"), A.artifact_id, "the report the run rewrote: replaced");
@@ -372,36 +372,36 @@ classdef test_LabSync < matlab.unittest.TestCase
             id = tc.captureStep(ds);
             tc.Fake.Reachable = false;
             t0 = tic;
-            r = LabSync.flush(Budget=10);
+            r = labclient.Sync.flush(Budget=10);
             tc.verifyLessThan(toc(t0), 3);
             tc.verifyEqual(r.sent, 0);
             tc.verifyNotEqual(r.message, "");
-            [~, st] = LabOutbox.read(id);
+            [~, st] = labclient.Outbox.read(id);
             tc.verifyEqual(st, "pending", "it waits");
             t0 = tic;
-            LabSync.tick();
+            labclient.Sync.tick();
             tc.verifyLessThan(toc(t0), 3, "a tick waits 2 s at most");
         end
 
         function nothingIsSentWhileSuspended(tc)
             ds = tc.dataset();
             tc.captureStep(ds);
-            quiet = LabSync.suspend();
+            quiet = labclient.Sync.suspend();
             n = numel(tc.Fake.Calls);
-            LabSync.tick();
+            labclient.Sync.tick();
             tc.verifyEqual(numel(tc.Fake.Calls), n);
             clear quiet
-            tc.verifyFalse(LabSync.suspended());
+            tc.verifyFalse(labclient.Sync.suspended());
         end
 
         function aFailedStep(tc)
             ds = tc.dataset();
             LabCapture.failure(ds, "spikes", Outcome="canceled", Message="canceled by the user", Seconds=4, ...
                 Parameters=struct("Threshold", 4.5));
-            T = LabOutbox.list(State="pending");
+            T = labclient.Outbox.list(State="pending");
             tc.verifyEqual(height(T), 1);
             tc.verifyTrue(T.sealed, "no outputs: complete at once");
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             e = tc.Fake.Events(1);
             tc.verifyEqual(e.detail.status, "failed");
             a = jsondecode(char(e.attributes));
@@ -411,11 +411,11 @@ classdef test_LabSync < matlab.unittest.TestCase
 
         function whereADatasetsRecordsStand(tc)
             ds = tc.dataset();
-            tc.verifyEqual(LabSync.datasetText(ds.Processing), "", "no record yet");
+            tc.verifyEqual(labclient.Sync.datasetText(ds.Processing), "", "no record yet");
             id = tc.captureStep(ds);
-            tc.verifyEqual(LabSync.datasetText(ds.Processing), "1 to send");
-            LabSync.flush(Budget=10);
-            tc.verifyEqual(LabSync.datasetText(ds.Processing), "1 sent");
+            tc.verifyEqual(labclient.Sync.datasetText(ds.Processing), "1 to send");
+            labclient.Sync.flush(Budget=10);
+            tc.verifyEqual(labclient.Sync.datasetText(ds.Processing), "1 sent");
             tc.Fake.Verifications = table(tc.Fake.Artifacts.artifact_id(1), "ok", ...
                 datetime("now", "TimeZone", "UTC"), 'VariableNames', {'artifact_id', 'status', 'verified_at'});
 
@@ -444,7 +444,7 @@ classdef test_LabSync < matlab.unittest.TestCase
         function aMoveIsRecordedBeforeTheSourceGoes(tc)
             ds = tc.dataset();
             tc.captureStep(ds);
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             src = string(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat"));
             destDir = string(fullfile(tc.Top, "backup", "SYNTH-01", ds.Name));
             mkdir(destDir);
@@ -453,7 +453,7 @@ classdef test_LabSync < matlab.unittest.TestCase
             F = struct("Src", src, "Rel", ds.Name + "_spikes.mat", "Bytes", d.bytes, "Time", d.datenum, ...
                 "State", "copied");
             b = struct("Id", 1, "Dataset", ds.Name, "DestDir", destDir, "State", "copied", "Files", F);
-            X = struct("Method", "move", "Uid", LabBundles.newId(), "IfExists", "version", ...
+            X = struct("Method", "move", "Uid", labclient.Bundles.newId(), "IfExists", "version", ...
                 "sha256Of", @(f) "");
             tc.verifyFalse(LabCapture.copyRecorded(X.Uid, src), "nothing noted yet: the source stays");
             LabCapture.transferred(ds, b, X);
@@ -463,9 +463,9 @@ classdef test_LabSync < matlab.unittest.TestCase
             b.Files.State = "removed";
             LabCapture.transferred(ds, b, X);
             LabCapture.transferred(ds, b, X);   % told twice: noted once
-            T = LabOutbox.list(State="pending");
+            T = labclient.Outbox.list(State="pending");
             tc.verifyEqual(height(T), 2, "the copy, then its source moved");
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             A = tc.Fake.Artifacts;
             tc.verifyEqual(height(A), 2);
             tc.verifyEqual(A.produced_by_event_id(2), A.produced_by_event_id(1), "the copy is the step's file too");
@@ -474,14 +474,14 @@ classdef test_LabSync < matlab.unittest.TestCase
             D = tc.Fake.Dispositions;
             tc.verifyEqual([D.artifact_id, D.disposition, D.successor_artifact_id], ...
                 [A.artifact_id(1), "moved", A.artifact_id(2)]);
-            c = LabOutbox.counts();
+            c = labclient.Outbox.counts();
             tc.verifyEqual([c.pending c.held c.failed], [0 0 0]);
         end
 
         function aCopyThatIsNotItsSourceIsHeld(tc)
             ds = tc.dataset();
             tc.captureStep(ds);
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             src = string(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat"));
             destDir = string(fullfile(tc.Top, "backup2"));
             mkdir(destDir);
@@ -491,10 +491,10 @@ classdef test_LabSync < matlab.unittest.TestCase
             F = struct("Src", src, "Rel", ds.Name + "_spikes.mat", "Bytes", d.bytes, "Time", d.datenum, ...
                 "State", "copied");
             b = struct("Id", 1, "Dataset", ds.Name, "DestDir", destDir, "State", "done", "Files", F);
-            X = struct("Method", "copy", "Uid", LabBundles.newId(), "IfExists", "version", "sha256Of", @(f) "");
+            X = struct("Method", "copy", "Uid", labclient.Bundles.newId(), "IfExists", "version", "sha256Of", @(f) "");
             LabCapture.transferred(ds, b, X);
-            LabSync.flush(Budget=10);
-            T = LabOutbox.list(State="held");
+            labclient.Sync.flush(Budget=10);
+            T = labclient.Outbox.list(State="held");
             tc.verifyEqual(height(T), 1);
             tc.verifySubstring(T.note, "is not the bytes of the file it copies");
             tc.verifyEqual(height(tc.Fake.Artifacts), 1, "not registered");
@@ -503,7 +503,7 @@ classdef test_LabSync < matlab.unittest.TestCase
         function aCleanUpDeletionIsRecorded(tc)
             ds = tc.dataset();
             tc.captureStep(ds);
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             ds.writeManifest();
             f = string(fullfile(ds.outputFolder(), ds.Name + "_spikes.mat"));
             d = dir(f);
@@ -511,7 +511,7 @@ classdef test_LabSync < matlab.unittest.TestCase
                 'VariableNames', {'Dataset', 'Folder', 'File', 'Bytes', 'Status', 'To', 'Replaced'});
             delete(f);
             LabCapture.cleanedUp(R, "recycle");
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             D = tc.Fake.Dispositions;
             tc.verifyEqual([D.artifact_id, D.disposition], [tc.Fake.Artifacts.artifact_id(1), "deleted"]);
         end
@@ -519,7 +519,7 @@ classdef test_LabSync < matlab.unittest.TestCase
         function findingRecordingsThroughTheDatabase(tc)
             ds = tc.dataset();
             tc.captureStep(ds);
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             key = @(p) EphysDataset.pathKey(string(p));
             [T, asOf, note] = LabLocator.sessions(Subject="SYNTH-01");
             tc.verifyEqual(height(T), 1);
@@ -536,14 +536,14 @@ classdef test_LabSync < matlab.unittest.TestCase
             mkdir(ks);
             tc.writeBytes(fullfile(ks, "spike_times.npy"), uint8(1:32));
             ds.setProcessing("sorting", EphysDataset.processingRecord("results_dir", ks, struct("runId", "run1"), struct("A", 1)));
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             a = jsondecode(char(tc.Fake.Artifacts.attributes(end)));
             tc.verifyEqual(string(a.dataset_rel), "kilosort4/spike_times.npy", "a file's place in its dataset's output folder");
             [T, asOf] = LabLocator.sessions(Subject="SYNTH-01");   % the last answer now, kept with its time
             tc.verifyEqual(key(T.outputs{1}), key(ds.outputFolder()), "a sort in kilosort4/: the dataset's output folder, not kilosort4");
 
             tc.Fake.Reachable = false;
-            LabDB.disconnect();
+            labclient.DB.disconnect();
             [T2, asOf2, note2] = LabLocator.sessions(Subject="SYNTH-01");
             tc.verifySubstring(note2, "does not answer");
             tc.verifyEqual(height(T2), 1, "the last answer, while offline");
@@ -554,7 +554,7 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.addTeardown(@() dlg.cancel());
             tc.addTeardown(@() evalin("base", "clear labLocatorPicked"));
             dlg.Ctl.Subject.Value = 'SYNTH-01';
-            LabDB.connect(Force=true);
+            labclient.DB.connect(Force=true);
             dlg.search();
             tc.verifyEqual(height(dlg.Results), 1);
             dlg.select(1);
@@ -636,9 +636,9 @@ classdef test_LabSync < matlab.unittest.TestCase
             ds.setProcessing("spikes", r, StartedAt=datetime("now", "TimeZone", "local") - seconds(3));
             ev = ds.Processing.spikes.event_id;
             ds.writeManifest();   % the manifest records the step
-            LabSync.flush(Budget=10);
-            s = LabDBSettings.load();
-            [~, relOld] = LabRoots.locate(f, s);
+            labclient.Sync.flush(Budget=10);
+            s = labclient.Settings.load();
+            [~, relOld] = labclient.Roots.locate(f, s);
             old = tc.Fake.Artifacts.artifact_id(tc.Fake.Artifacts.relative_path == relOld);
             tc.verifySize(old, [1 1]);
             tc.verifyEqual(DatasetOutputs(ds).pathSource("spikes"), "discovered", "here: the search roots decide");
@@ -648,12 +648,12 @@ classdef test_LabSync < matlab.unittest.TestCase
             mkdir(there);
             copy = string(fullfile(there, ds.Name + "_spikes.mat"));
             movefile(f, copy);
-            [~, rel] = LabRoots.locate(copy, s);
+            [~, rel] = labclient.Roots.locate(copy, s);
             d = dir(copy);
-            b = LabDB.connect();
-            id = LabBundles.newId();
+            b = labclient.DB.connect();
+            id = labclient.Bundles.newId();
             b.addArtifact(struct("ArtifactId", id, "ProducedByEventId", ev, "StorageRootId", 1, "RelativePath", rel, ...
-                "Checksum", fileSha256(copy), "SizeBytes", d.bytes, "Role", "spikes", "Format", "mat", ...
+                "Checksum", labclient.fileSha256(copy), "SizeBytes", d.bytes, "Role", "spikes", "Format", "mat", ...
                 "AttributesJson", string(jsonencode(struct("kind", "threshold_spikes", "dataset_rel", ds.Name + "_spikes.mat")))));
             b.addDisposition(struct("ArtifactId", old, "Disposition", "moved", "SuccessorArtifactId", id, ...
                 "OccurredAt", datetime("now", "TimeZone", "local"), "Note", "", "AttributesJson", "{}"));
@@ -671,7 +671,7 @@ classdef test_LabSync < matlab.unittest.TestCase
 
             % offline: the local search only, and no long wait
             tc.Fake.Reachable = false;
-            LabDB.disconnect();
+            labclient.DB.disconnect();
             out = DatasetOutputs(ds);
             t0 = tic;
             tc.verifyFalse(out.has("spikes"));
@@ -688,7 +688,7 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.writeBytes(fullfile(ks, "cluster_group.tsv"), uint8(['cluster_id' tab 'KSLabel' newline '0' tab 'good' newline]));
             ds.setProcessing("sorting", EphysDataset.processingRecord("results_dir", ks, struct("runId", "run1"), struct("A", 1)));
             sortId = ds.Processing.sorting.event_id;
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             A0 = tc.Fake.Artifacts;
             tc.verifyEqual(LabCapture.curation(ds), "", "nothing changed since the sort");
 
@@ -701,14 +701,14 @@ classdef test_LabSync < matlab.unittest.TestCase
             id = LabCapture.curation(ds);
             tc.verifyNotEqual(id, "");
             tc.verifyEqual(LabCapture.curation(ds), "", "one save is captured once");
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             e = tc.Fake.Events(string({tc.Fake.Events.event_id}) == id);
             tc.verifySize(e, [1 1]);
             tc.verifyEqual(string(e.detail.status), "succeeded");
             a = jsondecode(char(e.attributes));
             tc.verifyEqual(string(a.tool), "phy");
             tc.verifyEqual(string(a.sort_event_id), sortId);
-            tc.verifyEqual(string(a.opened_by.os_user), LabBundles.osUser(), "who opened phy from the app");
+            tc.verifyEqual(string(a.opened_by.os_user), labclient.Bundles.osUser(), "who opened phy from the app");
             tc.verifyEqual(string(a.phy_labels), "mua");
 
             A = tc.Fake.Artifacts(tc.Fake.Artifacts.produced_by_event_id == id, :);
@@ -731,7 +731,7 @@ classdef test_LabSync < matlab.unittest.TestCase
             % a re-sort later replaces phy's version of a file, not the sort's first one
             tc.writeBytes(fullfile(ks, "cluster_info.tsv"), uint8(['cluster_id' tab 'group' newline '0' tab 'good' newline '1' tab 'mua' newline]));
             ds.setProcessing("sorting", EphysDataset.processingRecord("results_dir", ks, struct("runId", "run2"), struct("A", 2)));
-            b = LabOutbox.read(ds.Processing.sorting.event_id);
+            b = labclient.Outbox.read(ds.Processing.sorting.event_id);
             o = b.record.outputs(name(string({b.record.outputs.path})) == "cluster_info.tsv");
             tc.verifyEqual(o.replaces, A.artifact_id(name(A.relative_path) == "cluster_info.tsv"), ...
                 "the file's latest version is phy's, for a later re-sort, copy or move");
@@ -747,7 +747,7 @@ classdef test_LabSync < matlab.unittest.TestCase
                 StartedAt=datetime("now", "TimeZone", "local") - seconds(3));
             ev = ds.Processing.spikes.event_id;
             ds.writeManifest();
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             orig = tc.Fake.Artifacts.artifact_id(endsWith(tc.Fake.Artifacts.relative_path, ds.Name + "_spikes.mat"));
             tc.verifySize(orig, [1 1]);
 
@@ -755,11 +755,11 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.addTeardown(@() delete(dlg));
             dlg.start();
             dlg.wait(120);
-            LabSync.flush(Budget=10);
+            labclient.Sync.flush(Budget=10);
             A = tc.Fake.Artifacts(startsWith(tc.Fake.Artifacts.relative_path, "laptop/"), :);
             tc.verifyEqual(height(A), 1, "the spikes file's copy (the manifest and the rest are no step's file)");
             tc.verifyEqual(A.produced_by_event_id, ev, "a file of the step that wrote it");
-            tc.verifyEqual(A.checksum, fileSha256(f));
+            tc.verifyEqual(A.checksum, labclient.fileSha256(f));
             a = jsondecode(char(A.attributes));
             tc.verifyEqual(string(a.copied_from), orig);
             tc.verifyEqual(string(a.dataset_rel), ds.Name + "_spikes.mat", "its place in the copy of the dataset's folder");
@@ -768,13 +768,13 @@ classdef test_LabSync < matlab.unittest.TestCase
         function aDiscardedRecordIsKept(tc)
             ds = tc.dataset();
             id = tc.captureStep(ds);
-            p = LabDBPanel.open(Visible=false);
+            p = labclient.Panel.open(Visible=false);
             tc.addTeardown(@() p.close());
             p.discard(id, Confirm=false, Reason="a test recording");
-            [~, st] = LabOutbox.read(id);
+            [~, st] = labclient.Outbox.read(id);
             tc.verifyEqual(st, "discarded");
-            tc.verifySubstring(LabOutbox.note(id, "discarded").reason, "a test recording");
-            LabSync.flush(Budget=10);
+            tc.verifySubstring(labclient.Outbox.note(id, "discarded").reason, "a test recording");
+            labclient.Sync.flush(Budget=10);
             tc.verifyEqual(tc.events(), 0, "never sent");
         end
     end

@@ -82,6 +82,7 @@ ana = fullfile(repo, 'analysis');
 addpath(here);
 addpath(repo);
 addpath(ana);
+useCarasLabDB();   % the shared lab database client (labclient) the Lab* suites use, when a checkout is at hand
 
 if opts.Coverage ~= "" && opts.CoverageXML ~= ""
     error('run_all_tests:TwoCoverageFormats', 'Give Coverage or CoverageXML, not both.');

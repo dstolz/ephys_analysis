@@ -1660,31 +1660,37 @@ run records it under that id.
 
 ## Lab database bundle (`caraslabdb-bundle/1`)
 
-Path: `<LabDB.folder()>/outbox/<state>/<bundle_id>.json`, `<state>` one of
-`pending`, `claimed`, `held`, `failed`, `done`, `discarded`; `LabDB.folder()` is
-`%LOCALAPPDATA%\ephys_analysis\labdb` (or `EPHYS_LABDB_DIR`). Written by
+Path: `<labclient.DB.folder()>/outbox/<state>/<bundle_id>.json`, `<state>` one of
+`pending`, `claimed`, `held`, `failed`, `done`, `discarded`; `labclient.DB.folder()` is
+`%LOCALAPPDATA%\caraslabdb\client` (or `CARASLABDB_CLIENT_DIR`). Written by
 `LabCapture` when the [lab database](database.md) is turned on here, one per
-record to send, and sent by `LabSync`. Compact JSON, written by
-`LabBundles.encode` only (atomically, `writeJsonFile`):
+record to send, and sent by `labclient.Sync`. Compact JSON, written by
+`labclient.Bundles.encode` only (atomically, `writeJsonFile`):
 
 ```text
 {
   "format":      "caraslabdb-bundle/1",
   "bundle_id":   <the event's id, a uuid>,
-  "type":        "event" | "edges",
+  "type":        "event" | "edges" | "files",
   "captured_at": <yyyy-MM-ddTHH:mm:ss.SSSSSS±hh:mm>,
   "captured_by": { "host", "os_user", "db_username", "person_id", "person_email" },
   "after":       [<bundle ids to send first>],
   "digest":      <SHA-256 of the record's JSON text; "" until every output's SHA-256 is known>,
   "record": {
-    "dataset": { "name", "folder", "session_id", "subject_folder_id", "recording_start" },
-    "event":   { "event_id", "event_type": "analysis" | "recording" | "behavior",
+    "dataset": { "name", "folder", "session_id", "subject_folder_id", "recording_start", "tool" },
+                  "tool" is the toolbox that owns the dataset ("ephys_analysis"): left out while
+                  "". A record of a folder with none (written before records named their
+                  toolbox) is sent only by the toolbox registered as taking those records
+                  (labclient.Sync.registerTool, TakesUntagged=true), which is this one
+    "subject_id": <the subject of an event of no dataset, left out while "">,
+    "event":   { "event_id", "event_type": "analysis" | "recording" | "behavior" | "husbandry",
                  "occurred_at", "notes", "performer": { "person_id", "person_email" },
                  "attributes_json": <JSON object as text>,
                  "detail": { the event type's columns: analysis "pipeline_name", "code_version",
                              "parameters_json", "environment_json", "started_at", "finished_at",
                              "status"; recording "acquisition_system_code", "duration_s";
-                             behavior "trials_completed" (only what is known) } },
+                             behavior "trials_completed" (only what is known);
+                             husbandry "measure", "weight_g", "water_ml", "health_status" } },
     "inputs":  [ <item>, ... ],   the files it read
     "outputs": [ <item>, ... ]    the files it wrote
   }
@@ -1695,7 +1701,7 @@ record to send, and sent by `LabSync`. Compact JSON, written by
 
 An `edges` bundle holds the inputs of an event already sent whose files were
 not in the database yet: `"record": { "event_id", "inputs": [<item>, ...] }`.
-`LabSync` writes one when the database leaves inputs out, and sends it again
+`labclient.Sync` writes one when the database leaves inputs out, and sends it again
 until every file is there.
 
 A `files` bundle holds copies of files an event produced and what became of
@@ -1725,7 +1731,7 @@ from it.
   its config; `attributes_json`) is kept as text, so it is sent exactly as
   captured and never decoded and encoded again.
 - `root` and `rel` are the file's storage root and its path below it
-  (`LabRoots`), `""` for a file under none of the roots mapped here.
+  (`labclient.Roots`), `""` for a file under none of the roots mapped here.
   `artifact_id` of an output is minted at capture, or kept from an earlier
   record when the step left the file as it was; `replaces` is the id of the
   file it rewrote (`""` when none, or when the new bytes are the same). An
@@ -1735,7 +1741,7 @@ from it.
   `waveforms`, `derived`, ...), `kind` what the file is to this toolbox
   (`raw`, `epsych`, `artifacts`, `bin`, `sorting`, `signals`,
   `threshold_spikes`, `behavior`, `nwb`).
-- `digest` is the SHA-256 of `record` as `LabBundles.encodeRecord` writes it.
+- `digest` is the SHA-256 of `record` as `labclient.Bundles.encodeRecord` writes it.
   Sending the same bundle twice is harmless: the database keeps the digest
   with the event and answers "existing".
 - A `<bundle_id>.note.json` beside a bundle says when and why it moved
@@ -1743,9 +1749,9 @@ from it.
   try found (`flags`: `on_behalf` for "Send as me", `needs_subject`,
   `needs_login`); a claimed bundle has a heartbeat,
   `<bundle_id>.claim.json`. The out-of-process hashes are in
-  `<LabDB.folder()>/hashing`.
-- `pipeline/testdata/labdb/bundle_event_v1.json` is a complete example,
-  checked byte for byte by `test_LabCapture`.
+  `<labclient.DB.folder()>/hashing`.
+- `tests/matlab/testdata/bundle_event_v1.json` of the CarasLabDB repository is a complete example,
+  checked byte for byte by its `LabClientTests`.
 
 ## Lab database session file (`<Name>_labdb.json`)
 
@@ -1754,7 +1760,7 @@ of the dataset is captured for the lab database, or by `copySessions` for a
 session it copied: `format` (`ephys-labdb-session/1`), `session_id` (the
 session's id in the database, the same on every record and every computer
 that reads the folder), `created_at`, `subject_id` (the database subject a
-person assigned the session to, `SubjectAssignDialog`; absent or `""`: the
+person assigned the session to, `labclient.SubjectAssignDialog`; absent or `""`: the
 one the folder's name gives), `recording_event_id` and
 `behavior_event_id` (the copied session's events; `""` when none), `raw`
 (the raw files as captured, bundle items with their ids), `phy_opened` (the

@@ -98,7 +98,7 @@ if ~opts.DryRun && any(ismember(steps, ["artifacts" "sorting" "signals" "spikes"
     obj.lockDatasets(obj.Provenance.runId);
 end
 unlock = onCleanup(@() obj.unlockDatasets()); %#ok<NASGU>
-quiet = LabSync.suspend();   % the lab database is not sent to while the run goes (LabSync)
+quiet = LabBridge.suspend();   % the lab database is not sent to while the run goes (labclient.Sync)
 
 t0 = tic;
 outcome = "finished";
@@ -149,8 +149,8 @@ obj.Provenance = [];   % a step called on its own afterwards is not part of this
 clear quiet
 if ~opts.DryRun && LabCapture.enabled()
     % What the run recorded goes to the lab database now, for 10 s at most;
-    % what is left goes later (LabSync).
-    sent = LabSync.flush(Budget=10);
+    % what is left goes later (labclient.Sync).
+    sent = LabBridge.flush(Budget=10);
     obj.log("Lab database: %d record(s) sent, %d waiting, %d held, %d failed%s", sent.sent, ...
         sent.pending, sent.held, sent.failed, ternary(sent.message == "", "", " (" + sent.message + ")"));
 end

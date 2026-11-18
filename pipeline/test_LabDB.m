@@ -37,6 +37,8 @@ classdef test_LabDB < matlab.unittest.TestCase
     methods (Test)
         function theClientIsThere(tc)
             tc.verifyTrue(LabBridge.available());
+            tc.verifyTrue(LabBridge.recentEnough(), "the package is the version this toolbox is written for");
+            tc.verifyFalse(LabBridge.recentEnough(labclient.Api.Version + 1), "a later version than the package has is not there");
             tc.verifyEqual(LabBridge.Tool, "ephys_analysis");
             tc.verifyFalse(LabCapture.enabled(), "off until set up");
             s = labclient.Settings.defaults();

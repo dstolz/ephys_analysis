@@ -290,8 +290,11 @@ of datasets wait for a MATLAB that has.
 
 - The [CarasLabDB](https://github.com/dstolz/CarasLabDB) repository on the
   MATLAB path (its `+labclient` package and its `@CarasLabDB` class folder),
-  a version that has the `labclient` package and `recordEvent`. Older
-  checkouts are not supported. `useCarasLabDB` puts it on the path when it is
+  a version whose `labclient.Api.Version` is 3 or later
+  (`LabBridge.ClientVersion`) and that has `recordEvent`. An older checkout is
+  not used: the lamp reads "Database: attention" and says to update it
+  (`git pull` in the CarasLabDB folder), and the apps work without the
+  database until then. `useCarasLabDB` puts it on the path when it is
   a folder `CarasLabDB` beside this repository (or beside the folder that
   holds it), or the folder the environment variable `CARASLABDB_DIR` names;
   `run_all_tests` calls it. Otherwise add the checkout to the path yourself

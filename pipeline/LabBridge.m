@@ -15,7 +15,7 @@ classdef LabBridge
     %   file's size and time) are done here. This class is the only place that
     %   knows the package may be absent:
     %
-    %     LabBridge.available()          the package is on the path
+    %     LabBridge.available()          the package is on the path, in a version this toolbox can use
     %     LabBridge.lamp(grid, Row=, Column=, Parent=)   the status-bar lamp
     %     LabBridge.openWindow(Parent=)  the Database window
     %     LabBridge.start(Parent=, IfEnabled=)           the sending timer
@@ -38,11 +38,19 @@ classdef LabBridge
 
     properties (Constant)
         Tool = "ephys_analysis"   % the name of this toolbox's hooks, and dataset.tool of its records
+        % The version of the client's interface this toolbox is written for
+        % (labclient.Api.Version). It calls what version 2 added
+        % (TakesUntagged); the class that says the version came with 3, so 3
+        % is the least that can be asked for.
+        ClientVersion = 3
     end
 
     methods (Static)
         function tf = available()
-            %available  True when the labclient package is on the MATLAB path (after one look in the usual places).
+            %available  True when the labclient package is on the MATLAB path, in a version this toolbox can use.
+            %   One look in the usual places first (useCarasLabDB). A package
+            %   that is there but older than ClientVersion is not used:
+            %   calling it would fail part way (recentEnough, missingMessage).
             persistent found
             if ~isempty(found) && found; tf = true; return; end
             tf = LabBridge.packageThere();
@@ -50,8 +58,20 @@ classdef LabBridge
                 useCarasLabDB();
                 tf = LabBridge.packageThere();
             end
+            tf = tf && LabBridge.recentEnough();
             found = tf;
             if tf; LabBridge.migrate(); end
+        end
+
+        function tf = recentEnough(needed)
+            %recentEnough  True when the labclient package on the path is version NEEDED of its interface, or later.
+            %   NEEDED is ClientVersion when left out. A package from before
+            %   labclient.Api has no version to ask for, and is older than any
+            %   this toolbox can use.
+            arguments
+                needed (1,1) double = LabBridge.ClientVersion
+            end
+            tf = exist("labclient.Api", "class") == 8 && labclient.Api.Version >= needed;
         end
 
         function migrate(opts)
@@ -126,7 +146,14 @@ classdef LabBridge
         end
 
         function m = missingMessage()
-            %missingMessage  What the lamp and the window say while the client is missing.
+            %missingMessage  What the lamp and the window say while the client is missing, or too old to use.
+            if LabBridge.packageThere() && ~LabBridge.recentEnough()
+                m = "The labclient package on the MATLAB path (the CarasLabDB repository) is older than this " + ...
+                    "toolbox needs, which is version " + LabBridge.ClientVersion + " of its interface " + ...
+                    "(labclient.Api): update the CarasLabDB checkout (git pull). Nothing is recorded or sent " + ...
+                    "to the lab database until then; the apps work as before.";
+                return
+            end
             m = "The labclient package (the CarasLabDB repository) is not on the MATLAB path: add a current " + ...
                 "CarasLabDB checkout to the path, or name it in the environment variable CARASLABDB_DIR. " + ...
                 "Nothing is recorded or sent to the lab database until then; the apps work as before.";

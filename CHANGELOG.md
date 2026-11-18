@@ -19,7 +19,9 @@ says how to cut a release.
   `SubjectAssignDialog` and `Sync`. This repository keeps `LabCapture`, `LabLocator` and `LabLocatorDialog`, and
   gains `LabBridge` (the door to the package, safe while it is missing: the lamp reads "attention", the apps work
   without the database) and `useCarasLabDB` (finds a CarasLabDB checkout beside this one or in `CARASLABDB_DIR`).
-  The CarasLabDB repository must now be on the MATLAB path (documentation/database.md, Requirements). The toolbox
+  The CarasLabDB repository must now be on the MATLAB path (documentation/database.md, Requirements), with a
+  client of interface version 3 or later (`labclient.Api.Version`, `LabBridge.ClientVersion`): an older checkout is
+  not used, and the lamp says to update it. The toolbox
   hands the client its session-file hooks (`readSession`, `copyOfSession`, `assignSubject`) as tool
   `ephys_analysis`; its datasets' records say so (`dataset.tool`), and a MATLAB that does not run it (EPsych's)
   leaves them in the shared outbox untouched. The records written before records named their tool (every record in

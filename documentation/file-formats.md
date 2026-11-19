@@ -403,7 +403,8 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
     "fs": <Hz>, "num_channels": <n>, "duration_s": <s>, "num_files": <n>,
     "acq_date": <"yyyy-MM-dd HH:mm:ss" or "">, "files": [<file names>],
     "per_file": [{"name": <file>, "samples": <n>, "num_gaps": <n or null>, "gap_before": <samples or null>}, ...],
-    "gaps":     [{"file": <file>, "row": <first row after the jump>, "samples": <missing (+) or back (-)>}, ...]
+    "gaps":     [{"file": <file>, "row": <first row after the jump>, "samples": <missing (+) or back (-)>}, ...],
+    "dropped_channels": [{"native": <native name>, "name": <custom name>, "file": <first file that differs>, "row": <its first row>}, ...]
   },
   "probe": {
     "file": <probe .json path or "">, "exists": <bool>, "num_channels": <n>, "num_shanks": <n>,

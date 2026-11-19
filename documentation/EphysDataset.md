@@ -456,7 +456,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | --- | --- |
 | `RecordingFormat` | layout, see the table above (`"binary"` for the universal format) |
 | `Fs` | amplifier sample rate (Hz) |
-| `NumChannels` | amplifier channel count (from the first file) |
+| `NumChannels` | amplifier channel count (Intan traditional: the channels every file holds, see `DroppedChannels`) |
 | `ChannelNames` / `NativeNames` | amplifier custom / native (hardware) names: Intan `custom_channel_name` / `native_channel_name`; Open Ephys `CH1..` for both |
 | `ChannelNumbers` | 0-based hardware numbers (see [channel numbers](#acquisition-readers)) |
 | `DigInNames` / `DigInNativeNames` | digital-line custom / native names (Open Ephys: `TTL1..` for both) |
@@ -465,6 +465,7 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `NumFiles` | number of `*.rhd` files (1 for split layouts; Open Ephys: recordings) |
 | `PerFile` | struct array, one element per file: `name`, `bytesPerBlock`, `numDataBlocks`, `numAmplifierSamples`, `recordTime`, `numAmplifierChannels`, `numBoardDigIn`, `headerBytes`, `datenum`, `partialBlock`, `dataPresent` (Open Ephys: one per recording, plus `experiment`, `recording`, `numGaps`) |
 | `Gaps` | struct array, one element per jump of the acquisition clock the rows hide (`EphysReader.Gaps`): `file`, `row` (the first row after the jump) and `samples` (positive when samples are missing, negative when the clock went back); empty when there is none. Written to the manifest's `metadata.gaps` |
+| `DroppedChannels` | struct array, one element per amplifier channel the recording's files do not all hold and so left out of every read (`EphysReader.DroppedChannels`; Intan traditional files, a channel switched off or on in RHX during the recording): `native`, `name`, `file` (the first file that differs on it) and `row` (that file's first recording row); empty when the files agree. Written to the manifest's `metadata.dropped_channels` |
 
 ### Configuration (public)
 
@@ -544,11 +545,21 @@ constructor calls it, and so does `refreshMetadata`.
 **`refreshMetadata()`** re-runs `discoverFiles`, then (for `IntanReader`):
 
 - **traditional**: parses every `*.rhd` header with the private static
-  `parseIntanHeader` (header only, no amplifier matrix allocated). Channel names,
-  `Fs` and `NumChannels` come from the first file. Two checks apply to later files:
-  - A different amplifier channel count raises
-    `IntanReader:refreshMetadata:ChannelMismatch`, because a flat `.bin`
-    cannot represent a mid-recording channel change.
+  `parseIntanHeader` (header only, no amplifier matrix allocated). `Fs` and
+  the digital lines come from the first file. The amplifier channels are
+  those **every file holds** (by native name), in the first file's order:
+  - RHX lets a channel be switched off, or on, while it records, and the
+    files from then on lack it, or hold it. Such a channel is left out of
+    every read (a flat `.bin` cannot hold a channel for part of a
+    recording), the scan warns once
+    (`IntanReader:refreshMetadata:ChannelsDropped`, naming the channels and
+    the files they change at), and `DroppedChannels` lists each with its
+    `native` and custom `name`, the `file` it changes at and that file's
+    first recording `row`. A channel switched off during a recording is thus
+    off for all of it, as RHX would have written it had it been off from the
+    start; to keep the rows it recorded before, split the recording at that
+    file. A file whose sample rate differs is refused
+    (`IntanReader:refreshMetadata:RateMismatch`).
   - A truncated trailing data block warns
     (`IntanReader:refreshMetadata:PartialBlock`), and only whole blocks are
     counted; every read (`readData`, `readChunkUV`, `readWindowUV`,
@@ -1668,7 +1679,8 @@ varying fastest. It holds one chunk in memory at a time. Per chunk, in order:
 1. read µV (`readChunkUV`; for `"commonmode"` detection the common mode of the
    channels that take part is taken before the reference is subtracted);
 2. check the channel count (error `EphysDataset:toBin:ChannelMismatch` if it
-   changes);
+   changes between chunks; an Intan recording whose files differ never gets
+   here, its reader returns the channels every file holds);
 3. reorder/subset (`ChannelOrder`);
 4. filter, if `Filter=true` (default **off**; Kilosort4 filters internally). With
    `FilterEdgeMode="overlap"` the chunk is filtered behind the last `2K` raw rows
@@ -2778,8 +2790,9 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
 - `manifestFile()` returns the path.
 - `manifestStruct()` builds the snapshot: metadata (rate, channels, duration,
   `files`, a `per_file` list of `name`, `samples`, `num_gaps` and `gap_before`
-  from `PerFile` where the reader gives them, and `gaps`, the jumps of the
-  acquisition clock in `Gaps`), reader, probe, exclusions,
+  from `PerFile` where the reader gives them, `gaps`, the jumps of the
+  acquisition clock in `Gaps`, and `dropped_channels`, the channels left
+  out in `DroppedChannels`), reader, probe, exclusions,
   tags, manual artifact periods, `.bin` state, the Kilosort4 run in `kilosortDir()`
   (`DatasetTracker.kilosortRunAt`), the sorted-output association
   (`sortingStruct()`), how each output was made (`processingManifest()`,
@@ -2967,7 +2980,8 @@ interpolates.
 | Identifier | Raised when |
 | --- | --- |
 | `EphysDataset:NoFolder` | constructor folder missing |
-| `IntanReader:refreshMetadata:ChannelMismatch`, `EphysDataset:toBin:ChannelMismatch` | amplifier channel count changes between files |
+| `IntanReader:refreshMetadata:RateMismatch` | the sample rate changes between files |
+| `EphysDataset:toBin:ChannelMismatch`, `EphysDataset:noiseLevels:ChannelMismatch` | the amplifier channel count changes between chunks (not an Intan recording whose files differ: its reader returns the channels every file holds, warning `IntanReader:refreshMetadata:ChannelsDropped`) |
 | `IntanReader:splitLayout:NoHeader` / `NoAmplifier` / `NoChannels` | split recording incomplete |
 | `EphysDataset:readData:NoFiles`, `EphysDataset:toBin:NoFiles` | no recording files |
 | `EphysDataset:LineNames`, `EphysDataset:relabelEvents:Duplicate` | a malformed `LineNames` entry, or two lines with the same final name |

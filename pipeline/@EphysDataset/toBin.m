@@ -123,8 +123,10 @@ function info = toBin(obj, opts)
 %   periods erased and the fill's noise levels) for the manifest's
 %   processing block.
 %
-%   GUARD: every file must have the same amplifier channel count as the first;
-%   a flat int16 .bin cannot represent a mid-dataset channel-count change.
+%   GUARD: every chunk must hold the amplifier channel count of the first; a
+%   flat int16 .bin cannot represent a mid-dataset channel-count change. An
+%   Intan recording whose files differ never gets here: its reader returns
+%   the channels every file holds (IntanReader, DroppedChannels).
 %
 %   See also MATRIX2KILOSORT, EphysDataset.matrixToBin, EphysDataset.filterContinuous,
 %   EphysDataset.noiseLevels, EphysDataset.blankArtifacts.

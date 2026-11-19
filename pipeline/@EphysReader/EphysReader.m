@@ -110,6 +110,19 @@ classdef (Abstract) EphysReader < handle
         % negative = the clock went back). Empty when the clock is continuous.
         % A manifest writer records it with PerFile.
         Gaps             struct = struct('file', {}, 'row', {}, 'samples', {})
+
+        % Amplifier channels the recording leaves out because its files do
+        % not all hold them (filled by refreshMetadata; empty for a reader
+        % whose files cannot differ): a channel switched off, or on, in the
+        % acquisition software while it recorded. The recording's channels
+        % (NumChannels, ChannelNames, NativeNames, ChannelNumbers) are those
+        % every file holds, in the first file's order, and every read
+        % returns them. One element per channel left out: native and name
+        % (its native and custom names), file (the first file that lacks
+        % it, or that holds it when the first file did not) and row (that
+        % file's first recording row, 1-based). A manifest writer records
+        % it with Gaps.
+        DroppedChannels  struct = struct('native', {}, 'name', {}, 'file', {}, 'row', {})
     end
 
     properties (Constant)
@@ -201,7 +214,8 @@ classdef (Abstract) EphysReader < handle
                 'DigInNames', obj.DigInNames, 'DigInNativeNames', obj.DigInNativeNames, ...
                 'Duration', obj.Duration, ...
                 'AcqDate', obj.AcqDate, 'NumFiles', obj.NumFiles, ...
-                'PerFile', obj.PerFile, 'Gaps', obj.Gaps, 'RecordingFormat', obj.RecordingFormat);
+                'PerFile', obj.PerFile, 'Gaps', obj.Gaps, 'DroppedChannels', obj.DroppedChannels, ...
+                'RecordingFormat', obj.RecordingFormat);
         end
     end
 

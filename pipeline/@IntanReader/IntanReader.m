@@ -31,6 +31,20 @@ classdef IntanReader < EphysReader
     %   samples) and in PerFile (firstTimestamp, endTimestamp, numGaps,
     %   gapBefore).
     %
+    %   RHX lets a channel be switched off, or on, while it records, and
+    %   the traditional files from then on lack it, or hold it. The
+    %   recording's channels are those every file holds, in the first
+    %   file's order (refreshMetadata): a channel the files do not all
+    %   hold is left out of every read, warned about
+    %   (IntanReader:refreshMetadata:ChannelsDropped) and listed in
+    %   DroppedChannels with the file and row it changes at. A channel
+    %   switched off during a recording is thus off for all of it, as RHX
+    %   would have written it had it been off from the start; to keep the
+    %   rows it recorded before, split the recording at that file. Each
+    %   file's rows are read as its own amplifier matrix (rhdRows,
+    %   readData) through the columns that hold the recording's channels
+    %   (fileColumns).
+    %
     %   See also EphysReader, EphysDataset, READ_INTAN_RHD2000_FILE_MODIFIED.
 
     properties (Constant)
@@ -52,6 +66,11 @@ classdef IntanReader < EphysReader
         % again. Filled by fileNotch; cleared by discoverFiles and
         % refreshMetadata.
         pNotch = []
+        % Each traditional file's amplifier rows that hold the recording's
+        % channels (fileColumns): struct array of name and columns, [] for
+        % a file that holds exactly them in order. Filled by
+        % refreshMetadata and fileColumns; cleared by discoverFiles.
+        pColumns = []
     end
 
     methods
@@ -88,6 +107,7 @@ classdef IntanReader < EphysReader
             obj.pSplitLayout = [];
             obj.pHeaders = [];
             obj.pNotch = [];
+            obj.pColumns = [];
             obj.AcqDate = NaT;
 
             switch obj.RecordingFormat
@@ -295,6 +315,44 @@ classdef IntanReader < EphysReader
             [~, zi] = IntanReader.notchFilter(R, obj.Fs, hz);
         end
 
+        function cols = fileColumns(obj, name)
+            %fileColumns  The amplifier rows of the traditional file NAME that hold the recording's channels.
+            %   COLS indexes the file's amplifier channels (header order,
+            %   1-based) so that X(COLS, :) of its amplifier matrix holds the
+            %   recording's channels (NativeNames) in order; [] when the file
+            %   holds exactly them in order (the usual file: no copy). Worked
+            %   out by refreshMetadata for the recording's files and kept;
+            %   for another file, here, from its header. A file that lacks a
+            %   channel of the recording is refused
+            %   (IntanReader:fileColumns:ChannelMissing): the recording's
+            %   channels are those every file holds, so refresh the metadata
+            %   after adding a file.
+            for pass = 1:2
+                if ~isempty(obj.pColumns)
+                    k = find([obj.pColumns.name] == string(name), 1);
+                    if ~isempty(k)
+                        cols = obj.pColumns(k).columns;
+                        return
+                    end
+                end
+                if pass == 2 || ~(isnan(obj.Fs) || isempty(obj.PerFile))
+                    break
+                end
+                obj.refreshMetadata();                      % the recording's files, once
+            end
+            hdr = obj.rhdHeader(name);
+            cols = [];                                      % a file without amplifier channels: nothing to pick
+            if hdr.numAmplifierChannels > 0
+                cols = IntanReader.channelColumns(hdr.nativeNames, obj.NativeNames);
+            end
+            if any(cols == 0)
+                error('IntanReader:fileColumns:ChannelMissing', ...
+                    '%s does not hold channel %s of the recording; refresh the metadata.', ...
+                    name, obj.NativeNames(find(cols == 0, 1)));
+            end
+            obj.pColumns = [obj.pColumns, struct('name', string(name), 'columns', cols)];
+        end
+
         function hdr = rhdHeader(obj, name)
             %rhdHeader  parseIntanHeader of the traditional file NAME (cached).
             hdr = [];
@@ -373,6 +431,21 @@ classdef IntanReader < EphysReader
             catch
                 t = NaT;
             end
+        end
+
+        function cols = channelColumns(have, want)
+            %channelColumns  Where the channels WANT lie among HAVE, by native name.
+            %   COLS(j) is the position of WANT(j) in HAVE (0 when HAVE lacks
+            %   it); [] when HAVE is exactly WANT in order, so a read of the
+            %   usual file indexes nothing.
+            have = reshape(string(have), 1, []);
+            want = reshape(string(want), 1, []);
+            if isequal(have, want)
+                cols = [];
+                return
+            end
+            [~, cols] = ismember(want, have);
+            cols = reshape(cols, 1, []);
         end
 
         function nums = channelNumbersFor(nativeNames, where)

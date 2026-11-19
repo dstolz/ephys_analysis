@@ -11,10 +11,19 @@ function refreshMetadata(obj)
 %   recording start: the time in the first file's RHX name, else that
 %   file's modification time (when RHX closed it) less its duration.
 %
-%   The amplifier channel count is taken from the FIRST file; a hard error is
-%   raised if any later file disagrees, because a flat int16 .bin cannot
-%   tolerate a mid-dataset channel-count change. Dig-in channel counts follow
-%   the first-file policy used by intan2matlab (later extra lines ignored).
+%   The recording's amplifier channels are those every file (with amplifier
+%   channels) holds, by native name, in the first file's order. RHX lets a
+%   channel be switched off, or on, while it records, and the files from
+%   then on lack it, or hold it: such a channel is left out of every read,
+%   since a flat int16 .bin cannot hold a channel for part of a recording,
+%   warned about once (IntanReader:refreshMetadata:ChannelsDropped, naming
+%   the channels and the files they change at) and listed in
+%   DroppedChannels (native, name, file, row: the first file that differs
+%   on it and that file's first recording row). Each file's columns for the
+%   recording's channels are kept for the reads (fileColumns). A file whose
+%   sample rate differs is refused (IntanReader:refreshMetadata:RateMismatch).
+%   Dig-in channel counts follow the first-file policy used by intan2matlab
+%   (later extra lines ignored).
 %
 %   The acquisition clock is checked too (IntanReader.scanTimestamps): each
 %   file's first timestamp and the one it should be followed by are kept in
@@ -55,28 +64,33 @@ pf = struct('name', {}, 'bytesPerBlock', {}, 'numDataBlocks', {}, ...
     'dataPresent', {}, 'firstTimestamp', {}, 'endTimestamp', {}, 'numGaps', {}, 'gapBefore', {});
 gaps = emptyGaps();
 
-firstNumChan = NaN;
+% Every header first: the recording's channels are those every file holds.
+hdrs = cell(1, obj.NumFiles);
+for i = 1:obj.NumFiles
+    hdrs{i} = obj.rhdHeader(obj.Files(i));
+end
+hdrs = [hdrs{:}];
+[keep, first, dropped, cols] = channelSet(hdrs);
+obj.Fs           = hdrs(1).sampleRate;
+obj.NumChannels  = nnz(keep);
+obj.ChannelNames = hdrs(first).channelNames(keep);
+obj.NativeNames  = hdrs(first).nativeNames(keep);
+obj.ChannelNumbers = IntanReader.channelNumbersFor(obj.NativeNames, obj.Folder);
+obj.DigInNames   = hdrs(1).digInNames;
+obj.DigInNativeNames = hdrs(1).digInNativeNames;
+obj.DroppedChannels = dropped;
+obj.pColumns = struct('name', num2cell([hdrs.name]), 'columns', cols);
+if ~isempty(dropped)
+    warnDropped(obj.Folder, dropped, obj.NumChannels, obj.Fs);
+end
+
 prevEnd = NaN;                                  % the clock where the last file with data ended
 prevName = "";
 rowsBefore = 0;                                 % rows of the files before this one
 for i = 1:obj.NumFiles
-    hdr = obj.rhdHeader(obj.Files(i));
+    hdr = hdrs(i);
 
-    if i == 1
-        firstNumChan = hdr.numAmplifierChannels;
-        obj.Fs           = hdr.sampleRate;
-        obj.NumChannels  = hdr.numAmplifierChannels;
-        obj.ChannelNames = hdr.channelNames;
-        obj.NativeNames  = hdr.nativeNames;
-        obj.ChannelNumbers = IntanReader.channelNumbersFor(hdr.nativeNames, obj.Folder);
-        obj.DigInNames   = hdr.digInNames;
-        obj.DigInNativeNames = hdr.digInNativeNames;
-    elseif hdr.numAmplifierChannels ~= firstNumChan
-        error('IntanReader:refreshMetadata:ChannelMismatch', ...
-            ['Amplifier channel count changed mid-dataset (%d -> %d) at %s. ', ...
-             'A flat int16 .bin cannot represent this; split the recording.'], ...
-            firstNumChan, hdr.numAmplifierChannels, obj.Files(i));
-    elseif hdr.sampleRate ~= obj.Fs
+    if hdr.sampleRate ~= obj.Fs
         error('IntanReader:refreshMetadata:RateMismatch', ...
             ['Sample rate changed mid-dataset (%g -> %g Hz) at %s. One clock cannot ', ...
              'cover the recording; split it at that file.'], obj.Fs, hdr.sampleRate, obj.Files(i));
@@ -152,6 +166,7 @@ obj.NativeNames  = L.ampNative;
 obj.ChannelNumbers = IntanReader.channelNumbersFor(L.ampNative, obj.Folder);
 obj.DigInNames   = L.digInNames;
 obj.DigInNativeNames = L.digInNative;
+obj.DroppedChannels = emptyDropped();           % one header: the channels cannot differ
 
 nSamp = L.nSamp;
 ts = struct('first', NaN, 'end', NaN, 'index', zeros(0, 1), 'jumps', zeros(0, 1));
@@ -191,6 +206,80 @@ end
 
 
 % =========================================================================
+function [keep, first, dropped, cols] = channelSet(hdrs)
+%channelSet  The recording's amplifier channels: those every file holds.
+%   HDRS are the parsed headers of the recording's files, in order. KEEP is
+%   logical over the amplifier channels of file FIRST (the first file with
+%   amplifier channels; 1 when none has any): true for those every file
+%   with amplifier channels holds, by native name, in that file's order.
+%   DROPPED lists the others (the EphysReader.DroppedChannels fields: native,
+%   name, file, row), in the order of the file they change at, then the
+%   channel's place in its header: a channel of file FIRST that a later file
+%   lacks (file: the first that lacks it) and a channel file FIRST lacks that
+%   a later file holds (file: the first that holds it); row is that file's
+%   first recording row. COLS{k} is fileColumns' answer for file k: the rows
+%   of its amplifier matrix holding the kept channels in order, [] when they
+%   are exactly its channels (or it has none).
+nFiles = numel(hdrs);
+nAmp = [hdrs.numAmplifierChannels];
+withAmp = find(nAmp > 0);
+first = 1;
+if ~isempty(withAmp); first = withAmp(1); end
+native0 = reshape(string(hdrs(first).nativeNames), 1, []);
+keep = true(size(native0));
+for k = withAmp
+    keep = keep & ismember(native0, string(hdrs(k).nativeNames));
+end
+starts = cumsum([0 hdrs.numAmplifierSamples]);   % the recording row before each file
+dropped = emptyDropped();
+seen = string.empty(1, 0);
+for k = withAmp
+    names = reshape(string(hdrs(k).nativeNames), 1, []);
+    custom = reshape(string(hdrs(k).channelNames), 1, []);
+    % the kept-out channels of the first file this file is the first to lack
+    for j = find(~keep)
+        if ~ismember(native0(j), names) && ~ismember(native0(j), seen)
+            dropped(end+1) = struct('native', native0(j), 'name', string(hdrs(first).channelNames(j)), ...
+                'file', string(hdrs(k).name), 'row', starts(k) + 1); %#ok<AGROW>
+            seen(end+1) = native0(j); %#ok<AGROW>
+        end
+    end
+    % the channels the first file lacks that this file is the first to hold
+    for j = find(~ismember(names, native0) & ~ismember(names, seen))
+        dropped(end+1) = struct('native', names(j), 'name', custom(j), ...
+            'file', string(hdrs(k).name), 'row', starts(k) + 1); %#ok<AGROW>
+        seen(end+1) = names(j); %#ok<AGROW>
+    end
+end
+cols = cell(1, nFiles);
+for k = withAmp
+    cols{k} = IntanReader.channelColumns(hdrs(k).nativeNames, native0(keep));
+end
+end
+
+
+function warnDropped(folder, dropped, nKept, Fs)
+%warnDropped  One warning naming the channels left out and the files they change at.
+parts = strings(1, 0);
+for f = unique([dropped.file], 'stable')
+    d = dropped([dropped.file] == f);
+    parts(end+1) = sprintf('%s from %s (row %d, %.1f s in)', ...
+        strjoin([d.native], ', '), f, d(1).row, (d(1).row - 1) / Fs); %#ok<AGROW>
+end
+warning('IntanReader:refreshMetadata:ChannelsDropped', ...
+    ['%s: the amplifier channels change during the recording: %s. The recording''s channels are ' ...
+     'the %d that every file holds; the %d other(s) are left out of every read (DroppedChannels). ' ...
+     'To keep the rows a channel recorded, split the recording at the file it changes in.'], ...
+    folder, strjoin(parts, '; '), nKept, numel(dropped));
+end
+
+
+function d = emptyDropped()
+%emptyDropped  A DroppedChannels list with no element (the EphysReader.DroppedChannels fields).
+d = struct('native', {}, 'name', {}, 'file', {}, 'row', {});
+end
+
+
 function g = emptyGaps()
 %emptyGaps  A Gaps list with no element (the EphysReader.Gaps fields).
 g = struct('file', {}, 'row', {}, 'samples', {});

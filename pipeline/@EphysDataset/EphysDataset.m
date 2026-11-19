@@ -85,6 +85,7 @@ classdef EphysDataset < handle
         NumFiles     (1,1) double = 0            % number of recording files / parts
         PerFile      struct = struct([])         % per-file (per-part) summary (struct array)
         Gaps         struct = struct('file', {}, 'row', {}, 'samples', {})   % jumps of the acquisition clock the rows hide (EphysReader.Gaps)
+        DroppedChannels struct = struct('native', {}, 'name', {}, 'file', {}, 'row', {})   % channels the files do not all hold, left out (EphysReader.DroppedChannels)
     end
 
     properties
@@ -564,6 +565,7 @@ classdef EphysDataset < handle
             obj.Duration     = r.Duration;
             obj.PerFile      = r.PerFile;
             obj.Gaps         = r.Gaps;
+            obj.DroppedChannels = r.DroppedChannels;
             obj.Files        = r.Files;
             obj.NumFiles     = r.NumFiles;
             if ~isnat(r.AcqDate); obj.AcqDate = r.AcqDate; end
@@ -1044,7 +1046,8 @@ classdef EphysDataset < handle
                 'fs', obj.Fs, 'num_channels', obj.NumChannels, ...
                 'duration_s', obj.Duration, 'num_files', obj.NumFiles, ...
                 'acq_date', acq, 'files', obj.Files, ...
-                'per_file', {num2cell(perFileSummary(obj.PerFile))}, 'gaps', {num2cell(reshape(obj.Gaps, 1, []))});   % lists, also of one
+                'per_file', {num2cell(perFileSummary(obj.PerFile))}, 'gaps', {num2cell(reshape(obj.Gaps, 1, []))}, ...
+                'dropped_channels', {num2cell(reshape(obj.DroppedChannels, 1, []))});   % lists, also of one
 
             probe = struct('file', obj.ProbeFile, 'exists', false, 'num_channels', NaN, ...
                 'num_shanks', NaN, 'depth_um', NaN, 'notes', "");

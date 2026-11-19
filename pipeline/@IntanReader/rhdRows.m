@@ -1,8 +1,10 @@
 function X = rhdRows(obj, name, lo, hi)
 %rhdRows  Rows LO..HI of one traditional *.rhd file's amplifier data, in microvolts.
 %   X = rhdRows(obj, NAME, LO, HI) returns [HI-LO+1 x nChan] double
-%   microvolts (0.195 * (code - 32768)), every amplifier channel in header
-%   order, for the 1-based rows LO..HI of the file NAME in obj.Folder. Only
+%   microvolts (0.195 * (code - 32768)), the recording's amplifier channels
+%   in order (the file's own, in header order, when it holds exactly them;
+%   else through fileColumns), for the 1-based rows LO..HI of the file NAME
+%   in obj.Folder. Only
 %   the data blocks holding those rows are read (one fseek, one fread), and
 %   they are split by sliceDataBlocks as READ_INTAN_RHD2000_FILE_MODIFIED
 %   splits a whole file, so the rows equal those of a whole-file read.
@@ -16,8 +18,11 @@ function X = rhdRows(obj, name, lo, hi)
 
 hdr = obj.rhdHeader(name);
 ffn = fullfile(obj.Folder, name);
+cols = obj.fileColumns(name);                     % the file's rows holding the recording's channels
+nChan = hdr.numAmplifierChannels;
+if ~isempty(cols); nChan = numel(cols); end
 if hi < lo
-    X = zeros(0, hdr.numAmplifierChannels);
+    X = zeros(0, nChan);
     return
 end
 if lo < 1 || hi > hdr.numAmplifierSamples
@@ -44,6 +49,9 @@ if size(raw, 2) < nb
 end
 S = IntanReader.sliceDataBlocks(raw, hdr, "amplifier");
 clear raw
+if ~isempty(cols)
+    S.amplifier = S.amplifier(cols, :);          % a file switched off (or on) a channel: the recording's
+end
 X = double(S.amplifier(:, lo - b0 * spb : hi - b0 * spb).');
 X = 0.195 * (X - 32768);
 end

@@ -40,6 +40,12 @@ function data = readData(obj, opts)
 %     units          "microvolts"
 %     source         struct with Folder/Name
 %
+%   The amplifier channels are the recording's (refreshMetadata: those every
+%   file holds, in the first file's order), read from each file through the
+%   columns that hold them (fileColumns); KeepChannels indexes them. A
+%   channel switched off or on during the recording is left out
+%   (DroppedChannels).
+%
 %   Digital events follow intan2matlab: the dig-in channel count is fixed from
 %   the FIRST file (later extra lines are ignored), contiguous high runs are
 %   found file by file and joined across file boundaries (EphysReader.highRuns
@@ -83,6 +89,12 @@ if obj.RecordingFormat == "one-file-per-signal" || ...
     return
 end
 
+% The recording's channels (those every file holds) and each file's columns
+% for them come from the headers.
+if isnan(obj.Fs) || isempty(obj.PerFile)
+    obj.refreshMetadata();
+end
+
 % Resolve which files to read (chronological order preserved unless overridden)
 if isempty(opts.Files)
     fileList = obj.Files;
@@ -97,8 +109,12 @@ AUX   = cell(1, nFiles);
 digCell = cell(1, nFiles);
 fileSampleCounts = zeros(1, nFiles);
 
-channelNames = string.empty(1,0);
-nativeNames  = string.empty(1,0);
+channelNames = obj.ChannelNames;   % the recording's channels, whatever file comes first
+nativeNames  = obj.NativeNames;
+if ~isempty(opts.KeepChannels) && max(opts.KeepChannels) <= numel(nativeNames)
+    channelNames = channelNames(opts.KeepChannels);
+    nativeNames  = nativeNames(opts.KeepChannels);
+end
 digInNames   = string.empty(1,0);
 digInNative  = string.empty(1,0);
 Fs    = NaN;
@@ -129,6 +145,10 @@ for i = 1:nFiles
     % so it comes before the cast.
     X = S.amplifier_data;    % [nChan x nSamples], microvolts
     S.amplifier_data = [];
+    cols = obj.fileColumns(fileList(i));   % the recording's channels, in a file that switched one off (or on)
+    if ~isempty(cols)
+        X = X(cols, :);
+    end
     if ~isempty(opts.KeepChannels)
         if max(opts.KeepChannels) > size(X, 1)
             error('IntanReader:readData:BadKeepChannels', ...
@@ -152,13 +172,6 @@ for i = 1:nFiles
 
     if i == 1
         Fs = S.frequency_parameters.amplifier_sample_rate;
-        if isempty(opts.KeepChannels)
-            channelNames = string({S.amplifier_channels.custom_channel_name});
-            nativeNames  = string({S.amplifier_channels.native_channel_name});
-        else
-            channelNames = string({S.amplifier_channels(opts.KeepChannels).custom_channel_name});
-            nativeNames  = string({S.amplifier_channels(opts.KeepChannels).native_channel_name});
-        end
         if isfield(S, 'board_dig_in_data') && ~isempty(S.board_dig_in_data)
             ndid = size(S.board_dig_in_data, 1);
             digInNames = string({S.board_dig_in_channels.custom_channel_name});

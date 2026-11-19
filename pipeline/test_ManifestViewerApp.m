@@ -54,7 +54,8 @@ m.recording_format = "traditional";
 m.reader = "intan";
 m.updated = "2026-01-01 13:00:00";
 m.metadata = struct('fs', 30000, 'num_channels', 16, 'duration_s', 100, 'num_files', 2, ...
-    'acq_date', "2026-01-01 12:00:00", 'files', {{'a.rhd'; 'b.rhd'}});
+    'acq_date', "2026-01-01 12:00:00", 'files', {{'a.rhd'; 'b.rhd'}}, ...
+    'dropped_channels', {{struct('native', "A-003", 'name', "amp3", 'file', "b.rhd", 'row', 1500001)}});
 m.probe = struct('file', probeFile, 'exists', true, 'num_channels', 16, 'num_shanks', 1, 'depth_um', 300, 'notes', "");
 m.exclude_channels = "2,5,20";
 m.tags = {'pilot', 'draft'};
@@ -100,6 +101,9 @@ T = ManifestViewerApp.summaryRows(readJsonFile(f1));
 check(all(ismember(["Section" "Field" "Value" "Check" "Level"], string(T.Properties.VariableNames))), 'table columns');
 check(rowIs(T, "Schema", "ok"), 'schema /2 accepted');
 check(rowIs(T(T.Section == "General", :), "Folder", "ok"), 'recording folder found');
+check(rowIs(T(T.Section == "Recording", :), "Channels left out", "warn") ...
+    && T.Value(T.Section == "Recording" & T.Field == "Channels left out") == "A-003 from b.rhd", ...
+    'a channel switched off during the recording is a warning row of the Recording section');
 check(rowIs(T(T.Section == "Probe", :), "File", "ok"), 'probe file found');
 check(rowIs(T(T.Section == "Binary (.bin)", :), "File", "warn"), '.bin present when written but gone now: warning');
 check(rowIs(T(T.Section == "Sorting", :), "Results folder", "missing") ...

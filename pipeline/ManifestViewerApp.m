@@ -918,6 +918,15 @@ if isfield(m, 'metadata') && isstruct(m.metadata)
     shown = strjoin(files(1:min(3, end)), ", ");
     if numel(files) > 3; shown = shown + sprintf(", ... (+%d)", numel(files) - 3); end
     R = addRow(R, S, "Files", shown, "", sprintf('%d file(s)', numel(files)));
+    % Channels the files do not all hold (switched off or on while recording):
+    % left out of every read and output (EphysReader.DroppedChannels).
+    dc = getf(md, 'dropped_channels', []);
+    if iscell(dc); dc = [dc{:}]; end
+    if isstruct(dc) && ~isempty(dc)
+        parts = arrayfun(@(d) txtOf(getf(d, 'native', "")) + " from " + txtOf(getf(d, 'file', "")), dc);
+        R = addRow(R, S, "Channels left out", strjoin(parts, "; "), "warn", ...
+            sprintf('%d channel(s) switched off or on during the recording: not in any read or output', numel(dc)));
+    end
 end
 
 if isfield(m, 'probe') && isstruct(m.probe)

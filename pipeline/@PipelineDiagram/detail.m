@@ -219,11 +219,13 @@ settled = ~isempty(d) && L.source ~= "";
 lines = strings(1, 0);
 if L.on && settled && isempty(L.bad)
     lines(end+1) = "bad: " + L.text;
-elseif L.on
+elseif L.on || ~isempty(L.switched)
     lines(end+1) = "bad: " + L.text + ", out of every step";
+end
+if L.on
 elseif ~isempty(L.marked)
     lines(end+1) = "bad: " + EphysDataset.formatChannelList(L.marked) + " still read (Leave out bad channels is off)";
-else
+elseif isempty(L.switched)
     lines(end+1) = "bad channels: Leave out bad channels is off";
 end
 if ~isempty(L.probe)

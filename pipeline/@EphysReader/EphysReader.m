@@ -111,13 +111,15 @@ classdef (Abstract) EphysReader < handle
         % A manifest writer records it with PerFile.
         Gaps             struct = struct('file', {}, 'row', {}, 'samples', {})
 
-        % Amplifier channels the recording leaves out because its files do
-        % not all hold them (filled by refreshMetadata; empty for a reader
-        % whose files cannot differ): a channel switched off, or on, in the
-        % acquisition software while it recorded. The recording's channels
-        % (NumChannels, ChannelNames, NativeNames, ChannelNumbers) are those
-        % every file holds, in the first file's order, and every read
-        % returns them. One element per channel left out: native and name
+        % Amplifier channels the recording's files do not all hold (filled
+        % by refreshMetadata; empty for a reader whose files cannot differ):
+        % a channel switched off, or on, in the acquisition software while
+        % it recorded. The recording's channels (NumChannels, ChannelNames,
+        % NativeNames, ChannelNumbers) are those any file holds, so a probe
+        % map written for all of them still fits; every read returns them,
+        % such a channel at 0 uV in the files that lack it, and
+        % EphysDataset.excludedChannels leaves it out of every step as a
+        % bad channel. One element per such channel: native and name
         % (its native and custom names), file (the first file that lacks
         % it, or that holds it when the first file did not) and row (that
         % file's first recording row, 1-based). A manifest writer records

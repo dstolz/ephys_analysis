@@ -85,7 +85,7 @@ classdef EphysDataset < handle
         NumFiles     (1,1) double = 0            % number of recording files / parts
         PerFile      struct = struct([])         % per-file (per-part) summary (struct array)
         Gaps         struct = struct('file', {}, 'row', {}, 'samples', {})   % jumps of the acquisition clock the rows hide (EphysReader.Gaps)
-        DroppedChannels struct = struct('native', {}, 'name', {}, 'file', {}, 'row', {})   % channels the files do not all hold, left out (EphysReader.DroppedChannels)
+        DroppedChannels struct = struct('native', {}, 'name', {}, 'file', {}, 'row', {})   % channels the files do not all hold: zero where a file lacks them, always excluded (EphysReader.DroppedChannels, excludedChannels)
     end
 
     properties
@@ -413,7 +413,7 @@ classdef EphysDataset < handle
         [tf, info] = prepareBadChannels(obj)
         st     = prepareWCAR(obj, opts)
         ch     = referenceChannels(obj, opts)
-        [ch, bad] = excludedChannels(obj)
+        [ch, bad, dropped] = excludedChannels(obj)
         X      = blankArtifacts(obj, X, mask, opts)
         mask   = manualArtifactMask(obj, nSamp, sampleOffset, Fs, iv)
         addArtifact(obj, t0, t1)

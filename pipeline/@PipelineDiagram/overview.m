@@ -154,7 +154,7 @@ switch cfg.Reference.Mode
     otherwise;  ref = "no common reference";
 end
 L = channelsLeftOut(cfg, d);
-if L.on   % Leave out bad channels: out of every step, so said on what they all read
+if L.on || ~isempty(L.switched)   % Leave out bad channels (or channels switched while recording): out of every step, so said on what they all read
     ref(end+1) = "bad channels left out: " + L.text;
 end
 raw = node("rec", "rec", "src", 0, 2, "Raw recording", ...

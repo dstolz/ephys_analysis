@@ -33,17 +33,17 @@ classdef IntanReader < EphysReader
     %
     %   RHX lets a channel be switched off, or on, while it records, and
     %   the traditional files from then on lack it, or hold it. The
-    %   recording's channels are those every file holds, in the first
-    %   file's order (refreshMetadata): a channel the files do not all
-    %   hold is left out of every read, warned about
+    %   recording's channels are those any file holds, in the files' order
+    %   (refreshMetadata), so a probe map written for all of them still
+    %   fits: a channel the files do not all hold reads as zero in the
+    %   files that lack it, is warned about
     %   (IntanReader:refreshMetadata:ChannelsDropped) and listed in
-    %   DroppedChannels with the file and row it changes at. A channel
-    %   switched off during a recording is thus off for all of it, as RHX
-    %   would have written it had it been off from the start; to keep the
-    %   rows it recorded before, split the recording at that file. Each
-    %   file's rows are read as its own amplifier matrix (rhdRows,
-    %   readData) through the columns that hold the recording's channels
-    %   (fileColumns).
+    %   DroppedChannels with the file and row it changes at, and
+    %   EphysDataset.excludedChannels leaves it out of every step as a bad
+    %   channel. To use the rows it recorded, split the recording at that
+    %   file. Each file's rows are read as its own amplifier matrix
+    %   (rhdRows, readData) through the columns that hold the recording's
+    %   channels (fileColumns, pickRows).
     %
     %   See also EphysReader, EphysDataset, READ_INTAN_RHD2000_FILE_MODIFIED.
 
@@ -319,14 +319,14 @@ classdef IntanReader < EphysReader
             %fileColumns  The amplifier rows of the traditional file NAME that hold the recording's channels.
             %   COLS indexes the file's amplifier channels (header order,
             %   1-based) so that X(COLS, :) of its amplifier matrix holds the
-            %   recording's channels (NativeNames) in order; [] when the file
-            %   holds exactly them in order (the usual file: no copy). Worked
-            %   out by refreshMetadata for the recording's files and kept;
-            %   for another file, here, from its header. A file that lacks a
-            %   channel of the recording is refused
-            %   (IntanReader:fileColumns:ChannelMissing): the recording's
-            %   channels are those every file holds, so refresh the metadata
-            %   after adding a file.
+            %   recording's channels (NativeNames) in order, 0 for a channel
+            %   it lacks (pickRows fills it); [] when the file holds exactly
+            %   them in order (the usual file: no copy). Worked out by
+            %   refreshMetadata for the recording's files and kept; for
+            %   another file, here, from its header. A file that lacks a
+            %   channel of the recording not in DroppedChannels is refused
+            %   (IntanReader:fileColumns:ChannelMissing): refresh the
+            %   metadata after adding a file.
             for pass = 1:2
                 if ~isempty(obj.pColumns)
                     k = find([obj.pColumns.name] == string(name), 1);
@@ -345,10 +345,11 @@ classdef IntanReader < EphysReader
             if hdr.numAmplifierChannels > 0
                 cols = IntanReader.channelColumns(hdr.nativeNames, obj.NativeNames);
             end
-            if any(cols == 0)
+            lacks = obj.NativeNames(cols == 0);
+            if ~isempty(lacks) && ~all(ismember(lacks, [obj.DroppedChannels.native]))
                 error('IntanReader:fileColumns:ChannelMissing', ...
                     '%s does not hold channel %s of the recording; refresh the metadata.', ...
-                    name, obj.NativeNames(find(cols == 0, 1)));
+                    name, lacks(find(~ismember(lacks, [obj.DroppedChannels.native]), 1)));
             end
             obj.pColumns = [obj.pColumns, struct('name', string(name), 'columns', cols)];
         end
@@ -446,6 +447,25 @@ classdef IntanReader < EphysReader
             end
             [~, cols] = ismember(want, have);
             cols = reshape(cols, 1, []);
+        end
+
+        function Y = pickRows(X, cols, fill)
+            %pickRows  The rows COLS of X, FILL where COLS is 0 (channelColumns' answer).
+            %   Y = IntanReader.pickRows(X, COLS, FILL): X is a file's
+            %   amplifier matrix [nChan x nSamples]; Y(j,:) is X(COLS(j),:),
+            %   or FILL (in X's class) where COLS(j) is 0, a channel the file
+            %   lacks. COLS [] returns X itself (no copy).
+            if isempty(cols)
+                Y = X;
+                return
+            end
+            has = cols > 0;
+            if all(has)
+                Y = X(cols, :);
+                return
+            end
+            Y = repmat(cast(fill, 'like', X), numel(cols), size(X, 2));
+            Y(has, :) = X(cols(has), :);
         end
 
         function nums = channelNumbersFor(nativeNames, where)

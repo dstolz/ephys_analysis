@@ -38,6 +38,13 @@ says how to cut a release.
 - `test_LabDB` now tests `LabBridge`; the client's own tests (bundles, the golden bundle
   `bundle_event_v1.json`, the outbox, the hashes, the window, the lamp, sending) are in the CarasLabDB repository,
   `tests/matlab/LabClientTests.m`.
+- An Intan recording whose files switch an amplifier channel off (or on) in RHX now keeps every channel any file
+  holds, in hardware order, so a probe map written for all of them still fits: the run no longer stops on
+  `error: probe-channel mismatch` (a 64-site probe against the 61 channels every file held). The switched channel
+  reads as 0 µV in the files that lack it and is always a bad channel (`excludedChannels`, whatever
+  `ExcludeBadChannels` says): out of the reference, artifact and spike detection, the sorter's chanMap and the
+  exports. `excludedChannels` gains a third output (the switched channels), `prepareBadChannels` counts them as out
+  already, the pipeline diagrams name them, and the manifest viewer's row is now **Channels switched**.
 
 ### Added
 

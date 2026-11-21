@@ -8,43 +8,54 @@ function L = channelsLeftOut(cfg, d)
 %     on      Artifacts.ExcludeBadChannels
 %     probe   D's ExcludeChannels (the Probe tab)
 %     marked  D's BadChannels, whether or not the box is ticked
-%     bad     the BadChannels in force (none while the box is off)
+%     switched  D's channels switched off or on during the recording
+%             (DroppedChannels), bad whatever the box says
+%     bad     the bad channels in force: switched, and BadChannels while
+%             the box is on
 %     source  D's BadChannelsSource: "suggested", "manual", or "" (never
 %             set: the first read works them out, prepareBadChannels)
 %     all     probe and bad, sorted
 %     text    a short label for the bad channels: "3, 7 (set by hand)",
 %             "none (suggested)", "worked out at the first read", "each
-%             dataset's own" (no D), or "" while the box is off
+%             dataset's own" (no D), or "" while the box is off; the
+%             switched channels follow as "2 (switched during recording)"
 %
 %   See also EphysDataset.excludedChannels, EphysDataset.prepareBadChannels.
 
 L = struct('on', logical(cfg.Artifacts.ExcludeBadChannels), ...
-    'probe', double.empty(1, 0), 'marked', double.empty(1, 0), 'bad', double.empty(1, 0), ...
+    'probe', double.empty(1, 0), 'marked', double.empty(1, 0), 'switched', double.empty(1, 0), ...
+    'bad', double.empty(1, 0), ...
     'source', "", 'all', double.empty(1, 0), 'text', "");
 if ~isempty(d)
     L.probe = unique(d.ExcludeChannels);
     L.marked = unique(d.BadChannels);
     L.source = string(d.BadChannelsSource);
+    [~, ~, L.switched] = d.excludedChannels();
 end
 if isempty(L.probe); L.probe = double.empty(1, 0); end
 if isempty(L.marked); L.marked = double.empty(1, 0); end
+L.bad = L.switched;
 if L.on
-    L.bad = L.marked;
+    L.bad = unique([L.marked, L.switched]);
 end
+if isempty(L.bad); L.bad = double.empty(1, 0); end
 L.all = unique([L.probe, L.bad]);
 if isempty(L.all); L.all = double.empty(1, 0); end
 
-if ~L.on
-    return
+if L.on
+    if isempty(d)
+        L.text = "each dataset's own";
+    elseif L.source == ""
+        L.text = "worked out at the first read";
+    else
+        list = "none";
+        if ~isempty(L.marked); list = EphysDataset.formatChannelList(L.marked); end
+        L.text = list + " (" + ternary(L.source == "manual", "set by hand", L.source) + ")";
+    end
 end
-if isempty(d)
-    L.text = "each dataset's own";
-elseif L.source == ""
-    L.text = "worked out at the first read";
-else
-    list = "none";
-    if ~isempty(L.bad); list = EphysDataset.formatChannelList(L.bad); end
-    L.text = list + " (" + ternary(L.source == "manual", "set by hand", L.source) + ")";
+if ~isempty(L.switched)
+    sw = EphysDataset.formatChannelList(L.switched) + " (switched during recording)";
+    if L.text == ""; L.text = sw; else; L.text = L.text + "; " + sw; end
 end
 end
 

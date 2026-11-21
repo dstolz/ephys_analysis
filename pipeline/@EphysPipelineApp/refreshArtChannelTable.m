@@ -52,8 +52,8 @@ for r = 1:nCh
 end
 t.Data = C;
 d = obj.currentDataset();
-if ~isempty(d)                   % bad and excluded channels gray, as in the plot
-    out = find(ismember(ord, [d.BadChannels, d.ExcludeChannels]));
+if ~isempty(d)                   % bad, excluded and switched-off channels gray, as in the plot
+    out = find(ismember(ord, [d.BadChannels, d.ExcludeChannels, d.offChannels()]));
     if ~isempty(out)
         addStyle(t, uistyle("FontColor", [0.6 0.6 0.6], "FontAngle", "italic"), "row", out);
     end

@@ -224,8 +224,10 @@ record node / stream, TTL line names) and
 | `units.ksChannel` | 1-based | among the **sorted** channels (after exclusions) |
 
 Neither sorting nor the probe displays match probe sites to channels by their
-hardware number: a recording with a channel disabled at acquisition needs a
-probe that accounts for the gap; see
+hardware number. An Intan channel switched off in RHX keeps its place (zeros,
+left out of every step), so the probe of the whole headstage fits; a recording
+of another system with gaps in its channel numbers needs a probe that accounts
+for them; see
 [Channel-numbering caveat](python-drivers.md#channel-numbering-caveat).
 
 ### Time and indexing conventions
@@ -305,7 +307,7 @@ Collected from the code. Each is explained on the linked page.
 | Derived events | new named lines from a line's intervals in the trials that meet conditions on the trial parameters (`Depth >= -6`; several combined with all / any), kept as typed in `Behavior.DerivedEvents` and edited on the Trials tab (`deriveEvents`, `DerivedEventsDialog`); in the behavior file, the NWB export, the DatasetBrowser and the analysis app, and optionally the extract's events and a trials column | [EphysPipeline → Derived events](EphysPipeline.md#derived-events) |
 | Background sorting + dependent steps | a background sorting run cannot feed `Export` (units, `Export.IncludeUnits`) in the same run; `validate` reports it | [EphysPipeline → Validation](EphysPipeline.md#validation) |
 | Duplicate dataset names | two recordings with the same leaf name under one `Project.OutputRoot` share `<OutputRoot>/<Name>`: `plan()` refuses either one (`error: output folder shared with <key>`), even when only one is selected; same-name files in a shared step `OutputDir` are `duplicate output`; `DatasetOutputs` and the clean-up ignore another recording's files by their recorded source folder. Rename one folder, or leave `OutputRoot` empty | [EphysPipeline → Dataset keys](EphysPipeline.md#dataset-keys) |
-| Probe mapping | `chanMap` indexes `.bin` rows, not hardware channel numbers; a recording with a channel disabled at acquisition needs a probe that accounts for the gap | [Python drivers](python-drivers.md#channel-numbering-caveat) |
+| Probe mapping | `chanMap` indexes `.bin` rows, not hardware channel numbers; an Intan channel switched off in RHX keeps its row, but another system's recording with gaps in its channel numbers needs a probe that accounts for them | [Python drivers](python-drivers.md#channel-numbering-caveat) |
 | Open Ephys TTL lines at a recording start | a line already high when a recording starts is seen from Binary always, from NWB when that recording has any TTL edge, and from the Open Ephys format only when its first edge there is falling; intervals are split at recording boundaries | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
 | Open Ephys samples | rows are the stored samples (dropped samples are not zero-filled; a warning lists them); the Open Ephys format zero-pads each recording's last record, as the GUI writes it | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
 | Open Ephys AUX | stored as (raw − 32768) × 37.4 µV: 1.2255 V below Intan RHX's volts for the same accelerometer | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |

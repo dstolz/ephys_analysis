@@ -319,12 +319,15 @@ See [Lab database](database.md) for the details.
   folder that holds your recordings) and **Try with made-up data**.
 - **The app is slow to start.** A **Skip scan** button on the start-up window
   leaves the project unscanned; press **Scan** on the Project tab later.
-- **A channel was switched off in RHX during a recording.** The recording is
-  read as if that channel had been off from the start: its channels are the
-  ones every file of the recording holds, and the MATLAB window says which
-  channels were left out and at which file. To keep what a channel recorded
-  before it was switched off, split the recording's files into two folders
-  at that file.
+- **Channels were switched off in RHX.** Nothing to do. A channel switched
+  off before or during a recording keeps its place, so your usual probe
+  still fits, and it is left out of every step, just like a bad channel on
+  the Artifacts tab. The Artifacts tab lists these channels under **Bad
+  channels**, and its plot marks them `(off)`. Click the dataset's row on
+  the Project tab and a **Warnings** box under the table lists them, with
+  the time in the recording each one changed at. The same box notes a jump
+  of the acquisition clock, after which the times are off by the samples
+  that went missing.
 - **Still stuck?** **Help → Report an issue on GitHub...** opens a report with
   your settings and the logs filled in (look it over before you send it).
 

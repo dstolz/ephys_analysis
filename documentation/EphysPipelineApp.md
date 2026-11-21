@@ -744,6 +744,7 @@ with its Epsych2 session.
 | All / **Clear ticks (= all)** | **All** ticks every shown row; **Clear ticks (= all)** unticks every row, shown or hidden, and with no row ticked a run, a plan and every step take all the datasets |
 | **Tags...** | edits the tags of the datasets on the selected rows (Shift / Ctrl+click selects several), ticked or not, or of the active dataset when no row is selected; also **Dataset → Tags...** ([Dataset tags](#dataset-tags)) |
 | Tags: filter | (under the token filters) the tags picked or typed (**any of** / **all of** them), the tags to leave out (**not**) and a search over the name, key and tags, all applied, as in the [dataset browser](DatasetBrowser.md) ([Dataset tags](#dataset-tags)). A view only, like the token filters: not saved, and ticks on hidden rows stay in the selection |
+| **Warnings** box (under the table, beside its hint) | shows only while the **active dataset's** recording headers say something is amiss (`EphysDataset.metadataNotes`): the channels switched off or on during the recording, with the file and time they change at, and the jumps of the acquisition clock. The app does not print the reader's `IntanReader:refreshMetadata:ChannelsDropped` and `IntanReader:TimestampGap` warnings during a scan (the one at startup too) or **Refresh metadata**; this box is where they are shown. Hidden, with no height, when the dataset has none |
 | **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys** ([Open Ephys sessions](#open-ephys-sessions)): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node**, **Stream** and **Event stream** (blank = automatic; the event stream is the stream whose TTL events to use when they are recorded on another stream than the continuous data, an NI-DAQ beside Neuropixels). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
 | **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Copy manifests**: each one's `<Name>_manifest.json` on the Windows clipboard as files, as File Explorer's Copy puts them, to paste into a folder, an e-mail or a chat (a dataset without a manifest gets one written first); a message then lists the files the clipboard holds, read back from it, and any not copied with why (`copyFilesToClipboard`). **Analysis app**: one [analysis app](EphysFigGenApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
 
@@ -1427,6 +1428,16 @@ names, and its legend says whether they are left out (*Bad channel (left
 out)*) or only listed (*kept: Leave out unticked*); the Probe tab's exclusions
 are gray too, *(excluded)*. The preview's per-channel table grays their rows.
 
+A channel switched off in Intan's RHX, before or during the recording, keeps
+its place in the recording (zeros where a file does not hold it) and is a bad
+channel whether or not **Leave out bad channels** is ticked
+(`EphysDataset.offChannels`): the panel's status line lists these channels
+(*Switched off in the recording, always left out*), the viewer draws their
+lanes gray with *(off)*, the preview's table grays them, and **Suggest**
+neither suggests nor counts them. They are not in the Bad field. So the probe
+of the whole headstage fits, and the Sorting plan no longer stops on a
+`probe-channel mismatch` for them.
+
 The second panel, *Common reference, for every step*, is
 the config's `Reference` section, not part of `Artifacts`: every step that
 reads the recording takes the reference, whether or not detection is on, and
@@ -2016,8 +2027,10 @@ those clusters is therefore the ids in `cluster_info.tsv` beyond the sorter's
 
 - **Channel mapping.** The probe's `chanMap` values are `.bin` rows
   (positions), not hardware channel numbers. They agree when the channel
-  numbers have no gaps; when channels were disabled at acquisition, the probe
-  map must allow for the gap
+  numbers have no gaps. An Intan channel switched off in RHX keeps its row
+  (zeros) and is left out of the sort as a bad channel, so the probe of the
+  whole headstage fits; another system's recording with gaps in its channel
+  numbers needs a probe map that allows for them
   ([Python drivers](python-drivers.md#channel-numbering-caveat)).
 - **Artifact scan before launch.** With automatic artifact detection on, each
   dataset's scan runs **in MATLAB, synchronously**, before Python is launched,

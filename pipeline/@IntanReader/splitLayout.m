@@ -24,16 +24,24 @@ function L = splitLayout(obj)
 %     folder       recording folder
 %     headerFile   info.rhd full path
 %     Fs           amplifier sample rate (Hz)
-%     nChan        amplifier channel count
+%     nChan        amplifier channel count: every amplifier channel info.rhd
+%                  lists, switched on or off in RHX, so each keeps its place
+%                  on the headstage (a channel switched off reads as zeros)
 %     nSamp        amplifier samples (from .dat size)
 %     boardMode    board mode (ADC scaling, from header)
-%     ampCustom / ampNative   1xnChan amplifier names (header order = file order)
+%     ampCustom / ampNative   1xnChan amplifier names (header order)
+%     ampOn        positions (in ampNative) of the channels switched on, the
+%                  ones the .dat files hold, in their order there
+%     ampColumns   for IntanReader.placeRows: for each of the nChan channels
+%                  its row among those on disk (0: switched off); [] when
+%                  every channel is on
 %     digInNames / digInNative / digInOrders  dig-in custom names, native names
 %                  and native_order bit positions
 %     numADC / numAux           board ADC / aux input channel counts
 %     auxCustom / auxNative     1xnAux aux input names
 %     ampFile      amplifier.dat path (one-file-per-signal) or ""
-%     ampFiles     1xnChan per-channel paths (one-file-per-channel) or empty
+%     ampFiles     per-channel paths of the ampOn channels (one-file-per-channel)
+%                  or empty
 %     timeFile     time.dat path
 %     digInFile    digitalin.dat path (one-file-per-signal) or ""
 %     digInFiles   one-file-per-channel: 1 x nDig per-line files, found as
@@ -75,10 +83,17 @@ L.format      = fmt;
 L.folder      = string(folder);
 L.headerFile  = string(hdrFile);
 L.Fs          = hdr.sampleRate;
-L.nChan       = hdr.numAmplifierChannels;
+L.nChan       = numel(hdr.listedNativeNames);     % switched on or off
 L.boardMode   = hdr.boardMode;
-L.ampCustom   = hdr.channelNames;
-L.ampNative   = hdr.nativeNames;
+L.ampCustom   = hdr.listedChannelNames;
+L.ampNative   = hdr.listedNativeNames;
+L.ampOn       = find(hdr.listedOn);
+L.ampColumns  = [];
+if numel(L.ampOn) < L.nChan
+    L.ampColumns = zeros(1, L.nChan);
+    L.ampColumns(L.ampOn) = 1:numel(L.ampOn);
+end
+nOn = numel(L.ampOn);                             % the channels on disk
 L.digInNames  = hdr.digInNames;
 L.digInNative = hdr.digInNativeNames;
 L.digInOrders = hdr.digInNativeOrders;
@@ -103,25 +118,25 @@ switch fmt
             error('IntanReader:splitLayout:NoAmplifier', ...
                 'Missing amplifier.dat in %s', folder);
         end
-        if L.nChan <= 0
+        if nOn <= 0
             error('IntanReader:splitLayout:NoChannels', ...
                 'info.rhd in %s reports no amplifier channels.', folder);
         end
         d = dir(char(L.ampFile));
-        L.nSamp = floor(d.bytes / (2 * L.nChan));   % int16 = 2 bytes/sample/chan
+        L.nSamp = floor(d.bytes / (2 * nOn));       % int16 = 2 bytes/sample/chan on disk
         L.ampDatenum = d.datenum;
         L.digInFile  = string(fullfile(folder, 'digitalin.dat'));
         L.adcFile    = string(fullfile(folder, 'analogin.dat'));
         L.auxFile    = string(fullfile(folder, 'auxiliary.dat'));
 
     case "one-file-per-channel"
-        if L.nChan <= 0
+        if nOn <= 0
             error('IntanReader:splitLayout:NoChannels', ...
                 'info.rhd in %s reports no amplifier channels.', folder);
         end
-        files = strings(1, L.nChan);
-        for k = 1:L.nChan
-            files(k) = string(fullfile(folder, "amp-" + L.ampNative(k) + ".dat"));
+        files = strings(1, nOn);
+        for k = 1:nOn
+            files(k) = string(fullfile(folder, "amp-" + L.ampNative(L.ampOn(k)) + ".dat"));
         end
         missing = files(~isfile(files));
         if ~isempty(missing)

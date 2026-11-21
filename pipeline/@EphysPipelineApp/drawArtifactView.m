@@ -306,8 +306,9 @@ end
 function [name, label] = leftOutLanes(obj, d, ch)
 % The legend entry (NAME) and the tick-label suffix (LABEL) of each channel
 % of CH a run leaves out or the dataset lists as bad, "" for the others:
-% the Probe tab's exclusions, and the bad channels (left out while Leave
-% out bad channels is ticked, listed but kept otherwise).
+% the Probe tab's exclusions, the channels switched off in the recording
+% (always left out), and the bad channels (left out while Leave out bad
+% channels is ticked, listed but kept otherwise).
 name = strings(1, numel(ch));
 label = strings(1, numel(ch));
 if isempty(d); return; end
@@ -322,6 +323,9 @@ label(isBad) = " (bad)";
 isExcl = ismember(ch, d.ExcludeChannels);
 name(isExcl) = "Excluded (Probe tab)";
 label(isExcl) = " (excluded)";
+isOff = ismember(ch, d.offChannels());
+name(isOff) = "Switched off (left out)";
+label(isOff) = " (off)";
 end
 
 

@@ -20,9 +20,11 @@ function test_IntanReader()
 %   kept here as intanNotchLoop, its speed-up, the state carried from file
 %   to file, the lead-in, and every read of a recording longer than the
 %   lead-in, toBin included, against the loop run over the whole recording);
-%   a channel switched off, or on, during a recording (the recording's
-%   channels are those every file holds; the reads, DroppedChannels, the
-%   warning, the manifest and the .bin).
+%   a channel switched off in RHX, before or during a recording, or on
+%   during it (the recording keeps every channel the headers list, zeros
+%   where a file does not hold one; the reads, DroppedChannels, the
+%   warning, the dataset's exclusions and probe check, the manifest, its
+%   old numbering renumbered, the .bin, and a split recording).
 %
 %   Usage:  test_IntanReader
 
@@ -98,14 +100,24 @@ for k = 1:size(specs, 1)
     n = s.nBlocks * s.spb;
     a = randi([0 n - 70]); m = randi([1 70]);
     plan = r.streamPlan();
-    check(r.supportsRandomAccess() && isequal(r.readChunkUV(plan(1)), D.amplifier_data.') ...
-        && isequal(r.readWindowUV(a, m), D.amplifier_data(:, a + (1:m)).'), ...
+    Wk = zeros(n, s.nAmp + numel(s.disabled));          % the channels switched off keep their places, as zeros
+    Wk(:, setdiff(1:size(Wk, 2), s.disabled)) = D.amplifier_data.';
+    check(r.supportsRandomAccess() && isequal(r.readChunkUV(plan(1)), Wk) ...
+        && isequal(r.readWindowUV(a, m), Wk(a + (1:m), :)), ...
         specs{k, 1} + ": chunk and window reads equal the whole read");
     layoutFiles(end+1) = file; %#ok<AGROW>
 end
 D = read_Intan_RHD2000_file_modified(layoutFiles(5), Verbosity="silent");
 check(numel(D.amplifier_channels) == 3 && isequal(string({D.amplifier_channels.native_channel_name}), ["A-000" "A-001" "A-002"]), ...
     'disabled channels are skipped (their records carry no samples)');
+H = IntanReader.parseIntanHeader(layoutFiles(5));
+r5 = IntanReader(fileparts(layoutFiles(5)));
+r5.refreshMetadata();
+check(isequal(H.listedNativeNames, ["A-000" "A-902" "A-001" "A-002" "A-905"]) && isequal(H.listedOn, logical([1 0 1 1 0])) ...
+    && isequal(H.nativeNames, ["A-000" "A-001" "A-002"]) && r5.NumChannels == 5 ...
+    && isequal(r5.NativeNames, H.listedNativeNames) && isequal([r5.DroppedChannels.native], ["A-902" "A-905"]) ...
+    && all([r5.DroppedChannels.file] == "lay5.rhd") && all([r5.DroppedChannels.row] == 1), ...
+    'the header lists the disabled channels too; the reader keeps them in their places and lists them as dropped');
 
 %% ---- 2. truncated last block, bad file, no file left open ---------------------------
 fprintf('\n== 2. truncated last block, bad file, open files ==\n');
@@ -126,7 +138,9 @@ check(strcmp(id, 'IntanReader:refreshMetadata:PartialBlock') && rt.PerFile.numDa
 ws = warning('off', 'IntanReader:refreshMetadata:PartialBlock');
 Et = rt.readDigitalEvents();
 warning(ws);
-check(isequal(rt.readWindowUV(0, 768), Dw.amplifier_data.') && Et.nSamples == 768, ...
+Ww = zeros(768, 5);                                          % lay5 lists channels 2 and 5 switched off
+Ww(:, [1 3 4]) = Dw.amplifier_data.';
+check(isequal(rt.readWindowUV(0, 768), Ww) && Et.nSamples == 768, ...
     'window reads and readDigitalEvents work on the truncated file');
 bf = fullfile(root, 'bad.rhd');
 fid = fopen(bf, 'w'); fwrite(fid, uint32(12345), 'uint32'); fwrite(fid, zeros(1, 64)); fclose(fid);
@@ -675,10 +689,11 @@ writeDat(fullfile(fsC, 'digitalin.dat'), Ws2(1:8000), 'uint16');   % cut short
 EC4 = dC.digitalEvents();
 check(EC4.source == "read", 'a digitalin.dat of another size is read again');
 
-%% ---- 15. channels switched off (or on) during a recording ----------------------------------
-fprintf('\n== 15. channels switched off during a recording ==\n');
+%% ---- 15. channels switched off (or on) in RHX ----------------------------------------------
+fprintf('\n== 15. channels switched off in RHX ==\n');
 % Four channels A-000..A-003; the second file lacks A-001 (switched off in
-% RHX), the third lacks A-001 and A-003: the recording holds A-000 and A-002.
+% RHX), the third lacks A-001 and A-003: the recording keeps all four, with
+% zeros where a file does not hold one.
 fx = fullfile(root, 'switched_off');
 mkdir(fx);
 FsX = 1000; nbX = [6 5 4]; nX = nbX * 128;
@@ -695,22 +710,24 @@ rx = IntanReader(fx);
 lastwarn('');
 rx.refreshMetadata();
 [msgX, idX] = lastwarn();
-check(strcmp(idX, 'IntanReader:refreshMetadata:ChannelsDropped') && contains(msgX, 'A-001 from x_2.rhd') ...
-    && contains(msgX, 'A-003 from x_3.rhd') && contains(msgX, 'the 2 that every file holds'), ...
-    'the scan warns once, naming the channels left out and the files they change at');
-check(rx.NumChannels == 2 && isequal(rx.NativeNames, ["A-000" "A-002"]) && isequal(rx.ChannelNames, ["amp0" "amp2"]) ...
-    && isequal(rx.ChannelNumbers, [0 2]) && isequal([rx.PerFile.numAmplifierChannels], [4 3 2]), ...
-    'the recording''s channels are those every file holds, in the first file''s order; PerFile keeps each file''s count');
+check(strcmp(idX, 'IntanReader:refreshMetadata:ChannelsDropped') && contains(msgX, 'A-001 at x_2.rhd') ...
+    && contains(msgX, 'A-003 at x_3.rhd') && contains(msgX, '2 amplifier channel(s) switched off or on'), ...
+    'the scan warns once, naming the channels that change and the files they change at');
+check(rx.NumChannels == 4 && isequal(rx.NativeNames, "A-00" + string(0:3)) && isequal(rx.ChannelNames, "amp" + string(0:3)) ...
+    && isequal(rx.ChannelNumbers, 0:3) && isequal([rx.PerFile.numAmplifierChannels], [4 3 2]), ...
+    'the recording''s channels are every one the headers list, in the first file''s order; PerFile keeps each file''s count');
 check(numel(rx.DroppedChannels) == 2 && isequal([rx.DroppedChannels.native], ["A-001" "A-003"]) ...
     && isequal([rx.DroppedChannels.name], ["amp1" "amp3"]) && isequal([rx.DroppedChannels.file], ["x_2.rhd" "x_3.rhd"]) ...
     && isequal([rx.DroppedChannels.row], [nX(1) + 1, nX(1) + nX(2) + 1]) && isempty(ra.DroppedChannels), ...
     'DroppedChannels lists each with the file and row it changes at (none when the files agree)');
-XX = 0.195 * (double(ampX([1 3], :).') - 32768);
+XX = 0.195 * (double(ampX.') - 32768);
+XX(nX(1) + 1 : end, 2) = 0;                      % A-001 off from x_2.rhd
+XX(nX(1) + nX(2) + 1 : end, 4) = 0;              % A-003 off from x_3.rhd
 dX = rx.readData();
-check(isequal(dX.amplifier, XX) && isequal(dX.nativeNames, ["A-000" "A-002"]) && isequal(dX.channelNames, ["amp0" "amp2"]) ...
-    && isequal(dX.fileSampleCounts, nX), 'readData returns the recording''s channels from every file');
-kX = rx.readData(KeepChannels=2, Files=["x_3.rhd" "x_1.rhd"]);
-check(isequal(kX.amplifier, XX([nX(1) + nX(2) + 1 : end, 1 : nX(1)], 2)) && isequal(kX.nativeNames, "A-002"), ...
+check(isequal(dX.amplifier, XX) && isequal(dX.nativeNames, "A-00" + string(0:3)) && isequal(dX.channelNames, "amp" + string(0:3)) ...
+    && isequal(dX.fileSampleCounts, nX), 'readData returns every channel, zeros where a file does not hold it');
+kX = rx.readData(KeepChannels=[3 2], Files=["x_3.rhd" "x_1.rhd"]);
+check(isequal(kX.amplifier, XX([nX(1) + nX(2) + 1 : end, 1 : nX(1)], [3 2])) && isequal(kX.nativeNames, ["A-002" "A-001"]), ...
     'KeepChannels and Files index the recording''s channels');
 winsX = [0 nX(1) + 10; nX(1) - 5 20; nX(1) + nX(2) - 5 20; sum(nX) - 7 10; 0 sum(nX)];
 okX = true;
@@ -725,16 +742,84 @@ end
 check(okX, 'window reads and chunks across the files where a channel goes off equal the whole read');
 EX = rx.readDigitalEvents();
 check(isequal(EX.events, dX.events) && size(dX.events.DIN_00, 1) == ceil(sum(nX) / 50), ...
-    'the digital events are unchanged by the channels left out');
+    'the digital events are unchanged by the channels switched off');
 dsX = EphysDataset(fx);
 dsX.OutputDir = fullfile(root, 'switched_out');
+[exX, badX] = dsX.excludedChannels();
+check(isequal(dsX.offChannels(), [2 4]) && isequal(exX, [2 4]) && isequal(badX, [2 4]), ...
+    'the dataset leaves the switched-off channels out of every step, as bad channels, with Leave out bad channels off');
 infoX = dsX.toBin();
+fid = fopen(infoX.filename, 'r');
+B = fread(fid, [4 Inf], 'int16=>double');
+fclose(fid);
 mX = dsX.manifestStruct();
-check(infoX.nChan == 2 && infoX.nSamples == sum(nX) && dsX.NumChannels == 2 && numel(dsX.DroppedChannels) == 2 ...
+check(infoX.nChan == 4 && infoX.nSamples == sum(nX) && dsX.NumChannels == 4 && numel(dsX.DroppedChannels) == 2 ...
+    && all(B(2, nX(1) + 1 : end) == 0) && any(B(2, 1 : nX(1)) ~= 0) && all(B(4, nX(1) + nX(2) + 1 : end) == 0) ...
     && numel(mX.metadata.dropped_channels) == 2 && mX.metadata.dropped_channels{2}.native == "A-003" ...
-    && mX.metadata.dropped_channels{2}.row == nX(1) + nX(2) + 1 && mX.metadata.num_channels == 2, ...
-    'the dataset writes a .bin of the channels every file holds and records the others in the manifest');
-% A channel switched ON after the first file is left out the same way.
+    && mX.metadata.dropped_channels{2}.row == nX(1) + nX(2) + 1 && mX.metadata.num_channels == 4 ...
+    && mX.bad_channels.excluded == "2,4", ...
+    'the .bin keeps every channel (zeros where switched off); the manifest records them and leaves them out');
+probe4 = fullfile(root, 'probe4.json');
+writeJsonFile(probe4, struct('chanMap', 0:3, 'xc', zeros(1, 4), 'yc', (0:3) * 20, 'kcoords', zeros(1, 4), 'n_chan', 4));
+check(EphysPipeline.probeStatus(probe4, dsX) == "ok", ...
+    'the probe of the whole headstage fits a recording with channels switched off');
+% A manifest saved while the recording's channels were those every file
+% holds (2: A-000, A-002) numbers its lists by them: renumbered on reading.
+dsX.writeManifest();
+mf = dsX.manifestFile();
+mOld = readJsonFile(mf);
+mOld.metadata.num_channels = 2;
+mOld.exclude_channels = '1,2';
+mOld.bad_channels.channels = '2';
+mOld.bad_channels.source = 'manual';
+mOld.reference_exclude.channels = '1';
+mOld.reference_exclude.source = 'manual';
+writeJsonFile(mf, mOld);
+dsO = EphysDataset(fx);
+dsO.applyManifest();
+check(isequal(dsO.ExcludeChannels, [1 3]) && isequal(dsO.BadChannels, 3) && isequal(dsO.ReferenceExclude, 1), ...
+    'channel lists of a manifest saved with the old numbering are renumbered to the channels now');
+dsO.writeManifest();
+dsO2 = EphysDataset(fx);
+dsO2.applyManifest();
+check(isequal(dsO2.ExcludeChannels, [1 3]) && isequal(dsO2.BadChannels, 3), ...
+    'once saved with the channels now, the lists are read as they are');
+% A channel switched off before the recording (listed off in every header,
+% as RHX writes it) keeps its place too, without a warning.
+fz = fullfile(root, 'off_throughout');
+mkdir(fz);
+for k = 1:2
+    idx = sum(nX(1:k-1)) + (1:nX(k));
+    writeSyntheticRHD(fullfile(fz, sprintf('z_%d.rhd', k)), ampX(1:3, idx), zeros(1, nX(k)), FsX, 128, ...
+        'DisabledAmp', 2, 'FirstTimestamp', sum(nX(1:k-1)));
+    setFileModifiedTime(fullfile(fz, sprintf('z_%d.rhd', k)), datetime(2026, 1, 1, 10, 0, k));
+end
+rz = IntanReader(fz);
+lastwarn('');
+rz.refreshMetadata();
+[~, idZ] = lastwarn();
+dZ = rz.readData();
+XZ = 0.195 * (double(ampX(1:3, 1 : nX(1) + nX(2)).') - 32768);
+check(~strcmp(idZ, 'IntanReader:refreshMetadata:ChannelsDropped') && rz.NumChannels == 4 ...
+    && isequal(rz.NativeNames, ["A-000" "A-902" "A-001" "A-002"]) && isscalar(rz.DroppedChannels) ...
+    && rz.DroppedChannels.native == "A-902" && rz.DroppedChannels.file == "z_1.rhd" && rz.DroppedChannels.row == 1 ...
+    && isequal(dZ.amplifier, [XZ(:, 1), zeros(size(XZ, 1), 1), XZ(:, 2:3)]), ...
+    'a channel off throughout keeps its place (zeros), listed from the first file, no warning');
+% The split layouts too: info.rhd lists the channel switched off, the .dat files lack it.
+fsw = fullfile(root, 'split_off');
+mkdir(fsw);
+writeInfoRHD(fullfile(fsw, 'info.rhd'), 2, FsX, 0, DisabledAmp=2);
+As2 = int16(randi([-3000 3000], 2, 1000));
+writeDat(fullfile(fsw, 'amplifier.dat'), As2, 'int16');
+rs = IntanReader(fsw);
+rs.refreshMetadata();
+check(rs.NumChannels == 3 && isequal(rs.NativeNames, ["A-000" "A-902" "A-001"]) && isscalar(rs.DroppedChannels) ...
+    && rs.DroppedChannels.native == "A-902" && rs.PerFile.numAmplifierSamples == 1000 && rs.PerFile.numAmplifierChannels == 2 ...
+    && isequal(rs.readWindowUV(10, 50), 0.195 * double([As2(1, 11:60).', zeros(50, 1), As2(2, 11:60).'])) ...
+    && isequal(rs.readData().amplifier, 0.195 * double([As2(1, :).', zeros(1000, 1), As2(2, :).'])), ...
+    'one-file-per-signal: the channel switched off keeps its place, as zeros');
+% A channel switched ON after the first file (which does not list it) comes
+% after the first file's channels.
 fy = fullfile(root, 'switched_on');
 mkdir(fy);
 holdsY = {[1 3], 1:3};
@@ -750,10 +835,12 @@ ws = warning('off', 'IntanReader:refreshMetadata:ChannelsDropped');
 ry.refreshMetadata();
 dY = ry.readData();
 warning(ws);
-check(isequal(ry.NativeNames, ["A-000" "A-002"]) && isscalar(ry.DroppedChannels) && ry.DroppedChannels.native == "A-001" ...
+XY = 0.195 * (double(ampX([1 3 2], 1 : nX(1) + nX(2)).') - 32768);
+XY(1 : nX(1), 3) = 0;                            % A-001 on from y_2.rhd
+check(isequal(ry.NativeNames, ["A-000" "A-002" "A-001"]) && isscalar(ry.DroppedChannels) && ry.DroppedChannels.native == "A-001" ...
     && ry.DroppedChannels.file == "y_2.rhd" && ry.DroppedChannels.row == nX(1) + 1 ...
-    && isequal(dY.amplifier, XX(1 : nX(1) + nX(2), :)), ...
-    'a channel switched on after the first file is left out, listed with the file it starts in');
+    && isequal(dY.amplifier, XY), ...
+    'a channel switched on after the first file comes after its channels, zeros until it starts, listed with the file it starts in');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

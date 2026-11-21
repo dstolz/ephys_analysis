@@ -71,6 +71,7 @@ try
     % with progress (EphysProject.refresh is what scripts and the pipeline
     % call too, so the app and headless runs agree on what a scan does).
     n = P.NumDatasets;
+    quiet = quietHeaderNotes(); %#ok<NASGU>   % shown per dataset instead (syncDatasetWarnings)
     newTags = {};   % given to the datasets found for the first time
     if obj.Config.Project.AutoTag; newTags = obj.Config.Project.NewDatasetTags; end
     if starting

@@ -8,6 +8,7 @@ if isempty(obj.Project) || obj.Project.NumDatasets == 0
 end
 
 n = obj.Project.NumDatasets;
+quiet = quietHeaderNotes(); %#ok<NASGU>   % shown per dataset instead (syncDatasetWarnings)
 dlg = uiprogressdlg(obj.Fig, "Title", "Refreshing metadata", "Value", 0);
 clock = ProgressClock();
 for i = 1:n

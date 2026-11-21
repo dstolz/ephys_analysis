@@ -80,9 +80,13 @@ The probe's `chanMap` values index `.bin` rows (0-based positions), as do
 hardware number (`EphysDataset.ChannelNumbers`), for sorting and in the app
 alike: the Artifacts tab's probe order (`channelLayout`) and the analysis
 probe maps read `chanMap` as `.bin` rows too. The two agree when the
-channel numbers equal the positions (0, 1, 2, … with no gaps). When channels
-were disabled at acquisition (gaps in the numbering), the probe must already
-account for the gap. A recording spanning more than one Intan port (`A-000`
+channel numbers equal the positions (0, 1, 2, … with no gaps). An Intan
+recording keeps every channel its headers list, those switched off in RHX
+included (zeros, left out of every step and of the sorter's `chanMap`:
+`EphysDataset.DroppedChannels`), so its numbering has no gaps and the probe of
+the whole headstage fits. When another system's recording has gaps in its
+numbering, the probe must already account for them. A recording spanning
+more than one Intan port (`A-000`
 and `B-000`) does not give distinct numbers, so its channels are numbered by
 position (`EphysReader:ChannelNumbersNotUnique` warns).
 

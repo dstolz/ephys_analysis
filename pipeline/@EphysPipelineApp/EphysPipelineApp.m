@@ -262,6 +262,10 @@ classdef EphysPipelineApp < handle
         BrowseRootButton  matlab.ui.control.Button
         RecursiveCheckBox matlab.ui.control.CheckBox
         SaveScriptCheckBox matlab.ui.control.CheckBox   % Project.SaveScript
+        % Warnings of the active dataset (under the table; syncDatasetWarnings)
+        DatasetWarnGrid      matlab.ui.container.GridLayout   % the table's column: its middle row is the panel's
+        DatasetWarnPanel     matlab.ui.container.Panel
+        DatasetWarnArea      matlab.ui.control.TextArea
         % Source settings panel (under the table): the active dataset's recording system (syncSourcePanel)
         SourcePanel          matlab.ui.container.Panel
         SourceGrid           matlab.ui.container.GridLayout   % rows: note, Open Ephys, TDT
@@ -1245,6 +1249,7 @@ classdef EphysPipelineApp < handle
         idx = toolTargets(obj)
         syncToolsPanel(obj)
         syncSourcePanel(obj)
+        syncDatasetWarnings(obj)
         onOpenTool(obj, tool)
         [copied, msg] = onCopyManifests(obj, idx, opts)
         onOpenOutputFolder(obj, idx)

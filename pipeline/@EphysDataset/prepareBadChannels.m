@@ -5,8 +5,9 @@ function [tf, info] = prepareBadChannels(obj)
 %   (BadChannelsSource ""). Then it takes the channels the noise-floor rule
 %   of the common reference finds (suggestReferenceExclude: a noise floor
 %   outside ReferenceBadLow-ReferenceBadHigh times the median across the
-%   channels, Ludwig et al. 2009), counting only ExcludeChannels as
-%   already out, marks them "suggested" and writes the manifest so the
+%   channels, Ludwig et al. 2009), counting only ExcludeChannels and the
+%   channels the files do not all hold (offChannels, which read as zeros)
+%   as already out, marks them "suggested" and writes the manifest so the
 %   choice can be reviewed (Artifacts tab). TF is true when it did so, and
 %   INFO is suggestReferenceExclude's (empty otherwise).
 %
@@ -35,8 +36,9 @@ if ~EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).ExcludeBadChannels 
         || obj.BadChannelsSource ~= "" || ~obj.hasRecording()
     return
 end
-[bad, info] = obj.suggestReferenceExclude(Excluded=obj.ExcludeChannels);
-nLeft = numel(setdiff(1:numel(info.sigma), [obj.ExcludeChannels, bad]));
+out = unique([obj.ExcludeChannels, obj.offChannels()]);   % already out, whatever the box says
+[bad, info] = obj.suggestReferenceExclude(Excluded=out);
+nLeft = numel(setdiff(1:numel(info.sigma), [out, bad]));
 if ~isempty(bad) && nLeft < EphysDataset.MinReferenceChannels
     warning('EphysDataset:prepareBadChannels:SuggestionNotApplied', ...
         ['The suggested bad channels (%s) would leave %d channel(s) of %s (fewer than %d), ' ...

@@ -3,7 +3,8 @@ function onSuggestBadChannels(obj)
 %   floor outside the Good noise band (Reference.BadLow / BadHigh),
 %   relative to the median across channels, measured on the recording as
 %   it is (EphysDataset.suggestReferenceExclude, as in Ludwig et al. 2009;
-%   only the Probe tab's exclusions count as already out). The suggestion
+%   only the Probe tab's exclusions and the channels switched off in the
+%   recording, EphysDataset.offChannels, count as already out). The suggestion
 %   replaces the dataset's list, marked "suggested", and is saved in its
 %   manifest; edit the Bad field to change it. Each channel's ratio goes to
 %   the log. The channels are left out of every step while Leave out bad
@@ -24,7 +25,7 @@ cleanup = onCleanup(@() obj.refreshReferencePanel());
 dlg = uiprogressdlg(obj.Fig, "Title", "Bad channels", ...
     "Message", "Measuring each channel's noise floor...", "Value", 0, "Cancelable", "off");
 try
-    [bad, info] = d.suggestReferenceExclude(Excluded=d.ExcludeChannels, ...
+    [bad, info] = d.suggestReferenceExclude(Excluded=unique([d.ExcludeChannels, d.offChannels()]), ...
         ProgressFcn=@(i, n, name) progress(dlg, i, n, name));
 catch ME
     if isvalid(dlg); close(dlg); end
@@ -41,8 +42,11 @@ obj.drawArtifactView();          % the bad lanes gray
 obj.refreshArtChannelTable();
 
 names = info.channelNames;
+off = d.offChannels();
 for k = 1:numel(info.ratio)
-    if ismember(k, info.excluded)
+    if ismember(k, off)
+        obj.log("[bad channels] %s ch %d (%s): switched off in the recording, always left out", d.Name, k, names(k));
+    elseif ismember(k, info.excluded)
         obj.log("[bad channels] %s ch %d (%s): excluded on the Probe tab", d.Name, k, names(k));
     else
         mark = "";

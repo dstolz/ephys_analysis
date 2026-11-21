@@ -40,11 +40,11 @@ function data = readData(obj, opts)
 %     units          "microvolts"
 %     source         struct with Folder/Name
 %
-%   The amplifier channels are the recording's (refreshMetadata: those every
-%   file holds, in the first file's order), read from each file through the
-%   columns that hold them (fileColumns); KeepChannels indexes them. A
-%   channel switched off or on during the recording is left out
-%   (DroppedChannels).
+%   The amplifier channels are the recording's (refreshMetadata: every one
+%   the headers list, switched on or off, in the first file's order), read
+%   from each file through the columns that hold them (fileColumns); a
+%   channel a file does not hold (DroppedChannels) is 0 uV there.
+%   KeepChannels indexes them.
 %
 %   Digital events follow intan2matlab: the dig-in channel count is fixed from
 %   the FIRST file (later extra lines are ignored), contiguous high runs are
@@ -89,8 +89,8 @@ if obj.RecordingFormat == "one-file-per-signal" || ...
     return
 end
 
-% The recording's channels (those every file holds) and each file's columns
-% for them come from the headers.
+% The recording's channels (every one the headers list) and each file's
+% columns for them come from the headers.
 if isnan(obj.Fs) || isempty(obj.PerFile)
     obj.refreshMetadata();
 end
@@ -145,10 +145,7 @@ for i = 1:nFiles
     % so it comes before the cast.
     X = S.amplifier_data;    % [nChan x nSamples], microvolts
     S.amplifier_data = [];
-    cols = obj.fileColumns(fileList(i));   % the recording's channels, in a file that switched one off (or on)
-    if ~isempty(cols)
-        X = X(cols, :);
-    end
+    X = IntanReader.placeRows(X, obj.fileColumns(fileList(i)), 0);   % the recording's channels; 0 uV where off
     if ~isempty(opts.KeepChannels)
         if max(opts.KeepChannels) > size(X, 1)
             error('IntanReader:readData:BadKeepChannels', ...

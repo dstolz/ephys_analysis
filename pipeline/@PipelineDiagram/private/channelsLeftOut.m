@@ -11,7 +11,9 @@ function L = channelsLeftOut(cfg, d)
 %     bad     the BadChannels in force (none while the box is off)
 %     source  D's BadChannelsSource: "suggested", "manual", or "" (never
 %             set: the first read works them out, prepareBadChannels)
-%     all     probe and bad, sorted
+%     off     D's channels switched off in the recording (offChannels),
+%             left out whether or not the box is ticked
+%     all     probe, off and bad, sorted
 %     text    a short label for the bad channels: "3, 7 (set by hand)",
 %             "none (suggested)", "worked out at the first read", "each
 %             dataset's own" (no D), or "" while the box is off
@@ -20,18 +22,19 @@ function L = channelsLeftOut(cfg, d)
 
 L = struct('on', logical(cfg.Artifacts.ExcludeBadChannels), ...
     'probe', double.empty(1, 0), 'marked', double.empty(1, 0), 'bad', double.empty(1, 0), ...
-    'source', "", 'all', double.empty(1, 0), 'text', "");
+    'source', "", 'off', double.empty(1, 0), 'all', double.empty(1, 0), 'text', "");
 if ~isempty(d)
     L.probe = unique(d.ExcludeChannels);
     L.marked = unique(d.BadChannels);
     L.source = string(d.BadChannelsSource);
+    L.off = d.offChannels();
 end
 if isempty(L.probe); L.probe = double.empty(1, 0); end
 if isempty(L.marked); L.marked = double.empty(1, 0); end
 if L.on
     L.bad = L.marked;
 end
-L.all = unique([L.probe, L.bad]);
+L.all = unique([L.probe, L.off, L.bad]);
 if isempty(L.all); L.all = double.empty(1, 0); end
 
 if ~L.on

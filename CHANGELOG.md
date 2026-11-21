@@ -41,6 +41,9 @@ says how to cut a release.
 
 ### Added
 
+- The Project tab of `EphysPipelineApp` has a **Warnings** box under the datasets table that lists the active
+  dataset's switched-off channels and clock jumps (`EphysDataset.metadataNotes`). The app no longer prints the
+  `IntanReader:refreshMetadata:ChannelsDropped` and `IntanReader:TimestampGap` warnings during a scan or Refresh metadata.
 - The lab database (CarasLabDB), eleventh part: runs of figures. `EphysAnalysisRunner.run` (the analysis app's Run,
   the pipeline's Analysis step) records each run as one analysis event (`LabCapture.analysisRun`,
   `ephys_analysis/figures`): the files it read as its inputs, from a new read ledger in `DatasetOutputs` (`Reads`,
@@ -753,6 +756,18 @@ says how to cut a release.
 
 ### Fixed
 
+- Channels switched off in Intan's RHX stopped the Sorting step with `error: probe-channel mismatch` (a 64-site probe
+  on a recording read as 61 channels). An Intan recording's channels were those every file holds, so a channel
+  switched off before or during the recording was missing, and the channels after it moved up a row, off their probe
+  sites. A recording's channels are now every amplifier channel its headers list, switched on or off (RHX lists
+  both): a channel a file does not hold reads as zeros there, stays in the `.bin`, and is left out of every step as
+  a bad channel (`EphysDataset.offChannels`, in `excludedChannels` whether or not `ExcludeBadChannels` is on). The
+  probe of the whole headstage fits again. `DroppedChannels` now also lists the channels off throughout (file: the
+  first file); the warning `IntanReader:refreshMetadata:ChannelsDropped` is kept for the channels that change during
+  the recording. The split layouts (`info.rhd`) do the same. A manifest saved with the old numbering (its
+  `metadata.num_channels` counts only the channels every file holds) has its `ExcludeChannels`, `ReferenceExclude` and
+  `BadChannels` renumbered when it is read. The Artifacts tab lists these channels and marks their lanes `(off)`.
+  A probe made for only the channels switched on no longer fits such a recording.
 - `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had
   saved a pairing since the dataset object last wrote the manifest, and the new record was equal to the one the
   object wrote then (its `updated` time is to the second), the manifest merge took the record as unchanged and kept

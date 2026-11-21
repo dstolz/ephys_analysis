@@ -111,17 +111,20 @@ classdef (Abstract) EphysReader < handle
         % A manifest writer records it with PerFile.
         Gaps             struct = struct('file', {}, 'row', {}, 'samples', {})
 
-        % Amplifier channels the recording leaves out because its files do
-        % not all hold them (filled by refreshMetadata; empty for a reader
-        % whose files cannot differ): a channel switched off, or on, in the
-        % acquisition software while it recorded. The recording's channels
-        % (NumChannels, ChannelNames, NativeNames, ChannelNumbers) are those
-        % every file holds, in the first file's order, and every read
-        % returns them. One element per channel left out: native and name
-        % (its native and custom names), file (the first file that lacks
-        % it, or that holds it when the first file did not) and row (that
-        % file's first recording row, 1-based). A manifest writer records
-        % it with Gaps.
+        % Amplifier channels of the recording its files do not all hold
+        % (filled by refreshMetadata; empty for a reader that cannot tell):
+        % a channel switched off in the acquisition software, from the
+        % start or while it recorded (or switched on late). Such a channel
+        % keeps its place among the recording's channels (NumChannels,
+        % ChannelNames, NativeNames, ChannelNumbers), so the others keep
+        % theirs and a probe of the whole headstage fits, and every read
+        % returns zeros for it where a file does not hold it. EphysDataset
+        % leaves it out of every step, as a bad channel (excludedChannels).
+        % One element per channel: native and name (its native and custom
+        % names), file (where it changes: the first file that lacks it, or
+        % that holds it when the first file did not; the first file when
+        % no file holds it) and row (that file's first recording row,
+        % 1-based). A manifest writer records it with Gaps.
         DroppedChannels  struct = struct('native', {}, 'name', {}, 'file', {}, 'row', {})
     end
 

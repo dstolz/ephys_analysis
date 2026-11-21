@@ -168,6 +168,7 @@ if n > 0
     obj.syncTabStrip();
 end
 obj.syncSourcePanel();
+obj.syncDatasetWarnings();
 end
 
 
@@ -197,6 +198,7 @@ obj.DatasetsTable.Data = TableSort.apply(T, obj.tableSort("Datasets"));   % a ch
 obj.highlightDatasetRow();
 obj.syncToolsPanel();
 obj.syncSourcePanel();
+obj.syncDatasetWarnings();
 done = true;
 end
 

@@ -2135,6 +2135,39 @@ if S.sec("3b1", "Project tab: source settings (Open Ephys, TDT)")
         'applying the section restores the TDT defaults');
 end
 
+if S.sec("3b1w", "Project tab: the active dataset's warnings")
+    app.selectDataset(1);
+    check(isempty(app.currentDataset().metadataNotes()) && app.DatasetWarnPanel.Visible == "off" ...
+        && app.DatasetWarnGrid.RowHeight{2} == 0, ...
+        'a dataset with nothing amiss: the Warnings box is hidden and has no height');
+
+    % A recording whose second file lacks its last channel, A-003 (switched off in RHX).
+    fW = fullfile(proj, 'recW_260105_120000'); mkdir(fW);
+    for k = 1:2
+        hold = 1:(numAmp - (k - 1));
+        fk = fullfile(fW, sprintf('recW_%d.rhd', k));
+        writeSyntheticRHD(fk, ampRaw(hold, :), digRaw, Fs, spb, FirstTimestamp=(k - 1) * nSamp, ...
+            AmpNative="A-" + string(compose('%03d', (hold - 1).')).', AmpNames="amp" + string(hold - 1));
+        setFileModifiedTime(fk, datetime(2026, 1, 5, 12, 0, k));
+    end
+    app.onScan();
+    iW = find(arrayfun(@(x) x.Name == "recW_260105_120000", app.Project.Datasets), 1);
+    app.Project.Datasets(iW).refreshMetadata();
+    app.selectDataset(iW);
+    notes = app.Project.Datasets(iW).metadataNotes();
+    check(isscalar(notes) && contains(notes, "A-003") && contains(notes, "recW_2.rhd"), ...
+        'metadataNotes names the channel switched off and the file it changes at');
+    check(app.DatasetWarnPanel.Visible == "on" && isequal(string(app.DatasetWarnArea.Value), notes) ...
+        && contains(app.DatasetWarnPanel.Title, "recW_260105_120000") && app.DatasetWarnGrid.RowHeight{2} > 0, ...
+        'selecting that dataset shows its warning under the table');
+    app.selectDataset(1);
+    check(app.DatasetWarnPanel.Visible == "off" && app.DatasetWarnGrid.RowHeight{2} == 0, ...
+        'selecting a dataset with none hides the box again');
+    rmdir(fW, 's');
+    app.onScan();
+    check(app.Project.NumDatasets == 1, 'the extra recording removed again');
+end
+
 if S.sec("3b", "Trials tab: load, cut, approve, polarity")
     app.selectDataset(1);
     app.setTrialsLineItems("din0", "din0");

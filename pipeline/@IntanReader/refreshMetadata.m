@@ -11,17 +11,22 @@ function refreshMetadata(obj)
 %   recording start: the time in the first file's RHX name, else that
 %   file's modification time (when RHX closed it) less its duration.
 %
-%   The recording's amplifier channels are those every file (with amplifier
-%   channels) holds, by native name, in the first file's order. RHX lets a
-%   channel be switched off, or on, while it records, and the files from
-%   then on lack it, or hold it: such a channel is left out of every read,
-%   since a flat int16 .bin cannot hold a channel for part of a recording,
-%   warned about once (IntanReader:refreshMetadata:ChannelsDropped, naming
-%   the channels and the files they change at) and listed in
-%   DroppedChannels (native, name, file, row: the first file that differs
-%   on it and that file's first recording row). Each file's columns for the
-%   recording's channels are kept for the reads (fileColumns). A file whose
-%   sample rate differs is refused (IntanReader:refreshMetadata:RateMismatch).
+%   The recording's amplifier channels are every amplifier channel the
+%   headers list, switched on or off in RHX, by native name, in the first
+%   file's order (a channel only a later file lists comes after them). A
+%   header lists the channels switched off too, so the channels keep their
+%   places on the headstage, and the probe's sites theirs, whatever was
+%   switched off. A channel a file does not hold (switched off from the
+%   start, or off or on during the recording) reads as zeros there and is
+%   listed in DroppedChannels (native, name, file, row: the file it changes
+%   at, the first file when it is off throughout, and that file's first
+%   recording row); EphysDataset leaves it out of every step
+%   (excludedChannels), as a bad channel. A channel that changes during the
+%   recording is warned about once (IntanReader:refreshMetadata:ChannelsDropped,
+%   naming the channels and the files they change at). Each file's columns
+%   for the recording's channels are kept for the reads (fileColumns). A
+%   file whose sample rate differs is refused
+%   (IntanReader:refreshMetadata:RateMismatch).
 %   Dig-in channel counts follow the first-file policy used by intan2matlab
 %   (later extra lines ignored).
 %
@@ -64,24 +69,24 @@ pf = struct('name', {}, 'bytesPerBlock', {}, 'numDataBlocks', {}, ...
     'dataPresent', {}, 'firstTimestamp', {}, 'endTimestamp', {}, 'numGaps', {}, 'gapBefore', {});
 gaps = emptyGaps();
 
-% Every header first: the recording's channels are those every file holds.
+% Every header first: the recording's channels are those the headers list.
 hdrs = cell(1, obj.NumFiles);
 for i = 1:obj.NumFiles
     hdrs{i} = obj.rhdHeader(obj.Files(i));
 end
 hdrs = [hdrs{:}];
-[keep, first, dropped, cols] = channelSet(hdrs);
+[native, custom, dropped, cols, changed] = channelSet(hdrs);
 obj.Fs           = hdrs(1).sampleRate;
-obj.NumChannels  = nnz(keep);
-obj.ChannelNames = hdrs(first).channelNames(keep);
-obj.NativeNames  = hdrs(first).nativeNames(keep);
+obj.NumChannels  = numel(native);
+obj.ChannelNames = custom;
+obj.NativeNames  = native;
 obj.ChannelNumbers = IntanReader.channelNumbersFor(obj.NativeNames, obj.Folder);
 obj.DigInNames   = hdrs(1).digInNames;
 obj.DigInNativeNames = hdrs(1).digInNativeNames;
 obj.DroppedChannels = dropped;
 obj.pColumns = struct('name', num2cell([hdrs.name]), 'columns', cols);
-if ~isempty(dropped)
-    warnDropped(obj.Folder, dropped, obj.NumChannels, obj.Fs);
+if any(changed)
+    warnDropped(obj.Folder, dropped(changed), obj.Fs);
 end
 
 prevEnd = NaN;                                  % the clock where the last file with data ended
@@ -166,7 +171,10 @@ obj.NativeNames  = L.ampNative;
 obj.ChannelNumbers = IntanReader.channelNumbersFor(L.ampNative, obj.Folder);
 obj.DigInNames   = L.digInNames;
 obj.DigInNativeNames = L.digInNative;
-obj.DroppedChannels = emptyDropped();           % one header: the channels cannot differ
+off = setdiff(1:L.nChan, L.ampOn);              % one header: off throughout, or on throughout
+obj.DroppedChannels = struct('native', num2cell(L.ampNative(off)), 'name', num2cell(L.ampCustom(off)), ...
+    'file', "info.rhd", 'row', 1);
+if isempty(off); obj.DroppedChannels = emptyDropped(); end
 
 nSamp = L.nSamp;
 ts = struct('first', NaN, 'end', NaN, 'index', zeros(0, 1), 'jumps', zeros(0, 1));
@@ -188,7 +196,7 @@ obj.PerFile = struct( ...
     'numDataBlocks',        NaN, ...
     'numAmplifierSamples',  nSamp, ...
     'recordTime',           nSamp / L.Fs, ...
-    'numAmplifierChannels', L.nChan, ...
+    'numAmplifierChannels', numel(L.ampOn), ...
     'numBoardDigIn',        numel(L.digInNames), ...
     'headerBytes',          NaN, ...
     'datenum',              L.ampDatenum, ...
@@ -206,71 +214,77 @@ end
 
 
 % =========================================================================
-function [keep, first, dropped, cols] = channelSet(hdrs)
-%channelSet  The recording's amplifier channels: those every file holds.
-%   HDRS are the parsed headers of the recording's files, in order. KEEP is
-%   logical over the amplifier channels of file FIRST (the first file with
-%   amplifier channels; 1 when none has any): true for those every file
-%   with amplifier channels holds, by native name, in that file's order.
-%   DROPPED lists the others (the EphysReader.DroppedChannels fields: native,
-%   name, file, row), in the order of the file they change at, then the
-%   channel's place in its header: a channel of file FIRST that a later file
-%   lacks (file: the first that lacks it) and a channel file FIRST lacks that
-%   a later file holds (file: the first that holds it); row is that file's
-%   first recording row. COLS{k} is fileColumns' answer for file k: the rows
-%   of its amplifier matrix holding the kept channels in order, [] when they
-%   are exactly its channels (or it has none).
+function [native, custom, dropped, cols, changed] = channelSet(hdrs)
+%channelSet  The recording's amplifier channels: every one the headers list.
+%   HDRS are the parsed headers of the recording's files, in order. NATIVE
+%   and CUSTOM name the amplifier channels the headers list, switched on or
+%   off (listedNativeNames, listedChannelNames): those of the first file
+%   that lists any, in its order, then those only a later file lists, in
+%   the order they come. DROPPED (the EphysReader.DroppedChannels fields:
+%   native, name, file, row) lists those a file with amplifier channels does
+%   not hold, in the order of FILE, then the channel's place: FILE is where
+%   the channel changes (the first file that lacks it when the first file
+%   with amplifier channels holds it, else the first that holds it), or
+%   that first file when no file holds it; ROW is that file's first
+%   recording row. CHANGED marks the elements of DROPPED some file holds
+%   (switched off or on during the recording). COLS{k} is fileColumns'
+%   answer for file k: for each channel, the row of its amplifier matrix
+%   holding it (0 where the file does not), [] when it holds exactly the
+%   channels in order (or has none).
 nFiles = numel(hdrs);
-nAmp = [hdrs.numAmplifierChannels];
-withAmp = find(nAmp > 0);
-first = 1;
-if ~isempty(withAmp); first = withAmp(1); end
-native0 = reshape(string(hdrs(first).nativeNames), 1, []);
-keep = true(size(native0));
+native = string.empty(1, 0);
+custom = string.empty(1, 0);
+for k = 1:nFiles
+    ln = reshape(string(hdrs(k).listedNativeNames), 1, []);
+    lc = reshape(string(hdrs(k).listedChannelNames), 1, []);
+    new = ~ismember(ln, native);
+    native = [native, ln(new)]; %#ok<AGROW>
+    custom = [custom, lc(new)]; %#ok<AGROW>
+end
+withAmp = find([hdrs.numAmplifierChannels] > 0);
+on = false(numel(native), nFiles);                 % on(j, k): file k holds channel j
 for k = withAmp
-    keep = keep & ismember(native0, string(hdrs(k).nativeNames));
+    on(:, k) = ismember(native, string(hdrs(k).nativeNames)).';
 end
 starts = cumsum([0 hdrs.numAmplifierSamples]);   % the recording row before each file
 dropped = emptyDropped();
-seen = string.empty(1, 0);
-for k = withAmp
-    names = reshape(string(hdrs(k).nativeNames), 1, []);
-    custom = reshape(string(hdrs(k).channelNames), 1, []);
-    % the kept-out channels of the first file this file is the first to lack
-    for j = find(~keep)
-        if ~ismember(native0(j), names) && ~ismember(native0(j), seen)
-            dropped(end+1) = struct('native', native0(j), 'name', string(hdrs(first).channelNames(j)), ...
-                'file', string(hdrs(k).name), 'row', starts(k) + 1); %#ok<AGROW>
-            seen(end+1) = native0(j); %#ok<AGROW>
-        end
+changed = false(1, 0);
+at = zeros(1, 0);                                 % the file each changes at, for the order
+for j = find(~all(on(:, withAmp), 2)).'
+    held = on(j, withAmp);
+    f = withAmp(1);                               % off throughout: from the first file
+    if held(1)
+        f = withAmp(find(~held, 1));              % switched off
+    elseif any(held)
+        f = withAmp(find(held, 1));               % switched on
     end
-    % the channels the first file lacks that this file is the first to hold
-    for j = find(~ismember(names, native0) & ~ismember(names, seen))
-        dropped(end+1) = struct('native', names(j), 'name', custom(j), ...
-            'file', string(hdrs(k).name), 'row', starts(k) + 1); %#ok<AGROW>
-        seen(end+1) = names(j); %#ok<AGROW>
-    end
+    dropped(end+1) = struct('native', native(j), 'name', custom(j), ...
+        'file', string(hdrs(f).name), 'row', starts(f) + 1); %#ok<AGROW>
+    changed(end+1) = any(held); %#ok<AGROW>
+    at(end+1) = f; %#ok<AGROW>
 end
+[~, order] = sort(at);                            % stable: then the channel's place
+dropped = dropped(order);
+changed = changed(order);
 cols = cell(1, nFiles);
 for k = withAmp
-    cols{k} = IntanReader.channelColumns(hdrs(k).nativeNames, native0(keep));
+    cols{k} = IntanReader.channelColumns(hdrs(k).nativeNames, native);
 end
 end
 
 
-function warnDropped(folder, dropped, nKept, Fs)
-%warnDropped  One warning naming the channels left out and the files they change at.
+function warnDropped(folder, dropped, Fs)
+%warnDropped  One warning naming the channels switched off or on during the recording and the files they change at.
 parts = strings(1, 0);
 for f = unique([dropped.file], 'stable')
     d = dropped([dropped.file] == f);
-    parts(end+1) = sprintf('%s from %s (row %d, %.1f s in)', ...
+    parts(end+1) = sprintf('%s at %s (row %d, %.1f s in)', ...
         strjoin([d.native], ', '), f, d(1).row, (d(1).row - 1) / Fs); %#ok<AGROW>
 end
 warning('IntanReader:refreshMetadata:ChannelsDropped', ...
-    ['%s: the amplifier channels change during the recording: %s. The recording''s channels are ' ...
-     'the %d that every file holds; the %d other(s) are left out of every read (DroppedChannels). ' ...
-     'To keep the rows a channel recorded, split the recording at the file it changes in.'], ...
-    folder, strjoin(parts, '; '), nKept, numel(dropped));
+    ['%s: %d amplifier channel(s) switched off or on during the recording: %s. Each keeps its place, ' ...
+     'with zeros where a file does not hold it, and is left out of every step, as a bad channel ' ...
+     '(DroppedChannels).'], folder, numel(dropped), strjoin(parts, '; '));
 end
 
 

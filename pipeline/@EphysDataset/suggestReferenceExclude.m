@@ -8,8 +8,8 @@ function [bad, info] = suggestReferenceExclude(obj, opts)
 %   high-impedance sites (typically 3-6x) above it - are returned in BAD
 %   (1-based, recording order). ExcludeChannels are already left out of the
 %   reference, so they are neither suggested nor counted in the level, and
-%   so are BadChannels while ArtifactConfig.ExcludeBadChannels is on
-%   (excludedChannels).
+%   so are the channels switched off (offChannels) and BadChannels while
+%   ArtifactConfig.ExcludeBadChannels is on (excludedChannels).
 %
 %   The typical noise floor is the MEDIAN across the channels, not the
 %   paper's mean: a few floating channels at 25x the others would pull a mean
@@ -35,7 +35,7 @@ function [bad, info] = suggestReferenceExclude(obj, opts)
 %     MaxChunks  (1,1) double  chunks read (default 8; Inf = the whole recording)
 %     Excluded   (1,:) double  channels already out: neither suggested nor
 %                counted (default NaN = excludedChannels(); prepareBadChannels
-%                passes ExcludeChannels alone)
+%                passes ExcludeChannels and offChannels)
 %     ProgressFcn function handle  ProgressFcn(i, nChunks, chunkName)
 %
 %   INFO: sigma [1 x nChan] noise floor (uV, NaN for the Excluded channels),

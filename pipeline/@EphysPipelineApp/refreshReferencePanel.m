@@ -53,7 +53,7 @@ txt = sprintf("%s: %s.", d.Name, src);
 if ~isnan(d.NumChannels)
     txt = txt + sprintf(" Reference over %d of %d channels", numel(d.referenceChannels()), d.NumChannels);
     if ~isempty(d.excludedChannels())
-        txt = txt + sprintf(" (Probe-tab exclusions and bad channels %s left out too)", ...
+        txt = txt + sprintf(" (Probe-tab exclusions, bad and switched-off channels %s left out too)", ...
             EphysDataset.formatChannelList(d.excludedChannels()));
     end
     txt = txt + ".";
@@ -89,6 +89,11 @@ if on
     txt = sprintf("%s: %s; left out of every step.", d.Name, src);
 else
     txt = sprintf("%s: %s; not used (tick the box to leave them out).", d.Name, src);
+end
+off = d.offChannels();   % switched off in the recording: out whatever the box says
+if ~isempty(off)
+    txt = txt + sprintf(" Switched off in the recording, always left out: %s (%s).", ...
+        EphysDataset.formatChannelList(off), strjoin(d.NativeNames(off), ", "));
 end
 obj.ArtBadStatusLabel.Text = txt;
 end

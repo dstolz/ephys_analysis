@@ -180,14 +180,22 @@ mid.Layout.Row = 3;
 mid.RowHeight   = {'1x'};
 mid.ColumnWidth = {'1x', 190};
 mid.Padding     = [0 0 0 0];
-left = uigridlayout(mid, [2 1], "RowHeight", {'1x', 18}, "ColumnWidth", {'1x'}, "Padding", [0 0 0 0], "RowSpacing", 2);
+left = uigridlayout(mid, [3 1], "RowHeight", {'1x', 0, 18}, "ColumnWidth", {'1x'}, "Padding", [0 0 0 0], "RowSpacing", 2);
 left.Layout.Row = 1; left.Layout.Column = 1;
 obj.DatasetsTable = uitable(left, "ColumnRearrangeable", "on");
 obj.DatasetsTable.Layout.Row = 1; obj.DatasetsTable.Layout.Column = 1;
 buildEmptyState(obj, left);
+% The active dataset's warnings (switched-off channels, clock jumps), right under
+% the table it is chosen in; no height, and hidden, while it has none (syncDatasetWarnings).
+obj.DatasetWarnGrid = left;
+obj.DatasetWarnPanel = uipanel(left, "Title", "Warnings", "Visible", "off");
+obj.DatasetWarnPanel.Layout.Row = 2; obj.DatasetWarnPanel.Layout.Column = 1;
+wg = uigridlayout(obj.DatasetWarnPanel, [1 1], "Padding", [4 2 4 2]);
+obj.DatasetWarnArea = uitextarea(wg, "Editable", "off", "FontColor", [0.65 0.35 0]);
+obj.DatasetWarnArea.Layout.Row = 1; obj.DatasetWarnArea.Layout.Column = 1;
 hint = uilabel(left, "Text", "Right-click a column header for more (Clear sort). Drag a header to move its column; click a Tags cell to tag that dataset.", ...
     "FontColor", [0.4 0.4 0.4], "FontAngle", "italic");
-hint.Layout.Row = 2; hint.Layout.Column = 1;
+hint.Layout.Row = 3; hint.Layout.Column = 1;
 buildToolsPanel(obj, mid);
 % Clicking a row makes its dataset the active one (highlighted; see selectDataset).
 obj.DatasetsTable.CellSelectionCallback = @(~,evt) obj.onDatasetCellSelection(evt);

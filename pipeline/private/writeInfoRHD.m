@@ -7,8 +7,9 @@ function writeInfoRHD(ffn, numAmp, Fs, numAux, opts)
 %   writeInfoRHD(ffn, numAmp, Fs, numAux) also declares numAux aux input
 %   (accelerometer) channels, native A-AUX1.., custom accel1.. (default 0).
 %
-%   Options (as in writeSyntheticRHD): AmpNames, AmpNative, DigInNames,
-%   DigInOrders, DigInNative, AuxNames, AuxNative, Version, Notes.
+%   Options (as in writeSyntheticRHD): AmpNames, AmpNative, DisabledAmp
+%   (records of amplifier channels switched off: listed, no .dat data),
+%   DigInNames, DigInOrders, DigInNative, AuxNames, AuxNative, Version, Notes.
 %
 %   See also writeRhdHeader, writeSyntheticRHD, writeDat.
 
@@ -19,6 +20,7 @@ arguments
     numAux (1,1) double {mustBeInteger, mustBeNonnegative} = 0
     opts.AmpNames (1,:) string = string.empty(1,0)
     opts.AmpNative (1,:) string = string.empty(1,0)
+    opts.DisabledAmp (1,:) double = []
     opts.DigInNames (1,:) string = "din0"
     opts.DigInOrders (1,:) double = []
     opts.DigInNative (1,:) string = string.empty(1,0)
@@ -33,6 +35,7 @@ ch.ampNative = opts.AmpNative;
 if isempty(ch.ampNative); ch.ampNative = "A-" + string(compose('%03d', (0:numAmp-1).')).'; end
 ch.ampCustom = opts.AmpNames;
 if isempty(ch.ampCustom); ch.ampCustom = "amp" + string(0:numAmp-1); end
+ch.ampDisabledAt = opts.DisabledAmp;
 if numAux > 0
     ch.auxNative = opts.AuxNative;
     if isempty(ch.auxNative); ch.auxNative = "A-AUX" + string(1:numAux); end

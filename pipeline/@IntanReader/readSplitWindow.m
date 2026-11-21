@@ -12,8 +12,10 @@ function X = readSplitWindow(obj, sampleOffset, nSamp)
 %   0.195 * int16 (the on-disk samples are already centered; there is no 32768
 %   offset, unlike the offset-binary uint16 stored in traditional *.rhd blocks).
 %   Channels are returned in header order (the same order used by NumChannels /
-%   ChannelNames and by toBin's .bin rows); apply any ChannelOrder/exclusion at
-%   the call site, exactly as for the traditional reader.
+%   ChannelNames and by toBin's .bin rows), every one info.rhd lists: a
+%   channel switched off in RHX, which no .dat file holds, is 0 uV
+%   (splitLayout ampOn). Apply any ChannelOrder/exclusion at the call site,
+%   exactly as for the traditional reader.
 %
 %   A short final window (fewer samples on disk than requested) returns only the
 %   rows actually present.
@@ -28,6 +30,7 @@ end
 
 L = obj.splitLayout();
 nChan = L.nChan;
+nOn = numel(L.ampOn);                              % the channels on disk
 
 if nSamp == 0
     X = zeros(0, nChan);
@@ -42,17 +45,18 @@ switch L.format
                 'Could not open %s', L.ampFile);
         end
         closer = onCleanup(@() fclose(fid));
-        if fseek(fid, sampleOffset * nChan * 2, 'bof') ~= 0
+        if fseek(fid, sampleOffset * nOn * 2, 'bof') ~= 0
             error('IntanReader:readSplitWindow:SeekFailed', ...
                 'Could not seek to sample %d in %s', sampleOffset, L.ampFile);
         end
-        raw = fread(fid, [nChan, nSamp], '*int16');         % [nChan x got]; int16 is read ~6x faster than double
+        raw = fread(fid, [nOn, nSamp], '*int16');           % [nOn x got]; int16 is read ~6x faster than double
+        raw = IntanReader.placeRows(raw, L.ampColumns, 0);  % [nChan x got]: 0 where switched off
         X = 0.195 * double(raw.');                          % [got x nChan] uV
 
     case "one-file-per-channel"
-        X = zeros(nSamp, nChan);
+        X = zeros(nSamp, nChan);                       % a channel switched off stays 0
         got = nSamp;
-        for k = 1:nChan
+        for k = 1:nOn
             fid = fopen(char(L.ampFiles(k)), 'r', 'ieee-le');
             if fid < 0
                 error('IntanReader:readSplitWindow:OpenFailed', ...
@@ -66,7 +70,7 @@ switch L.format
             col = fread(fid, nSamp, '*int16');
             fclose(fid);
             got = min(got, numel(col));
-            X(1:numel(col), k) = 0.195 * double(col);
+            X(1:numel(col), L.ampOn(k)) = 0.195 * double(col);
         end
         if got < nSamp                 % trim to the shortest channel actually read
             X = X(1:got, :);

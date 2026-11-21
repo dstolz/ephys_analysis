@@ -85,7 +85,7 @@ classdef EphysDataset < handle
         NumFiles     (1,1) double = 0            % number of recording files / parts
         PerFile      struct = struct([])         % per-file (per-part) summary (struct array)
         Gaps         struct = struct('file', {}, 'row', {}, 'samples', {})   % jumps of the acquisition clock the rows hide (EphysReader.Gaps)
-        DroppedChannels struct = struct('native', {}, 'name', {}, 'file', {}, 'row', {})   % channels the files do not all hold, left out (EphysReader.DroppedChannels)
+        DroppedChannels struct = struct('native', {}, 'name', {}, 'file', {}, 'row', {})   % channels the files do not all hold (switched off): zeros there, left out of every step (EphysReader.DroppedChannels, offChannels)
     end
 
     properties
@@ -576,6 +576,51 @@ classdef EphysDataset < handle
                     'format', obj.RecordingFormat, 'numFiles', obj.NumFiles, ...
                     'fs', obj.Fs, 'numChannels', obj.NumChannels, ...
                     'duration', obj.Duration));
+            end
+        end
+
+        function ch = offChannels(obj)
+            %offChannels  The recording's channels its files do not all hold, 1-based and sorted.
+            %   CH = ds.offChannels() returns the channels of DroppedChannels
+            %   (switched off in the acquisition software, from the start or
+            %   while it recorded), by native name. They read as zeros where
+            %   a file does not hold them, and excludedChannels leaves them
+            %   out of every step, as bad channels, whatever
+            %   ArtifactConfig.ExcludeBadChannels says.
+            ch = double.empty(1, 0);
+            if isempty(obj.DroppedChannels) || isempty(obj.NativeNames); return; end
+            ch = reshape(find(ismember(obj.NativeNames, [obj.DroppedChannels.native])), 1, []);
+        end
+
+        function notes = metadataNotes(obj)
+            %metadataNotes  What the recording's headers say is amiss, one line each.
+            %   NOTES = ds.metadataNotes() returns a string column that says,
+            %   in plain words, which channels were switched off or on during the
+            %   recording (DroppedChannels, grouped by the file they change at)
+            %   and where the acquisition clock jumped (Gaps), with the time
+            %   in the recording of each. Empty when there is nothing to say,
+            %   or the headers are not read yet (refreshMetadata). The reader
+            %   warns of the same at that read; the Project tab shows these
+            %   under the table for the active dataset.
+            notes = strings(0, 1);
+            fs = obj.Fs;
+            files = strings(1, 0);
+            if ~isempty(obj.DroppedChannels); files = unique([obj.DroppedChannels.file], 'stable'); end
+            for f = files   % (a for over an empty array would still run once)
+                d = obj.DroppedChannels([obj.DroppedChannels.file] == f);
+                if d(1).row <= 1
+                    what = "off throughout";     % the first file's first row: no file holds it
+                else
+                    what = sprintf("switched off or on at %s (%.1f s in)", f, (d(1).row - 1) / fs);
+                end
+                notes(end+1, 1) = sprintf("%s %s: zeros where a file does not hold it, left out of every step (bad channel).", ...
+                    strjoin([d.native], ", "), what); %#ok<AGROW>
+            end
+            if ~isempty(obj.Gaps)
+                s = [obj.Gaps.samples];
+                notes(end+1, 1) = sprintf(['The acquisition clock jumps at %d place(s) (first in %s at %.1f s, by %d samples; ' ...
+                    '%.4g s missing in all): times after a jump are off by that much against the wall clock.'], ...
+                    numel(s), obj.Gaps(1).file, (obj.Gaps(1).row - 1) / fs, s(1), sum(abs(s)) / fs); %#ok<AGROW>
             end
         end
 
@@ -1196,7 +1241,10 @@ classdef EphysDataset < handle
             %   ignored ("not valid JSON", "unknown schema ..."), with a warning
             %   (EphysDataset:applyManifest:Unreadable / :Schema). Header
             %   metadata is always re-parsed. Only the current schema
-            %   (ManifestSchema) is read.
+            %   (ManifestSchema) is read. Channel lists saved before the
+            %   channels switched off in an Intan recording kept their
+            %   places (its metadata.num_channels counts only the channels
+            %   every file holds) are renumbered to the channels now.
             tf = false;
             f = obj.manifestFile();
             [m, why] = EphysDataset.readManifest(f);
@@ -1312,6 +1360,15 @@ classdef EphysDataset < handle
                 obj.Custom = m.custom;
             else
                 obj.Custom = struct();   % none, or "custom": [] in a hand-edited file
+            end
+            % A manifest saved while the recording's channels were only those
+            % every file holds numbers its lists by those: renumbered to the
+            % channels now, which keep the switched-off ones in their places.
+            map = keptChannelMap(obj, m);
+            if ~isempty(map)
+                obj.ExcludeChannels = renumberChannels(obj.ExcludeChannels, map);
+                obj.ReferenceExclude = renumberChannels(obj.ReferenceExclude, map);
+                obj.BadChannels = renumberChannels(obj.BadChannels, map);
             end
             obj.noteManifest(f, m);
             tf = true;
@@ -2563,6 +2620,34 @@ function v = fieldOrEmpty(s, f)
 %fieldOrEmpty  S.(F), or [] when S has no such field.
 v = [];
 if isstruct(s) && isfield(s, f); v = s.(f); end
+end
+
+
+function map = keptChannelMap(obj, m)
+%keptChannelMap  How the channels of manifest M were numbered, when it was
+%   saved before the channels switched off kept their places: MAP(i) is
+%   the channel now that was channel i then, [] when M numbers them as now.
+%   An Intan recording's channels were once only those every file holds
+%   (switched on throughout); M then records that count in
+%   metadata.num_channels, and its channel lists count only those channels.
+map = [];
+off = obj.offChannels();
+if isempty(off) || ~(isfinite(obj.NumChannels) && obj.NumChannels > 0)
+    return
+end
+md = fieldOrEmpty(m, 'metadata');
+n = fieldOrEmpty(md, 'num_channels');
+kept = setdiff(1:obj.NumChannels, off);
+if isnumeric(n) && isscalar(n) && n == numel(kept)
+    map = kept;
+end
+end
+
+
+function ch = renumberChannels(ch, map)
+%renumberChannels  Channel list CH (1-based) under the numbering MAP gives (keptChannelMap).
+ch = ch(ch >= 1 & ch <= numel(map) & ch == round(ch));
+ch = reshape(map(ch), 1, []);
 end
 
 

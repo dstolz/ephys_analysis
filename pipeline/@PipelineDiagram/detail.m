@@ -210,10 +210,11 @@ end
 function n = leftOutNode(L, d)
 %leftOutNode  The channels left out before any step reads the recording
 %   (EphysDataset.excludedChannels; L from channelsLeftOut): the dataset's
-%   bad channels while Leave out bad channels is ticked, out of every step,
-%   and the Probe tab's exclusions, out of the reference, artifact detection
-%   and sorting (Signals and Spikes as their channel settings say). Drawn
-%   once, above the common reference, which none of them takes part in.
+%   bad channels while Leave out bad channels is ticked and its channels
+%   switched off in the recording, out of every step, and the Probe tab's
+%   exclusions, out of the reference, artifact detection and sorting
+%   (Signals and Spikes as their channel settings say). Drawn once, above
+%   the common reference, which none of them takes part in.
 target = "ArtBadCheckBox,ArtBadField,ArtBadSuggestButton,ExcludeChannelsField";
 settled = ~isempty(d) && L.source ~= "";
 lines = strings(1, 0);
@@ -225,6 +226,9 @@ elseif ~isempty(L.marked)
     lines(end+1) = "bad: " + EphysDataset.formatChannelList(L.marked) + " still read (Leave out bad channels is off)";
 else
     lines(end+1) = "bad channels: Leave out bad channels is off";
+end
+if ~isempty(L.off)
+    lines(end+1) = "switched off: " + EphysDataset.formatChannelList(L.off) + ", out of every step";
 end
 if ~isempty(L.probe)
     lines(end+1) = "Probe tab: " + EphysDataset.formatChannelList(L.probe) + ", out of reference / artifacts / sorting";

@@ -23,6 +23,12 @@ function hdr = parseIntanHeader(ffn)
 %     numSupplyVoltageChannels / numTempSensorChannels
 %     channelNames            1xN string (custom_channel_name, amplifier)
 %     nativeNames             1xN string (native_channel_name, amplifier)
+%     listedChannelNames / listedNativeNames  1xM string, every amplifier
+%                             channel the enabled signal groups list,
+%                             switched on or off in the acquisition
+%                             software, in header order (the N above are
+%                             the ones switched on, in the same order)
+%     listedOn                1xM logical, true for the channels switched on
 %     digInNames              1xN string (custom_channel_name, dig-in)
 %     digInNativeNames        1xN string (native_channel_name, dig-in)
 %     digInNativeOrders       1xN double (native_order / bit position, dig-in)
@@ -122,6 +128,9 @@ end
 % Signal groups / channels
 amplifier_names = strings(1,0);
 amplifier_native = strings(1,0);
+listed_names = strings(1,0);    % every amplifier channel listed, switched on or off
+listed_native = strings(1,0);
+listed_on = false(1,0);
 dig_in_names = strings(1,0);
 dig_in_native = strings(1,0);
 dig_in_orders = [];   % native_order (bit position) of each enabled dig-in line
@@ -160,6 +169,11 @@ for signal_group = 1:number_of_signal_groups
             fread(fid, 1, 'single'); % electrode_impedance_magnitude
             fread(fid, 1, 'single'); % electrode_impedance_phase
 
+            if signal_type == 0
+                listed_names(end+1)  = string(custom_name); %#ok<AGROW>
+                listed_native(end+1) = string(native_name); %#ok<AGROW>
+                listed_on(end+1)     = channel_enabled ~= 0; %#ok<AGROW>
+            end
             if (channel_enabled)
                 switch (signal_type)
                     case 0
@@ -230,6 +244,9 @@ hdr = struct( ...
     'numTempSensorChannels',    num_temp_sensor_channels, ...
     'channelNames',             amplifier_names, ...
     'nativeNames',              amplifier_native, ...
+    'listedChannelNames',       listed_names, ...
+    'listedNativeNames',        listed_native, ...
+    'listedOn',                 listed_on, ...
     'auxNames',                 aux_names, ...
     'auxNativeNames',           aux_native, ...
     'digInNames',               dig_in_names, ...

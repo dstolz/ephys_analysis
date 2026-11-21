@@ -10,16 +10,18 @@ function result = runKilosort(obj, opts)
 %   class never generates probe maps.
 %
 %   The probe's chanMap indexes .bin rows (0-based) directly: sites are not
-%   matched to channels by their native number, so a recording with a
-%   channel disabled at acquisition needs a probe that already accounts for
-%   the gap.
+%   matched to channels by their native number. A channel switched off in
+%   Intan's RHX keeps its row (zeros; DroppedChannels) and is left out of
+%   the chanMap (excludedChannels), so the probe of the whole headstage
+%   fits a recording with channels switched off.
 %
 %   RESULT = ds.runKilosort(opts) with name-value options:
 %     PythonExe      python executable path (default ds.PythonExe)
 %     CondaEnv       conda env name; when set, uses `conda run -n <env> ...`
 %     ProbeFile      KS4 probe .json (default ds.ProbeFile)
 %     ExcludeChannels (1,:) double  1-based channels to drop from sorting
-%                    (default ds.excludedChannels(): ExcludeChannels and, while
+%                    (default ds.excludedChannels(): ExcludeChannels, the
+%                    channels switched off (offChannels) and, while
 %                    ArtifactConfig.ExcludeBadChannels is on, BadChannels,
 %                    settled first by prepareBadChannels). Excluded channels stay in the
 %                    .bin (n_chan_bin is unchanged) but are removed from the

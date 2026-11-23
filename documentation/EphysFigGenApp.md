@@ -134,7 +134,7 @@ that folder here as a project root: `EphysFigGenApp("<folder>")`.
 
 ### Data tab
 
-<!-- wiki: ![Data tab: a scanned synthetic project and the active dataset's lines and parameters](images/analysis-data-tab.png) -->
+<!-- wiki: ![Data tab: a scanned project and the active dataset's lines and parameters](images/analysis-data-tab.png) -->
 
 The left side says where the datasets are; the right side describes the
 active dataset.
@@ -165,7 +165,7 @@ copies them.
 | **✎** | the dataset has a note. Click it to make the dataset active and open its note in the notepad ([Notes](#notes)) |
 | **Name**, **Key** | the dataset's name and key (the root-relative folder, or the output folder in folders mode) |
 | **Subject**, **Date** | the dataset's `SubjectID` from the name pattern, and the day it was recorded (a project's recording start, else the date in the name) |
-| **Tags** | the dataset's [tags](EphysDataset.md#tags), `, `-joined (read only: tags are edited in the pipeline app's Project tab). From the manifest beside the data, read once per dataset, not the whole source. They also appear in the report (after the dataset's name, and the *Recording* table's **Tags** row) and in the sessions and population exports ([Tags](EphysAnalysis.md#tags)) |
+| **Tags** | the dataset's [tags](EphysDataset.md#tags), `, `-joined (read only here: tags are edited in the pipeline app's Project tab or in the [dataset browser](DatasetBrowser.md#editing-tags)). From the manifest beside the data, read once per dataset, not the whole source. They also appear in the report (after the dataset's name, and the *Recording* table's **Tags** row) and in the sessions and population exports ([Tags](EphysAnalysis.md#tags)) |
 | **Variables** | the dataset's [variables](EphysDataset.md#variables) in one line (`probeDepth = 1200 µm; cohort = 3`). Click the cell to edit them (`VariableDialog`, a row per dataset and a column per variable); right-click the table, **Variables...**, for the selected rows' (else the active dataset's). OK writes them to the manifests and the sources loaded take the new values (`src.variables`, `src.variableInfo`). **View manifest...** (same menu) opens the dataset's manifest in the manifest viewer, where its Variables tab says when each changed |
 | **LFP**, **MUA**, **Spike band**, **AUX** | ✓ when that signal's extract exists (**Spike band** is the `SPIKE` signal) |
 | **Units**, **Detected** | the sorting folder holds sorted units; the spikes file holds threshold detections |
@@ -2494,11 +2494,15 @@ laid out on the probe, its panels a small tile at each unit's or channel's site,
 one page per dataset ([Probe layout in the Figures tab](#probe-layout-in-the-figures-tab)):
 that is a figure's setting, not a panel type.
 
-<!-- wiki: ![A unit's raster over its PSTH, groups by Depth](images/analysis-example-unit-card.png) -->
+<!-- wiki
+Three figures of one sorted unit, as a run writes them:
 
-<!-- wiki: ![A heat map of the units' response, one tile per Depth group](images/analysis-example-heatmap.png) -->
+![A unit's raster over its PSTHs, one row per Depth group: Hit trials aligned to the platform's offset](images/analysis-example-unit-card.png)
 
-<!-- wiki: ![Unit correlation matrices, one per Depth group, on the blueWhiteRed scale](images/analysis-example-corrmap.png) -->
+![A unit's tuning over Depth: its response after Stim onset, as a z score of its baseline](images/analysis-example-tuning.png)
+
+![A unit's raster around Stim onset, trials sorted by response latency, the platform's offset marked on each, its waveform inset](images/analysis-example-raster.png)
+-->
 
 ## Menus
 
@@ -2629,10 +2633,11 @@ Each figure's caption says what it shows, e.g. *unit_card: 12 observations (sort
 units: su, mua) of RAT1_260918; panels: raster, PSTH; aligned to Stim onset; window
 [-0.2 0.8] s; groups by Depth.* The reports print it under each figure.
 
-The app never changes the pipeline's outputs or manifests. The only file
-it may write beside them is the units' quality-metrics cache
-(`quality_metrics.json` in the sorting folder), when a figure keeps good
-units only.
+The app never changes the pipeline's outputs. It writes a manifest only
+when you edit a dataset's variables (the Data tab's **Variables** column,
+or **Variables...**). The only other file it may write beside the outputs
+is the units' quality-metrics cache (`quality_metrics.json` in the sorting
+folder), when a figure keeps good units only.
 
 ## Preferences
 

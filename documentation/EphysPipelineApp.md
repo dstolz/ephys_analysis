@@ -1063,7 +1063,7 @@ ticked dataset in one go, and with **Auto approve when the counts match** on,
 every pairing that needs no cuts is approved on the way. Only the ones left
 need a look here.
 
-<!-- wiki: ![The Trials tab with an approved pairing: 12 trials, 12 intervals](images/app-trials-clean.png) -->
+<!-- wiki: ![The Trials tab with a pairing approved automatically: 101 trials, 101 intervals](images/app-trials-clean.png) -->
 
 | Control | What it does |
 | --- | --- |
@@ -1091,7 +1091,7 @@ numbers of trials and intervals differ, naming any partial intervals.
 Changing a setting or a cut re-pairs at once. Cuts are not saved until you
 press **Approve pairing** (or **Mark unreviewed**).
 
-<!-- wiki: ![The Trials tab with a count mismatch: 12 trials, 10 intervals, the first partial](images/app-trials-mismatch.png) -->
+<!-- wiki: ![The Trials tab with a count mismatch: 103 trials, 104 intervals](images/app-trials-mismatch.png) -->
 
 ### How trials are paired
 
@@ -1136,11 +1136,12 @@ line you [name](#naming-digital-lines) `InTrial`). The rule
 | the recording stopped before the session ended | fewer intervals; the last may be partial | the last trials, and a partial last interval, from the end |
 | the line pulsed once before the first trial | one extra short interval | one interval from the start |
 | an inverted line was at its active level before Epsych2 started | an extra partial first interval | one interval from the start |
+| the session was stopped during a trial, which it did not save | one extra interval at the end | one interval from the end |
 
 The [synthetic test project](#synthetic-test-project) has one dataset of each
 of the first three kinds, and a clean one.
 
-<!-- wiki: ![The Trials tab after cutting three trials and one interval from the start](images/app-trials-resolved.png) -->
+<!-- wiki: ![The Trials tab after cutting the last interval: 103 trials paired with the first 103 intervals](images/app-trials-resolved.png) -->
 
 ### Auto approval
 
@@ -1266,7 +1267,7 @@ The Probe tab manages Kilosort4 probe maps: it picks the probe of each
 recording, sets the config's default probe and probe rules, and marks the bad
 channels to leave out.
 
-<!-- wiki: ![The Probe tab with the synthetic project's probe and one excluded channel](images/app-probe-tab.png) -->
+<!-- wiki: ![The Probe tab with the project's probe and one excluded channel](images/app-probe-tab.png) -->
 
 ### Probe maps
 
@@ -2595,9 +2596,9 @@ printed page shows the whole diagram at 100%.
 default web browser, same as **Save as HTML...** but without the save dialog.
 
 <!-- wiki
-The synthetic project's config, every parameter, as **Save as HTML...** writes it:
+A project's config, every parameter, as **Save as HTML...** writes it:
 
-![Every parameter of the synthetic project's config](images/flow-full.png)
+![Every parameter of a project's config](images/flow-full.png)
 -->
 
 ## Run

@@ -2414,6 +2414,17 @@ if S.sec("3b2", "Trials tab: prefetch the ticked datasets, auto approve")
     BT = load(behT);
     check(BT.behavior.pairing.status == "approved" && ~BT.behavior.pairing.autoApproved && contains(app.StatusBar.Text, "rewrote"), ...
         'approving by hand rewrites <name>_behavior.mat and says so');
+    tc0 = dT.TrialConfig;
+    dT.TrialConfig.TrialLine = "NoSuchLine";   % its pairing fails: Prefetch lists it in its alert
+    err = "";
+    try
+        app.onTrialsPrefetch();
+    catch ME
+        err = string(ME.message);
+    end
+    dT.TrialConfig = tc0;
+    check(err == "" && contains(app.StatusBar.Text, "1 failed"), ...
+        'a pairing that fails is counted in the status bar and listed in the alert, not an error');
     app.TrialsAutoApproveCheckBox.Value = false;
     app.onTrialsSettingsChanged();
     if isempty(ticked0); app.onSelectDatasets("none"); end

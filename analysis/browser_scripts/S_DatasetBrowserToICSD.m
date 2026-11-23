@@ -15,7 +15,7 @@
 %        pots [nChan x nTime x nGroups] V, the evoked potentials
 %        csd.<method> [nZ x nTime x nGroups] uA/mm^3 (positive = source)
 %        z.<method>   [nZ x 1] mm below the top channel
-%   2. Whole sessions: "Load whole sessions" with a signal. Each session's
+%   2. Whole sessions: "Raw Data" with a signal. Each session's
 %      kept trials are cut in the browser's window around TrialOnset
 %      (artifact-touching trials dropped), averaged per group and treated
 %      the same (sessionDataCSD). -> csdSessions
@@ -82,7 +82,7 @@ end
 profiles = [num2cell(csdEpochs(:)); num2cell(csdSessions(:))];   % every profile, the epochs' first
 if isempty(profiles)
     error(['Nothing to estimate: Compute a signal (LFP) with "Keep single trials" ticked (B.Result.epochs), ' ...
-        'or "Load whole sessions" of a signal (B.Sessions).']);
+        'or "Raw Data" of a signal (B.Sessions).']);
 end
 for c = profiles.'
     p = c{1};

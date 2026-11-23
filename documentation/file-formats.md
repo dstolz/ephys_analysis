@@ -43,7 +43,8 @@ the readers take both. Probe maps are the exception
 ├─ <Name>_envelope_<what>.dat           min / max envelope of one signal for the Visualize tab (EphysTraceEnvelope):
 │                                       <what> recording, recording_car / _cmr / _wcar, bin, LFP, MUA, SPIKE or AUX
 ├─ <Name>.nwb, <Name>_nwbinspector.json NWB export and its nwbinspector findings (exportNWB; the Export step)
-├─ analysis/                            analysis figures (an analysis config's default Export.Folder)
+├─ analysis/                            analysis figures, when an analysis config's Export.Folder is
+│                                       {OutputFolder}\analysis (the default is {OutputRoot}\analysis, below)
 ├─ <Name>.bin + <Name>.json             EphysDataset.toBin (the Sorting step); <Name>_ks4.bin + <Name>_ks4.json
 │                                       when <Name>.bin or <Name>.json is one of the recording's own files.
 │                                       In Sorting.BinDir instead of here when that is set
@@ -72,7 +73,8 @@ the readers take both. Probe maps are the exception
 <OutputRoot, else Root>/
 └─ pipeline_runs/<runId>_<name>.json    run record of each pipeline run (EphysPipeline.run; see Run records)
 
-<analysis OutputRoot, else Root>/analysis/   an analysis config's default Report.Folder ({OutputRoot}\analysis)
+<analysis OutputRoot, else Root>/analysis/   an analysis config's default Export.Folder and Report.Folder ({OutputRoot}\analysis)
+├─ <Name>_<id>....png, .svg, ...        figure files of every dataset, <Name>_ keeping them apart (Export; Exported figure names)
 ├─ analysis_report.html, .pdf           analysis report (EphysAnalysisRunner; Report.FileName)
 ├─ sessions/                            session figures' pages (Export.SessionsFolder; Exported figure names)
 ├─ data/<name>.mat                      a session figure's data (Export.Data; see Session figure data .mat)

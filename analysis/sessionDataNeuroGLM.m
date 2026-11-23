@@ -1,7 +1,7 @@
 function [expt, info] = sessionDataNeuroGLM(D, opts)
 %sessionDataNeuroGLM  A neuroGLM experiment struct of one whole-session dataset's spike trains.
 %   [EXPT, INFO] = sessionDataNeuroGLM(D) turns a sessionData struct holding
-%   spike trains (DatasetBrowser's B.Sessions after Load whole sessions with
+%   spike trains (DatasetBrowser's B.Sessions after Raw Data with
 %   Data units or detected) into neuroGLM's experiment struct
 %   (NeuroGLMExport.experiment), one trial per kept trial of D.trials:
 %     spike trains   every element of D.spikes, labeled "sp_<unit label>"
@@ -38,7 +38,7 @@ function [expt, info] = sessionDataNeuroGLM(D, opts)
 %     Units       indices into D.spikes (all)
 %     Signal      a sessionData struct of the same dataset holding a signal
 %                 (B.Settings with data="LFP" through sessionData, or a
-%                 second Load whole sessions), its channels as a continuous
+%                 second Raw Data), its channels as a continuous
 %                 variable ([])
 %     DropArtifacts   drop the trials whose span touches an erased period
 %                 (D.artifacts; true). The browser's trial selection

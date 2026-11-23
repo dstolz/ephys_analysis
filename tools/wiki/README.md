@@ -103,18 +103,65 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
    *Using the app* and *Writing scripts*, with the tool's API pages under
    the latter.
 
-4. **Retake the screenshots the change affects**, with MATLAB R2025a. First
-   the pipeline app, which also writes and runs the synthetic project:
+4. **Retake the screenshots the change affects**, with MATLAB R2025a or
+   later. The wiki's screenshots show real recordings, except the Quick
+   Start's (`quickstart-*.png`), which follow its walk through the
+   synthetic project.
+
+   **Real recordings.** Never point the scripts at the lab's data: they
+   approve a trial pairing, mark an artifact period, type Review notes and
+   run the pipeline over the project, and the analysis run writes figures.
+   Copy a few processed datasets (recordings, their output folders, their
+   sort `.bin` files) to a scratch folder, and the pipeline and analysis
+   configs beside them. Then rewrite every path into the copy: the
+   configs' roots, output roots and sort folder, and the absolute paths in
+   the copied manifests, `session_manifest.json`, `kilosort4\params.py`,
+   `settings.json` and `ks4_launch.cmd` (the manifests name the sort's
+   folder and `.bin`, and the app writes there). Check that no text file in
+   the copy still names the original. In the copied configs, turn
+   `Transfer` and `AnalysisCopy` off and point the analysis config's
+   output root into the copy. Then, from the pipeline app (the run takes
+   a while: artifact detection and Signals over every dataset):
 
    ```bat
-   matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiScreenshots('C:\temp\shots', Source='C:\temp\src', Project='C:\temp\wiki_shots\synthetic_ephys')"
+   matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiScreenshots('C:\temp\shots', Source='C:\temp\src', Config='C:\temp\wiki_real\OFC_Pipeline_Config.json', Dataset='SUBJ-ID-1278_261008_095925', AnalysisConfig='C:\temp\wiki_real\OFC_Analysis_Config.json')"
    ```
 
-   Then the other windows, over that project:
+   `Dataset=` is the dataset most shots show (pick one with good units and
+   an approved pairing); the Trials mismatch shots take the first dataset
+   whose trial and interval counts differ, and the fewest cuts that pair it
+   and pass the timing check. Then the other windows:
 
    ```bat
-   matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiToolScreenshots('C:\temp\shots', Source='C:\temp\src', Project='C:\temp\wiki_shots\synthetic_ephys')"
+   matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiToolScreenshots('C:\temp\shots', Source='C:\temp\src', Project='C:\temp\wiki_real\OFC', AnalysisConfig='C:\temp\wiki_real\OFC_Analysis_Config.json', Dataset='SUBJ-ID-1278_261008_095925', Figure='SU_psth_Hit_PlatformOffset', PythonExe='C:\prgms\miniconda3\envs\kilosort\python.exe', Examples={'analysis-example-unit-card.png=SU_psth_Hit_PlatformOffset','analysis-example-tuning.png=SU_tuning_StimOnset','analysis-example-raster.png=SU_raster_StimOnset_byRespLatency'})"
    ```
+
+   `Figure=` is the figure the Figures tab shows; `Examples=` names each
+   example figure's image and the id of the config's figure it is (the
+   first PNG the run writes of it, the shown dataset's first unit). The
+   run then writes figure files even if the config does not.
+
+   **The synthetic project** (the Quick Start's shots, or the whole set
+   when there are no recordings at hand). The pipeline app's script writes
+   and runs the project:
+
+   ```bat
+   matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiScreenshots('C:\temp\qs', Source='C:\temp\src', Project='C:\temp\wiki_shots\synthetic_ephys', Shots={'app-project-tab.png','app-trials-mismatch.png','app-trials-resolved.png','app-run-results.png','app-review-tab.png'})"
+   matlab -batch "addpath('C:\src\ephys_analysis\tools\wiki'); wikiToolScreenshots('C:\temp\qs', Source='C:\temp\src', Project='C:\temp\wiki_shots\synthetic_ephys', Shots={'dataset-browser.png'})"
+   ```
+
+   and these six are copied to the wiki as `quickstart-project-tab.png`,
+   `quickstart-trials-mismatch.png`, `quickstart-trials-resolved.png`,
+   `quickstart-run-results.png`, `quickstart-review-tab.png` and
+   `quickstart-dataset-browser.png`.
+
+   The scripts open windows: run them on a desktop of their own, as
+   `tools\Run-Tests.ps1` runs MATLAB (`exportapp` draws there too), so they
+   never come over your work. Put a CarasLabDB checkout beside the
+   snapshot (`C:\temp\CarasLabDB` for `C:\temp\src`; `useCarasLabDB`
+   finds it there) so the status bar's lamp reads "Database: off" rather
+   than "Database: attention"; the scripts give the client a temporary
+   preference store too, so its settings are never read or changed.
 
    Copy the files into the wiki's `images/`. Every image there comes from
    one of the two scripts, except `flow-full.png` (a browser capture of the
@@ -127,8 +174,9 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
      up tabs.
    - `wikiToolScreenshots`: `probe-designer`, `channel-mapper`,
      `manifest-viewer`, the analysis app's four tabs (`analysis-*-tab`),
-     the three example figures its run writes (`analysis-example-*`) and
-     the dataset browser after a compute (`dataset-browser`).
+     the example figures its run writes (`analysis-example-*`) and the
+     dataset browser after a compute (`dataset-browser`, and its Details
+     window, `dataset-browser-details`).
 
    Each script's help says what each shot shows. `Shots={...}` takes a
    subset. A `Project=` folder that already holds a synthetic project is
@@ -136,7 +184,7 @@ git clone https://github.com/dstolz/ephys_analysis.wiki.git C:\temp\wiki
    Run shots always run it. `wikiToolScreenshots` needs a project that has
    been run.
 
-   For `flow-full.png`, open the project's `synthetic_pipeline.json` in the
+   For `flow-full.png`, open the pipeline config the shots used in the
    app, write `app.flowChartHTML(View='detail', Layout='steps')` to a file
    (the tree layout is wider than the page and gets clipped), capture it
    with headless Edge, and crop the blank bottom:

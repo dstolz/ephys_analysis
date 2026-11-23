@@ -1,7 +1,7 @@
 function M = sessionDataMTRF(D, opts)
 %sessionDataMTRF  mTRF-Toolbox stimulus / response pairs of whole sessions.
 %   M = sessionDataMTRF(D, Stimulus=...) turns sessionData structs
-%   (DatasetBrowser's B.Sessions after Load whole sessions) into the
+%   (DatasetBrowser's B.Sessions after Raw Data) into the
 %   inputs the mTRF-Toolbox fits (mTRFtrain, mTRFcrossval, mTRFpredict), a
 %   cell column, one mTRFExport.package per element of D:
 %     resp   the dataset's signal (Data LFP, MUA, SPIKE or AUX: the

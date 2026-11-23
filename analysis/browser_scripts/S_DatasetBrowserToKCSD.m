@@ -17,7 +17,7 @@
 %        grid x (mm below the top channel) and, in 2-D, y
 %        info lambd and R used, the cross-validation errors, potEst (the
 %             potentials the estimate reproduces at the channels)
-%   2. Whole sessions: "Load whole sessions" with a signal. Each session's
+%   2. Whole sessions: "Raw Data" with a signal. Each session's
 %      kept trials are cut in the browser's window around TrialOnset
 %      (artifact-touching trials dropped), averaged per group and treated
 %      the same (sessionDataCSD). -> csdSessions. A stretch of the whole
@@ -72,7 +72,7 @@ end
 
 if isempty(csdEpochs) && isempty(csdSessions)
     error(['Nothing to estimate: Compute a signal (LFP) with "Keep single trials" ticked (B.Result.epochs), ' ...
-        'or "Load whole sessions" of a signal (B.Sessions).']);
+        'or "Raw Data" of a signal (B.Sessions).']);
 end
 
 %% The kCSD of every profile, in one Python run

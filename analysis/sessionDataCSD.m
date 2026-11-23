@@ -1,7 +1,7 @@
 function P = sessionDataCSD(D, opts)
 %sessionDataCSD  Laminar potentials of whole sessions, by dataset and shank column, for a CSD estimate.
 %   P = sessionDataCSD(D) takes sessionData structs of a signal
-%   (DatasetBrowser's B.Sessions after Load whole sessions with data LFP,
+%   (DatasetBrowser's B.Sessions after Raw Data with data LFP,
 %   MUA, SPIKE or AUX) and arranges each session's signal along the probe:
 %   a struct array, one element per laminar column of each session
 %   (laminarColumns of D.channels), in session then column order, with

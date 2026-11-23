@@ -31,7 +31,10 @@ function test_ConfigMigration()
 %   a kind version 1 did not have is not migrated. Version 1 files load from JSON,
 %   save as version 2; version 3 is BadSchema. On makeAnalysisFixture's
 %   "clean" dataset a migrated PSTH with its raster, Stim offset marks and
-%   aux channels computes and renders for one unit.
+%   aux channels computes and renders for one unit. Raster marks saved
+%   before 2026-10-13 (one struct: lines, sequences, edge, scope "window"
+%   or "trial", one look) become a mark per line and sequence; a
+%   LegendLocation outside the grid (east, ...) becomes "auto".
 %
 %   Usage:  test_ConfigMigration
 
@@ -478,6 +481,33 @@ bx = vertcat(bx{:});
 check(numel(h.panels) == 3 && all(arrayfun(@(s) ~isempty(s.axes) && isvalid(s.axes), h.panels)) && contains(h.title, T.label(1)) ...
     && all(abs(bx(1:2, 2) - bx(2:3, 2) - bx(2:3, 4)) < 0.5), ...
     'renderFigure draws its three panels at their stacked rects, flush top to bottom, the title naming the unit');
+
+fprintf('\n== 11. raster marks and a legend place of older files ==\n');
+% Before 2026-10-13 rasterEvents was one struct for every mark (lines,
+% sequences, edge, scope "window" | "trial", one look); before 2026-11-04
+% LegendLocation could be north, south, east or west (outside the grid).
+old = struct('lines', {{'Platform' 'Stim'}}, 'sequences', [], 'edge', "offset", 'scope', "window", ...
+    'marker', "diamond", 'size', 3, 'color', "");
+p = struct('kind', "psth", 'source', "units", 'rasterEvents', old);
+p.style = struct('LegendLocation', "east");
+[F, ~, cfg] = convert(p);
+r = F.panels(1);
+ev = [r.layers([r.layers.source] == "events").event];
+check(r.type == "raster" && numel(ev) == 2 && isequal([ev.line], ["Platform" "Stim"]) && all([ev.edge] == "offset") ...
+    && all([ev.which] == "all") && all([ev.scope] == "recording") && all([ev.marker] == "diamond") && all([ev.size] == 3), ...
+    'old raster marks: a mark per line, its edge, every event in the window (scope "window" is "recording"), the look on each');
+check(F.style.LegendLocation == "auto" && validates(cfg), ...
+    'LegendLocation "east" (outside the grid) is "auto", and the figure validates');
+seq = struct('line', "Platform", 'edge', "onset");
+old = struct('lines', "Stim", 'sequences', {{seq}}, 'edge', "onset", 'scope', "trial", 'marker', "o", 'size', 4, 'color', "red");
+[F, ~, cfg] = convert(struct('kind', "psth", 'source', "units", 'rasterEvents', old));
+r = F.panels(1);
+ev = [r.layers([r.layers.source] == "events").event];
+check(numel(ev) == 2 && isequal([ev.line], ["Stim" "Platform"]) && all([ev.scope] == "trial") && all([ev.marker] == "o") ...
+    && all([ev.color] == "red") && validates(cfg), ...
+    'scope "trial" kept; a sequence is a mark of its own after the lines'' marks, with the same look');
+[F, ~, cfg] = convert(struct('kind', "psth", 'source', "units", 'rasterEvents', struct('lines', [], 'sequences', [], 'scope', "window")));
+check(~any([F.panels(1).layers.source] == "events") && validates(cfg), 'old marks with no lines and no sequences give no mark');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

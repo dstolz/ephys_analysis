@@ -11,7 +11,7 @@
 %        spikes (units, detected): spike structures (ft_datatype_spike) as
 %          ft_spike_maketrials leaves them (time, trial, trialtime), the
 %          timestamps on the recording's samples
-%   2. Whole sessions: "Load whole sessions". Each dataset's whole recording,
+%   2. Whole sessions: "Raw Data". Each dataset's whole recording,
 %      with its events, its erased periods and the kept trials in the
 %      browser's window as cfg.trl: sessionDataFieldTrip. -> ftSessions
 %        signal: one continuous trial; ft_redefinetrial cuts cfg.trl
@@ -59,7 +59,7 @@ end
 
 if isempty(ftEpochs) && isempty(ftSessions)
     error(['Nothing to convert: Compute with "Keep single trials" ticked (B.Result.epochs), ' ...
-        'or "Load whole sessions" (B.Sessions).']);
+        'or "Raw Data" (B.Sessions).']);
 end
 isSpike = @(d) isfield(d, 'timestamp');
 

@@ -9,7 +9,7 @@
 %      becomes a trial, with an impulse on its event as the stimulus:
 %      epochMatrixMTRF. -> mtEpochs. A forward model fit on it is the mean
 %      evoked response, lag by lag (the check that both agree).
-%   2. Whole sessions: "Load whole sessions". Each dataset's whole signal,
+%   2. Whole sessions: "Raw Data". Each dataset's whole signal,
 %      resampled to fs, is the response; the stimulus is the pulses of a
 %      digital line (the browser's event line by default), a trial parameter
 %      on each trial's onset, or an AUX channel's envelope (opts.auxChannel). The
@@ -90,7 +90,7 @@ end
 
 if isempty(mtEpochs) && isempty(mtSessions)
     error(['Nothing to convert: Compute with "Keep single trials" ticked (B.Result.epochs), ' ...
-        'or "Load whole sessions" (B.Sessions).']);
+        'or "Raw Data" (B.Sessions).']);
 end
 
 if opts.outDir ~= ""

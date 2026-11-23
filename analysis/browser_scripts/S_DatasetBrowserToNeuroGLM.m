@@ -36,7 +36,7 @@
 % reach opts.acausalMs before it.
 % Each trial's word is g.expt.trial(j).response, for sorting the predictions by response.
 %
-% Data: "Load whole sessions" with Data = units or detected (B.Sessions holds
+% Data: "Raw Data" with Data = units or detected (B.Sessions holds
 % the spike trains, every trial and digital line); with opts.withSignal, tick that
 % signal too and it comes from B.Sessions (else it is loaded here). Each kept
 % trial becomes a
@@ -139,12 +139,12 @@ if opts.fitMethod == "matRegress" && ~NeuroGLMExport.hasMatRegress()
 end
 S = B.Sessions;
 if isempty(S)
-    error('Nothing to fit: tick datasets and "Load whole sessions" with Data = units or detected.');
+    error('Nothing to fit: tick datasets and "Raw Data" with Data = units or detected.');
 end
 loaded = S;
 S = S(arrayfun(@(D) ~isempty(D.spikes), S));
 if isempty(S)
-    error('B.Sessions holds no spike trains (Data = %s): tick units or detected and "Load whole sessions".', ...
+    error('B.Sessions holds no spike trains (Data = %s): tick units or detected and "Raw Data".', ...
         strjoin(B.Settings.data, ", "));
 end
 

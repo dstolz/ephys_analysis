@@ -14,6 +14,8 @@ function [fig, unknown] = normalizeFigure(in, path)
 %     old shape, with a grid and panels in its cells, loses them: grid
 %     and each panel's row, col, rowSpan, colSpan, size, align and valign
 %     are unknown fields, and its panels all fill the page; no migration)
+%   - style.LegendLocation "north", "south", "east" or "west" (outside the
+%     grid, before panels had rects) is "auto"
 %   - panels is a list of panels (a struct array, a cell from jsondecode,
 %     one struct or [] for none), each normalizePanel'd (its rect a row
 %     of numbers, checked by validate); a panel without
@@ -44,6 +46,9 @@ if isstruct(in) && ~isempty(in)
     end
 end
 [fig, unknown] = EphysAnalysisConfig.coerceStruct(def, in, path);
+if ismember(fig.style.LegendLocation, ["north" "south" "east" "west"])
+    fig.style.LegendLocation = "auto";   % outside the grid of panels, before panels had rects: the legend panel's or free space's now
+end
 if ~(isstruct(in) && isfield(in, 'autoId'))
     fig.autoId = fig.id == "";   % an entry that names an id but not autoId keeps that id as its own
 end

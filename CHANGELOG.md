@@ -753,6 +753,18 @@ says how to cut a release.
 
 ### Fixed
 
+- Pipeline app: **Prefetch ticked** on the Trials tab stopped with an error, instead of listing them, when some
+  pairings still needed review or failed, and the Copy tab did the same when a session failed to copy: their alerts
+  joined the lines with `newline + newline`, which adds two characters as numbers. They now join with a blank line.
+- Analysis configs saved before 2026-10-13 lost their raster marks' lines on load and kept a scope the figures
+  refuse: their `rasterEvents` was then one struct (`lines`, `sequences`, `edge`, `scope` "window" or "trial", one
+  look), and the migration read it as one new mark, so `lines` was dropped (the mark took the default line) and
+  `scope` "window" failed validation, which stops every run. Such a struct now becomes a mark per line and per
+  sequence, with its edge, `which` "all", scope "recording" for "window" ("trial" kept) and the look on each
+  (`legacyNormalizePlot`). A figure's `style.LegendLocation` "north", "south", "east" or "west" (outside the grid,
+  before panels had rects) failed validation the same way; it is now "auto" (`normalizeFigure`).
+- The browser scripts' help and messages, and the `sessionData*` connectors' help, named the dataset browser's
+  **Raw Data** button by its old name, "Load whole sessions".
 - `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had
   saved a pairing since the dataset object last wrote the manifest, and the new record was equal to the one the
   object wrote then (its `updated` time is to the second), the manifest merge took the record as unchanged and kept

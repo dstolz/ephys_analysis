@@ -12,7 +12,7 @@
     {"page": "Analysis-Configs", "source": "documentation/EphysAnalysisConfig.md", "exclude": ["Tests"], "status": "generated"},
     {"page": "Analysis-Scripting", "source": "documentation/EphysAnalysis.md", "exclude": ["Tests"], "status": "generated"},
     {"page": "Dataset-Browser", "source": "documentation/DatasetBrowser.md", "sections": ["Opening it", "The window", "Preferences", "Errors and warnings"], "main": true, "status": "generated"},
-    {"page": "Dataset-Browser-Scripting", "source": "documentation/DatasetBrowser.md", "sections": ["From a script", "The result", "Settings", "The cache and the result file", "`forEach`"], "status": "generated"},
+    {"page": "Dataset-Browser-Scripting", "source": "documentation/DatasetBrowser.md", "sections": ["From a script", "The result", "Settings", "The cache and the result file", "Caching", "`forEach`"], "status": "generated"},
     {"page": "NeuroGLM-Connector", "source": "documentation/NeuroGLMExport.md", "status": "generated"},
     {"page": "mTRF-Connector", "source": "documentation/mTRFExport.md", "exclude": ["Tests"], "status": "generated"},
     {"page": "CSD-Connectors", "source": "documentation/CSDEstimate.md", "exclude": ["Tests"], "status": "generated"},
@@ -32,6 +32,6 @@
     {"page": "Review-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Review"], "status": "generated"},
     {"page": "Synthetic-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Synthetic", "Synthetic test project"], "status": "generated"},
     {"page": "Clean-Up-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Clean up"], "status": "generated"},
-    {"page": "Lab-Database", "source": "documentation/database.md", "exclude": ["Where the code is", "Tests"], "status": "candidate"}
+    {"page": "Lab-Database", "source": "documentation/database.md", "exclude": ["Where the code is", "Tests"], "status": "generated"}
   ]
 }

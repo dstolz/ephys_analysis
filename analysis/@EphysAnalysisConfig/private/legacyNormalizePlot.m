@@ -7,7 +7,9 @@ function [p, unknown] = legacyNormalizePlot(in, path, section)
 %   and their paths (prefixed PATH, default "Plot") returned in UNKNOWN.
 %   ref, window and selection are "default" (also an empty value) or a
 %   normalized EventRef / EpochWindow / TrialSelection; rasterEvents a list
-%   of EventMarks; aesthetics PlotAesthetics' rules.
+%   of EventMarks (the one struct of every mark of a plot saved before
+%   2026-10-13 a mark per line and sequence: oldMarks); aesthetics
+%   PlotAesthetics' rules.
 %
 %   [P, UNKNOWN] = legacyNormalizePlot(IN, PATH, "SessionPlot") reads one
 %   entry of SessionPlots (legacyPlotDefaults("SessionPlot")): its data a
@@ -84,12 +86,61 @@ if isfield(held, 'rasterEvents') && ~isempty(held.rasterEvents)
         error('EphysAnalysisConfig:BadValue', '%s.rasterEvents must be a list of structs.', path);
     end
     mk = EphysAnalysisConfig.defaults("EventMark");
+    v = oldMarks(v);
     for k = 1:numel(v)
         if ~isstruct(v{k})
             error('EphysAnalysisConfig:BadValue', '%s.rasterEvents(%d) must be a struct.', path, k);
         end
         [p.rasterEvents(1, k), u] = EphysAnalysisConfig.coerceStruct(mk, v{k}, path + ".rasterEvents(" + k + ")");
         unknown = [unknown, u]; %#ok<AGROW>
+    end
+end
+end
+
+
+function out = oldMarks(v)
+%oldMarks  The raster marks V (a cell of structs) with those of before 2026-10-13 made EventMarks.
+%   Until then rasterEvents was one struct for every mark: lines (the
+%   lines whose events are marked), sequences (event references marked
+%   too), edge, scope ("window": every event in the epoch's window;
+%   "trial": only those in the epoch's own trial) and one look (marker,
+%   size, color). Such a struct becomes a mark per line (that line, its
+%   edge, which "all") and a mark per sequence, each with the scope
+%   ("window" is "recording") and the look; one with no lines and no
+%   sequences marked nothing and gives no mark. A mark of the list form
+%   passes as it is.
+out = {};
+for k = 1:numel(v)
+    m = v{k};
+    if ~isstruct(m) || ~(isfield(m, 'lines') || isfield(m, 'sequences'))
+        out{end+1} = m; %#ok<AGROW>
+        continue
+    end
+    common = struct('which', "all", 'scope', "recording");
+    if isfield(m, 'scope') && string(m.scope) == "trial"; common.scope = "trial"; end
+    for f = ["marker" "size" "color"]
+        if isfield(m, f) && ~isempty(m.(f)); common.(f) = m.(f); end
+    end
+    edge = "onset";
+    if isfield(m, 'edge') && ~isempty(m.edge); edge = string(m.edge); end
+    lines = string.empty(1, 0);
+    if isfield(m, 'lines') && ~isempty(m.lines); lines = reshape(string(m.lines), 1, []); end
+    for L = lines(strtrim(lines) ~= "")
+        e = common;
+        e.line = strtrim(L);
+        e.edge = edge;
+        out{end+1} = e; %#ok<AGROW>
+    end
+    s = {};
+    if isfield(m, 'sequences') && ~isempty(m.sequences); s = m.sequences; end
+    if isstruct(s); s = num2cell(s); end
+    for j = 1:numel(s)
+        e = s{j};
+        if ~isstruct(e); out{end+1} = e; continue; end %#ok<AGROW> coerceStruct says what is wrong
+        for f = string(fieldnames(common)).'
+            e.(f) = common.(f);
+        end
+        out{end+1} = e; %#ok<AGROW>
     end
 end
 end

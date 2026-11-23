@@ -1,7 +1,7 @@
 function data = sessionDataFieldTrip(D, opts)
 %sessionDataFieldTrip  FieldTrip structures of whole sessions: raw for a signal, spike for spikes.
 %   DATA = sessionDataFieldTrip(D) turns sessionData structs (DatasetBrowser's
-%   B.Sessions after Load whole sessions) into FieldTrip structures, a cell
+%   B.Sessions after Raw Data) into FieldTrip structures, a cell
 %   column, one per element of D.
 %
 %   A signal (data LFP, MUA, SPIKE or AUX) gives a raw structure

@@ -9,7 +9,7 @@
 %          mtspectrumc / mtspecgramc / coherencyc on data(:, :, c)
 %        spikes (units, detected): sp{u}, a 1 x nEpochs struct array with
 %          field times, for mtspectrumpt / mtspecgrampt / coherencypt
-%   2. Whole sessions: "Load whole sessions". Each dataset on its own clock,
+%   2. Whole sessions: "Raw Data". Each dataset on its own clock,
 %      with its kept trials cut in the browser's window around TrialOnset.
 %      -> cxSessions{k}
 %        signal: cx, a ChronuxDataset holding the whole signal (cx.continuous,

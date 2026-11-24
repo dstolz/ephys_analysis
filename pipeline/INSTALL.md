@@ -6,8 +6,8 @@ pipeline. It scans recordings (Intan, Open Ephys GUI sessions, TDT blocks,
 or the universal binary format), writes derived-signal and spike `.mat`
 files, optionally hands the recordings to **Kilosort4** for spike sorting
 (in a separate Python/conda environment, with **phy** to curate the
-result), and exports files for other tools (Chronux, FieldTrip, event
-epochs, kCSD, NWB). This guide sets up a Windows 11 machine to run the app
+result), and exports an NWB 2 file per dataset. This guide sets up a
+Windows 11 machine to run the app
 end to end (what runs on macOS and Linux:
 [platforms.md](../documentation/platforms.md)). Everything except spike
 sorting, probe design and the NWB export needs MATLAB alone, so the MATLAB
@@ -26,8 +26,8 @@ steps can run before Python is installed.
 | NVIDIA GPU + driver | Kilosort4 runs dramatically faster on GPU | Recommended, not required |
 | `phy` conda env (phy) | Manual curation of sorting results | Optional |
 | A Python with pynwb and nwbinspector | The NWB export (`Export.Formats` `nwb`, `EphysDataset.exportNWB`) | Only for the NWB export |
-| [FieldTrip](https://www.fieldtriptoolbox.org/) on the MATLAB path | Validates the FieldTrip export; analyzing it | Optional |
-| [Chronux](http://chronux.org) (bundled in `toolboxes/chronux`) | Analyzing the Chronux export | Optional |
+| [FieldTrip](https://www.fieldtriptoolbox.org/) on the MATLAB path | Validates the dataset browser's FieldTrip structures; analyzing them | Optional |
+| [Chronux](http://chronux.org) (bundled in `toolboxes/chronux`) | The analysis app's spectral panels; the dataset browser's Chronux connector | Optional |
 | This repository (`ephys_analysis`) | Contains the app and MATLAB path helpers | Yes |
 
 What each MATLAB toolbox is used for, function by function, is listed under

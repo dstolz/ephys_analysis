@@ -139,7 +139,7 @@ classdef EphysDataset < handle
         % excludedChannels). Set on the Artifacts tab (Local reference...)
         % or by hand; saved in the manifest. See LocalReferenceProbe,
         % localReferenceProblems.
-        LocalReferenceMap struct = struct('reference', {}, 'channels', {})
+        LocalReferenceMap = struct('reference', {}, 'channels', {})   % set.LocalReferenceMap normalizes ([] = none)
 
         % The probe file LocalReferenceMap was drawn on ("" = none): a run
         % refuses a map drawn on another probe than the dataset's own.

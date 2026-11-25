@@ -898,7 +898,9 @@ dataset without its recording is left alone.
 
 **`ch = referenceChannels(Exclude=)`**: the channels the reference is taken over,
 which is every channel except `excludedChannels()` (`ExcludeChannels` and the
-[bad channels](#bad-channels) in force) and `ReferenceExclude`. A channel
+[bad channels](#bad-channels) in force) and `ReferenceExclude`; while the
+[local reference](#local-reference-a-channel-per-shank-or-probe) is on, only
+the channels of its groups. A channel
 left out is still referenced; it only stays out of the average. `Exclude`
 (recording channels, default none) leaves more out: `deriveSignals` passes the
 columns the Signals step lists bad, which it replaces by interpolation.
@@ -969,7 +971,13 @@ the shank, on another shank, or off the probe (a separate reference wire
 recorded on an amplifier channel). The common reference of
 `ArtifactConfig.Reference` (CAR, CMR or the weighted CAR) is then taken over
 the locally referenced channels and subtracted after it; with `Reference`
-`"none"` the local reference is the only one.
+`"none"` the local reference is the only one. A channel in no group (a site
+that is not connected, a channel off the probe) keeps the recording's own
+reference, so it stays out of the common average (`referenceChannels`),
+though the common reference is still subtracted from it. With the local
+reference alone, artifact detection also tests the recording as stored for
+common-mode artifacts (`CommonModeUnreferenced`), since the local reference
+cancels an artifact that a whole shank shares.
 
 ```matlab
 ds.LocalReferenceMap = struct('reference', {17, 49}, 'channels', {1:32, 33:64});   % one per shank
@@ -1373,11 +1381,13 @@ serially or on a pool (`artifactRun`, which `artifactIntervals` shares).
 - **A reference some signal does not take.** `deriveSignals` leaves the LFP
   unreferenced by default, and a broad artifact that the common reference
   cancels (the same on every channel) never shows in the referenced signal the
-  detection reads. So under a reference (CAR, CMR or weighted CAR) the chunk is
+  detection reads. So under a reference (CAR, CMR, weighted CAR, or the
+  [local reference](#local-reference-a-channel-per-shank-or-probe), which
+  cancels an artifact that a whole shank shares) the chunk is
   also read as recorded and scored with the `"commonmode"` test (|mean across
   the channels that take part| above `CommonModeThreshold`, 1500 µV), and the
   two masks are combined (`CommonModeUnreferenced`, default `true`; ignored for
-  Reference `"none"` and for Method `"commonmode"`, which read it unreferenced
+  Reference `"none"` without the local reference, and for Method `"commonmode"`, which read it unreferenced
   already; the detection record in `Processing.artifacts.options` says which).
   Both options fall back to `ArtifactConfig`, so a direct call detects as the
   pipeline does.

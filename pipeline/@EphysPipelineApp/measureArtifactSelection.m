@@ -14,7 +14,7 @@ function measureArtifactSelection(obj)
 %   their defaults; Min channels and the RMS window are the left's too, and
 %   the dataset's ExcludeChannels take no part. Common mode is scored on
 %   the signal as recorded, as its detector reads it: read again
-%   unreferenced when the dataset has a common reference (kept with the
+%   unreferenced when the dataset has a common or a local reference (kept with the
 %   selection), and left out when its reader cannot read a window.
 %
 %   Two tables: one row per method (its peak, threshold, channels over it,
@@ -178,7 +178,7 @@ function [X, note] = unreferenced(obj, d, w, S)
 X = [];
 note = "";
 acfg = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
-if string(acfg.Reference) == "none"
+if string(acfg.Reference) == "none" && ~acfg.LocalReference   % the local reference alone references the plot too
     return
 end
 if isfield(S, 'cmX') && ~isempty(S.cmX)

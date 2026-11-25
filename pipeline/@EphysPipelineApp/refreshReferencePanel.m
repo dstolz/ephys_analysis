@@ -44,7 +44,10 @@ if ~hasData
 end
 
 obj.ArtRefExcludeField.Value = EphysDataset.formatChannelList(d.ReferenceExclude);
-if ~on
+if ~on && logical(obj.ArtRefLocalCheckBox.Value)
+    obj.ArtRefStatusLabel.Text = "No common reference: only the local reference above is subtracted.";
+    return
+elseif ~on
     obj.ArtRefStatusLabel.Text = "Channels are read as recorded.";
     return
 end

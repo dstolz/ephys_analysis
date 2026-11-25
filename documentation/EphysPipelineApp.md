@@ -1472,7 +1472,7 @@ previous method stays. `validate` warns about an *Absolute microvolts* or
 | *Common-mode (mean)* | \|mean over the channels\| > *Threshold*, on every channel at once. It is measured on the signal as recorded, since a common reference subtracts that very mean | µV |
 
 A sample is an artifact when at least **Min channels** channels flag it at
-once (common mode aside). With a common reference on, **Also test the unreferenced
+once (common mode aside). With a common or a local reference on, **Also test the unreferenced
 signal for common-mode artifacts** (`Artifacts.CommonModeUnreferenced`, on by
 default) runs the common-mode test on the signal as recorded too, so broad
 artifacts the reference cancels (movement, chewing) are still flagged for the
@@ -1664,7 +1664,11 @@ With **Local reference first** ticked (`Reference.Local`), every step that
 reads the recording first subtracts each dataset's local reference: for each
 shank, one reference channel, as recorded, from every channel of the shank,
 sample by sample (`EphysDataset.applyLocalReference`). The common reference
-chosen below it, if any, is then taken over the locally referenced channels.
+chosen below it, if any, is then taken over the locally referenced channels;
+a channel in no group (a site that is not connected, a channel off the probe)
+stays out of that average, though the common reference is still subtracted
+from it. A new map saved while a preview is shown marks the preview out of
+date, as a changed detection setting does.
 The references are each dataset's own (`LocalReferenceMap`, saved in its
 manifest), since a good reference site differs between recordings.
 

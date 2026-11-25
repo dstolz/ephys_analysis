@@ -43,7 +43,9 @@ function test_CommonReference()
 %        every step; the problems that stop a run (no map, a shank without
 %        a reference, an excluded reference, another probe); the manifest
 %        round trip; the records and texts; configHash and the artifact
-%        cache's fingerprint unchanged while it is off
+%        cache's fingerprint unchanged while it is off; a channel in no
+%        group out of the common average; the unreferenced common-mode test
+%        under the local reference alone
 %   No Intan files or Python are needed (the derived signals need the Signal
 %   Processing Toolbox).
 %
@@ -690,6 +692,13 @@ chL = [1 3 4 5 6 8];
 setArtifactRef(dsL, "car", true);
 check(max(abs(readL() - (L2 - mean(L2(:, chL), 2))), [], 'all') < 1e-9, ...
     'local, then CAR: the common average is taken over the locally referenced channels, the zeros left out');
+dsL.LocalReferenceMap = struct('reference', {2, 7}, 'channels', {1:4, 5:7});   % channel 8 in no group
+L8 = L2;
+L8(:, 8) = Xl(:, 8);
+ch8 = [1 3 4 5 6];
+check(isequal(dsL.referenceChannels(), ch8) && max(abs(readL() - (L8 - mean(L8(:, ch8), 2))), [], 'all') < 1e-9, ...
+    'a channel in no group keeps the recording''s reference: out of the common average, still referenced');
+dsL.LocalReferenceMap = M2;
 setArtifactRef(dsL, "cmr", true);
 check(max(abs(readL() - (L2 - median(L2(:, chL), 2))), [], 'all') < 1e-9, 'local, then CMR');
 dsL.OutputDir = fullfile(root, 'localout');
@@ -730,6 +739,29 @@ probeC = string(fullfile(root, 'local_probe_connected.json'));
 writeJsonFile(probeC, pc);
 check(isempty(dsL.localReferenceProblems(ProbeFile=probeC, Map=struct('reference', {2, 7}, 'channels', {1:4, 5:7}))), ...
     'a site that is not connected needs no reference');
+
+% A large artifact that shank 1 shares: its own reference cancels it, so only
+% the test of the recording as stored (CommonModeUnreferenced) finds it,
+% with the local reference alone as under a common one.
+Xa = Xl;
+burst = round(0.8 * Fs) + (1:200);
+Xa(burst, 1:4) = Xa(burst, 1:4) + 6000;
+dsA = EphysDataset(writeRecording(root, 'localart', Xa, Fs));
+dsA.ProbeFile = probeL;
+dsA.LocalReferenceMap = M2;
+dsA.LocalReferenceProbe = probeL;
+dsA.ReferenceExcludeSource = "manual";
+aA = dsA.ArtifactConfig;
+aA.Reference = "none"; aA.LocalReference = true;
+aA.Enabled = true; aA.Method = "rms"; aA.CommonModeUnreferenced = true;
+dsA.ArtifactConfig = aA;
+ivA = dsA.artifactIntervals();
+aA.CommonModeUnreferenced = false;
+dsA.ArtifactConfig = aA;
+ivB = dsA.artifactIntervals();
+tA = (burst(100) - 1) / Fs;
+check(any(ivA(:, 1) <= tA & ivA(:, 2) > tA) && isempty(ivB), ...
+    'the local reference alone: a shank-wide artifact it cancels is found by the test of the recording as stored, only');
 
 dsL.writeManifest();
 ml = readJsonFile(dsL.manifestFile());

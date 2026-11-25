@@ -1017,6 +1017,9 @@ classdef EphysPipeline < handle
                         ref.wcar = acfg.ReferenceWCAR;
                         ref.wcar.QAuto = isnan(acfg.ReferenceWCAR.Q);
                     end
+                    if acfg.LocalReference
+                        ref.local = d.LocalReferenceMap;   % subtracted first, as referenceInfo records it
+                    end
                     created = "";
                     if isfield(c, 'created'); created = string(c.created); end
                     d.recordDetection(EphysDataset.detectionSettings(acfg), auto, ref, ...

@@ -11,7 +11,8 @@ function selectDataset(obj, idx, opts)
 %   highlighted and its Datasets-table row selected.
 %
 %   The Project tab's Source settings panel shows its recording system's
-%   settings (syncSourcePanel).
+%   settings (syncSourcePanel), and its Notes panel the dataset's note
+%   (syncNotesPanel).
 %
 %   When the active dataset changes, results shown for the previous one are
 %   cleared (a loaded trial pairing, the Artifacts and Spikes previews), the
@@ -54,6 +55,7 @@ obj.syncExcludeField();
 obj.onProbeSelected();
 obj.syncArtProbeControls();
 obj.syncToolsPanel();
+obj.syncNotesPanel();
 obj.syncSourcePanel();
 obj.refreshSortingLabel();
 obj.refreshManualArtifactsTable();

@@ -794,7 +794,9 @@ means no star.
 Path: `<outputFolder>/<Name>_notes.json`, beside the dataset's outputs and its
 [stars](#favorites-name_favoritesjson), so it moves with them. Written by
 `DatasetNotes` (the analysis app's notepad:
-[Notes](EphysFigGenApp.md#notes)) through `writeJsonFile` each time a note
+[Notes](EphysFigGenApp.md#notes); the dataset's own note also the pipeline
+app's Notes panel, [Dataset notes](EphysPipelineApp.md#dataset-notes))
+through `writeJsonFile` each time a note
 changes, and deleted when the last note is emptied. No file means no note.
 These are not phy's notes: the "notes" label in `cluster_notes.tsv` (the
 pipeline app's Review tab) is another file.

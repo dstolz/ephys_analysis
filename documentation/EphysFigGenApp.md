@@ -2415,6 +2415,8 @@ Like the stars, notes are kept **beside the data**, one small file per dataset,
 `<Name>_notes.json` in its output folder
 ([the file](file-formats.md#notes-name_notesjson)), so they travel with the
 data and the config holds none. **Scan** reads them; the notepad writes them.
+The pipeline app's Project tab shows and edits the note on the dataset itself
+in its **Notes** panel ([Dataset notes](EphysPipelineApp.md#dataset-notes)).
 They are not phy's notes: the pipeline app's Review tab writes those into
 `cluster_notes.tsv`, a file of the sort's own.
 

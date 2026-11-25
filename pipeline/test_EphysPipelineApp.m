@@ -2073,6 +2073,42 @@ if S.sec("3e2", "Project tab: Variables column and dialog")
     check(all(app.DatasetsTable.Data.Vars == ""), 'the fixture''s manifest put back');
 end
 
+if S.sec("3e3", "Project tab: Notes panel")
+    nameA = "recA_260101_120000";
+    app.selectDataset(find([app.Project.Datasets.Name] == nameA));
+    dA = app.currentDataset();
+    folder = string(dA.outputFolder());
+    noteOf = @() DatasetNotes(folder, Name=nameA).note("dataset");
+    nf = DatasetNotes.fileFor(folder, nameA);
+    check(~isfile(nf), 'the fixture has no notes file');
+    area = app.NotesArea;
+    check(app.NotesPanel.Title == "Notes: " + nameA && area.Enable == "on" && isequal(area.Value, {''}) ...
+        && area.UserData.dataset == dA, 'the Notes panel shows the active dataset''s note, none yet');
+    cfg0 = app.Config.toStruct(); title0 = string(app.Fig.Name);
+    area.Value = {'Electrode moved at 20 min.'; 'Noisy after that.  '; ''};
+    area.ValueChangedFcn(area, []);
+    note = "Electrode moved at 20 min." + newline + "Noisy after that.";
+    check(isfile(nf) && noteOf() == note && contains(app.StatusBar.Text, "Saved the note on " + nameA) ...
+        && isequaln(app.Config.toStruct(), cfg0) && string(app.Fig.Name) == title0, ...
+        'an edit is the dataset''s note in <Name>_notes.json (DatasetNotes, the analysis app''s), ends trimmed; the config stays as it was');
+    N = DatasetNotes(folder, Name=nameA);
+    N.setNote("channel", 3, "kept");   % another note in the file, as the analysis app writes
+    area.Value = {'Typed, box still focused.'};   % no ValueChanged yet
+    app.selectDataset(app.SelectedDatasetIdx);
+    check(noteOf() == "Typed, box still focused." && DatasetNotes(folder, Name=nameA).note("channel", 3) == "kept", ...
+        'text not saved yet is saved before the panel shows a dataset again; the file''s other notes stay');
+    N.reload();
+    N.setNote("dataset", NaN, "Written by the analysis app.");
+    app.onScan();
+    check(isequal(app.NotesArea.Value, {'Written by the analysis app.'}), 'a rescan shows the note as the file holds it');
+    area.Value = {''};
+    area.ValueChangedFcn(area, []);
+    check(noteOf() == "" && contains(app.StatusBar.Text, "Removed the note on " + nameA), 'an empty box removes the note');
+    N.reload();
+    N.setNote("channel", 3, "");
+    check(~isfile(nf), 'the fixture''s state back: no notes file');
+end
+
 if S.sec("3e1", "Project tab: tags for new datasets")
     app.onScan();   % recA has its manifest: it is not new
     nameA = "recA_260101_120000"; nameC = "recC_260103_120000";

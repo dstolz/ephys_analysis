@@ -5,7 +5,8 @@ function buildProjectTab(obj)
 %   a Tags cell: onEditTags; the tag filter), the dataset variables
 %   (Variables..., a click on a Variables cell: onEditVariables), the Tools panel beside the table (the
 %   datasets in the manifest viewer, the analysis app, phy or the file
-%   browser), the Source settings panel under it (the reader options of the
+%   browser) with the Notes panel under it (the active dataset's note in
+%   <Name>_notes.json, DatasetNotes: syncNotesPanel, onNotesEdited), the Source settings panel under the table (the reader options of the
 %   active dataset's recording system: Open Ephys, TDT; see
 %   syncSourcePanel) and the Epsych2 behavior association panel.
 %   The dataset table's Select column is the config's dataset selection
@@ -188,7 +189,10 @@ buildEmptyState(obj, left);
 hint = uilabel(left, "Text", "Right-click a column header for more (Clear sort). Drag a header to move its column; click a Tags cell to tag that dataset.", ...
     "FontColor", [0.4 0.4 0.4], "FontAngle", "italic");
 hint.Layout.Row = 2; hint.Layout.Column = 1;
-buildToolsPanel(obj, mid);
+side = uigridlayout(mid, [2 1], "RowHeight", {'fit', '1x'}, "ColumnWidth", {'1x'}, "Padding", [0 0 0 0], "RowSpacing", 8);
+side.Layout.Row = 1; side.Layout.Column = 2;
+buildToolsPanel(obj, side);
+buildNotesPanel(obj, side);
 % Clicking a row makes its dataset the active one (highlighted; see selectDataset).
 obj.DatasetsTable.CellSelectionCallback = @(~,evt) obj.onDatasetCellSelection(evt);
 % Every click (a cell selected already too): one on a Tags cell opens the tag dialog.
@@ -397,9 +401,9 @@ function buildToolsPanel(obj, parent)
 %   manifest files on the clipboard (onCopyManifests). Everything
 %   is off until a scan (syncToolsPanel).
 tp = uipanel(parent, "Title", "Tools");
-tp.Layout.Row = 1; tp.Layout.Column = 2;
-tg = uigridlayout(tp, [8 1]);
-tg.RowHeight   = {'fit', 'fit', 30, 30, 30, 30, 30, '1x'};
+tp.Layout.Row = 1; tp.Layout.Column = 1;
+tg = uigridlayout(tp, [7 1]);
+tg.RowHeight   = {'fit', 'fit', 30, 30, 30, 30, 30};
 tg.ColumnWidth = {'1x'};
 tg.RowSpacing  = 6;
 tg.Padding     = [8 8 8 8];
@@ -426,4 +430,20 @@ obj.ToolsPhyButton = uibutton(tg, "Text", "phy", "Enable", "off", ...
 obj.ToolsFolderButton = uibutton(tg, "Text", "Output folder", "Enable", "off", ...
     "Tooltip", "Open each dataset's output folder in the file browser.", ...
     "ButtonPushedFcn", @(~,~) obj.onOpenTool("folder"));
+end
+
+
+function buildNotesPanel(obj, parent)
+%buildNotesPanel  The active dataset's note, under the Tools panel.
+%   The note on the dataset in <Name>_notes.json (DatasetNotes), the one
+%   the analysis app's notepad writes: what is typed is saved when the box
+%   loses focus (onNotesEdited); the panel follows the active dataset
+%   (syncNotesPanel) and is off until a scan.
+obj.NotesPanel = uipanel(parent, "Title", "Notes");
+obj.NotesPanel.Layout.Row = 2; obj.NotesPanel.Layout.Column = 1;
+ng = uigridlayout(obj.NotesPanel, [1 1], "RowHeight", {'1x'}, "ColumnWidth", {'1x'}, "Padding", [8 8 8 8]);
+obj.NotesArea = uitextarea(ng, "WordWrap", "on", "Enable", "off", ...
+    "Placeholder", "Scan a project to write notes on its datasets.", ...
+    "Tooltip", "The note on the active dataset (the highlighted row): what happened in the session, why a recording is odd. Saved when you click elsewhere.", ...
+    "ValueChangedFcn", @(~,~) obj.onNotesEdited());
 end

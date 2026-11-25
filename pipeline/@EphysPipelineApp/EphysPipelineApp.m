@@ -314,6 +314,9 @@ classdef EphysPipelineApp < handle
         ToolsAnalysisButton matlab.ui.control.Button
         ToolsPhyButton      matlab.ui.control.Button
         ToolsFolderButton   matlab.ui.control.Button
+        % Notes panel (under Tools): the active dataset's note in <Name>_notes.json (DatasetNotes, the analysis app's notepad's)
+        NotesPanel          matlab.ui.container.Panel
+        NotesArea           matlab.ui.control.TextArea   % UserData = struct(dataset, text): the dataset shown and its note as read (syncNotesPanel)
         BehEnableCheckBox    matlab.ui.control.CheckBox
         BehSearchCheckBox    matlab.ui.control.CheckBox
         BehSearchDirsField   matlab.ui.control.EditField
@@ -1248,6 +1251,8 @@ classdef EphysPipelineApp < handle
         % --- Tools panel (Project tab): the datasets in other programs ---
         idx = toolTargets(obj)
         syncToolsPanel(obj)
+        syncNotesPanel(obj)
+        onNotesEdited(obj)
         syncSourcePanel(obj)
         onOpenTool(obj, tool)
         [copied, msg] = onCopyManifests(obj, idx, opts)

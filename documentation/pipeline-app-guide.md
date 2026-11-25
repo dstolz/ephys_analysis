@@ -235,6 +235,23 @@ files, the analysis tables (a `var_probeDepth` column) and the reports. They
 never change any processing. The analysis app and the dataset browser edit
 them the same way.
 
+## Write notes on a recording
+
+The **Notes** box on the Project tab, under **Tools**, is for anything you
+want to remember about a recording: *electrode moved at 20 min*, *animal
+restless*, *noisy after the break*.
+
+1. Click the recording's row in the Project table. The box's title shows
+   its name.
+2. Type your notes. Use as many lines as you like.
+3. Click anywhere else. The notes are saved, and the status bar says so.
+
+Click another row to see that recording's notes. To remove them, empty the
+box. The notes are kept in a small file next to the recording's results,
+so they are there the next time you open the project. The analysis app
+shows the same notes, and you can edit them there too. Notes never change
+any processing.
+
 ## Common tasks
 
 | ...do this | Do this |

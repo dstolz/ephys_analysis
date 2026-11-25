@@ -746,6 +746,7 @@ with its Epsych2 session.
 | Tags: filter | (under the token filters) the tags picked or typed (**any of** / **all of** them), the tags to leave out (**not**) and a search over the name, key and tags, all applied, as in the [dataset browser](DatasetBrowser.md) ([Dataset tags](#dataset-tags)). A view only, like the token filters: not saved, and ticks on hidden rows stay in the selection |
 | **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys** ([Open Ephys sessions](#open-ephys-sessions)): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node**, **Stream** and **Event stream** (blank = automatic; the event stream is the stream whose TTL events to use when they are recorded on another stream than the continuous data, an NI-DAQ beside Neuropixels). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
 | **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Copy manifests**: each one's `<Name>_manifest.json` on the Windows clipboard as files, as File Explorer's Copy puts them, to paste into a folder, an e-mail or a chat (a dataset without a manifest gets one written first); a message then lists the files the clipboard holds, read back from it, and any not copied with why (`copyFilesToClipboard`). **Analysis app**: one [analysis app](EphysFigGenApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
+| **Notes** panel (under Tools) | the note on the **active dataset**, the analysis app's dataset note in `<Name>_notes.json` ([Dataset notes](#dataset-notes)); its title names the dataset |
 
 ### What Scan does
 
@@ -989,6 +990,26 @@ empty opens **Choose...**. After a scan the status bar says how many new
 datasets were tagged (`Tagged 3 new dataset(s) with cohort-3, pilot.`). Runs
 outside the app do the same: `EphysPipeline` and the standalone script pass
 the tags to `EphysProject.refresh` (`NewTags=`).
+
+### Dataset notes
+
+The **Notes** panel, under the Tools panel, holds the note on the **active
+dataset** (the highlighted row): free text on what happened in the session,
+why a recording looks odd. It is the analysis app's dataset note
+([Notes](EphysFigGenApp.md#notes)), kept in `<Name>_notes.json` in the
+dataset's output folder ([the file](file-formats.md#notes-name_notesjson),
+written with `DatasetNotes`), so either app shows what the other wrote. The
+panel's title names the dataset; click another row and it shows that
+dataset's note. What you type is saved when you click anywhere else; the
+status bar says *Saved the note on recA.* Text typed but not saved yet is
+saved before the panel shows another dataset. The ends are trimmed, and an
+empty box removes the note. The file's other notes, on channels and units,
+stay as they are. An output folder not made yet is made for the file. Notes
+are not part of the config, so an edit never marks it unsaved. When the
+file cannot be written (a read-only share) an alert says why and the text
+stays in the box. The box is off until a scan, over a notes file that
+cannot be read (its placeholder says why) and when the repository's
+`analysis` folder, which holds `DatasetNotes`, is not on the path.
 
 ### Behavior (Epsych2) sessions
 
@@ -3964,6 +3985,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `onScan.m`, `refreshDatasetsTable.m`, `onDatasetCellSelection.m`, `onSelectDatasets.m`, `onRefreshMetadata.m`, `onAssociateBehavior.m`, `onClearBehavior.m`, `onBrowseBehaviorDir.m`, `saveManifests.m` | Project tab (`saveManifests`: the manifests after a per-dataset edit, with an alert for one that could not be written) |
 | `selectDataset.m`, `currentDataset.m`, `populateDatasetPickers.m`, `refreshDatasetMenu.m`, `refreshDatasetPickers.m`, `datasetPicker.m`, `highlightDatasetRow.m` | the active dataset: Dataset menu, every tab's Dataset box, the highlighted table row |
 | `onViewManifest.m`; `pipeline/ManifestViewerApp.m` | Dataset menu → View manifest... and the viewer it opens |
+| `syncNotesPanel.m`, `onNotesEdited.m` | the Project tab's Notes panel: the active dataset's note read with `DatasetNotes` (the dataset and the text read kept in the box's `UserData`, text not saved yet saved first), an edit written with `DatasetNotes.setNote("dataset", ...)` |
 | `toolTargets.m`, `syncToolsPanel.m`, `onOpenTool.m`, `onOpenOutputFolder.m`, `onCopyManifests.m` | the Project tab's Tools panel: which datasets it opens, its label and buttons, the dispatch to `onViewManifest` / `onOpenAnalysisApp` / `onLaunchPhy`, the output folders, the manifests onto the clipboard (`copyFilesToClipboard.m`: the file list through Windows PowerShell, `-STA`, read back; tests pass a stand-in `Clipboard` function so a run leaves the clipboard alone) |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
 | `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m`, `private/artifactColors.m` | Artifacts tab: the detector's preview and the viewer, where detected artifacts are reviewed and manual periods marked (`onArtViewInput`); the orange / purple of the two kinds, shared with Visualize (`artifactColors`) |

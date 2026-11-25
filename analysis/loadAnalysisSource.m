@@ -133,6 +133,15 @@ src.probeFile = out.probeFile();
 src.probe = [];
 if src.probeFile ~= ""
     src.probe = readJsonFile(src.probeFile, ErrorOnFail=false);
+    % Channels disabled at acquisition: the sites matched to the recording's
+    % rows by hardware number, the sites not recorded left out.
+    if isfield(m, 'metadata') && isstruct(m.metadata) && isfield(m.metadata, 'channel_numbers')
+        hw = m.metadata.channel_numbers;
+        if iscell(hw); hw = [hw{:}]; end
+        if isnumeric(hw)
+            src.probe = EphysDataset.probeOnChannels(src.probe, hw);
+        end
+    end
 end
 
 % --- extract: events, labels, signal rates (the smallest file's info) -----------

@@ -77,7 +77,7 @@ classdef EphysDataset < handle
         NumChannels  (1,1) double = NaN          % amplifier channel count
         ChannelNames (1,:) string = string.empty(1,0)  % custom channel names
         NativeNames  (1,:) string = string.empty(1,0)  % native (hardware) channel names
-        ChannelNumbers (1,:) double = double.empty(1,0) % 0-based hardware numbers (units.channelNumber); probe chanMap values are .bin rows, not these
+        ChannelNumbers (1,:) double = double.empty(1,0) % 0-based hardware numbers (units.channelNumber); probe chanMap values are .bin rows, matched to these when channels were disabled at acquisition (recordedProbe)
         DigInNames   (1,:) string = string.empty(1,0)  % digital-line custom names
         DigInNativeNames (1,:) string = string.empty(1,0) % digital-line native names (DIGITAL-IN-04, TTL4)
         Duration     (1,1) double = NaN          % total recording duration (s)
@@ -448,6 +448,7 @@ classdef EphysDataset < handle
         r      = setProcessing(obj, kind, r, opts)
         [iv, detected] = artifactIntervals(obj, opts)
         L      = channelLayout(obj, opts)
+        [P, info] = recordedProbe(obj, P)
         [Y, ev, info] = deriveSignals(obj, opts)   % "events" is reserved in classdef
         out    = toMat(obj, opts)
 
@@ -1076,6 +1077,7 @@ classdef EphysDataset < handle
             end
             m.metadata = struct( ...
                 'fs', obj.Fs, 'num_channels', obj.NumChannels, ...
+                'channel_numbers', {num2cell(obj.ChannelNumbers)}, ...   % hardware numbers, a list also of one: the analysis places the probe's sites with them (probeOnChannels)
                 'duration_s', obj.Duration, 'num_files', obj.NumFiles, ...
                 'acq_date', acq, 'files', obj.Files, ...
                 'per_file', {num2cell(perFileSummary(obj.PerFile))}, 'gaps', {num2cell(reshape(obj.Gaps, 1, []))}, ...
@@ -1745,6 +1747,7 @@ classdef EphysDataset < handle
         [stopped, message] = stopSortRun(statusFile)
         n = sortRunProcesses(statusFiles)
         [sorters, info] = spikeInterfaceSorters(opts)
+        [P, info] = probeOnChannels(P, channelNumbers)
 
         function fmt = detectFormat(folder, opts)
             %detectFormat  RecordingFormat of the reader that claims FOLDER.
@@ -2609,6 +2612,40 @@ classdef EphysDataset < handle
             first = arrayfun(@(g) g.channels(1), out);
             [~, ord] = sort(first);
             M = out(ord);
+        end
+
+        function [M, lost] = translateLocalReferenceMap(M, fromChannels, toChannels)
+            %translateLocalReferenceMap  A local reference map moved to another recording's channels.
+            %   [M, LOST] = EphysDataset.translateLocalReferenceMap(M, FROM, TO):
+            %   M names channels (rows, 1-based) of a recording whose channel
+            %   c is the probe's chanMap value FROM(c); it is returned on the
+            %   rows of a recording whose channel c is TO(c) (each recording's
+            %   recordedProbe INFO.probeChannel: hardware numbers when
+            %   channels were disabled at acquisition). A channel TO does not
+            %   have is left out of its group; a group left with none is
+            %   dropped, and so is a group whose reference TO does not have:
+            %   its reference (as M names it) is in LOST. FROM shorter than
+            %   M's channels: those channels are not recorded (NaN).
+            %
+            %   See also EphysDataset.recordedProbe, EphysPipelineApp.saveLocalReference.
+            M = EphysDataset.normalizeLocalReferenceMap(M);
+            top = max([0, [M.reference], M.channels]);
+            fromChannels = reshape(double(fromChannels), 1, []);
+            fromChannels(end + 1:top) = NaN;
+            toChannels = reshape(double(toChannels), 1, []);
+            out = struct('reference', {}, 'channels', {});
+            lost = zeros(1, 0);
+            for g = reshape(M, 1, [])
+                [ok, ref] = ismember(fromChannels(g.reference), toChannels);
+                if ~ok
+                    lost(end + 1) = g.reference; %#ok<AGROW>
+                    continue
+                end
+                [tf, loc] = ismember(fromChannels(g.channels), toChannels);
+                if ~any(tf); continue; end
+                out(end + 1) = struct('reference', ref, 'channels', sort(loc(tf))); %#ok<AGROW>
+            end
+            M = EphysDataset.normalizeLocalReferenceMap(out);
         end
 
         function G = localReferenceRecord(M)

@@ -9,10 +9,11 @@ function result = runKilosort(obj, opts)
 %   with EphysDataset:runKilosort:BadProbe before anything is written). This
 %   class never generates probe maps.
 %
-%   The probe's chanMap indexes .bin rows (0-based) directly: sites are not
-%   matched to channels by their native number, so a recording with a
-%   channel disabled at acquisition needs a probe that already accounts for
-%   the gap.
+%   The probe's chanMap indexes .bin rows (0-based). A recording with
+%   channels disabled at acquisition has fewer rows than the probe has
+%   sites: Kilosort4 then sorts with a derived <probe>_recorded.json in
+%   the run folder whose sites are matched to the rows by hardware number,
+%   the sites not recorded left out (EphysDataset.recordedProbe).
 %
 %   RESULT = ds.runKilosort(opts) with name-value options:
 %     PythonExe      python executable path (default ds.PythonExe)
@@ -242,7 +243,9 @@ if ~isfolder(runDir)
     mkdir(runDir);
 end
 
-% Validate probe channel count against n_chan_bin (warn only)
+% Channels disabled at acquisition: the probe's sites matched to the .bin
+% rows by hardware number (recordedProbe), then the count checked (warn only).
+probeFile = writeRecordedProbe(obj, probeFile, runDir, nChanBin);
 checkProbeChannels(probeFile, nChanBin, "runKilosort");
 
 % Per-recording channel exclusions: drop the listed channels from the probe

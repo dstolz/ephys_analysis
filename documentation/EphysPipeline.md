@@ -358,7 +358,7 @@ headers and manifests); `Refresh=false` skips that.
 | `skip: in use by another session` | another MATLAB or machine holds the dataset's run or sort lock ([Run locks](#run-locks)); the Note says where and since when |
 | `no recording files` | the folder holds no readable recording |
 | `no probe`, `probe file missing`, `probe-channel mismatch` | probe preflight; the sorting row is `no probe` or `probe file missing` too |
-| `error: probe-channel mismatch` | sorting rows: the probe has more sites than the recording has channels (the `.bin` would be written and Kilosort4 fail on it); stops the run |
+| `error: probe-channel mismatch` | sorting rows: the probe has more sites than the recording has channels (the `.bin` would be written and Kilosort4 fail on it); stops the run. A recording with channels disabled at acquisition is checked against the probe as its channels sit on it (`EphysDataset.recordedProbe`), so it is `ok` and the Note says how many sites were left out |
 | `no extract file` | export needs the Signals output (the files of `Export.Signals` only: `exportExtractFiles`) |
 | `duplicate output` | another dataset of the project, selected or not, writes the same file (the same name in a configured step `OutputDir`) |
 | `error: output folder shared with <key>` | another dataset of the project has the same name, so both would use `<OutputRoot>/<Name>` (see [Dataset keys](#dataset-keys)) |

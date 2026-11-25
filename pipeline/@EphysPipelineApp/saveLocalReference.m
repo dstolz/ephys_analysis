@@ -3,11 +3,14 @@ function why = saveLocalReference(obj, d, map, probeFile, ticked)
 %   WHY = app.saveLocalReference(D, MAP, PROBEFILE, TICKED): MAP (a
 %   LocalReferenceMap, drawn on PROBEFILE) is set on D (TICKED false) or on
 %   every dataset ticked in the Project table (TICKED true), with
-%   LocalReferenceProbe = PROBEFILE, and saved in their manifests. A ticked
-%   dataset is skipped, and named, when the steps would use another probe
-%   for it (EphysPipeline.resolveProbe: a different file name) or when the
-%   map names a channel past its channel count: the map follows a probe's
-%   channels. WHY is "" when the map was saved on at least one dataset,
+%   LocalReferenceProbe = PROBEFILE, and saved in their manifests. MAP
+%   names D's channels; each dataset gets it on its own channels, matched
+%   through the probe (EphysDataset.recordedProbe): a dataset with channels
+%   disabled at acquisition gets the channels it recorded, renumbered to
+%   its rows, the others left out as excluded. A ticked dataset is
+%   skipped, and named, when the steps would use another probe for it
+%   (EphysPipeline.resolveProbe: a different file name) or when it did not
+%   record a reference channel. WHY is "" when the map was saved on at least one dataset,
 %   else the reason (LocalReferenceDialog shows it and stays open).
 %   Refused while a run is under way.
 %
@@ -35,7 +38,10 @@ else
     targets = d;
 end
 top = max([0, [map.reference], map.channels]);
+probe = readJsonFile(probeFile, ErrorOnFail=false);
+srcKey = probeChannels(d, probe, top);
 keep = true(1, numel(targets));
+maps = cell(1, numel(targets));
 skipped = strings(1, 0);
 for k = 1:numel(targets)
     t = targets(k);
@@ -43,19 +49,24 @@ for k = 1:numel(targets)
     if ~strcmpi(fileName(pf), fileName(probeFile))
         keep(k) = false;
         skipped(end + 1) = t.Name + " (probe " + ternary(pf == "", "none", fileName(pf)) + ")"; %#ok<AGROW>
-    elseif isfinite(t.NumChannels) && top > t.NumChannels
+        continue
+    end
+    [maps{k}, lost] = EphysDataset.translateLocalReferenceMap(map, srcKey, probeChannels(t, probe, top));
+    if ~isempty(lost)
         keep(k) = false;
-        skipped(end + 1) = t.Name + sprintf(" (%d channels)", t.NumChannels); %#ok<AGROW>
+        skipped(end + 1) = t.Name + " (reference channel(s) " + ...
+            EphysDataset.formatChannelList(lost) + " not recorded)"; %#ok<AGROW>
     end
 end
 targets = targets(keep);
+maps = maps(keep);
 if isempty(targets)
     why = "Not saved: " + strjoin(skipped, ", ") + ". The map was drawn on " + fileName(probeFile) + ".";
     return
 end
-for t = reshape(targets, 1, [])
-    t.LocalReferenceMap = map;
-    t.LocalReferenceProbe = probeFile;
+for k = 1:numel(targets)
+    targets(k).LocalReferenceMap = maps{k};
+    targets(k).LocalReferenceProbe = probeFile;
 end
 obj.saveManifests(targets);
 obj.refreshReferencePanel();
@@ -64,6 +75,10 @@ if isempty(map)
     msg = sprintf("Local reference cleared on %d dataset(s).", numel(targets));
 else
     msg = sprintf("Local reference (%d reference channel(s)) saved on %d dataset(s).", numel(map), numel(targets));
+end
+nMatched = nnz(~cellfun(@(m) isequal(m, map), maps));
+if nMatched > 0
+    msg = msg + sprintf(" On %d dataset(s) with channels disabled at acquisition it was matched by hardware channel.", nMatched);
 end
 if ~isempty(skipped)
     msg = msg + " Skipped: " + strjoin(skipped, ", ") + ".";
@@ -79,6 +94,16 @@ end
 function s = fileName(f)
 [~, nm, ext] = fileparts(string(f));
 s = string(nm) + string(ext);
+end
+
+
+function key = probeChannels(ds, probe, top)
+%probeChannels  Each channel of DS as a chanMap value of PROBE (EphysDataset.recordedProbe).
+%   Without a channel count, the channels are taken as rows of the probe
+%   (0..TOP-1).
+[~, info] = ds.recordedProbe(probe);
+key = info.probeChannel;
+if isempty(key); key = 0:top - 1; end
 end
 
 

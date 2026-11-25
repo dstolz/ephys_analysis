@@ -400,7 +400,8 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   "reader":           "intan" | "binary" | "openephys",
   "updated":          <"yyyy-MM-dd HH:mm:ss">,
   "metadata": {
-    "fs": <Hz>, "num_channels": <n>, "duration_s": <s>, "num_files": <n>,
+    "fs": <Hz>, "num_channels": <n>, "channel_numbers": [<0-based hardware number per channel>],
+    "duration_s": <s>, "num_files": <n>,
     "acq_date": <"yyyy-MM-dd HH:mm:ss" or "">, "files": [<file names>],
     "per_file": [{"name": <file>, "samples": <n>, "num_gaps": <n or null>, "gap_before": <samples or null>}, ...],
     "gaps":     [{"file": <file>, "row": <first row after the jump>, "samples": <missing (+) or back (-)>}, ...],

@@ -2244,6 +2244,53 @@ check(Lo.hasProbe && isequal(Lo.order, 5:-1:1) && ~dl.channelLayout().hasProbe, 
 dl.ProbeFile = layProbe;
 Lo = dl.channelLayout(ProbeFile=otherProbe);
 check(isequal(Lo.order, 5:-1:1) && all(isfinite(Lo.y)), 'ProbeFile= wins over the dataset''s own probe');
+[Pf, info0] = dl.recordedProbe(otherProbe);
+check(~info0.remapped && isequal(info0.probeChannel, 0:4) && isequal(Pf.chanMap(:).', 0:4), ...
+    'recordedProbe: hardware numbers the probe does not have ([5 2 7 0 9]) leave it as it is');
+
+fprintf('\n== 22. Channels disabled at acquisition (recordedProbe) ==\n');
+gap = fullfile(root, 'gapped'); mkdir(gap);
+writeSyntheticRHD(fullfile(gap, 'gap.rhd'), uint16(randi([0 65535], 4, spb)), zeros(1, spb), Fs, spb, ...
+    AmpNames=["a0" "a1" "a3" "a5"], AmpNative=["A-000" "A-001" "A-003" "A-005"]);
+dg = EphysDataset(gap);
+gapProbe = fullfile(gap, 'probe6.json');
+writeProbeMap(gapProbe, struct('chanMap', (0:5).', 'xc', zeros(6, 1), 'yc', (0:5).' * 10, ...
+    'kcoords', [1; 1; 1; 2; 2; 2], 'n_chan', 6));
+[Pg, ig] = dg.recordedProbe(gapProbe);
+check(ig.remapped && isequal(ig.missing, [2 4]) && isequal(ig.probeChannel, [0 1 3 5]) ...
+    && isequal(Pg.chanMap(:).', 0:3) && isequal(Pg.yc(:).', [0 10 30 50]) && isequal(Pg.kcoords(:).', [1 1 2 2]) ...
+    && Pg.n_chan == 4, 'recordedProbe: the sites not recorded (hardware 2, 4) left out, the others at their rows');
+dg.ProbeFile = gapProbe;
+Lg = dg.channelLayout();
+check(Lg.hasProbe && isequal(Lg.y, [0 10 30 50]) && isequal(Lg.shank, [1 1 2 2]), ...
+    'channelLayout places each channel at the site of its hardware number');
+[Pa, ia] = EphysDataset.probeOnChannels(gapProbe, 0:5);
+check(~ia.remapped && isequal(Pa.chanMap(:).', 0:5), 'probeOnChannels: a full recording gets the probe as it is');
+dg.OutputDir = fullfile(root, 'out_gap');
+dg.PythonExe = "C:\envs\kilosort\python.exe";
+resG = dg.runKilosort(DryRun=true);
+prG = jsondecode(fileread(resG.probeFile));
+setG = jsondecode(fileread(resG.settingsPath));
+check(endsWith(string(resG.probeFile), "probe6_recorded.json") && isequal(prG.chanMap(:).', 0:3) && prG.n_chan == 4 ...
+    && isequal(prG.yc(:).', [0 10 30 50]) && setG.n_chan_bin == 4, ...
+    'runKilosort sorts a recording with disabled channels with a derived probe matched by hardware number');
+mg = dg.manifestStruct();
+check(isequal(cell2mat(mg.metadata.channel_numbers), [0 1 3 5]), 'the manifest records the hardware numbers');
+[stG, noteG] = EphysPipeline.probeStatus(string(gapProbe), dg);
+check(stG == "ok" && contains(noteG, "2 channel(s) disabled at acquisition"), ...
+    'probeStatus: 6 sites on a 4-channel recording with 2 channels disabled is no mismatch, and the note says why');
+[stL, noteL] = EphysPipeline.probeStatus(string(gapProbe), dl);
+check(stL == "probe-channel mismatch" && contains(noteL, "6 sites") && contains(noteL, "5 channels"), ...
+    'probeStatus: hardware numbers the probe does not have ([5 2 7 0 9]) are still a mismatch');
+% A local reference map drawn on the full recording (6 channels), moved to this one.
+Mfull = struct('reference', {2, 6}, 'channels', {[1 2 3], [4 5 6]});
+[Mg, lostG] = EphysDataset.translateLocalReferenceMap(Mfull, 0:5, ig.probeChannel);
+check(isempty(lostG) && isequal(Mg, struct('reference', {2, 4}, 'channels', {[1 2], [3 4]})), ...
+    'translateLocalReferenceMap: each channel at its row here, the channels not recorded left out');
+[Mx, lostX] = EphysDataset.translateLocalReferenceMap(struct('reference', 3, 'channels', [1 2 3]), 0:5, ig.probeChannel);
+check(isempty(Mx) && isequal(lostX, 3), 'a group whose reference was not recorded is dropped and named');
+check(isequal(EphysDataset.translateLocalReferenceMap(Mfull, 0:5, 0:5), EphysDataset.normalizeLocalReferenceMap(Mfull)), ...
+    'onto a recording with the same channels the map is unchanged');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

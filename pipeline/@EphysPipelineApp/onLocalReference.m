@@ -2,7 +2,8 @@ function onLocalReference(obj)
 %onLocalReference  Open the Local reference window on the active dataset's probe.
 %   The window (LocalReferenceDialog) draws the probe the steps would use
 %   for the active dataset (its own, a rule's or the default:
-%   EphysPipeline.resolveProbe) with the dataset's local reference map
+%   EphysPipeline.resolveProbe; the sites of channels disabled at
+%   acquisition left out, EphysDataset.recordedProbe) with the dataset's local reference map
 %   (EphysDataset.LocalReferenceMap), and lists what a run would stop on
 %   (EphysDataset.localReferenceProblems on that probe). Save keeps the map
 %   on the active dataset, Save to ticked datasets on every dataset ticked
@@ -39,6 +40,7 @@ if ~isempty(obj.ArtRefLocalDialog) && isvalid(obj.ArtRefLocalDialog)
     delete(obj.ArtRefLocalDialog);
 end
 [~, nm, ext] = fileparts(pf);
+probe = d.recordedProbe(probe);   % channels disabled at acquisition: their sites left out, the others at their rows
 obj.ArtRefLocalDialog = LocalReferenceDialog(d.LocalReferenceMap, Probe=probe, NumChannels=d.NumChannels, ...
     Dataset=d.Name, ProbeName=string(nm) + string(ext), ...
     CheckFcn=@(m) d.localReferenceProblems(Map=m, ProbeFile=pf), ...

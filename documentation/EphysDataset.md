@@ -159,11 +159,14 @@ trailing digits); TDT: the stream's channel `k` (`Ch13`) is `k-1` (12);
 `recording.json`: its `channel_numbers`, else `0..n-1`. They
 are unique: when the names do not give distinct numbers (a two-port Intan
 recording with `A-000` and `B-000`), every channel is numbered by its position
-`0..n-1` and `EphysReader:ChannelNumbersNotUnique` warns. They are not what a
-probe's `chanMap` indexes: its values are `.bin` rows (positions), for sorting
-and every probe display alike, so a recording with a channel disabled at
-acquisition needs a probe that accounts for the gap. The numbers are reported
-with the sorted units (`channelNumber`).
+`0..n-1` and `EphysReader:ChannelNumbersNotUnique` warns. A probe's `chanMap`
+values are `.bin` rows (positions), for sorting and every probe display
+alike. For a full recording these equal the hardware numbers. A recording
+with channels disabled at acquisition has its probe sites matched to its
+rows by hardware number, the sites not recorded left out
+(`recordedProbe`, under [Probe layout](#probe-layout)). The numbers are
+reported with the sorted units (`channelNumber`) and written to the manifest
+(`metadata.channel_numbers`).
 
 The dataset's `readData`, `streamPlan`, `readChunkUV`, `readWindowUV`,
 `supportsRandomAccess`, `refreshMetadata`, `discoverFiles` and `detectFormat`
@@ -2871,7 +2874,8 @@ The manifest is a JSON state file at `<Folder>/<Name>_manifest.json`, i.e. in th
 is in [file-formats.md](file-formats.md#dataset-manifest).
 
 - `manifestFile()` returns the path.
-- `manifestStruct()` builds the snapshot: metadata (rate, channels, duration,
+- `manifestStruct()` builds the snapshot: metadata (rate, channels, their
+  hardware numbers `channel_numbers` from `ChannelNumbers`, duration,
   `files`, a `per_file` list of `name`, `samples`, `num_gaps` and `gap_before`
   from `PerFile` where the reader gives them, `gaps`, the jumps of the
   acquisition clock in `Gaps`, and `dropped_channels`, the channels left
@@ -3012,7 +3016,8 @@ Places the amplifier channels on the probe in `ProbeFile`, or in the file
 given with `ProbeFile=` when it is not `""`: the probe a dataset is used with
 when it has none of its own (the pipeline config's default,
 `EphysPipeline.probeFor`). A Kilosort4 probe
-`.json` gives `chanMap`, `xc`, `yc` and `kcoords`. The result has one entry
+`.json` gives `chanMap`, `xc`, `yc` and `kcoords`, matched to the recording's
+channels by `recordedProbe` (below). The result has one entry
 per channel, in recording order (the columns `readWindowUV` and `readChunkUV`
 return):
 
@@ -3027,13 +3032,41 @@ return):
 
 `chanMap` values are `.bin` rows, 0-based: channel `c` (in recording order)
 sits at the site whose `chanMap` value is `c − 1`, as Kilosort4 and
-`readPhyUnits` read the probe, whatever the hardware numbers
-(`ChannelNumbers`). A recording with a channel disabled at acquisition needs a
-probe that accounts for the gap, as for sorting. Without a usable probe, every
+`readPhyUnits` read the probe. Without a usable probe, every
 channel is off it and `order` is `1:nChan`. The file is read on every call. The app's Artifacts tab uses this
 to draw its lanes in probe order (a dataset without a probe on the config's
 default probe), and `deriveSignals` to place the bad channels it
 interpolates.
+
+#### Channels disabled at acquisition
+
+```matlab
+[P, info] = ds.recordedProbe(probe);                     % probe: decoded .json or its file
+[P, info] = EphysDataset.probeOnChannels(probe, hw);     % hw: 0-based hardware numbers, one per channel
+```
+
+A probe's `chanMap` values are the hardware channel numbers of a full
+recording, which are then its rows too. A recording with channels switched
+off in RHX holds fewer channels than the probe has sites, so its rows no
+longer match. When every recorded channel's hardware number
+(`ChannelNumbers`) is a `chanMap` value, and they are not just `0..n-1`,
+`recordedProbe` matches each site to the row that recorded its hardware
+number. The sites of the channels not recorded are left out, as excluded
+channels are (every per-site field), and `n_chan` is the recording's channel
+count. A full recording, or hardware numbers the probe does not have, gets
+the probe as it is.
+
+`info.remapped` says whether the sites were matched, `info.missing` lists the
+`chanMap` values left out, and `info.probeChannel` gives each recording
+channel's `chanMap` value in the probe as given (its hardware number when
+matched, else its row − 1).
+
+`channelLayout`, the app's Local reference window and its **Save to ticked
+datasets**, the probe assignment's channel-count check, and the sorters use
+it. `runKilosort` and `runSpikeInterface` sort such a recording with a derived
+`<probe>_recorded.json` in the run folder; the probe's own file is never
+changed. The analysis app does the same from the manifest's
+`metadata.channel_numbers` (`loadAnalysisSource`).
 
 ### Other helpers
 
@@ -3139,6 +3172,7 @@ deletes them afterwards. It covers:
 | 19 | the reader registry, `BinaryReader` (same microvolts through `readData`, `streamPlan` / `readChunkUV` and `readWindowUV`), random access for every Intan layout, a short last window joined to the one before, discovery of both kinds, `runKilosort` dry-run settings on the universal format |
 | 20 | `readBehavior` / `behaviorStruct` / `behaviorToMat` |
 | 21 | `channelLayout` (`chanMap` values are `.bin` rows; without `kcoords` every site on shank 1; `ProbeFile=` places a dataset without a probe, and wins over its own) |
+| 22 | channels disabled at acquisition: `recordedProbe` leaves out the sites not recorded and puts the others at their rows, `channelLayout` places them so, a full recording or numbers the probe lacks keep the probe as it is, `runKilosort(DryRun=true)` sorts with `<probe>_recorded.json`, the manifest's `channel_numbers`, `translateLocalReferenceMap` |
 
 [`test_OpenEphysReader.m`](../pipeline/test_OpenEphysReader.m) writes Open
 Ephys sessions in every record engine (and the GUI 0.5 file names) with the

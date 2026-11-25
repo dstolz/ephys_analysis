@@ -76,15 +76,17 @@ exits with that error.
 ### Channel-numbering caveat
 
 The probe's `chanMap` values index `.bin` rows (0-based positions), as do
-`ExcludeChannels` (1-based). Probe sites are not matched to channels by their
-hardware number (`EphysDataset.ChannelNumbers`), for sorting and in the app
-alike: the Artifacts tab's probe order (`channelLayout`) and the analysis
-probe maps read `chanMap` as `.bin` rows too. The two agree when the
-channel numbers equal the positions (0, 1, 2, … with no gaps). When channels
-were disabled at acquisition (gaps in the numbering), the probe must already
-account for the gap. A recording spanning more than one Intan port (`A-000`
-and `B-000`) does not give distinct numbers, so its channels are numbered by
-position (`EphysReader:ChannelNumbersNotUnique` warns).
+`ExcludeChannels` (1-based). For a full recording they equal the hardware
+numbers (`EphysDataset.ChannelNumbers`: 0, 1, 2, … with no gaps). When
+channels were disabled at acquisition (gaps in the numbering), the sorter
+gets a derived `<probe>_recorded.json` in the run folder: each site matched
+to the `.bin` row that recorded its hardware number, the sites not recorded
+left out (`EphysDataset.recordedProbe`). The Artifacts tab's probe order
+(`channelLayout`), the Local reference window and the analysis probe maps
+match them the same way. A recording spanning more than one Intan port
+(`A-000` and `B-000`) does not give distinct numbers, so its channels are
+numbered by position (`EphysReader:ChannelNumbersNotUnique` warns), and a
+disabled channel there still needs a probe that accounts for the gap.
 
 ---
 

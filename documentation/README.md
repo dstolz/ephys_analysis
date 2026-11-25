@@ -223,9 +223,9 @@ record node / stream, TTL line names) and
 | Kilosort4 probe `chanMap` | 0-based | `.bin` rows: recording channel `c` sits at the site whose `chanMap` value is `c − 1`, for sorting, `readPhyUnits`, `channelLayout` (Artifacts tab) and the analysis probe maps |
 | `units.ksChannel` | 1-based | among the **sorted** channels (after exclusions) |
 
-Neither sorting nor the probe displays match probe sites to channels by their
-hardware number: a recording with a channel disabled at acquisition needs a
-probe that accounts for the gap; see
+For a full recording, `chanMap` values and hardware numbers agree. A recording
+with channels disabled at acquisition has the probe's sites matched to its
+channels by hardware number, and the sites not recorded are left out; see
 [Channel-numbering caveat](python-drivers.md#channel-numbering-caveat).
 
 ### Time and indexing conventions
@@ -305,7 +305,7 @@ Collected from the code. Each is explained on the linked page.
 | Derived events | new named lines from a line's intervals in the trials that meet conditions on the trial parameters (`Depth >= -6`; several combined with all / any), kept as typed in `Behavior.DerivedEvents` and edited on the Trials tab (`deriveEvents`, `DerivedEventsDialog`); in the behavior file, the NWB export, the DatasetBrowser and the analysis app, and optionally the extract's events and a trials column | [EphysPipeline → Derived events](EphysPipeline.md#derived-events) |
 | Background sorting + dependent steps | a background sorting run cannot feed `Export` (units, `Export.IncludeUnits`) in the same run; `validate` reports it | [EphysPipeline → Validation](EphysPipeline.md#validation) |
 | Duplicate dataset names | two recordings with the same leaf name under one `Project.OutputRoot` share `<OutputRoot>/<Name>`: `plan()` refuses either one (`error: output folder shared with <key>`), even when only one is selected; same-name files in a shared step `OutputDir` are `duplicate output`; `DatasetOutputs` and the clean-up ignore another recording's files by their recorded source folder. Rename one folder, or leave `OutputRoot` empty | [EphysPipeline → Dataset keys](EphysPipeline.md#dataset-keys) |
-| Probe mapping | `chanMap` indexes `.bin` rows, not hardware channel numbers; a recording with a channel disabled at acquisition needs a probe that accounts for the gap | [Python drivers](python-drivers.md#channel-numbering-caveat) |
+| Probe mapping | `chanMap` indexes `.bin` rows; a recording with channels disabled at acquisition has the probe's sites matched by hardware number, the sites not recorded left out. A multi-port recording (`A-000` and `B-000`) has no distinct numbers, so it is matched by position | [Python drivers](python-drivers.md#channel-numbering-caveat) |
 | Open Ephys TTL lines at a recording start | a line already high when a recording starts is seen from Binary always, from NWB when that recording has any TTL edge, and from the Open Ephys format only when its first edge there is falling; intervals are split at recording boundaries | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
 | Open Ephys samples | rows are the stored samples (dropped samples are not zero-filled; a warning lists them); the Open Ephys format zero-pads each recording's last record, as the GUI writes it | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
 | Open Ephys AUX | stored as (raw − 32768) × 37.4 µV: 1.2255 V below Intan RHX's volts for the same accelerometer | [EphysDataset → Open Ephys sessions](EphysDataset.md#open-ephys-sessions) |
@@ -651,7 +651,7 @@ suite's temporary preferences, so close it before the run ends.
 
 | Suite | Covers |
 | --- | --- |
-| `test_EphysDataset` | readers, layouts (aux inputs included), streaming, filters, artifacts (moved bounds, the fill), spike detection, `.bin`, Kilosort4 dry runs (exclusions, `shank_spacing`), JSON and probe maps, manifest v2, sorted units, `spikesToMat` (detections only), behavior, `channelLayout` ([sections](EphysDataset.md#tests)) |
+| `test_EphysDataset` | readers, layouts (aux inputs included), streaming, filters, artifacts (moved bounds, the fill), spike detection, `.bin`, Kilosort4 dry runs (exclusions, `shank_spacing`), JSON and probe maps, manifest v2, sorted units, `spikesToMat` (detections only), behavior, `channelLayout`, channels disabled at acquisition (`recordedProbe`, the derived `_recorded` probe, the local reference map moved) ([sections](EphysDataset.md#tests)) |
 | `test_IntanReader` | the Intan reader: every data-block and on-disk layout, truncated last blocks, window reads across files, `readDigitalEvents` without the amplifier data, the run helpers, one-file-per-channel digital files, the recording start (`AcqDate`), `streamPlan` chunks (bounded windows of big files), `KeepChannels` / `Precision`, the acquisition clock (pauses and dropped samples: `IntanReader:TimestampGap`, `Gaps`), the strided digital-input read and the events cache fingerprint; the software notch of files before version 3.0 against Intan's own loop (its speed-up, one stream across files, the lead-in, every read and `toBin`) |
 | `test_BinaryReader` | the universal binary reader: `readDigitalEvents` from `dig_in_file` alone, `readData`, `Files` listing `dig_in_file`, `streamPlan` |
 | `test_AppPrefs` | the apps' preference store: a file store's set / get / remove, nothing reaching MATLAB's own preferences, nested temporary stores, `AppPrefsFixture` |

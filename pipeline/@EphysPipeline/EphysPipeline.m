@@ -1427,6 +1427,10 @@ classdef EphysPipeline < handle
             %   ST is "no probe", "probe file missing", "probe-channel
             %   mismatch" (more sites than recorded channels) or "ok"; NOTE is
             %   the file, or the two counts. Shared by checkProbes and plan.
+            %   A recording with channels disabled at acquisition is checked
+            %   against the probe as its channels sit on it
+            %   (EphysDataset.recordedProbe: the sites not recorded left
+            %   out), which the sorters use: "ok", the note saying so.
             note = "";
             if probe == ""
                 st = "no probe";
@@ -1434,13 +1438,18 @@ classdef EphysPipeline < handle
                 st = "probe file missing";
                 note = probe;
             else
-                pm = DatasetTracker.probeMeta(readJsonFile(probe, ErrorOnFail=false));
+                [P, info] = d.recordedProbe(readJsonFile(probe, ErrorOnFail=false));
+                pm = DatasetTracker.probeMeta(P);
                 if isfinite(pm.nChan) && ~isnan(d.NumChannels) && pm.nChan > d.NumChannels
                     st = "probe-channel mismatch";
                     note = sprintf("probe has %d sites, recording %d channels", pm.nChan, d.NumChannels);
                 else
                     st = "ok";
                     note = probe;
+                    if info.remapped
+                        note = note + sprintf(" (%d channel(s) disabled at acquisition: their sites left out, the others matched by hardware number)", ...
+                            numel(info.missing));
+                    end
                 end
             end
         end

@@ -45,12 +45,15 @@ if scope == "all"
     end
 end
 nProbe = localProbeCount(pf);
+probe = readJsonFile(pf, ErrorOnFail=false);
 mismatch = 0;
 nTrim = 0;
 for k = 1:numel(targets)
     targets(k).ProbeFile = pf;
     if ~isnan(nProbe) && ~isnan(targets(k).NumChannels) && nProbe ~= targets(k).NumChannels
-        mismatch = mismatch + 1;
+        % Channels disabled at acquisition, matched to the sites by hardware number, are no mismatch.
+        [~, info] = targets(k).recordedProbe(probe);
+        mismatch = mismatch + ~info.remapped;
     end
     if scope == "all"
         keep = ch;

@@ -20,13 +20,14 @@ function L = channelLayout(obj, opts)
 %               when it has none), false off the probe
 %   Probe chanMap values are .bin rows, 0-based: channel c (in recording
 %   order) sits at the site whose chanMap value is c - 1, as Kilosort4 and
-%   readPhyUnits read the probe. The hardware numbers (ChannelNumbers) play
-%   no part, so a recording with a channel disabled at acquisition needs a
-%   probe that accounts for the gap, as for sorting. Without a usable probe
-%   every channel is off it and ORDER is 1:nChan. The file is read on every
-%   call.
+%   readPhyUnits read the probe. A recording with channels disabled at
+%   acquisition is placed by hardware number first (recordedProbe): the
+%   sites of the channels not recorded are left out, the others keep their
+%   channel. Without a usable probe every channel is off it and ORDER is
+%   1:nChan. The file is read on every call.
 %
-%   See also EphysDataset.runKilosort, EphysDataset.readPhyUnits, EphysPipeline.probeFor.
+%   See also EphysDataset.recordedProbe, EphysDataset.runKilosort,
+%   EphysDataset.readPhyUnits, EphysPipeline.probeFor.
 
 arguments
     obj (1,1) EphysDataset
@@ -48,6 +49,7 @@ if ~isstruct(probe) || ~isfield(probe, 'xc') || ~isfield(probe, 'yc')
     end
     return
 end
+probe = obj.recordedProbe(probe);   % channels disabled at acquisition: their sites left out
 
 try
     xc = double(probe.xc(:));

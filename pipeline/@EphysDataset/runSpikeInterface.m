@@ -11,7 +11,9 @@ function result = runSpikeInterface(obj, opts)
 %   probe .json (probeMapProblems; refused with
 %   EphysDataset:runSpikeInterface:BadProbe before anything is written):
 %   run_si.py attaches it to the .bin, its chanMap indexing .bin rows, its
-%   kcoords the shanks (channel groups).
+%   kcoords the shanks (channel groups). A recording with channels disabled
+%   at acquisition is sorted with a derived <probe>_recorded.json, as in
+%   runKilosort (EphysDataset.recordedProbe).
 %
 %   run_si.py writes phy files straight into the run folder, in the layout
 %   Kilosort4 leaves, so phy, readPhyUnits, the Review tab, the QC report
@@ -203,6 +205,7 @@ end
 if ~isfolder(runDir)
     mkdir(runDir);
 end
+probeFile = writeRecordedProbe(obj, probeFile, runDir, nChanBin);   % channels disabled at acquisition (recordedProbe)
 checkProbeChannels(probeFile, nChanBin, "runSpikeInterface");
 
 excludeCh = opts.ExcludeChannels;

@@ -1702,8 +1702,14 @@ a group of its own stays on its shank):
 - **Save** keeps the map on the active dataset, in its manifest, with the
   probe it was picked on. **Save to N ticked datasets** keeps it on every
   dataset ticked in the Project table that the steps would use the same probe
-  for (by file name), with enough channels; the others are skipped, and the
-  status bar names them. **Cancel** or closing the window keeps nothing.
+  for (by file name). Each gets the map on its own channels, matched by
+  hardware number (`EphysDataset.recordedProbe`): a recording with channels
+  disabled at acquisition gets the channels it recorded, renumbered to its
+  rows, and the ones it lacks are left out. A dataset on another probe, or
+  one that did not record a reference channel, is skipped, and the status
+  bar names it. **Cancel** or closing the window keeps nothing.
+- On a recording with channels disabled at acquisition, the window draws the
+  sites it recorded; the others are left off, as on every step.
 
 A reference on its own shank is all zeros after the subtraction, so every step
 leaves it out: the common reference, artifact detection, the sorter's chanMap,
@@ -2082,9 +2088,11 @@ those clusters is therefore the ids in `cluster_info.tsv` beyond the sorter's
 ### Things to know
 
 - **Channel mapping.** The probe's `chanMap` values are `.bin` rows
-  (positions), not hardware channel numbers. They agree when the channel
-  numbers have no gaps; when channels were disabled at acquisition, the probe
-  map must allow for the gap
+  (positions). For a full recording they equal the hardware channel numbers.
+  When channels were disabled at acquisition, the sites are matched to the
+  recorded channels by hardware number and the sites not recorded are left
+  out, as excluded channels are: for sorting, the Artifacts tab, the Local
+  reference window and the analysis
   ([Python drivers](python-drivers.md#channel-numbering-caveat)).
 - **Artifact scan before launch.** With automatic artifact detection on, each
   dataset's scan runs **in MATLAB, synchronously**, before Python is launched,
@@ -2794,7 +2802,7 @@ was recorded, added by the app), **Key**, **Output** (the file or folder the ste
 | `exists: skip (SkipExisting)`, `exists: will re-sort` | sorted output exists; **Skip datasets already sorted** decides |
 | `skip: Kilosort4 queued`, `skip: Kilosort4 running` | a Kilosort4 run of the dataset waits in the queue or is going |
 | `no recording files` | the folder holds no readable recording |
-| `no probe`, `probe file missing`, `probe-channel mismatch` | the probe check (a mismatch: the probe has more sites than the recording has channels) |
+| `no probe`, `probe file missing`, `probe-channel mismatch` | the probe check (a mismatch: the probe has more sites than the recording has channels; channels switched off during recording are not one: their sites are left out, and the Note says so) |
 | `behavior file missing`, `no session` | the associated session file is not there; none is associated and **Search** is off |
 | `no extract file` | Export needs the Signals files, which are not there, and Signals is not part of this run |
 | `duplicate output` | another dataset of the project writes the same file |

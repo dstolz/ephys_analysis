@@ -487,6 +487,10 @@ else
 end
 cur = EphysDataset.normalizeArtifactConfig(EphysPipelineConfig.artifactConfig( ...
     obj.gatherArtifactsSection(), obj.gatherReferenceSection()));
+d = obj.currentDataset();
+if cur.LocalReference && ~isempty(d)   % the active dataset's map, as the preview recorded it (onDetectArtifacts)
+    cur.LocalReferenceMap = d.LocalReferenceMap;
+end
 if ~isequaln(rmfield(cur, 'Enabled'), rmfield(V.settings, 'Enabled'))
     s = "Detection settings changed since this preview: press Detect / Preview to update. " + s;
     color = [0.8 0.35 0];

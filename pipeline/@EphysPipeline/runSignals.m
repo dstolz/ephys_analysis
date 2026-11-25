@@ -69,8 +69,14 @@ for k = 1:n
         end
         if opts.DryRun
             what = "would write " + strjoin(sigOpts.dataTypeOut, "+");
-            if c.Reference.Mode ~= "none" && ~isempty(sigOpts.referenceSignals)
-                what = what + ", " + strjoin(sigOpts.referenceSignals, "+") + " " + upper(c.Reference.Mode) + " referenced";
+            if (c.Reference.Mode ~= "none" || c.Reference.Local) && ~isempty(sigOpts.referenceSignals)
+                how = upper(c.Reference.Mode);
+                if c.Reference.Local && c.Reference.Mode == "none"
+                    how = "locally";
+                elseif c.Reference.Local
+                    how = "locally then " + how;
+                end
+                what = what + ", " + strjoin(sigOpts.referenceSignals, "+") + " " + how + " referenced";
             end
             if G.BlankArtifacts
                 what = what + ", artifact periods erased (" + ...
@@ -95,6 +101,11 @@ for k = 1:n
         d.writeManifest();   % its processing block: how the signals were made
         if any(sigOpts.dataTypeOut == "AUX") && ~any(contains(r.types, "AUX"))
             obj.log("[signals] %s: no aux (accelerometer) inputs recorded; AUX not written", d.Name);
+        end
+        if isfield(r.reference, 'local') && ~isempty(r.reference.local)
+            obj.log("[signals] %s: local reference (%s), subtracted from %s first", d.Name, ...
+                ManifestText.localReference(EphysDataset.localReferenceRecord(r.reference.local)), ...
+                strjoin(r.reference.signals, ", "));
         end
         if r.reference.mode == "wcar"
             obj.log("[signals] %s: adaptive weighted CAR (WCAR) over %d channel(s), subtracted from %s (Q %.4g uV^2%s)", ...

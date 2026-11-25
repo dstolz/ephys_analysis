@@ -49,7 +49,7 @@ det.baseline = [];
 if nChunks > 1
     det.baseline = artifactBaseline(obj, plan, chanOrder, filt, det, Fs, ctx);
 end
-det.alsoUnreferenced = run.CommonModeUnreferenced && obj.referenceMode() ~= "none" ...
+det.alsoUnreferenced = run.CommonModeUnreferenced && (obj.referenceMode() ~= "none" || obj.localReferenceOn()) ...
     && det.method ~= "commonmode";
 det.commonThreshold = run.CommonModeThreshold;
 

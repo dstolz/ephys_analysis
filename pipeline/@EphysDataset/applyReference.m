@@ -1,6 +1,9 @@
 function X = applyReference(obj, X)
-%applyReference  Subtract the common reference from [nSamples x nChan] data.
-%   Y = ds.applyReference(X) subtracts, sample by sample, one global
+%applyReference  Subtract the local, then the common reference from [nSamples x nChan] data.
+%   Y = ds.applyReference(X) first subtracts the local reference while
+%   ArtifactConfig.LocalReference is on (applyLocalReference: each group's
+%   reference channel from the group's channels), then, sample by sample,
+%   one global
 %   reference from every channel of X (all of the recording's amplifier
 %   channels, in recording order, microvolts), as ArtifactConfig.Reference
 %   says:
@@ -13,7 +16,8 @@ function X = applyReference(obj, X)
 %   ExcludeChannels and ReferenceExclude. Those channels are still
 %   referenced; they only stay out of the average. Each sample is referenced
 %   on its own, so the result does not depend on how the recording is cut
-%   into chunks or windows.
+%   into chunks or windows. With the local reference on, the common
+%   reference is taken over the locally referenced channels.
 %
 %   readChunkUV and readWindowUV call this on every read, so the reference
 %   comes before artifact detection, the noise levels of the artifact fill,
@@ -30,9 +34,10 @@ function X = applyReference(obj, X)
 %   (EphysDataset:applyReference:Positional).
 %
 %   See also EphysDataset.referenceTrace, EphysDataset.referenceChannels,
-%   EphysDataset.suggestReferenceExclude,
+%   EphysDataset.suggestReferenceExclude, EphysDataset.applyLocalReference,
 %   EphysDataset.prepareReference.
 
+X = obj.applyLocalReference(X);
 r = obj.referenceTrace(X);
 if isempty(r)
     return   % "none", or no data

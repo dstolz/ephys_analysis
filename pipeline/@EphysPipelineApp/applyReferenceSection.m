@@ -3,6 +3,7 @@ function applyReferenceSection(obj, R)
 %   Values the controls cannot show are reported (setControlValue).
 R = EphysPipelineConfig.normalizeSection("Reference", R);
 obj.setDropIfMember(obj.ArtRefDropDown, R.Mode, "Reference.Mode");
+obj.ArtRefLocalCheckBox.Value = R.Local;
 obj.setControlValue(obj.ArtRefLowField, R.BadLow, "Reference.BadLow");
 obj.setControlValue(obj.ArtRefHighField, R.BadHigh, "Reference.BadHigh");
 obj.setDropIfMember(obj.ArtRefWCAREstimateDropDown, R.WCAR_Estimate, "Reference.WCAR_Estimate");

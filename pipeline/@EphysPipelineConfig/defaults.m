@@ -66,7 +66,8 @@ switch section
             'WCAR_DriftPerSec', w.DriftPerSec, ... % process variance per second (larger adapts faster)
             'WCAR_Q',           w.Q, ...           % observation variance uV^2; NaN = automatic
             'WCAR_HighpassHz',  w.HighpassHz, ...  % high-pass of the estimation inputs; 0 = none
-            'WCAR_Estimate',    w.Estimate);       % "prior" | "posterior" weights subtracted
+            'WCAR_Estimate',    w.Estimate, ...    % "prior" | "posterior" weights subtracted
+            'Local',            a.LocalReference); % subtract each dataset's local reference (a channel per shank or probe, its manifest) before Mode
 
     case "Behavior"
         s = struct( ...

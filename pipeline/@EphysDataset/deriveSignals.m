@@ -9,7 +9,11 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %   referenceSignals names (MUA and SPIKE by default; the LFP is taken as
 %   recorded), as the .bin and spike detection take it, and the artifact
 %   periods (artifactIntervals) are erased after it, so every signal derives
-%   from the cleaned recording. With ArtifactConfig.Reference "wcar" (or
+%   from the cleaned recording. While ArtifactConfig.LocalReference is on,
+%   those signals take the local reference first (applyLocalReference:
+%   each group's reference channel, as recorded, from its channels), and
+%   the common reference is taken over the locally referenced channels;
+%   it is on alone when Reference is "none". With ArtifactConfig.Reference "wcar" (or
 %   referenceMethod "weighted", whatever ArtifactConfig.Reference says)
 %   those signals take the adaptive weighted CAR (weightedCAR, Khorasani
 %   et al. 2019) instead, run once over the whole recording in memory.
@@ -53,8 +57,10 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %           (amplifier labels from labelField, in the column order of Y), origFs,
 %           invertedLines (the lines whose events are low runs), badChannels
 %           (the interpolation, see below), LFP/MUA/SPIKE sub-structs (Fs,
-%           nSamples, reference: the common reference subtracted from that
-%           signal, "none" | "car" | "cmr" | "wcar"; LFP also bpLoHi, NotchHz,
+%           nSamples, reference: the reference subtracted from that
+%           signal, "none" | "car" | "cmr" | "wcar", or with the local
+%           reference first "local" (alone) or "local+car" / "local+cmr" /
+%           "local+wcar"; LFP also bpLoHi, NotchHz,
 %           NotchBW and a text description of the filter applied; MUA also
 %           IntegrationHz and bpLoHi) for the requested types, AUX (Fs, nSamples, labels,
 %           units) when present, and importOptions (the options used, with
@@ -73,7 +79,10 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %           when it was subtracted from none of them. With "wcar" it also
 %           holds wcar: weightedCAR's INFO (the parameters, alpha and V per
 %           sample, the weights per column) with Q the value used and QAuto
-%           true when it was worked out (wcarOptions.Q NaN).
+%           true when it was worked out (wcarOptions.Q NaN). While the local
+%           reference was subtracted (ArtifactConfig.LocalReference), it also
+%           holds local: the LocalReferenceMap (reference, channels per
+%           group), and mode is the common reference that followed it.
 %           INFO.artifacts: the artifactIntervals option, what was erased
 %           before any signal was derived: intervals ([k x 2] [tStart tEnd)
 %           seconds on the recording's continuous clock, merged; zeros(0,2)
@@ -162,8 +171,9 @@ function [Y, ev, info] = deriveSignals(obj, opts)
 %                        passes the probe it sorts with (probeFor), the config's
 %                        default for a dataset without a probe of its own
 %     referenceSignals   string array  ["MUA" "SPIKE"]  the signals the
-%                        dataset's common reference (ArtifactConfig.Reference;
-%                        nothing for "none") is subtracted from, sample by
+%                        dataset's reference (the local reference while
+%                        ArtifactConfig.LocalReference is on, then
+%                        ArtifactConfig.Reference; nothing for neither) is subtracted from, sample by
 %                        sample: any of "LFP", "MUA", "SPIKE" ([] = none, the
 %                        recording as stored, readChunkUV's Reference=false).
 %                        The reference is taken over every channel of the
@@ -428,10 +438,12 @@ if opts.referenceMethod == "weighted"
     refMode = "wcar";
 end
 refTypes = ampTypes(ismember(ampTypes, opts.referenceSignals));
-if refMode == "none" || isempty(refTypes)
+localOn = obj.localReferenceOn() && ~isempty(refTypes);   % the local reference first (applyLocalReference)
+if (refMode == "none" && ~localOn) || isempty(refTypes)
     refMode = "none";
     refTypes = strings(1, 0);
 end
+referenced = refMode ~= "none" || localOn;   % a pass takes a reference: every channel is read
 traceMode = refMode;   % the trace taken over the reference channels
 if refMode == "wcar"
     traceMode = "car";   % the weighted CAR weighs the plain CAR
@@ -445,24 +457,26 @@ if isempty(passes)
     passes = struct('types', strings(1, 0), 'referenced', false);   % AUX only: the periods are still erased
 end
 readKeep = opts.keepAmpChannels(:).';
-if refMode ~= "none"
+if referenced
     if isfinite(obj.NumChannels) && any(readKeep > obj.NumChannels)
         error('EphysDataset:deriveSignals:KeepChannels', ...
             'keepAmpChannels lists channel %d but %s has %d.', max(readKeep), obj.Name, obj.NumChannels);
     end
-    obj.prepareReference(Mode=traceMode);
+    obj.prepareReference(Mode=traceMode);   % "none" with the local reference alone: the bad channels and its checks
     readKeep = [];
 end
+nLocal = 0;
+if localOn; nLocal = numel(obj.LocalReferenceMap); end
 
 % The memory the whole recording and the working copies need, before the
 % long read rather than after it.
-checkMemory(obj, opts, has, refMode, passes, readKeep, nKept, artifacts, memoryLimit, wcarOpt);
+checkMemory(obj, opts, has, refMode, passes, readKeep, nKept, artifacts, memoryLimit, wcarOpt, nLocal);
 
 % Progress steps: one per file read, then one per processing stage.
 nRead  = obj.NumFiles;
-nProc  = (refMode ~= "none") + (refMode == "wcar") + numel(passes) * ~isempty(artifacts) + has.LFP + lfpFilter + has.MUA + has.SPIKE + ~isempty(opts.badChannels) ...
+nProc  = (refMode ~= "none") + localOn + (refMode == "wcar") + numel(passes) * ~isempty(artifacts) + has.LFP + lfpFilter + has.MUA + has.SPIKE + ~isempty(opts.badChannels) ...
     + ~isempty(opts.channelRemap) + 1 ...   % +1 = digital events
-    + opts.lineNoise.Enabled + (autoBad && refMode ~= "none");   % mains removal; bad channels found before the reference
+    + opts.lineNoise.Enabled + (autoBad && referenced);   % mains removal; bad channels found before the reference
 nSteps = nRead + nProc;
 
 readCb = [];
@@ -548,7 +562,7 @@ k = blockColumns(nCol);
 % reference is taken; the LFP is kept when it is a signal taken as recorded.
 lfpDone = single([]);
 badRequested = ~isempty(opts.badChannels);   % a list, or the threshold of the automatic detection
-if autoBad && refMode ~= "none"
+if autoBad && referenced
     nDone = reportProgress(progressFcn, nDone, nSteps, 'Detecting bad channels from the LFP, before the reference');
     lfpDone = lfpColumns(AMPSIG, keep, runs, fillW, fillSkip, rates.LFP, opts, lfpFilter, k);
     opts.badChannels = autoBadColumns(lfpDone, abs(opts.badChannels), nCol);
@@ -560,12 +574,30 @@ if ~isempty(opts.badChannels) && ~autoBad
     sigBad = keep(opts.badChannels);
 end
 
-% --- the common reference, over every channel; then the kept channels ---
-% One [nSamples x 1] trace, subtracted later from the signals that take it
-% (the weighted CAR weighs it per column). The weighted CAR's automatic Q
-% is taken over the reference channels, so before the kept ones are picked.
+% --- the local and the common reference, over every channel; then the kept channels ---
+% The local reference's channels are copied out as recorded (one column per
+% group), subtracted later from the signals that take it, before the common
+% reference. The common reference is one [nSamples x 1] trace over the
+% locally referenced channels, subtracted later from the signals that take
+% it (the weighted CAR weighs it per column). The weighted CAR's automatic
+% Q is taken over the reference channels, so before the kept ones are picked.
 ref = struct('mode', refMode, 'channels', zeros(1, 0), 'signals', refTypes);
 R = [];
+loc = struct('LR', [], 'refOf', zeros(1, 0));
+if localOn
+    M = obj.LocalReferenceMap;
+    badRef = intersect([M.reference], sigBad);
+    if ~isempty(badRef)
+        error('EphysDataset:deriveSignals:LocalReferenceBad', ...
+            ['%s: local reference channel(s) %s are among the bad channels of the Signals step; a reference ' ...
+             'carries its fault onto its whole group. Pick another reference (Artifacts tab, Local reference...).'], ...
+            obj.Name, EphysDataset.formatChannelList(badRef));
+    end
+    nDone = reportProgress(progressFcn, nDone, nSteps, sprintf( ...
+        'Local reference: %d reference channel(s) subtracted from their groups, for %s', numel(M), strjoin(refTypes, ", ")));
+    loc = localColumns(obj, AMPSIG, M);
+    ref.local = M;
+end
 if refMode ~= "none"
     ref.channels = obj.referenceChannels(Exclude=sigBad);
     if refMode == "wcar"
@@ -576,21 +608,24 @@ if refMode ~= "none"
             upper(refMode), numel(ref.channels), strjoin(refTypes, ", "));
     end
     nDone = reportProgress(progressFcn, nDone, nSteps, msg);
-    R = referenceRows(obj, AMPSIG, traceMode, sigBad);
+    R = referenceRows(obj, AMPSIG, traceMode, sigBad, loc);
     if refMode == "wcar"
         wcarDef = wcarDefaults(wcarArgs, wcarQ, origFs);
         wcarAuto = isnan(wcarQ);
         wcarQSource = "";
         if wcarAuto
-            wcarQ = wcarAutoQ(obj, AMPSIG, R, ref.channels, wcarDef.HighpassHz, origFs);
+            wcarQ = wcarAutoQ(obj, AMPSIG, R, ref.channels, wcarDef.HighpassHz, origFs, loc);
             wcarQSource = ", automatic";
         end
     end
-    if ~isempty(opts.keepAmpChannels)
-        AMPSIG = AMPSIG(:, keep);
-        data.channelNames = data.channelNames(keep);
-        data.nativeNames = data.nativeNames(keep);
-    end
+end
+if referenced && ~isempty(opts.keepAmpChannels)
+    AMPSIG = AMPSIG(:, keep);
+    data.channelNames = data.channelNames(keep);
+    data.nativeNames = data.nativeNames(keep);
+end
+if localOn
+    loc.refOf = loc.refOf(keep);   % the local reference column of each kept column
 end
 
 if opts.labelField == "native"
@@ -643,11 +678,17 @@ for p = 1:numel(passes)
             AMPSIG = putRuns(AMPSIG, runs, savedRuns);
             savedRuns = {};
         end
+        AMPSIG = subtractLocal(AMPSIG, loc);   % in place: the local reference first
+        loc.LR = [];
         [AMPSIG, ref.wcar] = weightedCAR(AMPSIG, R, wcarArgs{:}, 'Fs', origFs, 'Q', wcarQ);   % in place
         ref.wcar.QAuto = wcarAuto;
         R = [];
     elseif passes(p).referenced
-        AMPSIG = subtractRows(AMPSIG, R);
+        AMPSIG = subtractLocal(AMPSIG, loc);   % in place: the local reference first
+        loc.LR = [];
+        if ~isempty(R)
+            AMPSIG = subtractRows(AMPSIG, R);
+        end
         R = [];
     end
     if ~isempty(artifacts)
@@ -786,9 +827,15 @@ if has.MUA
     info.MUA.bpLoHi        = opts.MUA_bpLoHi;
     info.MUA.nSamples      = size(Y.MUA, 1);
 end
+refText = refMode;   % the reference each signal carries: the local one first ("local", "local+car", ...)
+if localOn && refMode == "none"
+    refText = "local";
+elseif localOn
+    refText = "local+" + refMode;
+end
 for s = ampTypes   % the reference each signal carries (also in its own file)
     info.(s).reference = "none";
-    if any(refTypes == s); info.(s).reference = refMode; end
+    if any(refTypes == s); info.(s).reference = refText; end
 end
 if has.AUX
     info.AUX.Fs       = auxFs;
@@ -858,18 +905,55 @@ labels = cellstr(names);
 end
 
 
-function R = referenceRows(obj, X, mode, exclude)
+function R = referenceRows(obj, X, mode, exclude, loc)
 %referenceRows  The common reference of X (referenceTrace, "car" | "cmr"),
 %   [nRows x 1] in X's class, a block of rows at a time: each sample is
 %   referenced on its own, so the result is the same as for the whole
 %   matrix at once, with a bounded copy. EXCLUDE: recording channels left
-%   out of it besides the dataset's own.
+%   out of it besides the dataset's own. LOC (localColumns; its LR empty
+%   for none): the local reference, subtracted from each block first, so
+%   the common reference is taken over the locally referenced channels.
 nRows = size(X, 1);
 R = zeros(nRows, 1, 'like', X);
 blk = max(1, floor(2^24 / max(1, size(X, 2))));   % about 16M samples per block
 for r0 = 1:blk:nRows
     r = r0:min(nRows, r0 + blk - 1);
-    R(r) = obj.referenceTrace(X(r, :), Mode=mode, Exclude=exclude);
+    Xb = X(r, :);
+    if ~isempty(loc.LR)
+        Xb = subtractLocal(Xb, struct('LR', loc.LR(r, :), 'refOf', loc.refOf));
+    end
+    R(r) = obj.referenceTrace(Xb, Mode=mode, Exclude=exclude);
+end
+end
+
+
+function loc = localColumns(obj, X, M)
+%localColumns  The local reference of X (all of the recording's channels,
+%   as recorded): LR, [nRows x k] the reference channel of each group of M
+%   (EphysDataset.LocalReferenceMap), copied before anything is subtracted,
+%   and refOf, [1 x nChannels] the column of LR each channel takes (0: in no
+%   group), as EphysDataset.applyLocalReference subtracts it.
+refs = [M.reference];
+top = max([refs, M.channels]);
+if top > size(X, 2)
+    error('EphysDataset:LocalReference:BadChannels', ...
+        ['The local reference of %s names channel %d, but %d channel(s) were read; it needs all of the ' ...
+         'recording''s amplifier channels.'], obj.Name, top, size(X, 2));
+end
+loc = struct('LR', X(:, refs), 'refOf', zeros(1, size(X, 2)));
+for k = 1:numel(M)
+    loc.refOf(M(k).channels) = k;
+end
+end
+
+
+function X = subtractLocal(X, loc)
+%subtractLocal  Each column of X minus its local reference channel
+%   (loc.LR(:, loc.refOf(j)); columns with refOf 0 are left as they are),
+%   in place (call as X = subtractLocal(X, loc)). Nothing when loc.LR is empty.
+if isempty(loc.LR); return; end
+for j = find(loc.refOf > 0)
+    X(:, j) = X(:, j) - loc.LR(:, loc.refOf(j));
 end
 end
 
@@ -908,7 +992,7 @@ ln = out;
 end
 
 
-function checkMemory(obj, opts, has, refMode, passes, readKeep, nKept, artifacts, limit, wcarOpt)
+function checkMemory(obj, opts, has, refMode, passes, readKeep, nKept, artifacts, limit, wcarOpt, nLocal)
 %checkMemory  Error when the recording and the working copies would not fit.
 %   The peak of the three phases is estimated from the header before the
 %   read: the read (the single-precision recording, twice for a reader that
@@ -916,7 +1000,8 @@ function checkMemory(obj, opts, has, refMode, passes, readKeep, nKept, artifacts
 %   copied out of it and the reference trace) and the passes (the kept
 %   columns, the derived signals, the samples kept for the weighted CAR, one
 %   block of columns in double with its working copies, the weighted CAR's
-%   gains). It is compared with LIMIT bytes, else 80% of MATLAB's largest
+%   gains), and the NLOCAL columns of the local reference's channels. It is
+%   compared with LIMIT bytes, else 80% of MATLAB's largest
 %   possible array (the MEMORY function, Windows only; no check elsewhere).
 S = obj.NumSamples;
 Fs = obj.Fs;
@@ -938,7 +1023,7 @@ if isnan(limit)
     source = "80% of the largest array MATLAB can make";
 end
 nRead = nCh;
-if refMode == "none" && ~isempty(readKeep)
+if refMode == "none" && nLocal == 0 && ~isempty(readKeep)
     nRead = numel(readKeep);
 end
 nCol = nKept;
@@ -947,8 +1032,8 @@ rates = signalRates(opts, has, Fs);
 rec = 4 * S * nRead;                                   % the recording, single
 readPeak = rec * (1 + (obj.RecordingFormat == "traditional"));
 refPeak = 0;
-if refMode ~= "none"
-    refPeak = rec + 4 * S * nCol * (nCol ~= nRead) + 4 * S;   % + the kept columns and the trace
+if refMode ~= "none" || nLocal > 0
+    refPeak = rec + 4 * S * nCol * (nCol ~= nRead) + 4 * S * ((refMode ~= "none") + nLocal);   % + the kept columns, the trace and the local channels
 end
 amp = 4 * S * nCol;                                    % the kept columns
 outputs = 0;
@@ -973,7 +1058,7 @@ wcar = 0;
 if refMode == "wcar"
     wcar = 8 * S * (wcarOpt.Order + 4);                % gains, high-passed trace, a column in double
 end
-passPeak = amp + outputs + kept + block + wcar + 4 * S * (refMode ~= "none");
+passPeak = amp + outputs + kept + block + wcar + 4 * S * ((refMode ~= "none") + nLocal);
 need = max([readPeak, refPeak, passPeak]);
 if need <= limit
     return
@@ -1084,12 +1169,13 @@ end
 end
 
 
-function q = wcarAutoQ(obj, X, R, ch, hpHz, Fs)
+function q = wcarAutoQ(obj, X, R, ch, hpHz, Fs, loc)
 %wcarAutoQ  The weighted CAR's automatic observation variance: the median
 %   over the reference channels CH of the robust variance
 %   (1.4826 * MAD)^2 of the plain-CAR residual X(:, ch) - R, high-passed at
 %   hpHz (0 = none) as weightedCAR high-passes its inputs. The MAD is taken
-%   over at most 2^22 evenly spaced samples.
+%   over at most 2^22 evenly spaced samples. LOC (localColumns; LR empty for
+%   none): the local reference, subtracted from X(:, ch) first.
 nS = size(X, 1);
 rows = 1:max(1, ceil(nS / 2^22)):nS;
 v = zeros(1, numel(ch));
@@ -1099,6 +1185,11 @@ nBlk = min(8, max(1, floor(2^28 / (8 * nS))));
 for j0 = 1:nBlk:numel(ch)
     jj = j0:min(numel(ch), j0 + nBlk - 1);
     x = double(X(:, ch(jj))) - double(R);
+    for i = 1:numel(jj)   % the local reference first, as the passes subtract it
+        if ~isempty(loc.LR) && loc.refOf(ch(jj(i))) > 0
+            x(:, i) = x(:, i) - double(loc.LR(:, loc.refOf(ch(jj(i)))));
+        end
+    end
     if hpHz > 0
         x = obj.filterContinuous(x, Type="highpass", Cutoff=hpHz, Fs=Fs);
     end

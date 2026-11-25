@@ -25,7 +25,10 @@ function buildArtifactsTab(obj)
 %   reads and the viewer shows its effect. The panel also holds the active
 %   dataset's channels left out of the reference, suggested by the
 %   noise-floor rule of Ludwig et al. 2009 (onSuggestReferenceExclude) or
-%   typed in (onReferenceExcludeEdited).
+%   typed in (onReferenceExcludeEdited). At its top, the local reference
+%   (Reference.Local, Local reference first): a reference channel per shank
+%   or per probe subtracted before the common reference, each dataset's
+%   own, picked on its probe map (onLocalReference, LocalReferenceDialog).
 %
 %   Above it, the bad channels (Artifacts.ExcludeBadChannels): with the box
 %   ticked, the active dataset's channels whose noise floor lies outside
@@ -142,7 +145,7 @@ obj.ArtMinChannelsField.Layout.Row = row; obj.ArtMinChannelsField.Layout.Column 
 
 row = row + 1;
 obj.ArtCommonModeUnrefCheckBox = uicheckbox(cg, "Text", "Also test the unreferenced signal for common-mode artifacts", "Value", true, ...
-    "Tooltip", ["Under a common reference, broad artifacts the reference cancels (movement, chewing) would never be flagged for the unreferenced LFP; this runs the common-mode test on the signal as recorded too." ...
+    "Tooltip", ["Under a common or a local reference, broad artifacts the reference cancels (movement, chewing) would never be flagged for the unreferenced LFP; this runs the common-mode test on the signal as recorded too." ...
         "Script name: Artifacts.CommonModeUnreferenced"], ...
     "ValueChangedFcn", changed);
 obj.ArtCommonModeUnrefCheckBox.Layout.Row = row; obj.ArtCommonModeUnrefCheckBox.Layout.Column = [1 2];
@@ -573,13 +576,16 @@ end
 
 
 function buildReferencePanel(obj, parent, changed)
-% The common reference: its mode and noise bounds (the config's Reference
-% section), the weighted CAR's options, and the active dataset's channels
-% left out of it (manifest). refreshReferencePanel fills the dataset part.
+% The reference: the local reference first (whether it is on, the
+% config's Reference.Local; the active dataset's map, its manifest, set in
+% LocalReferenceDialog), then the common reference: its mode and noise
+% bounds (the config's Reference section), the weighted CAR's options, and
+% the active dataset's channels left out of it (manifest).
+% refreshReferencePanel fills the dataset part.
 p = uipanel(parent, "Title", "Common reference, for every step");
 p.Layout.Row = 2;
-rg = uigridlayout(p, [6 2]);
-rg.RowHeight   = {'fit', 'fit', 'fit', 'fit', 30, 'fit'};
+rg = uigridlayout(p, [8 2]);
+rg.RowHeight   = {'fit', 30, 'fit', 'fit', 'fit', 'fit', 30, 'fit'};
 rg.ColumnWidth = {'fit', '1x'};
 rg.RowSpacing  = 6;
 
@@ -588,7 +594,27 @@ note = uilabel(rg, "WordWrap", "on", "FontColor", [0.4 0.4 0.4], "Text", ...
     "spike detection, the signals ticked on the Signals tab and Visualize's ""As the pipeline"".");
 note.Layout.Row = 1; note.Layout.Column = [1 2];
 
-lab(rg, "Reference:", 2);
+% the local reference, first
+lg = uigridlayout(rg, [1 2]);
+lg.Layout.Row = 2; lg.Layout.Column = [1 2];
+lg.Padding = [0 0 0 0]; lg.ColumnSpacing = 6;
+lg.ColumnWidth = {'1x', 'fit'};
+obj.ArtRefLocalCheckBox = uicheckbox(lg, "Text", "Local reference first", "Value", false, ...
+    "Tooltip", "Local reference: before the common reference below, subtract from every channel of a shank " + ...
+    "(or of the whole probe) one reference channel of that dataset, as recorded, sample by sample. Each " + ...
+    "dataset's reference channels are set with Local reference... and saved in its manifest; a run stops " + ...
+    "while a shank on the probe has none, or a reference is excluded or bad. A reference on its own shank " + ...
+    "becomes zeros and is left out of every step. The common reference (if any) is then taken over the " + ...
+    "locally referenced channels." + newline + "Script name: Reference.Local", ...
+    "ValueChangedFcn", changed);
+obj.ArtRefLocalButton = uibutton(lg, "Text", "Local reference...", ...
+    "Tooltip", "Pick the active dataset's reference channel for each shank, or one for the whole probe, by " + ...
+    "clicking its probe map.", ...
+    "ButtonPushedFcn", @(~,~) obj.onLocalReference());
+obj.ArtRefLocalLabel = uilabel(rg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
+obj.ArtRefLocalLabel.Layout.Row = 3; obj.ArtRefLocalLabel.Layout.Column = [1 2];
+
+lab(rg, "Reference:", 4);
 obj.ArtRefDropDown = uidropdown(rg, ...
     "Items", {'None (as recorded)', 'CAR: common average', 'CMR: common median', 'WCAR: adaptive weighted CAR'}, ...
     "ItemsData", {'none', 'car', 'cmr', 'wcar'}, "Value", 'none', ...
@@ -603,13 +629,13 @@ obj.ArtRefDropDown = uidropdown(rg, ...
     "in a pass over every channel (about 8 s per channel-hour at 30 kHz; another pass first for an " + ...
     "automatic Q), and kept in <Name>_wcar.mat; each read is then padded for its high-pass." + newline + "Script name: Reference.Mode", ...
     "ValueChangedFcn", changed);
-obj.ArtRefDropDown.Layout.Row = 2; obj.ArtRefDropDown.Layout.Column = 2;
+obj.ArtRefDropDown.Layout.Row = 4; obj.ArtRefDropDown.Layout.Column = 2;
 
-buildWCARControls(obj, rg, 3, changed);
+buildWCARControls(obj, rg, 5, changed);
 
-lab(rg, "Good noise (x median):", 4);
+lab(rg, "Good noise (x median):", 6);
 bg = uigridlayout(rg, [1 3]);
-bg.Layout.Row = 4; bg.Layout.Column = 2;
+bg.Layout.Row = 6; bg.Layout.Column = 2;
 bg.Padding = [0 0 0 0]; bg.ColumnSpacing = 6;
 bg.ColumnWidth = {'1x', 'fit', '1x'};
 tip = "Reference.BadLow / BadHigh: a channel whose noise floor lies outside this band, relative to the " + ...
@@ -621,9 +647,9 @@ uilabel(bg, "Text", "to");
 obj.ArtRefHighField = uieditfield(bg, "numeric", "Value", 2, "Limits", [0 Inf], ...
     "ValueDisplayFormat", "%.3g", "Tooltip", tip, "ValueChangedFcn", changed);
 
-lab(rg, "Left out:", 5);
+lab(rg, "Left out:", 7);
 xg = uigridlayout(rg, [1 2]);
-xg.Layout.Row = 5; xg.Layout.Column = 2;
+xg.Layout.Row = 7; xg.Layout.Column = 2;
 xg.Padding = [0 0 0 0]; xg.ColumnSpacing = 6;
 xg.ColumnWidth = {'1x', 'fit'};
 obj.ArtRefExcludeField = uieditfield(xg, "text", "Value", "", "Placeholder", "none", ...
@@ -636,7 +662,7 @@ obj.ArtRefSuggestButton = uibutton(xg, "Text", "Suggest", ...
     "ButtonPushedFcn", @(~,~) obj.onSuggestReferenceExclude());
 
 obj.ArtRefStatusLabel = uilabel(rg, "Text", "", "FontColor", [0.4 0.4 0.4], "WordWrap", "on");
-obj.ArtRefStatusLabel.Layout.Row = 6; obj.ArtRefStatusLabel.Layout.Column = [1 2];
+obj.ArtRefStatusLabel.Layout.Row = 8; obj.ArtRefStatusLabel.Layout.Column = [1 2];
 end
 
 

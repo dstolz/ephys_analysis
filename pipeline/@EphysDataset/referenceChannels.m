@@ -10,6 +10,13 @@ function ch = referenceChannels(obj, opts)
 %   channels CH2 out (deriveSignals: the channels the Signals step lists as
 %   bad, which it replaces by interpolation).
 %
+%   While ArtifactConfig.LocalReference is on, only the channels of
+%   LocalReferenceMap's groups count: the common reference is taken over
+%   the locally referenced channels, and a channel in no group (a site
+%   that is not connected, a channel off the probe), which keeps the
+%   recording's own reference, stays out of the average (it is still
+%   referenced).
+%
 %   See also EphysDataset.applyReference.
 
 arguments
@@ -23,4 +30,8 @@ if isnan(n)
     n = obj.NumChannels;
 end
 ch = setdiff(1:n, [obj.excludedChannels(), obj.ReferenceExclude, opts.Exclude]);
+if obj.localReferenceOn() && ~isempty(obj.LocalReferenceMap)
+    ch = intersect(ch, [obj.LocalReferenceMap.channels]);   % the locally referenced channels only
+    ch = reshape(ch, 1, []);
+end
 end

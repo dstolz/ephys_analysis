@@ -1436,6 +1436,8 @@ referenced signal. The Signals tab picks which derived signals take it.
 
 | Control | Maps to |
 | --- | --- |
+| **Local reference first** | `Reference.Local`, a setting for the whole pipeline: before the common reference, subtract from each channel its dataset's local reference channel, as recorded: one per shank, or one for the whole probe ([Local reference](#local-reference)). The line under it gives the active dataset's references and, while it is ticked, what a run would stop on, in red |
+| **Local reference...** | opens the [Local reference window](#local-reference) on the active dataset's probe |
 | Reference: *None (as recorded)* / *CAR: common average* / *CMR: common median* / *WCAR: adaptive weighted CAR* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"` / `"wcar"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, or each channel's own Kalman-tracked share of their mean (the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car), Khorasani et al. 2019), once, as each step reads the recording - artifact detection, the noise level of the fill, the sorting `.bin` (Kilosort4's own `do_CAR`, or a SpikeInterface sorter's own common reference, is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. With WCAR the first read of a recording (a preview, the viewer, a run) first works out its state, once (`EphysDataset.prepareWCAR`: a pass over every channel, about 8 s per channel-hour at 30 kHz, and one before it for an automatic Q; the app waits, and **Detect / Preview** and the Visualize tab's dialog say which window it is on and the time left, *Weighted CAR: state, window 12/80 · about 40 s left*), kept in `<Name>_wcar.mat`. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
 | WCAR order, Alpha at 1 kHz, Drift (/s), High-pass (Hz), Q (uV^2), Automatic Q, Estimate | `Reference.WCAR_Order` (1), `WCAR_Alpha1k` (1), `WCAR_DriftPerSec` (1), `WCAR_HighpassHz` (0.5; each read is padded by the filter's memory, 23 s on either side at 0.5 Hz, 0 = none), `WCAR_Q` (Q, used when *Automatic Q* is off; ticked = `NaN`, the robust variance of the high-passed plain-CAR residual per dataset) and `WCAR_Estimate` (*prior* / *posterior*): the weighted CAR's parameters, on while the reference is WCAR (Q while *Automatic Q* is off). The tooltips say where each default comes from |
 | Good noise (x median): *low* to *high* | `Reference.BadLow`, `BadHigh` (0.3 and 2, Ludwig et al. 2009): a channel whose noise floor lies outside this band, relative to the median across channels, is suggested to stay out of the reference, and is suggested as bad while *Leave out bad channels* is ticked |
@@ -1470,7 +1472,7 @@ previous method stays. `validate` warns about an *Absolute microvolts* or
 | *Common-mode (mean)* | \|mean over the channels\| > *Threshold*, on every channel at once. It is measured on the signal as recorded, since a common reference subtracts that very mean | µV |
 
 A sample is an artifact when at least **Min channels** channels flag it at
-once (common mode aside). With a common reference on, **Also test the unreferenced
+once (common mode aside). With a common or a local reference on, **Also test the unreferenced
 signal for common-mode artifacts** (`Artifacts.CommonModeUnreferenced`, on by
 default) runs the common-mode test on the signal as recorded too, so broad
 artifacts the reference cancels (movement, chewing) are still flagged for the
@@ -1655,6 +1657,71 @@ click clears the selection, and another window (stepping, paging, a new
 dataset) drops it. **Mark artifacts** and **Measure** are one drag in two
 modes: turning one on turns the other off. Measuring writes nothing, so it
 works during a run too.
+
+### Local reference
+
+With **Local reference first** ticked (`Reference.Local`), every step that
+reads the recording first subtracts each dataset's local reference: for each
+shank, one reference channel, as recorded, from every channel of the shank,
+sample by sample (`EphysDataset.applyLocalReference`). The common reference
+chosen below it, if any, is then taken over the locally referenced channels;
+a channel in no group (a site that is not connected, a channel off the probe)
+stays out of that average, though the common reference is still subtracted
+from it. A new map saved while a preview is shown marks the preview out of
+date, as a changed detection setting does.
+The references are each dataset's own (`LocalReferenceMap`, saved in its
+manifest), since a good reference site differs between recordings.
+
+**Local reference...** opens a modal window on the active dataset's probe (its
+own, a probe rule's or the default, as the steps use). The probe is drawn at
+its true site positions, each physical shank as a body (named by its
+`kcoords` group, as the analysis app's probe windows draw it; a site parked on
+a group of its own stays on its shank):
+
+- **Reference:** *One reference per shank* or *One reference for the whole
+  probe*. It opens on the whole probe when one reference serves every shank.
+- **Per shank:** click a site, and it becomes the reference of its own shank.
+  To give other shanks that reference, click those shanks first (they are
+  outlined; a second click drops one; **Unpick shanks** drops all), then the
+  site. **Whole probe:** click a site, and it becomes the reference of every
+  shank.
+- Every site takes the color of its reference, and each reference site is
+  drawn as a larger diamond in that color. A shank's body is tinted when one
+  reference serves all of it. Sites without a reference are white.
+- The table lists the shanks, their channels, their reference and where it
+  sits (*on this shank*, *on shank 2*, *off the probe drawn*, or *on this
+  shank: becomes zeros, left out*). Type a channel in **Reference** to set a
+  shank's reference, also a channel off the probe, such as a separate
+  reference wire on an amplifier channel. Clear it to leave the shank without
+  one. **Clear all** empties the map.
+- The line under the probe sums up the references. In red, it lists what a
+  run would stop on (`EphysDataset.localReferenceProblems`): a shank of the
+  probe without a reference (sites that are not connected need none), a
+  reference that is excluded on the Probe tab or a bad channel in force, a map
+  picked on another probe.
+- **Save** keeps the map on the active dataset, in its manifest, with the
+  probe it was picked on. **Save to N ticked datasets** keeps it on every
+  dataset ticked in the Project table that the steps would use the same probe
+  for (by file name), with enough channels; the others are skipped, and the
+  status bar names them. **Cancel** or closing the window keeps nothing.
+
+A reference on its own shank is all zeros after the subtraction, so every step
+leaves it out: the common reference, artifact detection, the sorter's chanMap,
+spike detection and the derived signals (`EphysDataset.localReferenceZeroed`,
+counted as a bad channel in force). The other channels of the shank are kept.
+A map saved earlier that does not follow the shanks (from a script, say) is
+shown as it is (*mixed* in the table) and kept until a shank is set again.
+
+While **Local reference first** is ticked, the plan stops before any step on
+a dataset whose map cannot be used: status `error: local reference`, with the
+reason in the Note column. A run of a step on its own stops on the first read
+in the same way. The Visualize tab's *As the pipeline* shows the map as it
+stands and says in the status bar what a run would stop on. The derived
+signals that take the reference (Signals tab) take the local one too: their
+files say `local` or `local+car` (and so on). Kilosort4's own `do_CAR` is
+turned off only for a common reference; with the local reference alone it
+stays as set on the Sorting tab. See
+[Local reference](EphysDataset.md#local-reference-a-channel-per-shank-or-probe).
 
 ### In a run
 
@@ -3892,6 +3959,7 @@ app.KSQueue                       % prepared runs waiting for a slot (Queue the 
 | `toolTargets.m`, `syncToolsPanel.m`, `onOpenTool.m`, `onOpenOutputFolder.m`, `onCopyManifests.m` | the Project tab's Tools panel: which datasets it opens, its label and buttons, the dispatch to `onViewManifest` / `onOpenAnalysisApp` / `onLaunchPhy`, the output folders, the manifests onto the clipboard (`copyFilesToClipboard.m`: the file list through Windows PowerShell, `-STA`, read back; tests pass a stand-in `Clipboard` function so a run leaves the clipboard alone) |
 | `refreshProbeList.m`, `onProbeSelected.m`, `onImportProbe.m`, `onDesignProbe.m`, `runProbeTool.m`, `onAssignProbe.m`, `onApplyExclude.m`, `onUseSelectedProbeAsDefault.m`, `probe_tool.py` | Probe tab |
 | `onDetectArtifacts.m`, `showArtifactView.m`, `drawArtifactView.m`, `onArtViewInput.m`, `syncArtProbeControls.m`, `refreshArtChannelTable.m`, `refreshManualArtifactsTable.m`, `onClearManualArtifacts.m`, `private/artifactColors.m` | Artifacts tab: the detector's preview and the viewer, where detected artifacts are reviewed and manual periods marked (`onArtViewInput`); the orange / purple of the two kinds, shared with Visualize (`artifactColors`) |
+| `onLocalReference.m`, `saveLocalReference.m`, `refreshReferencePanel.m`; `pipeline/LocalReferenceDialog.m`, `analysis/ProbePicker.m` | Artifacts tab: the [local reference](#local-reference) (the window on the active dataset's probe, saving the map on it or on the ticked datasets, the panel's line); the window draws the probe with the analysis app's `ProbePicker` (its `OnClick` hook and `paintGroups` colors) |
 | `routeFigureInput.m` | shares the figure's wheel, key and button callbacks between the Artifacts tab's plot and the Visualize viewer |
 | `onOptimizeKS4ForProbe.m`, `onResetKS4Params.m`, `onUseSortingFolder.m`, `onUseAutoSorting.m`, `refreshSortingLabel.m`, `pollKSRuns.m`, `onLaunchPhy.m`, `launchPhy.m` | Sorting tab and phy |
 | `queueKSRun.m`, `onStopKSQueue.m`, `onStopKSRuns.m`, `stopKSRuns.m`, `markKSResult.m` | background sorting runs: the queue the monitor starts from, Stop queue, Stop runs..., restating a run's result row |
@@ -3951,7 +4019,11 @@ address with its label, and that a report too long for the address is cut and
 says so), a config with values its fields cannot show (listed, the config
 marked unsaved), a Kilosort4 field that does not parse (the value in force
 kept and reported, Save refused), numbers written in full, a new Method's own
-default threshold, the filter settings without a control kept, the Behavior
+default threshold, the filter settings without a control kept, the local
+reference (**Local reference first** in the config and on the datasets, the
+panel's line in red without a map, the plan's `error: local reference`, the
+window opened modal on the dataset's probe, a site click per shank, Save into
+the dataset and its manifest, the zeroed references left out), the Behavior
 column's session summaries read once, channel lists that do not parse
 changing nothing, a dataset without a probe laid out on the default probe,
 firing rates over the sorted time, a config for another root and a rescan

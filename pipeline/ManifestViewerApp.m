@@ -977,6 +977,28 @@ if isfield(m, 'reference_exclude') && isstruct(m.reference_exclude)
     end
     R = addRow(R, S, "Reference exclude", rc, lv, ck);
 end
+if isfield(m, 'local_reference') && isstruct(m.local_reference) && isscalar(m.local_reference)
+    lr = m.local_reference;
+    groups = getf(lr, 'groups', []);
+    txt = ManifestText.localReference(groups);
+    lv = ""; ck = "";
+    try
+        EphysDataset.parseLocalReferenceRecord(groups);
+    catch ME
+        lv = "warn"; ck = "cannot be read: " + string(ME.message);
+    end
+    on = isequal(getf(lr, 'enabled', false), true);
+    if txt == "" && on
+        txt = "none"; lv = "warn"; ck = "on, but no reference assigned: a run stops";
+    elseif txt == ""
+        txt = "none";
+    elseif ck == ""
+        ck = ternary(on, "on", "off (Reference.Local)");
+        pf = txtOf(getf(lr, 'probe', ""));
+        if pf ~= ""; ck = ck + ", drawn on " + pf; end
+    end
+    R = addRow(R, S, "Local reference", txt, lv, ck);
+end
 
 if isfield(m, 'manual_artifacts')
     S = "Manual artifacts";
@@ -1094,7 +1116,7 @@ if isfield(m, 'processing') && isstruct(m.processing) && isscalar(m.processing)
     S = "Processing";
     labels = struct('artifacts', "Artifact detection", 'bin', "Sorting .bin", 'sorting', "Sort", ...
         'signals', "Signals", 'spikes', "Spikes", 'behavior', "Behavior file", 'nwb', "NWB export");
-    shown = ["file" "files" "results_dir" "exists" "created" "run_id" "reference" "bin_reference" "own_reference" ...
+    shown = ["file" "files" "results_dir" "exists" "created" "run_id" "reference" "bin_reference" "bin_local_reference" "own_reference" ...
         "event_id" "created_at" "started_at" "performer" "code_version" "outputs"];
     missingKinds = strings(1, 0);
     for k = string(fieldnames(m.processing)).'
@@ -1201,7 +1223,7 @@ if isfield(m, 'behavior') && isstruct(m.behavior)
 end
 
 known = ["schema" "name" "folder" "recording_format" "reader" "updated" "metadata" "probe" ...
-    "exclude_channels" "tags" "variables" "variable_history" "reference_exclude" "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "kilosort" ...
+    "exclude_channels" "tags" "variables" "variable_history" "reference_exclude" "local_reference" "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "kilosort" ...
     "sorting" "processing" "behavior"];
 other = setdiff(string(fieldnames(m)).', known, 'stable');
 for f = other

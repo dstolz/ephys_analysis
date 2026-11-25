@@ -31,12 +31,31 @@ classdef ProbePicker < handle
     %   them already; SH stays as it is (blank). The default, "shanks",
     %   toggles the shank in SH.
     %
-    %   See also DatasetBrowser, ProbePickDialog, probeColumns, probeSites, selectUnits, epochMatrix.
+    %   P.OnClick = @(KIND, VALUE) ... takes the clicks instead, for an
+    %   owner with picks of its own (LocalReferenceDialog): a click on a
+    %   site calls OnClick("site", CH) with its recording channel, a click
+    %   on a shank's body or name OnClick("body", B) with the body's index
+    %   (a physical shank, left to right: BodyChannels{B} are the channels
+    %   of its sites). The selection is left as it is. P.clickBody(B) does
+    %   what a click on body B does. With Enable "off" clicks do nothing.
+    %
+    %   P.paintGroups(SITECOLOR, BODYCOLOR, MARKED) colors the probe by
+    %   the owner's groups instead of the selection: SITECOLOR [n x 3] one
+    %   RGB per row of Sites (a NaN row: unassigned, white), BODYCOLOR
+    %   [nBody x 3] a tint per body (NaN: the steel of no group), MARKED a
+    %   struct array (channel, color) of sites drawn larger as diamonds in
+    %   COLOR (a group's reference). P.paintGroups([]) goes back to
+    %   painting the selection. P.outlineBodies(B) outlines bodies B (the
+    %   owner's selected shanks). setProbe clears both.
+    %
+    %   See also DatasetBrowser, ProbePickDialog, probeColumns, probeSites, selectUnits, epochMatrix,
+    %   LocalReferenceDialog.
 
     properties
         OnPick = []                                % OnPick(CH, SH) after a click
         Enable matlab.lang.OnOffSwitchState = "on" % "off": clicks do nothing
         ShankPick (1,1) string {mustBeMember(ShankPick, ["shanks" "channels"])} = "shanks"   % what a shank click toggles: the shank, or its sites' channels
+        OnClick = []                               % OnClick(KIND, VALUE) in place of the selection: "site", channel | "body", index
     end
 
     properties (SetAccess = private)
@@ -44,6 +63,8 @@ classdef ProbePicker < handle
         Channels (1,:) double = []                 % the recording channels picked ([] = all)
         Shanks (1,:) double = []                   % the shanks (kcoords) picked ([] = all)
         Sites table                                % the sites drawn: channel, x, y, shank (kcoords)
+        BodyChannels = {}                          % {1 x nBody} the recording channels of each physical shank, left to right
+        BodyNames (1,:) string = string.empty(1, 0) % the name under each body ("Shank k": its kcoords group)
     end
 
     properties (Access = private)
@@ -52,6 +73,10 @@ classdef ProbePicker < handle
         Kept = []                                  % the kept sites (line)
         Ringed = []                                % picked sites on a shank left out (line)
         Off = []                                   % the other sites (line)
+        Colored = []                               % the sites in their group's color (scatter, paintGroups)
+        Marked = []                                % the groups' reference sites (scatter, paintGroups)
+        Groups = []                                % paintGroups' colors ([] = paint the selection)
+        Outlined (1,:) double = []                 % bodies outlined (outlineBodies)
     end
 
     properties (Constant, Access = private)
@@ -79,10 +104,14 @@ classdef ProbePicker < handle
             cla(ax);
             P.Bodies = gobjects(0);
             P.BodyShank = [];
+            P.BodyChannels = {};
+            P.BodyNames = string.empty(1, 0);
+            P.Groups = [];
+            P.Outlined = [];
             P.Sites = ProbePicker.sitesOf(probe);
             S = P.Sites;
             if height(S) == 0
-                P.Kept = []; P.Ringed = []; P.Off = [];
+                P.Kept = []; P.Ringed = []; P.Off = []; P.Colored = []; P.Marked = [];
                 axis(ax, [0 1 0 1]);
                 text(ax, 0.5, 0.5, string(note), "HorizontalAlignment", "center", "Color", P.Steel, ...
                     "FontSize", 11, "PickableParts", "none");
@@ -119,12 +148,14 @@ classdef ProbePicker < handle
                 k = C.shank(c);
                 P.Bodies(c) = patch(ax, "XData", C.center(c) + hw(c) * [-1 -1 0 1 1], ...
                     "YData", [yl(2) + ySpan, yTip(c) + taper, yTip(c), yTip(c) + taper, yl(2) + ySpan], ...
-                    "LineWidth", 0.75, "ButtonDownFcn", @(~, ~) P.click("shank", k));
+                    "LineWidth", 0.75, "ButtonDownFcn", @(~, ~) P.clickBody(c));
                 P.BodyShank(c) = k;
+                P.BodyChannels{c} = reshape(S.channel(col == c), 1, []);
+                P.BodyNames(c) = sprintf("Shank %g", k);
                 if nC > 1
-                    text(ax, C.center(c), yTip(c) - 0.02 * ySpan, sprintf("Shank %g", k), "HorizontalAlignment", "center", ...
+                    text(ax, C.center(c), yTip(c) - 0.02 * ySpan, P.BodyNames(c), "HorizontalAlignment", "center", ...
                         "VerticalAlignment", "top", "FontSize", 9, "Color", P.Steel, ...
-                        "ButtonDownFcn", @(~, ~) P.click("shank", k));
+                        "ButtonDownFcn", @(~, ~) P.clickBody(c));
                 end
             end
             onSite = @(~, e) P.onSiteClick(e);
@@ -134,6 +165,10 @@ classdef ProbePicker < handle
                 "LineWidth", 1.5, "ButtonDownFcn", onSite);
             P.Kept = plot(ax, NaN, NaN, "o", "MarkerSize", 6, "Color", 0.6 * P.Pick, "MarkerFaceColor", P.Pick, ...
                 "LineWidth", 0.75, "ButtonDownFcn", onSite);
+            P.Colored = scatter(ax, NaN, NaN, 40, [1 1 1], "filled", "Marker", "o", ...
+                "MarkerEdgeColor", P.Steel, "LineWidth", 0.75, "ButtonDownFcn", onSite);
+            P.Marked = scatter(ax, NaN, NaN, 110, [1 1 1], "filled", "Marker", "d", ...
+                "MarkerEdgeColor", [0.1 0.1 0.1], "LineWidth", 1.25, "ButtonDownFcn", onSite);
             axis(ax, [xl yl]);
             % the channels beside their sites, on the outer side of a shank's column, when they fit
             px = ax.InnerPosition(4);
@@ -181,6 +216,55 @@ classdef ProbePicker < handle
             if ~isempty(P.OnPick); P.OnPick(P.Channels, P.Shanks); end
         end
 
+        function clickBody(P, b)
+            %clickBody  What a click on body B (a physical shank, left to right) does: OnClick("body", B), else toggle its shank.
+            if P.Enable == "off" || b < 1 || b > numel(P.BodyShank); return; end
+            if ~isempty(P.OnClick)
+                P.OnClick("body", b);
+            else
+                P.click("shank", P.BodyShank(b));
+            end
+        end
+
+        function paintGroups(P, siteColor, bodyColor, marked)
+            %paintGroups  Color the sites and bodies by the owner's groups; paintGroups([]) paints the selection again.
+            %   SITECOLOR [height(Sites) x 3] (NaN row: white), BODYCOLOR
+            %   [nBody x 3] (NaN row: steel), MARKED struct array with
+            %   fields channel and color (the sites drawn as diamonds).
+            if nargin < 2 || isempty(siteColor)
+                P.Groups = [];
+            else
+                if nargin < 3; bodyColor = NaN(numel(P.Bodies), 3); end
+                if nargin < 4; marked = struct('channel', {}, 'color', {}); end
+                if size(siteColor, 1) ~= height(P.Sites) || size(siteColor, 2) ~= 3
+                    error('ProbePicker:BadColors', 'paintGroups takes one RGB row per site (%d).', height(P.Sites));
+                end
+                if size(bodyColor, 1) ~= numel(P.Bodies) || size(bodyColor, 2) ~= 3
+                    error('ProbePicker:BadColors', 'paintGroups takes one RGB row per body (%d).', numel(P.Bodies));
+                end
+                P.Groups = struct('site', double(siteColor), 'body', double(bodyColor), 'marked', marked);
+            end
+            P.paint();
+        end
+
+        function outlineBodies(P, b)
+            %outlineBodies  Draw bodies B (indices, left to right) with a heavy outline: the owner's selected shanks.
+            P.Outlined = reshape(double(b), 1, []);
+            P.paint();
+        end
+
+        function C = siteColors(P)
+            %siteColors  The fill color of each row of Sites as painted now (white: unassigned or not kept).
+            S = P.Sites;
+            C = ones(height(S), 3);
+            if ~isempty(P.Groups)
+                C = P.Groups.site;
+                C(any(isnan(C), 2), :) = 1;
+            else
+                C(P.kept(), :) = repmat(P.Pick, nnz(P.kept()), 1);
+            end
+        end
+
         function tf = kept(P)
             %kept  Which of Sites the selection keeps (both lists hold it).
             S = P.Sites;
@@ -192,8 +276,16 @@ classdef ProbePicker < handle
 
     methods (Access = private)
         function paint(P)
-            %paint  The sites and bodies in the colors of the selection.
+            %paint  The sites and bodies in the colors of the selection, or of the owner's groups (paintGroups).
             if isempty(P.Kept) || ~isvalid(P.Kept); return; end
+            if ~isempty(P.Groups)
+                P.paintGroupsNow();
+                return
+            end
+            if ~isempty(P.Colored) && isvalid(P.Colored)
+                set(P.Colored, "XData", NaN, "YData", NaN, "CData", [1 1 1]);
+                set(P.Marked, "XData", NaN, "YData", NaN, "CData", [1 1 1]);
+            end
             S = P.Sites;
             keep = P.kept();
             ring = ~keep & ~isempty(P.Channels) & ismember(S.channel, P.Channels);
@@ -213,6 +305,51 @@ classdef ProbePicker < handle
                     set(P.Bodies(c), "FaceColor", 0.86 + 0.14 * P.Steel, "EdgeColor", 0.55 + 0.45 * P.Steel);
                 end
             end
+            P.paintOutlines();
+        end
+
+        function paintGroupsNow(P)
+            %paintGroupsNow  The sites in their group's color, the bodies tinted, the references as diamonds.
+            S = P.Sites;
+            G = P.Groups;
+            set([P.Kept, P.Ringed, P.Off], "XData", NaN, "YData", NaN);
+            C = G.site;
+            none = any(isnan(C), 2);
+            C(none, :) = 1;   % unassigned: white, steel edge
+            set(P.Colored, "XData", S.x, "YData", S.y, "CData", C);
+            m = G.marked;
+            if isempty(m)
+                set(P.Marked, "XData", NaN, "YData", NaN, "CData", [1 1 1]);
+            else
+                [on, j] = ismember([m.channel], S.channel);
+                j = j(on);
+                MC = reshape([m(on).color], 3, []).';
+                if isempty(j)
+                    set(P.Marked, "XData", NaN, "YData", NaN, "CData", [1 1 1]);
+                else
+                    set(P.Marked, "XData", S.x(j), "YData", S.y(j), "CData", MC);
+                end
+            end
+            for c = 1:numel(P.Bodies)
+                b = G.body(c, :);
+                if any(isnan(b))
+                    set(P.Bodies(c), "FaceColor", 0.86 + 0.14 * P.Steel, "EdgeColor", 0.55 + 0.45 * P.Steel);
+                else
+                    set(P.Bodies(c), "FaceColor", 0.75 + 0.25 * b, "EdgeColor", 0.6 * b + 0.2);
+                end
+            end
+            P.paintOutlines();
+        end
+
+        function paintOutlines(P)
+            %paintOutlines  The outlined bodies (outlineBodies) heavy and dark, the others as painted.
+            for c = 1:numel(P.Bodies)
+                if ismember(c, P.Outlined)
+                    set(P.Bodies(c), "LineWidth", 2.5, "EdgeColor", [0.1 0.1 0.1]);
+                else
+                    set(P.Bodies(c), "LineWidth", 0.75);
+                end
+            end
         end
 
         function onSiteClick(P, e)
@@ -223,7 +360,12 @@ classdef ProbePicker < handle
             q = e.IntersectionPoint(1:2);
             d = ((S.x - q(1)) / diff(ax.XLim)).^2 + ((S.y - q(2)) / diff(ax.YLim)).^2;
             [~, j] = min(d);
-            P.click("site", S.channel(j));
+            if ~isempty(P.OnClick)
+                if P.Enable == "off"; return; end
+                P.OnClick("site", S.channel(j));
+            else
+                P.click("site", S.channel(j));
+            end
         end
     end
 

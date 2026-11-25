@@ -153,30 +153,39 @@ classdef EphysTraceSource < handle
             %key  Text that changes whenever what read() returns may change.
             k = obj.Kind + "|" + obj.File + "|" + obj.SignalType + "|" + obj.Reference;
             if obj.Kind == "recording" && ~isempty(obj.Dataset)
-                [mode, ch, wcar] = obj.appliedReference();
+                [mode, ch, wcar, local] = obj.appliedReference();
                 k = k + "|" + obj.Dataset.Folder + "|" + mode + "|" + strjoin(string(ch), ",");
                 if mode == "wcar"
                     k = k + "|" + string(jsonencode(wcar));
                 end
+                if ~isempty(local)
+                    k = k + "|local:" + string(jsonencode(EphysDataset.localReferenceRecord(local)));
+                end
             end
         end
 
-        function [mode, ch, wcar] = appliedReference(obj)
+        function [mode, ch, wcar, local] = appliedReference(obj)
             %appliedReference  The common reference read() subtracts: "car" | "cmr" | "wcar" over channels CH, or "none".
             %   The recording read "pipeline" takes the dataset's own
             %   (ArtifactConfig.Reference over referenceChannels, as every
             %   step reads it); the other kinds carry theirs in their
             %   samples, so read() subtracts none. WCAR is the weighted
             %   CAR's options (ArtifactConfig.ReferenceWCAR) for "wcar",
-            %   else [].
+            %   else []. LOCAL is the dataset's LocalReferenceMap while
+            %   ArtifactConfig.LocalReference is on (subtracted first,
+            %   EphysDataset.applyLocalReference), else [].
             mode = "none";
             ch = double.empty(1, 0);
             wcar = [];
+            local = [];
             if obj.Kind ~= "recording" || obj.Reference ~= "pipeline" || isempty(obj.Dataset)
                 return
             end
             d = obj.Dataset;
             acfg = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
+            if acfg.LocalReference
+                local = d.LocalReferenceMap;
+            end
             if string(acfg.Reference) == "none"; return; end
             mode = string(acfg.Reference);
             ch = d.referenceChannels();
@@ -189,7 +198,7 @@ classdef EphysTraceSource < handle
             %stamp  What read() returns depends on, for a cache of it (EphysTraceEnvelope).
             %   The kind, the files read (name, bytes, modified time in whole
             %   seconds), the rate, rows and columns, and the reference
-            %   subtracted (appliedReference) or the .bin's type, scale and
+            %   subtracted (appliedReference, the local one included) or the .bin's type, scale and
             %   offset. A file written again changes it.
             S = struct('kind', obj.Kind, 'signal', obj.SignalType, 'fs', obj.Fs, ...
                 'nSamples', obj.NumSamples, 'nChannels', obj.NumChannels);
@@ -197,9 +206,12 @@ classdef EphysTraceSource < handle
                 case "recording"
                     d = obj.Dataset;
                     S.files = fileStamps(fullfile(d.Folder, d.Files));
-                    [S.reference, S.referenceChannels, wcar] = obj.appliedReference();
+                    [S.reference, S.referenceChannels, wcar, local] = obj.appliedReference();
                     if S.reference == "wcar"   % only then, so the stamps of the other references stay as they were
                         S.referenceWCAR = wcar;
+                    end
+                    if ~isempty(local)         % the same: only while the local reference is on
+                        S.referenceLocal = EphysDataset.localReferenceRecord(local);
                     end
                 case "bin"
                     S.files = fileStamps(obj.File);
@@ -626,6 +638,10 @@ end
 function s = binNote(meta)
 % What was done to the .bin's samples, from its sidecar.
 parts = "what Kilosort4 sorted";
+if isfield(meta, 'reference') && isstruct(meta.reference) && isfield(meta.reference, 'local') ...
+        && ~isempty(meta.reference.local)
+    parts(end+1) = "local reference";
+end
 if isfield(meta, 'reference') && isstruct(meta.reference) && isfield(meta.reference, 'mode')
     mode = string(meta.reference.mode);
     if mode == "car"
@@ -662,7 +678,12 @@ if type == "MUA" && isfield(info.MUA, 'IntegrationHz') && ~isempty(info.MUA.Inte
 end
 if isfield(info, 'reference') && isstruct(info.reference) && isfield(info.reference, 'signals') ...
         && any(string(info.reference.signals) == type) && isfield(info.reference, 'mode')
-    parts(end+1) = upper(string(info.reference.mode)) + " referenced";
+    if isfield(info.reference, 'local') && ~isempty(info.reference.local)
+        parts(end+1) = "local referenced";
+    end
+    if string(info.reference.mode) ~= "none"
+        parts(end+1) = upper(string(info.reference.mode)) + " referenced";
+    end
 end
 if isfield(info, 'artifacts') && isstruct(info.artifacts) && isfield(info.artifacts, 'intervals') ...
         && ~isempty(info.artifacts.intervals)

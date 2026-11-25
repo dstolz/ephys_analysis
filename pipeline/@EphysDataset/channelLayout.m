@@ -15,6 +15,9 @@ function L = channelLayout(obj, opts)
 %               Probe tab draws it), then left to right; channels not on
 %               the probe last, in recording order
 %     shanks    [1 x k] the shanks holding at least one channel, ascending
+%     connected [1 x nChan] true where the channel's site is on the probe
+%               and connected (the probe's connected field; every site
+%               when it has none), false off the probe
 %   Probe chanMap values are .bin rows, 0-based: channel c (in recording
 %   order) sits at the site whose chanMap value is c - 1, as Kilosort4 and
 %   readPhyUnits read the probe. The hardware numbers (ChannelNumbers) play
@@ -35,7 +38,7 @@ if probeFile == ""; probeFile = obj.ProbeFile; end
 nChan = obj.NumChannels;
 if ~isfinite(nChan); nChan = numel(obj.ChannelNumbers); end
 L = struct('hasProbe', false, 'shank', NaN(1, nChan), 'x', NaN(1, nChan), ...
-    'y', NaN(1, nChan), 'order', 1:nChan, 'shanks', zeros(1, 0));
+    'y', NaN(1, nChan), 'order', 1:nChan, 'shanks', zeros(1, 0), 'connected', false(1, nChan));
 if nChan == 0 || probeFile == ""; return; end
 probe = readJsonFile(probeFile, ErrorOnFail=false);
 if ~isstruct(probe) || ~isfield(probe, 'xc') || ~isfield(probe, 'yc')
@@ -60,6 +63,11 @@ try
         kc = double(probe.kcoords(1:nSite));
         kc = kc(:);
     end
+    conn = true(nSite, 1);
+    if isfield(probe, 'connected') && numel(probe.connected) >= nSite
+        conn = logical(probe.connected(1:nSite));
+        conn = conn(:);
+    end
 catch ME
     warning('EphysDataset:channelLayout:BadProbe', ...
         'The probe %s has fields of the wrong type (%s); the channels are treated as off the probe.', ...
@@ -73,6 +81,7 @@ L.hasProbe = true;
 L.shank(onProbe) = kc(site(onProbe));
 L.x(onProbe) = xc(site(onProbe));
 L.y(onProbe) = yc(site(onProbe));
+L.connected(onProbe) = conn(site(onProbe)).';
 L.shanks = unique(L.shank(onProbe));
 
 % Off the probe sorts last (Inf shank), then top down, left to right.

@@ -188,10 +188,11 @@ end
 binFile   = absPath(binFile);
 probeFile = absPath(probeFile);
 givenProbe = string(probeFile);   % before the exclusions derive their own
-[nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj, "runSpikeInterface");
+[nChanBin, fsVal, binScale, binRef, binLocal] = resolveBinMeta(binFile, opts, obj, "runSpikeInterface");
 if ~binGiven
     binScale = obj.binScale();   % what toBin used above
     binRef = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);   % what toBin subtracts
+    binLocal = obj.localReferenceOn();
 elseif ~isfinite(binScale) || binRef == ""
     warning('EphysDataset:runSpikeInterface:BinMetaUnknown', ...
         ['%s has no readable sidecar recording its scale and common reference: settings.json gets no ' ...
@@ -311,6 +312,9 @@ if opts.ResultsDir == ""
     r.probe_file = givenProbe;
     r.bin_file = string(binFile);
     r.bin_reference = binRef;
+    if binLocal
+        r.bin_local_reference = true;   % the local reference before it (only then: the records without it stay as they were)
+    end
     r.own_reference = binRef == "none";
     r.exclude_channels = EphysDataset.formatChannelList(excludeCh);
     result.processing = r;   % Processing.sorting once the run is done (launchSorting, settleSortRun)

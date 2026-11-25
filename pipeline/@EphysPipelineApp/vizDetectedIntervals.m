@@ -45,4 +45,8 @@ function s = detectionSettings(obj)
 %   included) in the form the preview records.
 s = EphysDataset.normalizeArtifactConfig(EphysPipelineConfig.artifactConfig( ...
     obj.gatherArtifactsSection(), obj.gatherReferenceSection()));
+d = obj.currentDataset();
+if s.LocalReference && ~isempty(d)   % the active dataset's map, as the preview recorded it (onDetectArtifacts)
+    s.LocalReferenceMap = d.LocalReferenceMap;
+end
 end

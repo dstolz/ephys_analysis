@@ -1707,6 +1707,66 @@ if S.sec("3a0c", "Artifacts tab: marking manual periods on the plot")
     app.selectTab(app.TabProject);
 end
 
+if S.sec("3a0d", "Artifacts tab: the local reference and its window")
+    scanned();
+    app.selectDataset(1, Reset=true);
+    % Two shanks side by side: channels 1-2 and 3-4.
+    probeLR = string(fullfile(root, 'localTwoShank.json'));
+    writeJsonFile(probeLR, struct('chanMap', (0:3).', 'xc', [0; 0; 200; 200], 'yc', [0; 20; 0; 20], 'kcoords', [1; 1; 2; 2]));
+    probe0 = dA.ProbeFile;
+    dA.ProbeFile = probeLR;
+    R0 = app.Config.Reference;
+    app.refreshReferencePanel();
+    check(~app.ArtRefLocalCheckBox.Value && ~R0.Local && strcmp(app.ArtRefLocalButton.Enable, 'on') ...
+        && contains(app.ArtRefLocalLabel.Text, "no local reference assigned"), ...
+        'off by default; the panel says the active dataset has no local reference');
+    app.ArtRefLocalCheckBox.Value = true;
+    app.onArtifactControlsChanged();
+    check(app.Config.Reference.Local && dA.localReferenceOn() && contains(app.ArtRefLocalLabel.Text, "A run would stop") ...
+        && isequal(app.ArtRefLocalLabel.FontColor, [0.75 0.1 0.1]), ...
+        'Local reference first: in the config and on the datasets; with no map the panel says, in red, that a run would stop');
+    app.onPlan();
+    P = app.RunResultsTable.Data;
+    check(any(P.Step == "spikes" & P.Status == "error: local reference"), ...
+        'the plan stops on it before any step (error: local reference)');
+    app.selectTab(app.TabArtifacts);
+    app.onLocalReference();
+    dlg = app.ArtRefLocalDialog;
+    check(dlg.isOpen() && string(dlg.Fig.WindowStyle) == "modal" && isequal(dlg.Picker.BodyChannels, {[1 2], [3 4]}) ...
+        && contains(string(dlg.Fig.Name), "localTwoShank.json") && ~isempty(dlg.Problems), ...
+        'Local reference... opens the modal window on the dataset''s probe, the problems listed');
+    dlg.clickSite(2);
+    dlg.clickSite(3);
+    Mlr = struct('reference', {2, 3}, 'channels', {[1 2], [3 4]});
+    check(isequal(dlg.Map, Mlr) && isempty(dlg.Problems), 'a click on a site of each shank: one reference per shank');
+    dlg.save(false);
+    mLR = EphysDataset.readManifest(dA.manifestFile());
+    check(~dlg.isOpen() && isequal(dA.LocalReferenceMap, Mlr) && dA.LocalReferenceProbe == probeLR ...
+        && numel(mLR.local_reference.groups) == 2 && contains(app.ArtRefLocalLabel.Text, "2 from 1-2; 3 from 3-4") ...
+        && ~contains(app.ArtRefLocalLabel.Text, "would stop") && contains(app.StatusBar.Text, "saved on 1 dataset"), ...
+        'Save: the map on the dataset and in its manifest; the panel and the status bar say so');
+    check(isequal(dA.excludedChannels(), [2 3]) && contains(app.ArtRefLocalLabel.Text, "Channel(s) 2-3"), ...
+        'references on their own shanks are left out of every step, and the panel says so');
+    app.onPlan();
+    P = app.RunResultsTable.Data;
+    check(~any(P.Status == "error: local reference"), 'with a reference on every shank the plan goes on');
+    app.selectTab(app.TabArtifacts);
+    app.onLocalReference();
+    dlg = app.ArtRefLocalDialog;
+    check(isequal(dlg.Map, Mlr) && dlg.Scope == "shank", 'opened again: the saved map');
+    dlg.cancel();
+    % put back
+    dA.LocalReferenceMap = [];
+    dA.LocalReferenceProbe = "";
+    dA.ProbeFile = probe0;
+    dA.writeManifest();
+    app.applyReferenceSection(R0);
+    app.onArtifactControlsChanged();
+    check(~app.Config.Reference.Local && ~dA.localReferenceOn() && isempty(dA.excludedChannels()), ...
+        'off again: the config and the datasets');
+    app.selectTab(app.TabProject);
+end
+
 if S.sec("2z", "probe rules")
     app.ProbeRulesTable.Data = {'rec*', char(probe2); 'zz', char(probe2)};
     app.onConfigChanged();

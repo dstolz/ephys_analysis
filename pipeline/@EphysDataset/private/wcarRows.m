@@ -9,7 +9,8 @@ function X = wcarRows(obj, st, a, nWant)
 %   the read is padded by ST.pad samples on both sides (clipped to the
 %   recording) for the zero-phase high-pass of the estimation inputs.
 %   readChunkUV and readWindowUV call it for ArtifactConfig.Reference
-%   "wcar".
+%   "wcar". The local reference (applyLocalReference), when on, is
+%   subtracted from the rows read first, as prepareWCAR took it.
 %
 %   See also EphysDataset.prepareWCAR, weightedCAR.
 
@@ -35,6 +36,7 @@ if size(R, 1) ~= r1 - r0 || size(R, 2) ~= nCh
          'and %d samples (prepareWCAR(Refresh=true) works it out again).'], obj.Name, ...
         size(R, 1), size(R, 2), r0 + 1, r1, nCh, N);
 end
+R = obj.applyLocalReference(R);                  % the local reference first, as the state was worked out
 o = st.options;
 init = struct('P', st.P(:, :, k + 1), 'W', st.W(:, :, k + 1), 'NLag', st.NLag(:, k + 1));
 R = weightedCAR(R, mean(R(:, st.channels), 2), 'Order', o.Order, 'Alpha1k', o.Alpha1k, ...

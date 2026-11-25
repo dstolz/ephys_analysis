@@ -71,7 +71,7 @@ c.key = [kv("Format", fieldText(m, 'recording_format')); kv("Reader", fieldText(
     kv("Acquired", fieldText(md, 'acq_date')); kv("Files", fieldText(md, 'num_files')); ...
     kv("Manifest updated", fieldText(m, 'updated'))];
 
-c.all = flatRows(rmfieldIf(m, ["metadata" "probe" "exclude_channels" "reference_exclude" "bad_channels" ...
+c.all = flatRows(rmfieldIf(m, ["metadata" "probe" "exclude_channels" "reference_exclude" "local_reference" "bad_channels" ...
     "manual_artifacts" "artifact_adjustments" "artifacts" "bin" "processing" "kilosort" "sorting" "behavior" ...
     "variable_history"]), "");
 c.all = [["#" "recording"]; flatRows(md, ""); c.all];
@@ -99,14 +99,16 @@ end
 ex = ManifestText.text(ManifestText.field(m, 'exclude_channels', ""));
 re = ManifestText.text(ManifestText.field(m, 'reference_exclude.channels', ""));
 bad = ManifestText.text(ManifestText.field(m, 'bad_channels.channels', ""));
+lr = ManifestText.localReference(ManifestText.field(m, 'local_reference.groups', []));
 counts = [countOf(ex, "excluded"), countOf(re, "left out of the reference"), countOf(bad, "bad")];
 if any(counts ~= ""); c.lines(end+1) = joinParts(counts); end
 c.key = [kv("Excluded", ex); kv("Left out of the reference", re); kv("Bad channels", bad); ...
-    kv("Depth (µm)", fieldText(pr, 'depth_um'))];
+    kv("Local reference", lr); kv("Depth (µm)", fieldText(pr, 'depth_um'))];
 c.all = groupRows("probe", pr);
 c.all = [c.all; kv("exclude_channels", ex, true)];
 c.all = [c.all; groupRows("reference_exclude", ManifestText.field(m, 'reference_exclude', struct()))];
 c.all = [c.all; groupRows("bad_channels", ManifestText.field(m, 'bad_channels', struct()))];
+c.all = [c.all; kv("local_reference", lr, true)];
 end
 
 

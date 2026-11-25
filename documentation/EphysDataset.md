@@ -476,6 +476,8 @@ The constructor errors (`EphysDataset:NoFolder`) if the folder does not exist.
 | `Tags` | `{}` | the user's tags on the dataset, a cellstr row, unique, sorted and lowercase (`{}`, 0x0, when none); see [Tags](#tags). Saved to and restored from the manifest's `tags` array |
 | `ReferenceExclude` | `[]` | 1-based channels left out of the common reference, though still referenced (see [Common reference](#common-reference-car--cmr)). Saved to and restored from the dataset manifest |
 | `ReferenceExcludeSource` | `""` | where `ReferenceExclude` came from: `""` (never set: the first referenced read suggests it), `"suggested"` or `"manual"` |
+| `LocalReferenceMap` | none | the [local reference](#local-reference-a-channel-per-shank-or-probe): a struct array, one element per reference channel, `reference` (the channel subtracted) and `channels` (the channels it is subtracted from). Used while `ArtifactConfig.LocalReference` is on. Saved to and restored from the dataset manifest |
+| `LocalReferenceProbe` | `""` | the probe file `LocalReferenceMap` was drawn on; a run refuses a map drawn on another probe than the dataset's own |
 | `BadChannels` | `[]` | 1-based bad channels, left out of every step while `ArtifactConfig.ExcludeBadChannels` is on (see [Bad channels](#bad-channels)). Saved to and restored from the dataset manifest |
 | `BadChannelsSource` | `""` | where `BadChannels` came from: `""` (never set: the first read with `ExcludeBadChannels` on suggests them), `"suggested"` or `"manual"` |
 | `PythonExe`, `CondaEnv` | `""` | Python launch configuration |
@@ -896,7 +898,9 @@ dataset without its recording is left alone.
 
 **`ch = referenceChannels(Exclude=)`**: the channels the reference is taken over,
 which is every channel except `excludedChannels()` (`ExcludeChannels` and the
-[bad channels](#bad-channels) in force) and `ReferenceExclude`. A channel
+[bad channels](#bad-channels) in force) and `ReferenceExclude`; while the
+[local reference](#local-reference-a-channel-per-shank-or-probe) is on, only
+the channels of its groups. A channel
 left out is still referenced; it only stays out of the average. `Exclude`
 (recording channels, default none) leaves more out: `deriveSignals` passes the
 columns the Signals step lists bad, which it replaces by interpolation.
@@ -954,6 +958,82 @@ for `"wcar"` as for `"car"`; `applyReference` and `referenceTrace` refuse
 `"wcar"` (`EphysDataset:applyReference:Positional`): its weights depend on all
 the recording before the samples, so only `readChunkUV` and `readWindowUV`
 take it.
+
+### Local reference (a channel per shank or probe)
+
+With `ArtifactConfig.LocalReference` on (the pipeline config's
+`Reference.Local`), every referenced read first subtracts a **local
+reference**: for each group of `LocalReferenceMap`, the group's reference
+channel, as recorded, from every channel of the group, sample by sample.
+A group is normally a shank of the probe (one reference per shank) or the
+whole probe (one reference for every shank); the reference channel can sit on
+the shank, on another shank, or off the probe (a separate reference wire
+recorded on an amplifier channel). The common reference of
+`ArtifactConfig.Reference` (CAR, CMR or the weighted CAR) is then taken over
+the locally referenced channels and subtracted after it; with `Reference`
+`"none"` the local reference is the only one. A channel in no group (a site
+that is not connected, a channel off the probe) keeps the recording's own
+reference, so it stays out of the common average (`referenceChannels`),
+though the common reference is still subtracted from it. With the local
+reference alone, artifact detection also tests the recording as stored for
+common-mode artifacts (`CommonModeUnreferenced`), since the local reference
+cancels an artifact that a whole shank shares.
+
+```matlab
+ds.LocalReferenceMap = struct('reference', {17, 49}, 'channels', {1:32, 33:64});   % one per shank
+ds.LocalReferenceProbe = ds.ProbeFile;
+ds.ArtifactConfig.LocalReference = true;
+X = ds.readChunkUV(plan(1));   % each shank minus its reference, then the common reference
+```
+
+**`X = applyLocalReference(X)`** subtracts it (nothing while
+`LocalReference` is off). `X` holds every amplifier channel of the recording
+in recording order. The reference columns are taken before any column is
+changed, so a reference channel that is itself in another group is subtracted
+as recorded. `applyReference` calls it first, so `readChunkUV`,
+`readWindowUV`, the [streamed weighted CAR](#streamed-preparewcar) (its state
+is keyed by the map) and `deriveSignals` (for the signals `referenceSignals`
+names) all take it the same way. Each sample is referenced on its own, so
+chunk and window reads agree exactly.
+
+A reference channel in its own group becomes all zeros. **`ch =
+localReferenceZeroed()`** lists those channels, and `excludedChannels()`
+counts them as bad channels in force while `LocalReference` is on, whatever
+`ExcludeBadChannels` says: they stay out of the common reference, artifact
+detection, spike detection, the sorter's chanMap and the derived signals (the
+Signals step drops them). The recording is never changed.
+
+**`[p, notes] = localReferenceProblems(ProbeFile=, Map=)`** says, a sentence
+per problem, why the map cannot be used: no group assigned; a channel past the
+recording's channel count; a reference channel that is excluded or bad (it
+would carry its fault onto its whole group); a map drawn on another probe
+(`LocalReferenceProbe` and `ProbeFile` name different files); a channel on
+the probe, its site connected and not left out of every step, in no group
+(every shank needs a reference; the channels are named with their shank,
+`kcoords`). `notes` says what could not be checked (no readable probe).
+`ProbeFile` defaults to the dataset's own, else `LocalReferenceProbe`; `Map`
+checks a draft in place of the dataset's map. `prepareReference` calls it
+while `LocalReference` is on and stops on a problem
+(`EphysDataset:LocalReference:Problems`); `applyLocalReference` with no map
+is an error (`EphysDataset:LocalReference:NotSet`). The pipeline's plan
+stops on the same problems before any step (status `error: local
+reference`).
+
+**`M = EphysDataset.normalizeLocalReferenceMap(M)`** (static) gives a map
+its one form (also from a cell array of groups, or channels as text such as
+`"1-16"`): channels sorted, groups ordered by their first channel. A channel in
+two groups, two groups with one reference, or a group without channels is an
+error (`EphysDataset:LocalReference:Bad`); setting `LocalReferenceMap` runs
+it.
+
+`referenceInfo()` holds `local` (the map) while it is on, and its record
+(`referenceRecord`) the groups as compact lists, so the `.bin` sidecar, the
+spikes file, the derived signals' files and the manifest's processing block
+say what was subtracted; `deriveSignals` writes `info.<TYPE>.reference` as
+`"local"` or `"local+car"` (`"local+cmr"`, `"local+wcar"`). The sorting
+record notes `bin_local_reference`. Kilosort4's `do_CAR` is turned off only
+for a common reference in the `.bin`; with the local reference alone it stays
+as configured.
 
 ### Adaptive weighted CAR
 
@@ -1301,11 +1381,13 @@ serially or on a pool (`artifactRun`, which `artifactIntervals` shares).
 - **A reference some signal does not take.** `deriveSignals` leaves the LFP
   unreferenced by default, and a broad artifact that the common reference
   cancels (the same on every channel) never shows in the referenced signal the
-  detection reads. So under a reference (CAR, CMR or weighted CAR) the chunk is
+  detection reads. So under a reference (CAR, CMR, weighted CAR, or the
+  [local reference](#local-reference-a-channel-per-shank-or-probe), which
+  cancels an artifact that a whole shank shares) the chunk is
   also read as recorded and scored with the `"commonmode"` test (|mean across
   the channels that take part| above `CommonModeThreshold`, 1500 µV), and the
   two masks are combined (`CommonModeUnreferenced`, default `true`; ignored for
-  Reference `"none"` and for Method `"commonmode"`, which read it unreferenced
+  Reference `"none"` without the local reference, and for Method `"commonmode"`, which read it unreferenced
   already; the detection record in `Processing.artifacts.options` says which).
   Both options fall back to `ArtifactConfig`, so a direct call detects as the
   pipeline does.
@@ -1394,6 +1476,7 @@ the rule:
 | --- | --- | --- |
 | `Reference` | `"none"` | common reference subtracted once from every read of the recording (`deriveSignals`: from the `referenceSignals` only): `"none"`, `"car"` or `"cmr"` ([above](#common-reference-car--cmr)) |
 | `ReferenceBadLow`, `ReferenceBadHigh` | `0.3`, `2` | noise-floor band, as a multiple of the median across channels, outside which `suggestReferenceExclude` leaves a channel out of the reference, and `prepareBadChannels` marks it bad |
+| `LocalReference` | `false` | subtract the dataset's `LocalReferenceMap` before `Reference` ([local reference](#local-reference-a-channel-per-shank-or-probe)) |
 | `ExcludeBadChannels` | `false` | leave the [bad channels](#bad-channels) out of every step (`excludedChannels`) |
 | `Enabled` | `false` | `toBin` blanks, and `artifactIntervals` includes auto detections, only when true |
 | `Method` | `"rms"` | detector method |
@@ -2895,7 +2978,9 @@ is in [file-formats.md](file-formats.md#dataset-manifest).
   `ExcludeChannels`, `Tags` (`tags`; invalid ones dropped with the warning
   `EphysDataset:applyManifest:Tags`, see [Tags](#tags)),
   `ReferenceExclude` with its `ReferenceExcludeSource`
-  (`reference_exclude`), `ManualArtifacts`, `ArtifactAdjustments`
+  (`reference_exclude`), `LocalReferenceMap` with its `LocalReferenceProbe`
+  (`local_reference`; a map that cannot be read is left unset, with the
+  warning `EphysDataset:applyManifest:LocalReference`), `ManualArtifacts`, `ArtifactAdjustments`
   (`artifact_adjustments`), a manual `SortingDir`,
   `BehaviorFile`, `TrialPairing`, `Processing` and `Custom`. The probe, sorting folder and behavior
   file are restored as recorded even while they are not there (an unplugged
@@ -2938,6 +3023,7 @@ return):
 | `x`, `y` | `[1 x nChan]` the site's `xc` / `yc` in µm. `NaN` off the probe |
 | `order` | `[1 x nChan]` the channels as they sit on the probe: by shank, then from the top of the shank down (`yc` descending, as the Probe tab draws it), then left to right. Channels not on the probe come last, in recording order |
 | `shanks` | the shanks holding at least one channel, ascending |
+| `connected` | `[1 x nChan]` `true` where the channel's site is on the probe and connected (the probe's `connected` field; every site when it has none), `false` off the probe |
 
 `chanMap` values are `.bin` rows, 0-based: channel `c` (in recording order)
 sits at the site whose `chanMap` value is `c − 1`, as Kilosort4 and
@@ -3128,7 +3214,16 @@ columns is refused; and, in §12, artifact detection that does not depend on
 the chunking (the same periods for one chunk and for chunks of 2, 2.7 and 1.3
 s, also on a filtered view, with a chunk that is nearly half stimulation, a
 pulse across a chunk boundary one period), the unreferenced common-mode test,
-and stitching and padding by runs against the sample-by-sample rule.
+and stitching and padding by runs against the sample-by-sample rule; and, in
+§13, the local reference: each shank minus its own reference in chunk and
+window reads, a reference on another shank subtracted as recorded, the zeroed
+references left out of every step, local then CAR / CMR / the streamed
+weighted CAR, the problems that stop a run (no map, a shank without a
+reference, an excluded reference, another probe, a site not connected), the
+manifest round trip, the records and their text, `deriveSignals` (the LFP as
+recorded by default, `"local"` and `"local+car"`, `keepAmpChannels`, a
+reference the Signals step lists bad refused), and `configHash` and the
+artifact cache's fingerprint unchanged while it is off.
 
 [`test_WeightedCAR.m`](../pipeline/test_WeightedCAR.m) covers `weightedCAR`
 against a Kalman filter written out per channel (Order 1 and 3, both

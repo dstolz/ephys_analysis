@@ -55,6 +55,9 @@ try
     obj.ArtView.intervals = summary.intervals;
     obj.ArtView.previewed = true;
     obj.ArtView.settings = EphysDataset.normalizeArtifactConfig(d.ArtifactConfig);
+    if obj.ArtView.settings.LocalReference   % the map it read through: another one makes the preview stale
+        obj.ArtView.settings.LocalReferenceMap = d.LocalReferenceMap;
+    end
     obj.ArtViewSpinner.Value = 1;
     obj.showArtifactView("artifact");
 

@@ -143,6 +143,13 @@ if ~isempty(src) && src.Kind == "recording" && src.Reference == "pipeline"
     catch
         % the viewer's read meets the same error and shows it, as without this
     end
+    if d.localReferenceOn() && ~isempty(d.LocalReferenceMap)   % a map a run would refuse: said, since the read takes it as it is (no map: the read itself refuses)
+        p = d.localReferenceProblems(ProbeFile=EphysPipeline.resolveProbe(obj.Config.Probe, d));
+        if ~isempty(p)
+            notes(end+1) = "Local reference: a run would stop (" + strjoin(p, " ") + ...
+                "); the traces take it as assigned so far, channels without a reference as recorded.";
+        end
+    end
 end
 v.render();                       % now, not after RenderDelay
 

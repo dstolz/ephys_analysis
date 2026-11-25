@@ -227,10 +227,11 @@ givenProbe = string(probeFile);   % before the exclusions and spacing derive the
 
 % n_chan_bin and fs: opts -> .bin JSON sidecar -> dataset metadata. The
 % .bin's units per uV: ds.Scale when toBin writes it here, else the sidecar.
-[nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj, "runKilosort");
+[nChanBin, fsVal, binScale, binRef, binLocal] = resolveBinMeta(binFile, opts, obj, "runKilosort");
 if ~binGiven
     binScale = obj.binScale();   % what toBin used above
     binRef = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);   % what toBin subtracts
+    binLocal = obj.localReferenceOn();
 elseif ~isfinite(binScale) || binRef == ""
     warning('EphysDataset:runKilosort:BinMetaUnknown', ...
         ['%s has no readable sidecar recording its scale and common reference: settings.json gets no ' ...
@@ -357,6 +358,9 @@ if opts.ResultsDir == ""
     r.probe_file = givenProbe;
     r.bin_file = string(binFile);
     r.bin_reference = string(binRef);
+    if binLocal
+        r.bin_local_reference = true;   % the local reference before it (only then: the records without it stay as they were)
+    end
     r.own_reference = ~isfield(settings, 'do_CAR') || ~isequal(settings.do_CAR, false);
     r.exclude_channels = EphysDataset.formatChannelList(excludeCh);
     result.processing = r;   % Processing.sorting once the run is done (launchSorting, settleSortRun)

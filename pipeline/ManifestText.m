@@ -10,6 +10,7 @@ classdef ManifestText
 %     ManifestText.number(V)                 a number as a double (NaN for null / non-numeric)
 %     ManifestText.value(V)                  any value as one line of text
 %     ManifestText.reference(REF)            a record's common reference in words
+%     ManifestText.localReference(GROUPS)    a record's local reference in words
 %     ManifestText.sortReference(R)          the reference a sort saw, in words, and any warning
 %
 %   See also ManifestViewerApp, PipelineDiagram.manifest, EphysDataset.writeManifest.
@@ -72,7 +73,8 @@ classdef ManifestText
         end
 
         function s = reference(ref)
-            %reference  A processing record's common reference in words: the mode, the
+            %reference  A processing record's common reference in words: the local
+            %   reference subtracted first (localReference), the mode, the
             %   channels it was taken over, the weighted CAR's order and Q, and the
             %   derived signals it was subtracted from.
             mode = ManifestText.text(ManifestText.field(ref, 'mode', ""));
@@ -94,9 +96,41 @@ classdef ManifestText
                 otherwise
                     s = mode;
             end
+            loc = ManifestText.localReference(ManifestText.field(ref, 'local', []));
+            if loc ~= "" && mode == "none"
+                s = loc;
+            elseif loc ~= ""
+                s = loc + ", then " + s;
+            end
             sig = ManifestText.field(ref, 'signals', []);
-            if (iscell(sig) || isstring(sig) || ischar(sig)) && ~isempty(sig) && mode ~= "none"
+            if (iscell(sig) || isstring(sig) || ischar(sig)) && ~isempty(sig) && (mode ~= "none" || loc ~= "")
                 s = s + ", subtracted from " + strjoin(string(sig), ", ");
+            end
+        end
+
+        function s = localReference(groups)
+            %localReference  A record's local reference in words: "local reference: 17 from 1-16; 40 from 33-48"
+            %   ("" for none). GROUPS as the manifest holds them
+            %   (EphysDataset.localReferenceRecord: reference, channels as a
+            %   compact list), a struct array or a cell array of structs.
+            s = "";
+            if isempty(groups); return; end
+            if isstruct(groups); groups = num2cell(groups); end
+            if ~iscell(groups); return; end
+            parts = strings(1, 0);
+            for k = 1:numel(groups)
+                g = groups{k};
+                if ~isstruct(g); continue; end
+                r = ManifestText.field(g, 'reference', "");
+                if isnumeric(r) && isscalar(r)
+                    r = string(r);        % a channel number, as the manifest holds it
+                else
+                    r = ManifestText.text(r);
+                end
+                parts(end + 1) = r + " from " + ManifestText.text(ManifestText.field(g, 'channels', "")); %#ok<AGROW>
+            end
+            if ~isempty(parts)
+                s = "local reference: " + strjoin(parts, "; ");
             end
         end
 
@@ -112,6 +146,9 @@ classdef ManifestText
                 level = "warn"; check = "the .bin had no readable sidecar";
             else
                 s = upper(br) + " in the .bin";
+            end
+            if isequal(ManifestText.field(r, 'bin_local_reference', false), true)
+                s = "local reference" + ternary(br == "none", "", " then " + upper(br)) + " in the .bin";
             end
             if isequal(ManifestText.field(r, 'own_reference', false), true)
                 s = s + "; " + ternary(sorter == "kilosort4", "Kilosort4's do_CAR (median across channels)", ...

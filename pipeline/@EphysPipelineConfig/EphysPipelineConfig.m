@@ -356,8 +356,8 @@ classdef EphysPipelineConfig
             %   and fill settings of the Artifacts section A, and the common
             %   reference of the Reference section R (Mode, BadLow, BadHigh
             %   as Reference, ReferenceBadLow, ReferenceBadHigh; the WCAR_*
-            %   fields as ReferenceWCAR, wcarOptions), which every read of
-            %   the dataset's recording takes.
+            %   fields as ReferenceWCAR, wcarOptions; Local as LocalReference),
+            %   which every read of the dataset's recording takes.
             a = EphysPipelineConfig.normalizeSection("Artifacts", a);
             r = EphysPipelineConfig.normalizeSection("Reference", r);
             cfg = EphysDataset.defaultArtifactConfig();
@@ -368,6 +368,7 @@ classdef EphysPipelineConfig
             cfg.ReferenceBadLow  = r.BadLow;
             cfg.ReferenceBadHigh = r.BadHigh;
             cfg.ReferenceWCAR    = EphysPipelineConfig.wcarOptions(r);
+            cfg.LocalReference   = r.Local;
         end
 
         function w = wcarOptions(r)

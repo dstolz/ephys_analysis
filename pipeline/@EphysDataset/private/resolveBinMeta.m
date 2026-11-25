@@ -1,6 +1,8 @@
-function [nChanBin, fsVal, binScale, binRef] = resolveBinMeta(binFile, opts, obj, who)
+function [nChanBin, fsVal, binScale, binRef, binLocal] = resolveBinMeta(binFile, opts, obj, who)
 %resolveBinMeta  n_chan_bin, fs, units per uV and the common reference
 %   ("none" | "car" | "cmr" | "wcar"; "" = not recorded) of a .bin, from its sidecar.
+%   BINLOCAL is true when the sidecar records a local reference subtracted
+%   before it (EphysDataset.applyLocalReference).
 %   OPTS.NChanBin / OPTS.Fs (NaN = not given) win; the dataset's metadata
 %   fills what the sidecar does not say. WHO ("runKilosort",
 %   "runSpikeInterface") names the caller in the warning / error identifiers.
@@ -8,6 +10,7 @@ nChanBin = opts.NChanBin;
 fsVal    = opts.Fs;
 binScale = NaN;
 binRef   = "";
+binLocal = false;
 % Try the .bin JSON sidecar
 [d, n] = fileparts(binFile);
 sidecar = fullfile(d, [n '.json']);
@@ -21,6 +24,7 @@ if isfile(sidecar)
         end
         if isfield(meta, 'reference') && isstruct(meta.reference) && isfield(meta.reference, 'mode')
             binRef = string(meta.reference.mode);
+            binLocal = isfield(meta.reference, 'local') && ~isempty(meta.reference.local);
         end
     catch ME
         warning(['EphysDataset:' char(who) ':BadSidecar'], ...

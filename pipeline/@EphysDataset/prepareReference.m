@@ -33,8 +33,16 @@ function tf = prepareReference(obj, opts)
 %   It first settles the bad channels (prepareBadChannels), whatever the
 %   reference, so they are out of the reference and of every read's step.
 %
+%   While ArtifactConfig.LocalReference is on, whatever the reference mode,
+%   it then checks the local reference (localReferenceProblems) and stops
+%   on a problem (EphysDataset:LocalReference:Problems): no reference
+%   assigned, a shank of the probe without one, a reference channel that is
+%   excluded or bad, or a map drawn on another probe. What it could not
+%   check (no readable probe) it warns about
+%   (EphysDataset:prepareReference:LocalNotChecked).
+%
 %   See also EphysDataset.suggestReferenceExclude, EphysDataset.applyReference,
-%   EphysDataset.prepareBadChannels.
+%   EphysDataset.prepareBadChannels, EphysDataset.localReferenceProblems.
 
 arguments
     obj (1,1) EphysDataset
@@ -43,6 +51,16 @@ end
 
 tf = false;
 obj.prepareBadChannels();   % before the reference: bad channels are out of it
+if obj.localReferenceOn()
+    [problems, notes] = obj.localReferenceProblems();
+    if ~isempty(problems)
+        error('EphysDataset:LocalReference:Problems', 'The local reference of %s cannot be used. %s', ...
+            obj.Name, strjoin(problems, " "));
+    end
+    for k = 1:numel(notes)
+        warning('EphysDataset:prepareReference:LocalNotChecked', 'Local reference of %s: %s', obj.Name, notes(k));
+    end
+end
 mode = opts.Mode;
 if mode == ""
     mode = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);

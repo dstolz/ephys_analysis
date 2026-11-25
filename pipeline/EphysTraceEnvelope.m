@@ -295,7 +295,8 @@ classdef EphysTraceEnvelope < handle
             switch src.Kind
                 case "recording"
                     what = "recording";
-                    mode = src.appliedReference();
+                    [mode, ~, ~, local] = src.appliedReference();
+                    if ~isempty(local); what = what + "_local"; end
                     if mode ~= "none"; what = what + "_" + mode; end
                 case "bin"
                     what = "bin";
@@ -471,9 +472,15 @@ classdef EphysTraceEnvelope < handle
             d = src.Dataset;
             dsName = "";
             if ~isempty(d); dsName = d.Name; end
+            [refText, ~, ~, local] = src.appliedReference();
+            if ~isempty(local) && refText == "none"   % the local reference first: "local", or "local+car" and so on
+                refText = "local";
+            elseif ~isempty(local)
+                refText = "local+" + refText;
+            end
             h = struct('schema', EphysTraceEnvelope.Schema, 'fingerprint', obj.Fingerprint, ...
                 'source', struct('kind', src.Kind, 'name', src.Name, 'file', src.File, ...
-                    'dataset', dsName, 'reference', src.appliedReference(), 'units', src.Units), ...
+                    'dataset', dsName, 'reference', refText, 'units', src.Units), ...
                 'fs', src.Fs, 'nSamples', src.NumSamples, 'nChannels', src.NumChannels, ...
                 'channelNames', {cellstr(src.ChannelNames)}, 'factor', EphysTraceEnvelope.Factor, ...
                 'blocks', obj.Blocks, 'nBlocks', obj.NumBlocks, 'dtype', "single", ...

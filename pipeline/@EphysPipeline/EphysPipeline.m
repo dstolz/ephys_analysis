@@ -1178,7 +1178,8 @@ classdef EphysPipeline < handle
             %   how the periods are erased, not which they are), the channels
             %   the common reference is taken over (detection runs on the
             %   referenced signal), the channels left out (excludedChannels), the recording files and
-            %   the sample count. <Name>_artifacts.json is used while its
+            %   the sample count, and while ArtifactConfig.LocalReference is on
+            %   D's local reference map (LocalReferenceMap). <Name>_artifacts.json is used while its
             %   fingerprint is FP (artifactIntervalsFor, cachedDetection).
             %   REFERENCED is true when ACFG has a common reference. Nothing
             %   is read or written: the reference channels are D's as they
@@ -1189,14 +1190,21 @@ classdef EphysPipeline < handle
             if string(acfg.Reference) ~= "wcar"   % the weighted CAR's options decide only its own detections
                 det = rmfield(det, 'ReferenceWCAR');
             end
-            referenced = string(acfg.Reference) ~= "none";
+            if ~acfg.LocalReference   % only while on, so the fingerprints without it stay as they were
+                det = rmfield(det, 'LocalReference');
+            end
+            referenced = string(acfg.Reference) ~= "none";   % a common reference: its channels must be settled
             refCh = [];
             if referenced
                 refCh = d.referenceChannels();
             end
-            fp = string(jsonencode(struct('schema', EphysPipeline.ArtifactsSchema, 'config', det, ...
+            s = struct('schema', EphysPipeline.ArtifactsSchema, 'config', det, ...
                 'reference', refCh, 'exclude', d.excludedChannels(), 'files', cellstr(d.Files(:).'), ...
-                'nSamples', d.NumSamples)));
+                'nSamples', d.NumSamples);   % one element per file, as it always was
+            if acfg.LocalReference   % wrapped only then, so the fingerprints without it stay as they were
+                s = struct('fingerprint', {s}, 'local', {EphysDataset.localReferenceRecord(d.LocalReferenceMap)});
+            end
+            fp = string(jsonencode(s));
         end
 
         function [ok, match, iv] = cachedDetection(cfg, d)

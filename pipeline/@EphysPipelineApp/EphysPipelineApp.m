@@ -409,6 +409,10 @@ classdef EphysPipelineApp < handle
         ArtRefExcludeField  matlab.ui.control.EditField          % active dataset's channels left out of the reference
         ArtRefSuggestButton matlab.ui.control.Button
         ArtRefStatusLabel   matlab.ui.control.Label
+        ArtRefLocalCheckBox matlab.ui.control.CheckBox           % Reference.Local: the local reference first
+        ArtRefLocalButton   matlab.ui.control.Button             % Local reference...: the active dataset's map (LocalReferenceDialog)
+        ArtRefLocalLabel    matlab.ui.control.Label              % the active dataset's map in words, and what a run would say of it
+        ArtRefLocalDialog = []                                   % the open LocalReferenceDialog ([] when none)
         ArtRefWCAREstimateDropDown matlab.ui.control.DropDown    % Reference.WCAR_Estimate (Mode "wcar")
         ArtRefWCAROrderField       matlab.ui.control.NumericEditField
         ArtRefWCARAlphaField       matlab.ui.control.NumericEditField
@@ -1282,6 +1286,8 @@ classdef EphysPipelineApp < handle
         refreshReferencePanel(obj)
         onSuggestReferenceExclude(obj)
         onReferenceExcludeEdited(obj)
+        onLocalReference(obj)
+        why = saveLocalReference(obj, d, map, probeFile, ticked)
         onSuggestBadChannels(obj)
         onBadChannelsEdited(obj, scope)
         onClearManualArtifacts(obj, opts)

@@ -422,6 +422,10 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
       "changed": [<"name" | "label" | "value" | "units" | "description">, ...], "user": <string> }, ... ],
   "reference_exclude": { "channels": <compact list or "">,   left out of the common reference
                          "source": "" | "suggested" | "manual" },
+  "local_reference": { "enabled": <bool>,               Reference.Local: subtracted before the common reference
+                       "probe": <probe file it was picked on, or "">,
+                       "groups": [ { "reference": <channel>,              subtracted, as recorded,
+                                     "channels": <compact list> }, ... ] },   from these channels; [] when none
   "bad_channels": { "enabled": <bool>,                  Artifacts.ExcludeBadChannels
                     "channels": <compact list or "">,   the dataset's bad channels
                     "source": "" | "suggested" | "manual",
@@ -452,6 +456,7 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
     "sorting":   { "results_dir", "options": <settings.json, and sorter_params for a SpikeInterface sorter>,
                    "sorter", "probe_file", "bin_file",
                    "bin_reference": "none" | "car" | "cmr" | "wcar" | "",   "" = unknown
+                   "bin_local_reference": true,   only when the .bin carries the local reference first
                    "own_reference": <bool>,   the sorter's own common reference on top (Kilosort4's do_CAR)
                    "exclude_channels": <compact list> },
     "signals":   { "files": [<paths>], "options": <deriveSignals' importOptions, MatVersion, SeparateFiles>,
@@ -636,14 +641,18 @@ Schema `intan-dataset-manifest/2` (`null` where a value is `NaN`):
   the value used, `QAuto` true when it was worked out; for a detection read
   from the cache, `Q` is as configured, `"NaN"` when automatic); the
   `signals` record adds `"signals": [...]`, the derived signals it was
-  subtracted from. A sort sees the `.bin`'s reference (`bin_reference`), and
+  subtracted from. While the local reference was subtracted first
+  (`Reference.Local`), `<ref>` also holds `"local": [ { "reference",
+  "channels" }, ... ]` (as `local_reference.groups`), and `mode` is the
+  common reference that followed it (`"none"` for the local reference alone).
+  A sort sees the `.bin`'s reference (`bin_reference`), and
   Kilosort4's `do_CAR` or a SpikeInterface sorter's own only when the `.bin`
   has none (`own_reference`).
 - The pipeline writes the manifest after each detection and each output it
   writes (and so do the generated scripts and the Trials tab's **Write
   behavior .mat**); a writer called on its own leaves that to its caller.
 - `applyManifest()` restores `probe.file`, `exclude_channels`, `tags`,
-  `reference_exclude`, `manual_artifacts`, `artifact_adjustments`, a `"manual"`
+  `reference_exclude`, `local_reference`, `manual_artifacts`, `artifact_adjustments`, a `"manual"`
   `sorting.results_dir`, `behavior.file`, `behavior.pairing` and the
   `processing` records, the
   associations as recorded even while their file or folder is not there (the

@@ -91,6 +91,9 @@ end
 if ~isempty(obj.SpkNeighborsDialog) && isvalid(obj.SpkNeighborsDialog)
     delete(obj.SpkNeighborsDialog);
 end
+if ~isempty(obj.ArtRefLocalDialog) && isvalid(obj.ArtRefLocalDialog)
+    delete(obj.ArtRefLocalDialog);
+end
 if ~isempty(obj.TagDialog) && isvalid(obj.TagDialog)
     delete(obj.TagDialog);
 end

@@ -247,6 +247,9 @@ function n = referenceNode(cfg, d, L)
 %   prepareWCAR works out). What leaves it out is listed: the channels left
 %   out above (L, channelsLeftOut) and the dataset D's own Left out list
 %   (ReferenceExclude), with the count it is taken over once both are known.
+%   With Reference.Local on, the local reference comes first (a reference
+%   channel per shank or per probe, EphysDataset.applyLocalReference), and
+%   D's map is summed up.
 A = cfg.Artifacts;
 G = cfg.Signals;
 R = cfg.Reference;
@@ -256,6 +259,23 @@ switch R.Mode
     case "cmr"; n = node("op", "Common median reference", "median of the good channels, subtracted once from each", target);
     case "wcar"; n = wcarNode(R, target);
     otherwise;  n = node("off", "Common reference", "none (as recorded)", target);
+end
+if R.Local
+    localLine = "first: each shank minus its own reference channel (as recorded)";
+    if n.kind ~= "op"
+        n = node("op", "Local reference", "each shank minus its own reference channel (as recorded)", target);
+    else
+        n.title = "Local reference, then " + lower(extractBefore(n.title, 2)) + extractAfter(n.title, 1);
+        n.detail = [localLine, reshape(n.detail, 1, [])];
+    end
+    n.target = n.target + ",ArtRefLocalCheckBox,ArtRefLocalButton";
+    if ~isempty(d)
+        if isempty(d.LocalReferenceMap)
+            n.detail(end+1) = "its local reference: not set, so a run stops";
+        else
+            n.detail(end+1) = ManifestText.localReference(EphysDataset.localReferenceRecord(d.LocalReferenceMap));
+        end
+    end
 end
 types = ["LFP" "MUA" "SPIKE"];
 ticked = [G.LFP G.MUA G.SPIKE];
@@ -429,7 +449,7 @@ A = cfg.Artifacts;
 types = ["LFP" "MUA" "SPIKE" "AUX"];
 host = types(find([G.LFP G.MUA G.SPIKE G.AUX], 1));
 kids = @(type) downstreamUnder(host, type, downstream);
-stage = @(type, on) ampHead(cfg.Reference.Mode, type, on);
+stage = @(type, on) ampHead(cfg.Reference.Mode, type, on, cfg.Reference.Local);
 
 sel = strings(1, 0);
 if G.KeepChannels ~= ""; sel(end+1) = "keep " + G.KeepChannels; end
@@ -511,14 +531,19 @@ n = step("signals", "Signals", G.Enabled, "", "SigEnableCheckBox", {read});
 end
 
 
-function head = ampHead(ref, type, on)
+function head = ampHead(ref, type, on, local)
 %ampHead  The first box of an amplifier signal's branch: the signal, which
-%   says the reference it takes (ON: its <TYPE>_Reference).
+%   says the reference it takes (ON: its <TYPE>_Reference; LOCAL:
+%   Reference.Local, the local reference first).
 target = "Conv" + type + "CheckBox,SigRef" + type + "CheckBox";
+pre = "";
+if on && local; pre = "local, then "; end
 if on && ref == "wcar"
-    head = {node("stage", type, ["amplifier", "adaptive weighted CAR referenced"], target)};
+    head = {node("stage", type, ["amplifier", pre + "adaptive weighted CAR referenced"], target)};
 elseif on && ref ~= "none"
-    head = {node("stage", type, ["amplifier", "common " + upper(ref) + " referenced"], target)};
+    head = {node("stage", type, ["amplifier", pre + "common " + upper(ref) + " referenced"], target)};
+elseif on && local
+    head = {node("stage", type, ["amplifier", "local referenced (no common reference)"], target)};
 else
     head = {node("stage", type, ["amplifier", "as recorded (no common reference)"], target)};
 end

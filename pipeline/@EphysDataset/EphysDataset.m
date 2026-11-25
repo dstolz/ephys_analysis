@@ -127,6 +127,24 @@ classdef EphysDataset < handle
         % "manual".
         ReferenceExcludeSource (1,1) string {mustBeMember(ReferenceExcludeSource, ["" "suggested" "manual"])} = ""
 
+        % The local reference (ArtifactConfig.LocalReference): a struct array,
+        % one element per reference channel, with fields reference (the
+        % 1-based recording channel subtracted) and channels (the recording
+        % channels it is subtracted from, sorted). While LocalReference is on,
+        % every referenced read subtracts, sample by sample, each group's
+        % reference channel, as recorded, from the group's channels, before
+        % the common reference (applyLocalReference). No channel is in two
+        % groups. A reference channel in its own group is all zeros after
+        % it, so it is left out of every step (localReferenceZeroed,
+        % excludedChannels). Set on the Artifacts tab (Local reference...)
+        % or by hand; saved in the manifest. See LocalReferenceProbe,
+        % localReferenceProblems.
+        LocalReferenceMap struct = struct('reference', {}, 'channels', {})
+
+        % The probe file LocalReferenceMap was drawn on ("" = none): a run
+        % refuses a map drawn on another probe than the dataset's own.
+        LocalReferenceProbe (1,1) string = ""
+
         % Bad channels, 1-based like ExcludeChannels: while
         % ArtifactConfig.ExcludeBadChannels is on they are left out of
         % every step as ExcludeChannels are (excludedChannels): the common
@@ -407,6 +425,9 @@ classdef EphysDataset < handle
         summary = analyzeArtifacts(obj, opts)
         nl     = noiseLevels(obj, opts)
         X      = applyReference(obj, X)
+        X      = applyLocalReference(obj, X)
+        [p, notes] = localReferenceProblems(obj, opts)
+        ch     = localReferenceZeroed(obj)
         r      = referenceTrace(obj, X, opts)
         [bad, info] = suggestReferenceExclude(obj, opts)
         tf     = prepareReference(obj, opts)
@@ -490,6 +511,10 @@ classdef EphysDataset < handle
 
         function set.Tags(obj, v)
             obj.Tags = TagSet.require(v);
+        end
+
+        function set.LocalReferenceMap(obj, v)
+            obj.LocalReferenceMap = EphysDataset.normalizeLocalReferenceMap(v);
         end
 
         function added = setVariables(obj, s, opts)
@@ -602,11 +627,13 @@ classdef EphysDataset < handle
 
         function X = readChunkUV(obj, chunk, opts)
             %readChunkUV  One streamPlan chunk as [nSamp x nChan] double microvolts.
-            %   The reference of ArtifactConfig.Reference (CAR / CMR, see
-            %   applyReference; the weighted CAR "wcar", see prepareWCAR) is
-            %   subtracted, so every streaming consumer - the .bin, artifact
-            %   detection, noise levels, spike detection and the app's views
-            %   - sees the referenced signal.
+            %   The local reference (ArtifactConfig.LocalReference, see
+            %   applyLocalReference), then the reference of
+            %   ArtifactConfig.Reference (CAR / CMR, see applyReference; the
+            %   weighted CAR "wcar", see prepareWCAR) are subtracted, so every
+            %   streaming consumer - the .bin, artifact detection, noise
+            %   levels, spike detection and the app's views - sees the
+            %   referenced signal.
             %   readChunkUV(CHUNK, Reference=false) returns it as recorded.
             arguments
                 obj (1,1) EphysDataset
@@ -655,6 +682,11 @@ classdef EphysDataset < handle
         function mode = referenceMode(obj)
             %referenceMode  ArtifactConfig.Reference: "none" | "car" | "cmr" | "wcar".
             mode = string(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).Reference);
+        end
+
+        function tf = localReferenceOn(obj)
+            %localReferenceOn  ArtifactConfig.LocalReference: true when every referenced read subtracts LocalReferenceMap first.
+            tf = logical(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).LocalReference);
         end
 
         function tf = supportsRandomAccess(obj)
@@ -1077,6 +1109,14 @@ classdef EphysDataset < handle
                 'channels', EphysDataset.formatChannelList(obj.ReferenceExclude), ...
                 'source', obj.ReferenceExcludeSource);
 
+            % The local reference: each group's reference channel and the
+            % channels it is subtracted from (a list, [] for none), whether it
+            % is on (LocalReference), and the probe it was drawn on.
+            m.local_reference = struct( ...
+                'enabled', logical(EphysDataset.normalizeArtifactConfig(obj.ArtifactConfig).LocalReference), ...
+                'probe', obj.LocalReferenceProbe, ...
+                'groups', {EphysDataset.localReferenceRecord(obj.LocalReferenceMap)});
+
             % Bad channels: whether they are left out (ExcludeBadChannels),
             % which, where they came from ("" = never set), and the noise
             % band that suggests them.
@@ -1251,6 +1291,22 @@ classdef EphysDataset < handle
                 obj.ReferenceExclude = EphysDataset.parseChannelList(string(m.reference_exclude.channels));
                 obj.ReferenceExcludeSource = string(m.reference_exclude.source);
             end
+            if isfield(m, 'local_reference') && isstruct(m.local_reference) && isscalar(m.local_reference) ...
+                    && isfield(m.local_reference, 'groups')
+                try
+                    obj.LocalReferenceMap = EphysDataset.parseLocalReferenceRecord(m.local_reference.groups);
+                    pf = "";
+                    if isfield(m.local_reference, 'probe'); pf = string(m.local_reference.probe); end
+                    if ~isscalar(pf); pf = ""; end
+                    obj.LocalReferenceProbe = pf;
+                catch ME
+                    warning('EphysDataset:applyManifest:LocalReference', ...
+                        'Manifest of %s: the local reference cannot be read (%s); it is left unset.', ...
+                        obj.Name, ME.message);
+                    obj.LocalReferenceMap = struct('reference', {}, 'channels', {});
+                    obj.LocalReferenceProbe = "";
+                end
+            end
             if isfield(m, 'bad_channels') && isstruct(m.bad_channels) ...
                     && all(isfield(m.bad_channels, {'channels', 'source'})) ...
                     && ismember(string(m.bad_channels.source), ["" "suggested" "manual"])
@@ -1382,12 +1438,18 @@ classdef EphysDataset < handle
             %   is taken over, referenceChannels; none for "none") and, for
             %   "wcar", wcar: the weighted CAR's options with Q (the value
             %   used) and QAuto (true when it was worked out), from
-            %   prepareWCAR. What readChunkUV and readWindowUV subtract, so
-            %   what toBin's .bin and spikesToMat's detections carry.
+            %   prepareWCAR. While ArtifactConfig.LocalReference is on, also
+            %   local: the LocalReferenceMap subtracted first (absent while it
+            %   is off, so the records of the other references stay as they
+            %   were). What readChunkUV and readWindowUV subtract, so what
+            %   toBin's .bin and spikesToMat's detections carry.
             mode = obj.referenceMode();
             r = struct('mode', char(mode), 'channels', double.empty(1, 0));
             if mode ~= "none"
                 r.channels = obj.referenceChannels();
+            end
+            if obj.localReferenceOn()
+                r.local = obj.LocalReferenceMap;
             end
             if mode == "wcar"
                 st = obj.prepareWCAR();
@@ -1735,12 +1797,17 @@ classdef EphysDataset < handle
             %   options ReferenceWCAR (Order, Alpha1k, DriftPerSec, Q - NaN =
             %   automatic -, HighpassHz, Estimate). The pipeline sets them
             %   from its config's Reference section (Mode, BadLow, BadHigh,
-            %   WCAR_*; EphysPipelineConfig.artifactConfig).
+            %   WCAR_*; EphysPipelineConfig.artifactConfig). LocalReference
+            %   (Reference.Local) subtracts the dataset's LocalReferenceMap
+            %   first, a reference channel per shank or per probe
+            %   (applyLocalReference); the common reference is then taken
+            %   over the locally referenced channels.
             cfg = struct( ...
                 'Reference',    "none", ...  % "none" | "car" (mean) | "cmr" (median) | "wcar" (weighted CAR)
                 'ReferenceBadLow',  0.3, ... % x median noise: quieter channels are left out of the reference
                 'ReferenceBadHigh', 2, ...   % x median noise: noisier channels are left out of the reference
                 'ReferenceWCAR', EphysDataset.defaultWCAR(), ...  % weightedCAR options for "wcar"
+                'LocalReference', false, ... % subtract LocalReferenceMap (a channel per shank / probe) before Reference
                 'ExcludeBadChannels', false, ... % leave BadChannels (noise floor outside [ReferenceBadLow ReferenceBadHigh]) out of every step
                 'Enabled',      false, ...   % toBin blanks only when true
                 'Method',       "rms", ...   % running-RMS amplitude deviation
@@ -2471,8 +2538,104 @@ classdef EphysDataset < handle
             %detectionSettings  The fields of an ArtifactConfig that decide
             %   which periods the automatic detection finds: all but the fill
             %   (Fill, NoiseBandHz, NoiseSeed), which says how they are erased.
+            %   LocalReference only while it is on, so the settings (and the
+            %   hashes of them) of a configuration without it stay as they were;
+            %   the map itself is in the reference record (referenceInfo).
             o = EphysDataset.normalizeArtifactConfig(acfg);
             o = rmfield(o, {'Fill', 'NoiseBandHz', 'NoiseSeed'});
+            if ~o.LocalReference
+                o = rmfield(o, 'LocalReference');
+            end
+        end
+
+        function M = normalizeLocalReferenceMap(M)
+            %normalizeLocalReferenceMap  A local reference map in its one form, or an error.
+            %   M = EphysDataset.normalizeLocalReferenceMap(M): a struct array
+            %   (or a cell array of scalar structs) with fields reference and
+            %   channels, returned as a 1 x k struct array of exactly those
+            %   fields: reference a positive whole number, channels a sorted
+            %   row of distinct positive whole numbers, at least one. Groups
+            %   are sorted by their first channel. A channel in two groups,
+            %   or two groups with one reference channel, is an error
+            %   (EphysDataset:LocalReference:Bad): each channel takes one
+            %   reference, and one channel's groups are one group. [] or an
+            %   empty struct is no map.
+            empty = struct('reference', {}, 'channels', {});
+            if isempty(M)
+                M = empty;
+                return
+            end
+            if iscell(M)
+                if ~all(cellfun(@(c) isstruct(c) && isscalar(c), M))
+                    error('EphysDataset:LocalReference:Bad', 'A local reference map is a list of groups (reference, channels).');
+                end
+                M = cellfun(@(c) EphysDataset.normalizeLocalReferenceMap(c), M(:).', 'UniformOutput', false);
+                M = [empty, M{:}];
+            end
+            if ~isstruct(M) || ~all(isfield(M, {'reference', 'channels'}))
+                error('EphysDataset:LocalReference:Bad', ...
+                    'A local reference map is a struct array with fields reference and channels.');
+            end
+            out = repmat(struct('reference', 0, 'channels', zeros(1, 0)), 1, numel(M));
+            for k = 1:numel(M)
+                r = double(M(k).reference);
+                c = M(k).channels;
+                if isstring(c) || ischar(c); c = EphysDataset.parseChannelList(string(c)); end
+                c = double(c);
+                if ~(isscalar(r) && isfinite(r) && r >= 1 && r == round(r))
+                    error('EphysDataset:LocalReference:Bad', ...
+                        'Group %d: the reference must be one channel number, 1 or more.', k);
+                end
+                c = reshape(c, 1, []);
+                if isempty(c) || ~all(isfinite(c) & c >= 1 & c == round(c))
+                    error('EphysDataset:LocalReference:Bad', ...
+                        'Group %d (reference %d): its channels must be channel numbers, 1 or more, at least one.', k, r);
+                end
+                out(k).reference = r;
+                out(k).channels = unique(c);
+            end
+            if numel(unique([out.reference])) < numel(out)
+                error('EphysDataset:LocalReference:Bad', ...
+                    'Two groups have the same reference channel; make them one group.');
+            end
+            every = [out.channels];
+            [u, ~, j] = unique(every);
+            n = accumarray(j(:), 1);
+            if any(n > 1)
+                error('EphysDataset:LocalReference:Bad', ...
+                    'Channel(s) %s are in more than one group; each channel takes one reference.', ...
+                    EphysDataset.formatChannelList(reshape(u(n > 1), 1, [])));
+            end
+            first = arrayfun(@(g) g.channels(1), out);
+            [~, ord] = sort(first);
+            M = out(ord);
+        end
+
+        function G = localReferenceRecord(M)
+            %localReferenceRecord  A local reference map as the manifest gives it.
+            %   G = EphysDataset.localReferenceRecord(M): a cell row (a JSON
+            %   list, also of one; [] for none), one struct per group with the
+            %   reference channel and its channels as a compact list
+            %   (formatChannelList).
+            M = EphysDataset.normalizeLocalReferenceMap(M);
+            G = cell(1, numel(M));
+            for k = 1:numel(M)
+                G{k} = struct('reference', M(k).reference, ...
+                    'channels', EphysDataset.formatChannelList(M(k).channels));
+            end
+        end
+
+        function M = parseLocalReferenceRecord(G)
+            %parseLocalReferenceRecord  The map a manifest's local_reference.groups holds (localReferenceRecord's inverse).
+            %   jsondecode gives a struct array, a cell array (fields that
+            %   differ) or [] for none; a value that is not a valid map is an
+            %   error (EphysDataset:LocalReference:Bad).
+            if isempty(G)
+                M = struct('reference', {}, 'channels', {});
+                return
+            end
+            if isstruct(G); G = num2cell(G); end
+            M = EphysDataset.normalizeLocalReferenceMap(G);
         end
 
         function r = referenceRecord(ref)
@@ -2483,9 +2646,15 @@ classdef EphysDataset < handle
             %   derived signals it was subtracted from) and, for "wcar",
             %   wcar: Order, Alpha1k, DriftPerSec, HighpassHz, Estimate, Q
             %   (the value used) and QAuto (true when it was worked out).
+            %   When REF has local (the local reference subtracted first,
+            %   referenceInfo), local: its groups as localReferenceRecord
+            %   gives them.
             r = struct('mode', string(ref.mode), 'channels', EphysDataset.formatChannelList(ref.channels));
             if isfield(ref, 'signals')
                 r.signals = cellstr(string(ref.signals));   % a JSON list, also of one
+            end
+            if isfield(ref, 'local')
+                r.local = EphysDataset.localReferenceRecord(ref.local);
             end
             if r.mode == "wcar" && isfield(ref, 'wcar')
                 r.wcar = struct();
@@ -2552,7 +2721,7 @@ function s = editableState(obj)
 %   mergeManifest compares it with the state noted at the last read or write.
 s = struct();
 for name = ["ProbeFile" "ExcludeChannels" "Tags" "ReferenceExclude" "ReferenceExcludeSource" ...
-        "BadChannels" "BadChannelsSource" "ManualArtifacts" "ArtifactAdjustments" "SortingDir" ...
+        "LocalReferenceMap" "LocalReferenceProbe" "BadChannels" "BadChannelsSource" "ManualArtifacts" "ArtifactAdjustments" "SortingDir" ...
         "BehaviorFile" "TrialPairing" "Processing" "Custom" "Variables" "VariableHistory"]
     s.(name) = obj.(name);
 end

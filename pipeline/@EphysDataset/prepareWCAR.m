@@ -41,8 +41,11 @@ function st = prepareWCAR(obj, opts)
 %   while its fingerprint matches: the reader, the recording files (names,
 %   modified times), sample count, rate and channel count, the channels the
 %   plain CAR is taken over (referenceChannels, settled first with
-%   prepareReference), and the ReferenceWCAR options that decide the
-%   state (all but Estimate, which only picks the weights subtracted).
+%   prepareReference), the local reference while it is on
+%   (LocalReferenceMap, subtracted from every row read before the
+%   filter, applyLocalReference), and the ReferenceWCAR options that
+%   decide the state (all but Estimate, which only picks the weights
+%   subtracted).
 %
 %   Options
 %     Refresh       false (default); true works the state out again
@@ -252,14 +255,18 @@ end
 
 function key = stateKey(obj, Fs, N, nCh, def, QGiven)
 %stateKey  What the state depends on, as JSON text: the reader, the files,
-%   the sample count, rate and channel count, the reference channels and
-%   the options (DEF: weightedCAR's resolved ones) but Estimate, which only
-%   picks what is subtracted.
-key = string(jsonencode(struct('schema', "wcar-state/1", 'reader', string(obj.Reader.Kind), ...
+%   the sample count, rate and channel count, the reference channels, the
+%   local reference while it is on, and the options (DEF: weightedCAR's
+%   resolved ones) but Estimate, which only picks what is subtracted.
+s = struct('schema', "wcar-state/1", 'reader', string(obj.Reader.Kind), ...
     'files', {cellstr(obj.Files(:).')}, 'nSamples', N, 'fs', Fs, 'nChannels', nCh, ...
     'channels', obj.referenceChannels(), 'Order', def.Order, 'Alpha1k', def.Alpha1k, ...
     'DriftPerSec', def.DriftPerSec, 'HighpassHz', def.HighpassHz, 'Q', QGiven, ...
-    'W0', def.W0, 'P0', def.P0)));
+    'W0', def.W0, 'P0', def.P0);
+if obj.localReferenceOn()   % only then, so the keys of states without it stay as they were
+    s.local = EphysDataset.localReferenceRecord(obj.LocalReferenceMap);
+end
+key = string(jsonencode(s));
 end
 
 
@@ -290,8 +297,9 @@ end
 
 
 function [X, r0, b] = bufferRows(b, obj, r0, r1, nCh)
-%bufferRows  Rows [r0, r1) (0-based) as recorded, all channels, reusing
-%   those of buffer B the last call read; B is returned holding these.
+%bufferRows  Rows [r0, r1) (0-based), all channels, as recorded but for
+%   the local reference (applyLocalReference, when on), reusing those of
+%   buffer B the last call read; B is returned holding these.
 keep = [];
 if ~isempty(b.X)
     k0 = r0 - b.start;                           % first reused row of b.X (0-based)
@@ -310,6 +318,7 @@ if size(X, 1) ~= r1 - from || size(X, 2) ~= nCh
         '%s returned %d x %d for rows %d-%d (expected %d x %d).', obj.Name, ...
         size(X, 1), size(X, 2), from + 1, r1, r1 - from, nCh);
 end
+X = obj.applyLocalReference(X);   % the rows new to the buffer; those kept were taken already
 if ~isempty(keep)
     X = [keep; X];
 end

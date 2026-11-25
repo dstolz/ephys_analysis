@@ -61,6 +61,13 @@ function T = plan(obj, opts)
 %     error: unit label collision  another sorted or selected dataset has the
 %                                  same subject and recording start minute,
 %                                  so their unit labels would be the same
+%     error: local reference       Reference.Local is on and the dataset's
+%                                  local reference cannot be used (Note: why,
+%                                  EphysDataset.localReferenceProblems: a
+%                                  shank of its probe without a reference, a
+%                                  reference excluded or bad, a map drawn on
+%                                  another probe); rows of the steps that
+%                                  read the recording through it
 %     error: ...                   a setting cannot apply to this dataset
 %                                  (e.g. LFP_Fs above the recording rate)
 %     error: analysis config       the Analysis step's config cannot be
@@ -397,6 +404,26 @@ if any(readsUnits)
             T.Status(r) = "error: unit identity";
         end
         T.Note(r) = I.Message(at);
+    end
+end
+
+% With Reference.Local on, every step that reads the recording subtracts each
+% dataset's local reference first: a dataset whose map a run would refuse
+% stops the run here, before any step, not at its first read. Only the rows
+% that read through the reference: detection when it is on, the signals when
+% one of them takes the reference.
+if c.Reference.Local
+    G = c.Signals;
+    reads = startsWith(T.Status, ["ready" "exists: overwrite" "exists: will re-sort"]) & ...
+        (T.Step == "sorting" | T.Step == "spikes" | (T.Step == "artifacts" & c.Artifacts.Enabled) | ...
+        (T.Step == "signals" & any([G.LFP & G.LFP_Reference, G.MUA & G.MUA_Reference, G.SPIKE & G.SPIKE_Reference])));
+    for k = 1:numel(ds)
+        rows = reads & Idx == obj.DatasetIdx(k);
+        if ~any(rows); continue; end
+        p = ds(k).localReferenceProblems(ProbeFile=obj.probeFor(ds(k)));
+        if isempty(p); continue; end
+        T.Status(rows) = "error: local reference";
+        T.Note(rows) = strjoin(p, " ");
     end
 end
 

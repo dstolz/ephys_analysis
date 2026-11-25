@@ -35,6 +35,15 @@ function test_CommonReference()
 %        finds a broad artifact the reference cancels; stitching and padding
 %        by runs equal the sample-by-sample rule; a reference over one channel,
 %        or beyond the data's columns, is refused (section 5)
+%    13. the local reference (ArtifactConfig.LocalReference): each group's
+%        reference channel, as recorded, from its channels, before the
+%        common reference (CAR / CMR / weighted CAR over the locally
+%        referenced channels), in chunk and window reads and in
+%        deriveSignals; a reference on its own shank zeroed and left out of
+%        every step; the problems that stop a run (no map, a shank without
+%        a reference, an excluded reference, another probe); the manifest
+%        round trip; the records and texts; configHash and the artifact
+%        cache's fingerprint unchanged while it is off
 %   No Intan files or Python are needed (the derived signals need the Signal
 %   Processing Toolbox).
 %
@@ -224,13 +233,18 @@ fprintf('\n== 7. config ==\n');
 r = EphysPipelineConfig.defaults("Reference");
 a = EphysPipelineConfig.defaults("Artifacts");
 check(isequal(string(fieldnames(r)).', ["Mode" "BadLow" "BadHigh" "WCAR_Order" "WCAR_Alpha1k" "WCAR_DriftPerSec" ...
-    "WCAR_Q" "WCAR_HighpassHz" "WCAR_Estimate"]) && r.Mode == "none" && r.BadLow == 0.3 && r.BadHigh == 2 ...
+    "WCAR_Q" "WCAR_HighpassHz" "WCAR_Estimate" "Local"]) && r.Mode == "none" && r.BadLow == 0.3 && r.BadHigh == 2 ...
+    && r.Local == false ...
     && ~any(isfield(a, {'Reference', 'ReferenceBadLow', 'ReferenceBadHigh'})), ...
     'the Reference section holds the reference (defaults none, 0.3, 2); the Artifacts section does not');
 r.Mode = "cmr"; r.BadLow = 0.2; r.BadHigh = 3;
 c = EphysPipelineConfig.artifactConfig(a, r);
-check(c.Reference == "cmr" && c.ReferenceBadLow == 0.2 && c.ReferenceBadHigh == 3 && ~c.Enabled, ...
+check(c.Reference == "cmr" && c.ReferenceBadLow == 0.2 && c.ReferenceBadHigh == 3 && ~c.Enabled ...
+    && ~c.LocalReference, ...
     'artifactConfig carries the Reference section into the dataset''s ArtifactConfig');
+r.Local = true;
+check(EphysPipelineConfig.artifactConfig(a, r).LocalReference, 'Reference.Local becomes ArtifactConfig.LocalReference');
+r.Local = false;
 cfg = EphysPipelineConfig();
 cfg.Project.Root = root;
 cfg.Reference.Mode = "average";
@@ -607,6 +621,183 @@ dsM.ArtifactConfig.CommonModeThreshold = 1500;
 dsM.ArtifactConfig.Reference = "none";
 check(size(dsM.artifactIntervals(), 1) == 1, 'with no reference the same artifact is found by the main test, once');
 
+fprintf('\n== 13. local reference: a reference channel per shank ==\n');
+% Two shanks of four sites (channels 1-4 and 5-8, kcoords 0 and 1), each with
+% a large signal of its own that only a reference on that shank removes.
+rng(15);
+nL = 2 * Fs;
+tl = (0:nL-1).' / Fs;
+Xl = 5 * randn(nL, 8);
+Xl(:, 1:4) = Xl(:, 1:4) + 300 * sin(2*pi*7*tl);
+Xl(:, 5:8) = Xl(:, 5:8) + 300 * sin(2*pi*11*tl + 1);
+Xl = double(single(Xl));
+dsL = EphysDataset(writeRecording(root, 'localrec', Xl, Fs));
+probeL = string(fullfile(root, 'local_probe.json'));
+makeSyntheticProbe(8, SitesPerShank=4, File=probeL);
+dsL.ProbeFile = probeL;
+dsL.ReferenceExcludeSource = "manual";            % every channel in the common reference
+planL = dsL.streamPlan();
+readL = @() cell2mat(arrayfun(@(c) dsL.readChunkUV(c), planL(:), 'UniformOutput', false));
+M2 = struct('reference', {2, 7}, 'channels', {1:4, 5:8});
+check(~dsL.localReferenceOn() && isempty(dsL.LocalReferenceMap) && isempty(dsL.localReferenceZeroed()) ...
+    && max(abs(readL() - Xl), [], 'all') < 1e-9, 'off by default: no map, nothing zeroed, the recording as stored');
+dsL.LocalReferenceMap = M2;
+check(max(abs(readL() - Xl), [], 'all') < 1e-9 && isempty(dsL.excludedChannels()), ...
+    'a map while LocalReference is off changes nothing');
+
+Mn = EphysDataset.normalizeLocalReferenceMap({struct('reference', 7, 'channels', "8,5-7"), ...
+    struct('reference', 2, 'channels', [4 1 2 3 3])});
+check(isequal([Mn.reference], [2 7]) && isequal(Mn(1).channels, 1:4) && isequal(Mn(2).channels, 5:8) ...
+    && isequal(fieldnames(Mn), {'reference'; 'channels'}), ...
+    'normalizeLocalReferenceMap: a list, channels as text or numbers, sorted, in one form');
+ids = {errorId(@() EphysDataset.normalizeLocalReferenceMap(struct('reference', {1, 5}, 'channels', {1:4, 4:8}))), ...
+    errorId(@() EphysDataset.normalizeLocalReferenceMap(struct('reference', {1, 1}, 'channels', {1:4, 5:8}))), ...
+    errorId(@() EphysDataset.normalizeLocalReferenceMap(struct('reference', 0, 'channels', 1:4))), ...
+    errorId(@() EphysDataset.normalizeLocalReferenceMap(struct('reference', 3, 'channels', [])))};
+check(all(strcmp(ids, 'EphysDataset:LocalReference:Bad')), ...
+    'refused: a channel in two groups, two groups with one reference, channel 0, a group without channels');
+
+dsL.LocalReferenceMap = [];
+setArtifactRef(dsL, "none", true);
+check(strcmp(errorId(@() dsL.prepareReference()), 'EphysDataset:LocalReference:Problems') ...
+    && strcmp(errorId(@() dsL.readChunkUV(planL(1))), 'EphysDataset:LocalReference:NotSet'), ...
+    'on with no reference assigned: a run stops (prepareReference) and a read refuses');
+
+dsL.LocalReferenceMap = M2;
+L2 = Xl;
+L2(:, 1:4) = Xl(:, 1:4) - Xl(:, 2);
+L2(:, 5:8) = Xl(:, 5:8) - Xl(:, 7);
+Yl = readL();
+check(~dsL.prepareReference() && max(abs(Yl - L2), [], 'all') < 1e-9 && all(Yl(:, [2 7]) == 0, 'all') ...
+    && max(std(Yl(:, [1 3 4 5 6 8]))) < 10, ...
+    'one reference per shank: each shank minus its own reference, sample by sample; the shank''s signal is gone, the references are zeros');
+[exL, badL] = dsL.excludedChannels();
+check(isequal(dsL.localReferenceZeroed(), [2 7]) && isequal(exL, [2 7]) && isequal(badL, [2 7]) ...
+    && isequal(dsL.referenceChannels(), [1 3 4 5 6 8]), ...
+    'a reference on its own shank is left out of every step: excluded, a bad channel in force, out of the common reference');
+check(max(abs(dsL.readWindowUV(1234, 500) - L2(1235:1734, :)), [], 'all') < 1e-9 ...
+    && max(abs(dsL.readWindowUV(1234, 500, Reference=false) - Xl(1235:1734, :)), [], 'all') < 1e-9, ...
+    'readWindowUV takes it too; Reference=false reads as recorded');
+dsL.LocalReferenceMap = struct('reference', {5, 7}, 'channels', {1:4, 5:8});
+Lx = Xl;
+Lx(:, 1:4) = Xl(:, 1:4) - Xl(:, 5);
+Lx(:, 5:8) = Xl(:, 5:8) - Xl(:, 7);
+check(max(abs(readL() - Lx), [], 'all') < 1e-9 && isequal(dsL.localReferenceZeroed(), 7), ...
+    'a reference on another shank is subtracted as recorded (not as its own shank leaves it) and is not zeroed');
+dsL.LocalReferenceMap = M2;
+
+chL = [1 3 4 5 6 8];
+setArtifactRef(dsL, "car", true);
+check(max(abs(readL() - (L2 - mean(L2(:, chL), 2))), [], 'all') < 1e-9, ...
+    'local, then CAR: the common average is taken over the locally referenced channels, the zeros left out');
+setArtifactRef(dsL, "cmr", true);
+check(max(abs(readL() - (L2 - median(L2(:, chL), 2))), [], 'all') < 1e-9, 'local, then CMR');
+dsL.OutputDir = fullfile(root, 'localout');
+setArtifactRef(dsL, "wcar", true);
+aL = dsL.ArtifactConfig;
+aL.ReferenceWCAR.Q = 30;
+aL.ReferenceWCAR.HighpassHz = 0;
+dsL.ArtifactConfig = aL;
+stL = dsL.prepareWCAR();
+Sl = weightedCAR(L2, mean(L2(:, chL), 2), Fs=Fs, Q=30, HighpassHz=0);
+check(contains(stL.key, '"local"') && isequal(stL.channels, chL) ...
+    && max(abs(readL() - Sl), [], 'all') < 1e-9 * max(abs(L2), [], 'all'), ...
+    'local, then the weighted CAR: streamed as one run over the locally referenced recording; its state keyed by the map');
+dsL.LocalReferenceMap = struct('reference', {5, 7}, 'channels', {1:4, 5:8});
+check(dsL.prepareWCAR().key ~= stL.key, 'another map, another weighted CAR state');
+dsL.LocalReferenceMap = M2;
+
+setArtifactRef(dsL, "none", true);
+dsL.LocalReferenceMap = struct('reference', 2, 'channels', 1:4);
+pL = dsL.localReferenceProblems();
+check(isscalar(pL) && contains(pL, "5-8 (shank 1)") && strcmp(errorId(@() dsL.prepareReference()), ...
+    'EphysDataset:LocalReference:Problems'), 'a shank without a reference: named, with its channels, and a run stops');
+dsL.LocalReferenceMap = M2;
+dsL.ExcludeChannels = 7;
+pL = dsL.localReferenceProblems();
+check(isscalar(pL) && contains(pL, "Reference channel(s) 7 are excluded or bad"), 'an excluded reference is a problem');
+dsL.ExcludeChannels = zeros(1, 0);
+dsL.LocalReferenceProbe = string(fullfile(root, 'another_probe.json'));
+pL = dsL.localReferenceProblems();
+check(isscalar(pL) && contains(pL, "another_probe.json") && isempty(dsL.localReferenceProblems(Map=M2)), ...
+    'a map drawn on another probe is a problem; a draft (Map=) is checked as drawn on the probe it is checked on');
+dsL.LocalReferenceProbe = probeL;
+check(isempty(dsL.localReferenceProblems()), 'its own probe, every shank with a reference: no problem');
+pc = readJsonFile(probeL);
+pc.connected = true(8, 1);
+pc.connected(8) = false;
+probeC = string(fullfile(root, 'local_probe_connected.json'));
+writeJsonFile(probeC, pc);
+check(isempty(dsL.localReferenceProblems(ProbeFile=probeC, Map=struct('reference', {2, 7}, 'channels', {1:4, 5:7}))), ...
+    'a site that is not connected needs no reference');
+
+dsL.writeManifest();
+ml = readJsonFile(dsL.manifestFile());
+check(isfield(ml, 'local_reference') && isequal(ml.local_reference.enabled, true) ...
+    && numel(ml.local_reference.groups) == 2 && isequal(string({ml.local_reference.groups.channels}), ["1-4" "5-8"]) ...
+    && isequal([ml.local_reference.groups.reference], [2 7]), ...
+    'the manifest holds the map (compact channel lists), whether it is on, and the probe');
+dsL2 = EphysDataset(dsL.Folder);
+dsL2.applyManifest();
+check(isequal(dsL2.LocalReferenceMap, dsL.LocalReferenceMap) && dsL2.LocalReferenceProbe == probeL, ...
+    'applyManifest restores the map and its probe');
+
+setArtifactRef(dsL, "car", true);
+ri = dsL.referenceInfo();
+rr = EphysDataset.referenceRecord(ri);
+check(isequal(ri.local, dsL.LocalReferenceMap) && numel(rr.local) == 2 && rr.local{1}.reference == 2 ...
+    && rr.local{2}.channels == "5-8" ...
+    && ManifestText.reference(rr) == "local reference: 2 from 1-4; 7 from 5-8, then CAR over channels 1,3-6,8", ...
+    'referenceInfo and its record carry the map; in words: local, then CAR');
+setArtifactRef(dsL, "car", false);
+check(~isfield(dsL.referenceInfo(), 'local') && ~isfield(EphysDataset.detectionSettings(dsL.ArtifactConfig), 'LocalReference') ...
+    && isempty(dsL.excludedChannels()), 'off: no trace in the reference record, the detection settings or the exclusions');
+
+cfgL = EphysPipelineConfig();
+before = struct('Signals', cfgL.Signals, 'Reference', rmfield(cfgL.Reference, 'Local'), 'Artifacts', cfgL.Artifacts);
+check(EphysPipeline.configHash(cfgL, "signals", dsL) == EphysPipeline.configHash(before, "signals", dsL), ...
+    'configHash: a config with the local reference off hashes as one from before it existed (no output turns stale)');
+cfgL.Reference.Local = true;
+h1 = EphysPipeline.configHash(cfgL, "signals", dsL);
+dsL.LocalReferenceMap = struct('reference', {5, 7}, 'channels', {1:4, 5:8});
+h2 = EphysPipeline.configHash(cfgL, "signals", dsL);
+dsL.LocalReferenceMap = M2;
+check(h1 ~= EphysPipeline.configHash(before, "signals", dsL) && h1 ~= h2, ...
+    'on: the hash holds the dataset''s map, so another map makes the outputs stale');
+aOff = EphysPipelineConfig.artifactConfig(cfgL.Artifacts, setfield(cfgL.Reference, 'Local', false)); %#ok<SFLD>
+aOn = aOff;
+aOn.LocalReference = true;
+fpOff = EphysPipeline.artifactFingerprint(aOff, dsL);
+fpOn = EphysPipeline.artifactFingerprint(aOn, dsL);
+dOff = jsondecode(char(fpOff));
+check(~isfield(dOff(1).config, 'LocalReference') && fpOn ~= fpOff && contains(fpOn, '"local"'), ...
+    'the artifact cache''s fingerprint: as before while off, the map in it while on');
+
+if license('test', 'Signal_Toolbox')
+    nearL = @(A, B) max(abs(double(A(:)) - double(B(:)))) < 1e-2;
+    lfpL = {'dataTypeOut', "LFP", 'LFP_Fs', Fs};
+    setArtifactRef(dsL, "none", true);
+    [Yd, ~, Id] = dsL.deriveSignals(lfpL{:});
+    check(isequal(Yd.LFP, single(Xl)) && Id.LFP.reference == "none", ...
+        'deriveSignals: the LFP as recorded by default, local reference or not');
+    [Yr, ~, Ir] = dsL.deriveSignals(lfpL{:}, referenceSignals="LFP");
+    check(nearL(Yr.LFP, L2) && Ir.LFP.reference == "local" && Ir.reference.mode == "none" ...
+        && isequal(Ir.reference.local, dsL.LocalReferenceMap), ...
+        'referenceSignals LFP: each shank minus its reference; the file says "local"');
+    setArtifactRef(dsL, "car", true);
+    [Yc, ~, Ic] = dsL.deriveSignals(lfpL{:}, referenceSignals="LFP", keepAmpChannels=[6 1]);
+    Lc = L2 - mean(L2(:, chL), 2);
+    check(nearL(Yc.LFP, Lc(:, [6 1])) && Ic.LFP.reference == "local+car" && isequal(Ic.reference.channels, chL), ...
+        'local, then CAR, over every channel before keepAmpChannels picks');
+    [Ym, ~, Im] = dsL.deriveSignals('dataTypeOut', ["LFP" "SPIKE"], 'LFP_Fs', Fs, 'SPIKE_Fs', Inf);
+    [Ys, ~, ~] = dsL.deriveSignals('dataTypeOut', "SPIKE", 'SPIKE_Fs', Inf);
+    check(isequal(Ym.LFP, single(Xl)) && isequal(Ym.SPIKE, Ys.SPIKE) && Im.SPIKE.reference == "local+car" ...
+        && Im.LFP.reference == "none", ...
+        'the LFP as recorded and the SPIKE band referenced (local, then CAR) in one call: each as derived alone');
+    check(strcmp(errorId(@() dsL.deriveSignals(lfpL{:}, referenceSignals="LFP", badChannels=7)), ...
+        'EphysDataset:deriveSignals:LocalReferenceBad'), 'a reference the Signals step lists bad is refused');
+end
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_CommonReference:Failures', '%d checks failed.', nFail);
@@ -661,4 +852,13 @@ try
 catch ME
     id = ME.identifier;
 end
+end
+
+
+function setArtifactRef(ds, mode, local)
+%setArtifactRef  DS's common reference MODE and its local reference (on: LOCAL).
+a = ds.ArtifactConfig;
+a.Reference = mode;
+a.LocalReference = local;
+ds.ArtifactConfig = a;
 end

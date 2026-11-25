@@ -9,7 +9,8 @@ function h = configHash(c, step, d)
 %   Overwrite, OverwriteStale, OutputDir, Suffix, MatVersion, how a sort is
 %   run: Execution, MaxConcurrent, Devices, DryRun, SkipExisting, PythonExe,
 %   CondaEnv, BinDir) - with what else decides the result for D: the common
-%   reference, the channels left out, the artifact periods (the Artifacts
+%   reference (and, while Reference.Local is on, D's local reference map),
+%   the channels left out, the artifact periods (the Artifacts
 %   section and D's manual periods and moved bounds) when the step erases
 %   them, the probe when the step reads its geometry and, for an export,
 %   the sorted units folder and the signals it reads (their own hash).
@@ -36,7 +37,7 @@ switch key
     case "signals"
         G = without(c.Signals, ["Enabled" "Overwrite" "OverwriteStale" "OutputDir" "Suffix" "MatVersion"]);
         o.Signals = G;
-        o.Reference = c.Reference;
+        o.Reference = referencePart(c, d);
         o.Exclude = d.excludedChannels();
         if G.BlankArtifacts
             o.Artifacts = artifactPart(c, d);
@@ -44,7 +45,7 @@ switch key
     case "spikes"
         K = without(c.Spikes, ["Enabled" "Overwrite" "OverwriteStale" "OutputDir" "Suffix" "MatVersion"]);
         o.Spikes = K;
-        o.Reference = c.Reference;
+        o.Reference = referencePart(c, d);
         o.Exclude = d.excludedChannels();
         if K.ArtifactMode ~= "none"
             o.Artifacts = artifactPart(c, d);
@@ -61,7 +62,7 @@ switch key
             S.SIParams = EphysPipelineConfig.siParams(c.Sorting);   % this sorter's own
         end
         o.Sorting = S;
-        o.Reference = c.Reference;
+        o.Reference = referencePart(c, d);
         o.Exclude = d.excludedChannels();
         o.Artifacts = artifactPart(c, d);
         o.Probe = EphysPipeline.resolveProbe(c.Probe, d);
@@ -84,6 +85,20 @@ end
 function s = without(s, names)
 %without  The section S less the fields NAMES that it has.
 s = rmfield(s, intersect(fieldnames(s), cellstr(names)));
+end
+
+
+function r = referencePart(c, d)
+%referencePart  The Reference section, with D's local reference map while
+%   Reference.Local is on. Local itself is dropped while it is off, so a
+%   config without the local reference hashes as it did before Local
+%   existed (its outputs are not stale for it).
+r = c.Reference;
+if isfield(r, 'Local') && r.Local
+    r.LocalMap = EphysDataset.localReferenceRecord(d.LocalReferenceMap);
+elseif isfield(r, 'Local')
+    r = rmfield(r, 'Local');
+end
 end
 
 

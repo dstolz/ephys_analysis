@@ -62,6 +62,7 @@ switch step
         tabName = "TabArtifacts";
         switch field
             case "Mode";              target = "ArtRefDropDown";
+            case "Local";             target = "ArtRefLocalCheckBox";
             case "BadLow";            target = "ArtRefLowField";
             case "BadHigh";           target = "ArtRefHighField";
             case "WCAR_Order";        target = "ArtRefWCAROrderField";

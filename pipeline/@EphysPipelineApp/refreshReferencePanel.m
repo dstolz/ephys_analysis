@@ -6,10 +6,13 @@ function refreshReferencePanel(obj)
 %   weighted CAR's options only while it is (Q while Automatic Q is off),
 %   and shown only then. The bad-channels panel above it too: the active
 %   dataset's bad channels and where they came from; the bounds stay live
-%   while Leave out bad channels is ticked, since they suggest those.
+%   while Leave out bad channels is ticked, since they suggest those. The
+%   local reference line: the active dataset's map in words and, while
+%   Local reference first is ticked, what a run would stop on
+%   (EphysDataset.localReferenceProblems, on the probe the steps resolve).
 %
 %   See also buildArtifactsTab, onSuggestReferenceExclude, onReferenceExcludeEdited,
-%   onSuggestBadChannels, onBadChannelsEdited.
+%   onSuggestBadChannels, onBadChannelsEdited, onLocalReference.
 
 if isempty(obj.ArtRefExcludeField) || ~isvalid(obj.ArtRefExcludeField); return; end
 refreshBadChannels(obj);
@@ -31,6 +34,7 @@ end
 
 d = obj.currentDataset();
 hasData = ~isempty(d);
+refreshLocal(obj, d);
 obj.ArtRefExcludeField.Enable  = matlab.lang.OnOffSwitchState(on && hasData);
 obj.ArtRefSuggestButton.Enable = matlab.lang.OnOffSwitchState(on && hasData);
 if ~hasData
@@ -63,6 +67,45 @@ if string(obj.ArtRefDropDown.Value) == "wcar"
         "(once; kept in " + d.Name + "_wcar.mat).";
 end
 obj.ArtRefStatusLabel.Text = txt;
+end
+
+
+function refreshLocal(obj, d)
+% The local reference line for the active dataset D ([] = none).
+obj.ArtRefLocalButton.Enable = matlab.lang.OnOffSwitchState(~isempty(d));
+L = obj.ArtRefLocalLabel;
+L.FontColor = [0.4 0.4 0.4];
+if isempty(d)
+    L.Text = "";
+    return
+end
+local = logical(obj.ArtRefLocalCheckBox.Value);
+M = d.LocalReferenceMap;
+if isempty(M)
+    txt = d.Name + ": no local reference assigned.";
+else
+    txt = d.Name + ": " + ManifestText.localReference(EphysDataset.localReferenceRecord(M)) + ".";
+    own = arrayfun(@(g) ismember(g.reference, g.channels), M);
+    if any(own)
+        txt = txt + " Channel(s) " + EphysDataset.formatChannelList([M(own).reference]) + ...
+            ": a reference on its own shank, zeros and left out of every step.";
+    end
+end
+if ~local
+    if ~isempty(M); txt = txt + " Not used: Local reference first is off."; end
+    L.Text = txt;
+    return
+end
+try
+    p = d.localReferenceProblems(ProbeFile=EphysPipeline.resolveProbe(obj.Config.Probe, d));
+catch ME
+    p = "It cannot be checked: " + string(ME.message);
+end
+if ~isempty(p)
+    txt = txt + " A run would stop: " + strjoin(p, " ");
+    L.FontColor = [0.75 0.1 0.1];
+end
+L.Text = txt;
 end
 
 

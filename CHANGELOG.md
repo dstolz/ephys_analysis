@@ -41,6 +41,27 @@ says how to cut a release.
 
 ### Added
 
+- Local reference: a reference channel per shank, or one for the whole probe, subtracted before the common
+  reference. `Reference.Local` (**Local reference first** on the Artifacts tab; `ArtifactConfig.LocalReference`)
+  turns it on for the pipeline, and each dataset keeps its own map, `EphysDataset.LocalReferenceMap` (groups of
+  `reference` and `channels`) with the probe it was picked on (`LocalReferenceProbe`), in its manifest
+  (`local_reference`). Every referenced read subtracts each group's reference channel, as recorded, from the group's
+  channels, sample by sample (`applyLocalReference`), then the common reference (CAR, CMR or the weighted CAR, whose
+  state is keyed by the map) over the locally referenced channels: artifact detection, the noise fill, the sorting
+  `.bin`, spike detection, the derived signals that take the reference (`deriveSignals`; their files say `"local"`
+  or `"local+car"`, ...) and Visualize's *As the pipeline*. A reference on its own shank is zeros after it, so every
+  step leaves it out (`localReferenceZeroed`, a bad channel in force in `excludedChannels`). A run stops before any
+  step (plan status `error: local reference`; `prepareReference`, `EphysDataset:LocalReference:Problems`) while a
+  shank of the probe has no reference, a reference is excluded or bad, or the map was picked on another probe
+  (`localReferenceProblems`). **Local reference...** opens a modal window (`LocalReferenceDialog`) on the active
+  dataset's probe: click a site to make it its shank's reference, or click shanks first and then the site; or one
+  reference for the whole probe; the sites and shanks colored by their reference, the reference sites as diamonds,
+  a table to type a reference (also one off the probe), **Save** or **Save to ticked datasets** (those on the same
+  probe). The records say what was subtracted (`referenceInfo().local`, the reference record's `local`, the sorting
+  record's `bin_local_reference`), and the manifest viewer, the diagram and its manifest cards show it.
+  `configHash` and the artifact cache's fingerprint hold the map only while the local reference is on, so outputs
+  made without it do not turn stale. `ProbePicker` gains an `OnClick` hook, `paintGroups`, `outlineBodies`,
+  `BodyChannels` and `siteColors`, its selection unchanged without them; `channelLayout` gains `connected`.
 - The lab database (CarasLabDB), eleventh part: runs of figures. `EphysAnalysisRunner.run` (the analysis app's Run,
   the pipeline's Analysis step) records each run as one analysis event (`LabCapture.analysisRun`,
   `ephys_analysis/figures`): the files it read as its inputs, from a new read ledger in `DatasetOutputs` (`Reads`,

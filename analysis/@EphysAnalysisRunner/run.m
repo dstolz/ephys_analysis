@@ -57,7 +57,7 @@ function T = run(obj, opts)
 %   itself, and such a run has neither (cancel() stops a run that is
 %   recorded).
 %
-%   The run reads Config once, when it starts, and passes that config to
+%   The run reads Config once, when it starts (or takes Config=), and passes that config to
 %   every step (runDataset, runSessionFigure, batchYLimits: Config=; the
 %   report, the run record and LabCapture.analysisRun's record): Config
 %   may be set while the run goes (a ProgressFcn; EphysFigGenApp, whose
@@ -107,6 +107,12 @@ function T = run(obj, opts)
 %                     run, an entry under "Across sessions") saying it is
 %                     drawn across the sessions, not for one dataset's
 %                     observation (the app's Test report)
+%     Config          the EphysAnalysisConfig to run (default [] =
+%                     Config as the run starts): the analysis app
+%                     passes the config it gathered when Run was
+%                     pressed, so an edit that reaches Config before
+%                     the run starts (a callback can run in between)
+%                     is the next run's too; Config itself is not set
 %
 %   See also EphysAnalysisRunner.runDataset, EphysAnalysisRunner.runSessionFigure,
 %   EphysAnalysisRunner.plan, writeHtmlReport, writePdfReport.
@@ -119,9 +125,11 @@ arguments
     opts.Export = []
     opts.Report = []
     opts.Observation = []
+    opts.Config = []   % the config to run ([] = Config, read now)
 end
 
-cfg = obj.Config;   % read once: every step below takes this one, whatever Config becomes while the run goes
+cfg = opts.Config;
+if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.Config; end   % read once: every step below takes this one, whatever Config becomes while the run goes
 obj.CancelRequested = false;
 obj.RunRecordFile = "";
 obj.PagesSeen = 0;   % usePagePool: the workers start once the run has enough pages

@@ -44,7 +44,9 @@ function R = onRunExport(obj, opts)
 %   records are written), its progress and its end write nothing to the
 %   window (windowOpen), and the window closes when it has ended
 %   (CloseWhenRunEnds). A window deleted some other way during the run
-%   leaves the run going and writing its files in the same way.
+%   leaves the run going and writing its files in the same way. The runner is given
+%   the config gathered here (EphysAnalysisRunner.run Config=), so an edit
+%   whose callback runs before the run starts is the next run's too.
 arguments
     obj (1,1) EphysFigGenApp
     opts.Figures = []    % [] = the enabled figures; string.empty(1, 0) = none; else ids
@@ -114,7 +116,7 @@ closer = onCleanup(@() closeIfAsked(obj)); %#ok<NASGU> Close during the run: the
 t0 = tic;
 try
     R = r.run(Datasets=idx, Figures=opts.Figures, SessionFigures=opts.SessionFigures, ...
-        Export=opts.Export, Report=opts.Report, Observation=opts.Observation);
+        Export=opts.Export, Report=opts.Report, Observation=opts.Observation, Config=cfg);   % CFG: the config as Run was pressed, whatever reaches r.Config before the run starts
 catch ME
     obj.log("Run failed: " + string(ME.message));
     R = r.Results;   % the rows it finished: the table shows them whatever stopped it

@@ -887,6 +887,18 @@ check(isequal(rK.ReportFiles, string(fullfile(outK, "analysis_report.html"))) &&
     && string(recK.name) == "kept config" && string(recK.config.Figures(1).id) == "map" && all(string(recK.config.Export.Formats) == "png") ...
     && rK.Config.Name == "edited while it runs", ...
     'the report and the run record are the started config''s (its folder, its name, its figure and formats); Config keeps the edit for the next run');
+% run(Config=): the config given, not Config (the analysis app passes the one it gathered when Run was pressed)
+outKC = fullfile(root, 'outKeepGiven');
+cfgKC = cfgK;
+cfgKC.Export.Folder = fullfile(outKC, "{Name}");
+cfgKC.Report.Folder = outKC;
+rK.Config = edited;   % what an edit that reached Config before the run started leaves there
+RKC = rK.run(Config=cfgKC);
+wantKC = arrayfun(@(n) string(fullfile(outKC, n, n + "_map.png")), names);
+check(height(RKC) == 2 && all(RKC.Status == "done") && all(RKC.Plot == "map") && all(isfile(wantKC)) && ~isfolder(outKE) ...
+    && startsWith(rK.RunRecordFile, string(fullfile(outKC, "analysis_runs"))) && rK.Config.Name == "edited while it runs", ...
+    ['run(Config=) runs the config given, not Config (an edit that reached it before the run started): its figure, folders, ' ...
+    'formats and run record; Config is left as it was']);
 
 fprintf('\n== 12. Overwrite off with a report: the report holds the page as this run draws it, its kept files said so ==\n');
 outW = fullfile(root, 'outKeptReport');

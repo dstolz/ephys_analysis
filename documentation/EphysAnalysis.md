@@ -1988,7 +1988,10 @@ pipeline's selected datasets instead of `cfg.Source`
   `ProgressFcn`, or by the analysis app, whose window stays usable) and the
   run still draws, names, writes and records the config it started with; a
   figure renamed meanwhile is still found. The new `Config` is the next
-  run's. Each of those methods called alone reads `Config`. Likewise the
+  run's. `run(Config=cfg)` runs `cfg` instead of reading `Config` (the
+  analysis app passes the config it gathered when Run was pressed, so an
+  edit that reaches `Config` before the run starts is the next run's too).
+  Each of those methods called alone reads `Config`. Likewise the
   user's plot design and remembered plot rules (preferences, not the
   config) are taken when the run starts and every page is drawn in them, in
   this MATLAB or on a worker: a design chosen or a look remembered meanwhile

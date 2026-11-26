@@ -823,7 +823,9 @@ says how to cut a release.
   run record and the lab database's record held the last config, and a figure whose automatic id followed an edit
   stopped the run. `run` now passes its config to every step (`Config=` on `runDataset`, `runSessionFigure`,
   `batchYLimits`, `sessionFigureObservations` and `LabCapture.analysisRun`; `source`, `sessionTable` and `outputRoot`
-  take it too). In the analysis app, Run, Plan, Generate selected figure and Test report stop with an alert to press
+  take it too), and `run(Config=)` runs the config given: the analysis app passes the one it gathered when Run was
+  pressed, so an edit whose callback runs before the run starts is the next run's too. In the analysis app, Run,
+  Plan, Generate selected figure and Test report stop with an alert to press
   Scan while the datasets listed are not the scan of the source the Data tab shows (one definition of what a scan
   reads; a tick, the filter or the signals' rates and filters no longer count as a source change); the config's
   warnings (the datasets' pages getting the same file names, of which a run writes only the first) are shown at Run,

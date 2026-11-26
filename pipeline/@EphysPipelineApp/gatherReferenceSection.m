@@ -3,6 +3,7 @@ function R = gatherReferenceSection(obj)
 R = obj.Config.Reference;
 R.Mode    = string(obj.ArtRefDropDown.Value);
 R.Local   = logical(obj.ArtRefLocalCheckBox.Value);
+R.LocalAutoAssign = logical(obj.ArtRefLocalAutoCheckBox.Value);   % the probes' defaults (LocalDefault*) stay as the config has them
 R.BadLow  = obj.ArtRefLowField.Value;
 R.BadHigh = obj.ArtRefHighField.Value;
 R.WCAR_Order       = obj.ArtRefWCAROrderField.Value;

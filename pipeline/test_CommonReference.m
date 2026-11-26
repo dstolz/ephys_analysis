@@ -46,6 +46,13 @@ function test_CommonReference()
 %        cache's fingerprint unchanged while it is off; a channel in no
 %        group out of the common average; the unreferenced common-mode test
 %        under the local reference alone
+%    14. a probe's default local reference (Reference.LocalDefaultProbes /
+%        LocalDefaultMaps, LocalAutoAssign): the map's text form, the
+%        config's checks, configHash unchanged by it, the default moved
+%        onto a dataset's channels (matched by probe file name, and by
+%        hardware number when channels were disabled at acquisition),
+%        assignLocalReferenceDefaults (a dry run, the manifest, a dataset's
+%        own map kept, a reference the dataset did not record)
 %   No Intan files or Python are needed (the derived signals need the Signal
 %   Processing Toolbox).
 %
@@ -235,7 +242,8 @@ fprintf('\n== 7. config ==\n');
 r = EphysPipelineConfig.defaults("Reference");
 a = EphysPipelineConfig.defaults("Artifacts");
 check(isequal(string(fieldnames(r)).', ["Mode" "BadLow" "BadHigh" "WCAR_Order" "WCAR_Alpha1k" "WCAR_DriftPerSec" ...
-    "WCAR_Q" "WCAR_HighpassHz" "WCAR_Estimate" "Local"]) && r.Mode == "none" && r.BadLow == 0.3 && r.BadHigh == 2 ...
+    "WCAR_Q" "WCAR_HighpassHz" "WCAR_Estimate" "Local" "LocalAutoAssign" "LocalDefaultProbes" "LocalDefaultMaps"]) ...
+    && r.Mode == "none" && r.BadLow == 0.3 && r.BadHigh == 2 ...
     && r.Local == false ...
     && ~any(isfield(a, {'Reference', 'ReferenceBadLow', 'ReferenceBadHigh'})), ...
     'the Reference section holds the reference (defaults none, 0.3, 2); the Artifacts section does not');
@@ -830,6 +838,83 @@ if license('test', 'Signal_Toolbox')
         'EphysDataset:deriveSignals:LocalReferenceBad'), 'a reference the Signals step lists bad is refused');
 end
 
+fprintf('\n== 14. a probe''s default local reference ==\n');
+txt = EphysDataset.localReferenceText(M2);
+check(txt == "2: 1-4; 7: 5-8" && isequal(EphysDataset.parseLocalReferenceText(txt), M2) ...
+    && isequal(EphysDataset.parseLocalReferenceText(" 7 : 8, 5-7 ;2:1 2 3 4; "), M2) ...
+    && isempty(EphysDataset.parseLocalReferenceText("")) && EphysDataset.localReferenceText([]) == "", ...
+    'localReferenceText / parseLocalReferenceText: one line, read back, spaces and order ignored, "" for none');
+ids = {errorId(@() EphysDataset.parseLocalReferenceText("2 1-4")), ...
+    errorId(@() EphysDataset.parseLocalReferenceText("2: x")), ...
+    errorId(@() EphysDataset.parseLocalReferenceText("2: 1-4; 3: 4-8"))};
+check(all(strcmp(ids, 'EphysDataset:LocalReference:Bad')), ...
+    'refused: no colon, channels that are not numbers, a channel in two groups');
+
+cfgD = EphysPipelineConfig();
+check(~cfgD.Reference.LocalAutoAssign && isempty(cfgD.Reference.LocalDefaultProbes) && isempty(cfgD.Reference.LocalDefaultMaps), ...
+    'off by default, and no probe has a default');
+otherFolder = string(fullfile(root, 'elsewhere', 'local_probe.json'));   % the same name in another folder
+cfgD.Reference.LocalDefaultProbes = otherFolder;
+cfgD.Reference.LocalDefaultMaps = txt;
+cfgD.Reference.LocalAutoAssign = true;
+dsH0 = EphysDataset(writeRecording(root, 'localdef', Xl, Fs));
+check(EphysPipeline.configHash(cfgD, "signals", dsH0) == EphysPipeline.configHash(EphysPipelineConfig(), "signals", dsH0), ...
+    'configHash: the probes'' defaults and LocalAutoAssign leave the hash as it was (only a dataset''s own map counts)');
+I = cfgD.validate(CheckPaths=false);
+check(~any(I.Step == "reference"), 'a valid default passes validate');
+bad = cfgD;
+bad.Reference.LocalDefaultMaps = "2 1-4";
+I1 = bad.validate(CheckPaths=false);
+bad.Reference.LocalDefaultProbes = [otherFolder, otherFolder];
+bad.Reference.LocalDefaultMaps = [txt, txt];
+I2 = bad.validate(CheckPaths=false);
+bad.Reference.LocalDefaultMaps = txt;
+I3 = bad.validate(CheckPaths=false);
+I4 = cfgD.validate(CheckPaths=true);
+check(any(I1.Field == "LocalDefaultMaps" & I1.Severity == "error") ...
+    && any(I2.Field == "LocalDefaultProbes" & I2.Severity == "error" & contains(I2.Message, "twice")) ...
+    && any(I3.Field == "LocalDefaultMaps" & I3.Severity == "error" & contains(I3.Message, "one entry each")) ...
+    && any(I4.Field == "LocalDefaultProbes" & I4.Severity == "warning" & contains(I4.Message, "not found")), ...
+    'validate: a map that cannot be read, a probe given twice, lists of different lengths are errors; a missing probe file a warning');
+
+dsH0.ProbeFile = probeL;
+[Md, pfd, ~, hasD] = EphysPipeline.localReferenceDefault(dsH0, cfgD.Probe, cfgD.Reference);
+check(hasD && isequal(Md, M2) && pfd == probeL, ...
+    'localReferenceDefault: the default of the dataset''s probe, matched by file name, on its channels');
+dsN = EphysDataset(writeRecording(root, 'localnone', Xl, Fs));
+[Mn0, ~, whyN, hasN] = EphysPipeline.localReferenceDefault(dsN, cfgD.Probe, cfgD.Reference);
+check(~hasN && isempty(Mn0) && whyN == "no probe", 'no probe: no default');
+
+% Channel 6 (hardware 5) disabled at acquisition: the default lands on the rows recorded.
+dsH = EphysDataset(writeRecording(root, 'localdef7', Xl(:, [1:5 7 8]), Fs, [0 1 2 3 4 6 7]));
+dsH.ProbeFile = probeL;
+Mh = EphysPipeline.localReferenceDefault(dsH, cfgD.Probe, cfgD.Reference);
+check(isequal(Mh, struct('reference', {2, 6}, 'channels', {1:4, 5:7})), ...
+    'a recording with a channel disabled at acquisition: the default matched by hardware number, on its rows');
+% Reference 7 (hardware 6) not recorded.
+dsR = EphysDataset(writeRecording(root, 'localdefnoref', Xl(:, [1:6 8]), Fs, [0 1 2 3 4 5 7]));
+dsR.ProbeFile = probeL;
+dsOwn = EphysDataset(writeRecording(root, 'localdefown', Xl, Fs));
+dsOwn.ProbeFile = probeL;
+own = struct('reference', {3, 8}, 'channels', {1:4, 5:8});
+dsOwn.LocalReferenceMap = own;
+dsAll = [dsH0, dsN, dsH, dsR, dsOwn];
+Tdry = EphysPipeline.assignLocalReferenceDefaults(dsAll, cfgD.Probe, cfgD.Reference, DryRun=true);
+check(isequal(Tdry.Dataset.', [dsH0.Name, dsH.Name, dsR.Name]) && all(Tdry.Status(1:2) == "would assign") ...
+    && isempty(dsH0.LocalReferenceMap) && ~isfile(dsH0.manifestFile()), ...
+    'a dry run: a row per dataset without a map whose probe has a default, nothing changed or written');
+T = EphysPipeline.assignLocalReferenceDefaults(dsAll, cfgD.Probe, cfgD.Reference);
+mH = EphysDataset.readManifest(dsH0.manifestFile());
+check(isequal(T.Status(1:2).', ["assigned" "assigned"]) && all(T.Saved(1:2)) && T.Map(1) == txt ...
+    && isequal(dsH0.LocalReferenceMap, M2) && dsH0.LocalReferenceProbe == probeL && isequal(dsH.LocalReferenceMap, Mh) ...
+    && numel(mH.local_reference.groups) == 2, ...
+    'assigned: the map and its probe on the dataset and in its manifest');
+check(contains(T.Status(3), "did not record") && ~T.Saved(3) && isempty(dsR.LocalReferenceMap) ...
+    && isequal(dsOwn.LocalReferenceMap, own) && isempty(dsN.LocalReferenceMap), ...
+    'not given: a reference channel the dataset did not record (named); a dataset''s own map is kept; no probe, no row');
+T2 = EphysPipeline.assignLocalReferenceDefaults(dsAll, cfgD.Probe, cfgD.Reference);
+check(height(T2) == 1 && T2.Dataset == dsR.Name, 'a second pass: a dataset that has its map is left alone');
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_CommonReference:Failures', '%d checks failed.', nFail);
@@ -837,15 +922,19 @@ end
 end
 
 
-function recDir = writeRecording(root, name, X, Fs)
+function recDir = writeRecording(root, name, X, Fs, channelNumbers)
 %writeRecording  A universal-binary recording (float32, microvolts) of X.
+%   CHANNELNUMBERS (optional): the channels' 0-based hardware numbers, for a
+%   recording with channels disabled at acquisition.
 recDir = fullfile(root, name);
 mkdir(recDir);
 fid = fopen(fullfile(recDir, [name '.bin']), 'w', 'ieee-le');
 fwrite(fid, single(X.'), 'single');
 fclose(fid);
-BinaryReader.writeDescriptor(recDir, struct('data_file', string(name) + ".bin", 'dtype', "float32", ...
-    'n_chan', size(X, 2), 'fs', Fs, 'gain_to_uV', 1, 'offset', 0));
+d = struct('data_file', string(name) + ".bin", 'dtype', "float32", ...
+    'n_chan', size(X, 2), 'fs', Fs, 'gain_to_uV', 1, 'offset', 0);
+if nargin > 4; d.channel_numbers = channelNumbers; end
+BinaryReader.writeDescriptor(recDir, d);
 end
 
 

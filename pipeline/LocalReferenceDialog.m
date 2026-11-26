@@ -46,6 +46,12 @@ classdef LocalReferenceDialog < handle
     %                  in the Project table (TICKED true); WHY is "" when it
     %                  was saved, else the reason, shown, and the window
     %                  stays open
+    %     OnSaveDefault WHY = OnSaveDefault(MAP): Save and use for new
+    %                  datasets saves MAP on the active dataset and keeps it
+    %                  as its probe's default, which every dataset on that
+    %                  probe without a map of its own takes
+    %                  (Reference.LocalAutoAssign); WHY as for OnSave ([] =
+    %                  the button is off)
     %     Ticked       how many datasets are ticked (0: Save to ticked is off)
     %     Parent       the uifigure to center on ([] = none)
     %     Visible      false builds the window hidden (tests)
@@ -54,13 +60,14 @@ classdef LocalReferenceDialog < handle
     %   Cancel or closing it saves nothing.
     %
     %   Properties (read-only): Fig, Ctl (the controls: Intro, Scope, Table,
-    %   ClearSelection, ClearAll, Summary, Problems, Cancel, SaveTicked,
-    %   Save), Picker (the ProbePicker), Map (the pending map), Scope
+    %   ClearSelection, ClearAll, Summary, Problems, SaveDefault, Cancel,
+    %   SaveTicked, Save), Picker (the ProbePicker), Map (the pending map), Scope
     %   ("shank" | "probe"), Selected (the shanks the next site click
     %   assigns: body indices, left to right), Problems, Colors (one RGB row
     %   per reference of Map, in its order). Methods, the paths the controls
     %   take: clickSite(CH), clickShank(B), setScope(S), setReference(B, CH)
-    %   (NaN: none), clearSelection, clearAll, save(TICKED), cancel, isOpen,
+    %   (NaN: none), clearSelection, clearAll, save(TICKED), saveDefault,
+    %   cancel, isOpen,
     %   siteColors (each drawn site's fill, as ProbePicker.siteColors).
     %
     %   See also EphysDataset.applyLocalReference, EphysDataset.localReferenceProblems,
@@ -82,6 +89,7 @@ classdef LocalReferenceDialog < handle
 
     properties
         OnSave = []                                % WHY = OnSave(MAP, TICKED)
+        OnSaveDefault = []                         % WHY = OnSaveDefault(MAP)
         CheckFcn = []                              % P = CheckFcn(MAP)
     end
 
@@ -112,6 +120,7 @@ classdef LocalReferenceDialog < handle
                 opts.ProbeName (1,1) string = ""
                 opts.CheckFcn = []
                 opts.OnSave = []
+                opts.OnSaveDefault = []
                 opts.Ticked (1,1) double = 0
                 opts.Parent = []
                 opts.Visible (1,1) logical = true
@@ -121,6 +130,7 @@ classdef LocalReferenceDialog < handle
             obj.Dataset = opts.Dataset;
             obj.CheckFcn = opts.CheckFcn;
             obj.OnSave = opts.OnSave;
+            obj.OnSaveDefault = opts.OnSaveDefault;
             obj.build(opts);
             obj.load(EphysDataset.normalizeLocalReferenceMap(map));
         end
@@ -242,6 +252,17 @@ classdef LocalReferenceDialog < handle
             obj.finish();
         end
 
+        function saveDefault(obj)
+            %saveDefault  OnSaveDefault(Map): saved on the dataset and kept as its probe's default; closes when it saved, else shows why.
+            if obj.Done || isempty(obj.OnSaveDefault); return; end
+            why = string(obj.OnSaveDefault(obj.Map));
+            if why ~= ""
+                obj.showMessage(why);
+                return
+            end
+            obj.finish();
+        end
+
         function cancel(obj)
             obj.finish();
         end
@@ -306,19 +327,29 @@ classdef LocalReferenceDialog < handle
             c.Summary = uilabel(info, "Text", "", "WordWrap", "on", "FontColor", gray);
             c.Problems = uilabel(info, "Text", "", "WordWrap", "on", "FontColor", [0.75 0.1 0.1]);
 
-            fg = uigridlayout(g, [1 4], "ColumnWidth", {'1x', 90, 190, 90}, "RowHeight", {30}, "Padding", [0 0 0 0]);
+            fg = uigridlayout(g, [1 5], "ColumnWidth", {'fit', '1x', 90, 190, 90}, "RowHeight", {30}, "Padding", [0 0 0 0]);
+            probeName = "its probe";
+            if opts.ProbeName ~= ""; probeName = opts.ProbeName; end
+            c.SaveDefault = uibutton(fg, "Text", "Save and use for new datasets", ...
+                "Enable", matlab.lang.OnOffSwitchState(~isempty(opts.OnSaveDefault)), ...
+                "ButtonPushedFcn", @(~, ~) obj.saveDefault(), ...
+                "Tooltip", "Save this map on the active dataset, and keep it as the default of " + probeName + ...
+                ": every dataset on that probe without a local reference of its own takes it, on its own channels, " + ...
+                "on Scan and when a run starts (Give new datasets their probe's default, which this ticks). " + ...
+                "With no reference set, the probe's default is removed. Save the config to keep it.");
+            c.SaveDefault.Layout.Column = 1;
             c.Cancel = uibutton(fg, "Text", "Cancel", "ButtonPushedFcn", @(~, ~) obj.cancel(), ...
                 "Tooltip", "Close, saving nothing.");
-            c.Cancel.Layout.Column = 2;
+            c.Cancel.Layout.Column = 3;
             c.SaveTicked = uibutton(fg, "Text", sprintf("Save to %d ticked dataset(s)", opts.Ticked), ...
                 "Enable", matlab.lang.OnOffSwitchState(opts.Ticked > 0), "ButtonPushedFcn", @(~, ~) obj.save(true), ...
                 "Tooltip", "Save this map on every dataset ticked in the Project table that is on the same probe " + ...
                 "(the others are skipped and named), in their manifests.");
-            c.SaveTicked.Layout.Column = 3;
+            c.SaveTicked.Layout.Column = 4;
             c.Save = uibutton(fg, "Text", "Save", "ButtonPushedFcn", @(~, ~) obj.save(false), ...
                 "Tooltip", "Save this map on the active dataset, in its manifest.");
-            c.Save.Layout.Column = 4;
-            styleButton([c.Cancel, c.SaveTicked]);
+            c.Save.Layout.Column = 5;
+            styleButton([c.SaveDefault, c.Cancel, c.SaveTicked]);
             styleButton(c.Save, "confirm");
             obj.Ctl = c;
 

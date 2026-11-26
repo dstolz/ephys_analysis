@@ -4,6 +4,7 @@ function applyReferenceSection(obj, R)
 R = EphysPipelineConfig.normalizeSection("Reference", R);
 obj.setDropIfMember(obj.ArtRefDropDown, R.Mode, "Reference.Mode");
 obj.ArtRefLocalCheckBox.Value = R.Local;
+obj.ArtRefLocalAutoCheckBox.Value = R.LocalAutoAssign;
 obj.setControlValue(obj.ArtRefLowField, R.BadLow, "Reference.BadLow");
 obj.setControlValue(obj.ArtRefHighField, R.BadHigh, "Reference.BadHigh");
 obj.setDropIfMember(obj.ArtRefWCAREstimateDropDown, R.WCAR_Estimate, "Reference.WCAR_Estimate");

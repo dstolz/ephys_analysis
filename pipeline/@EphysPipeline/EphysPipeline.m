@@ -1422,6 +1422,134 @@ classdef EphysPipeline < handle
             end
         end
 
+        function [M, pf, why, has] = localReferenceDefault(d, probeSection, referenceSection)
+            %localReferenceDefault  The local reference map dataset D would take from its probe's default.
+            %   [M, PF, WHY, HAS] = EphysPipeline.localReferenceDefault(D, cfg.Probe, cfg.Reference):
+            %   PF is the probe the steps use for D (resolveProbe). HAS is
+            %   true when Reference.LocalDefaultProbes names a file of PF's
+            %   name (the folder may differ); M is then that probe's default
+            %   map (Reference.LocalDefaultMaps, on the probe's channels:
+            %   channel c is chanMap value c-1, as on a recording of every
+            %   channel) moved onto D's own channels, matched by hardware
+            %   number (EphysDataset.recordedProbe, translateLocalReferenceMap),
+            %   as Save to ticked datasets does. M is empty, and WHY says
+            %   why, when D has no probe, its probe has no default, the probe
+            %   cannot be read, the default is not a valid map, or D did not
+            %   record one of its reference channels. Whether D has a map of
+            %   its own, or Reference.LocalAutoAssign is on, is not asked.
+            %
+            %   See also assignLocalReferenceDefaults, localReferenceKey,
+            %   EphysDataset.LocalReferenceMap.
+            M = struct('reference', {}, 'channels', {});
+            why = "";
+            has = false;
+            pf = EphysPipeline.resolveProbe(probeSection, d);
+            if pf == ""
+                why = "no probe";
+                return
+            end
+            r = EphysPipelineConfig.normalizeSection("Reference", referenceSection);
+            k = [];
+            if ~isempty(r.LocalDefaultProbes)
+                k = find(lower(fileNameOf(r.LocalDefaultProbes)) == lower(fileNameOf(pf)), 1);
+            end
+            if isempty(k) || k > numel(r.LocalDefaultMaps)
+                why = "probe " + fileNameOf(pf) + " has no default local reference";
+                return
+            end
+            has = true;
+            try
+                def = EphysDataset.parseLocalReferenceText(r.LocalDefaultMaps(k));
+            catch ME
+                why = "the default local reference of probe " + fileNameOf(pf) + " cannot be read: " + string(ME.message);
+                return
+            end
+            if isempty(def)
+                why = "the default local reference of probe " + fileNameOf(pf) + " is empty";
+                return
+            end
+            probe = [];
+            if isfile(pf); probe = readJsonFile(pf, ErrorOnFail=false); end
+            if isempty(probe) || ~isstruct(probe)
+                why = "the probe " + pf + " cannot be read";
+                return
+            end
+            top = max([0, [def.reference], def.channels]);
+            [M, lost] = EphysDataset.translateLocalReferenceMap(def, 0:top - 1, ...
+                EphysPipeline.localReferenceKey(d, probe));
+            if ~isempty(lost)
+                M = struct('reference', {}, 'channels', {});
+                why = "the default local reference of probe " + fileNameOf(pf) + " has reference channel(s) " + ...
+                    EphysDataset.formatChannelList(lost) + ", which " + d.Name + " did not record";
+            end
+        end
+
+        function T = assignLocalReferenceDefaults(datasets, probeSection, referenceSection, opts)
+            %assignLocalReferenceDefaults  Give each dataset without a local reference its probe's default.
+            %   T = EphysPipeline.assignLocalReferenceDefaults(DATASETS, cfg.Probe, cfg.Reference)
+            %   sets LocalReferenceMap (and LocalReferenceProbe) on every
+            %   dataset of DATASETS that has no map of its own and whose
+            %   probe has a default (localReferenceDefault, on the
+            %   dataset's own channels), and saves its manifest. A dataset's
+            %   own map is never replaced. DryRun=true changes nothing. T
+            %   has a row per dataset without a map whose probe has a
+            %   default: Dataset, Probe, Map (localReferenceText of what it
+            %   got, or would get), Status ("assigned", "would assign" in a
+            %   dry run, or why it was not: e.g. it did not record a
+            %   reference channel), Saved (the manifest was written).
+            %   With Reference.LocalAutoAssign on, the app calls it on each
+            %   scan and the pipeline as a run starts.
+            %
+            %   See also localReferenceDefault, assignProbeRules.
+            arguments
+                datasets (1,:) EphysDataset
+                probeSection (1,1) struct
+                referenceSection (1,1) struct
+                opts.DryRun (1,1) logical = false
+            end
+            T = table('Size', [0 5], 'VariableTypes', {'string', 'string', 'string', 'string', 'logical'}, ...
+                'VariableNames', {'Dataset', 'Probe', 'Map', 'Status', 'Saved'});
+            r = EphysPipelineConfig.normalizeSection("Reference", referenceSection);
+            if isempty(r.LocalDefaultProbes); return; end
+            for d = datasets
+                if ~isempty(d.LocalReferenceMap); continue; end
+                [M, pf, why, has] = EphysPipeline.localReferenceDefault(d, probeSection, r);
+                if ~has; continue; end
+                if isempty(M)
+                    T(end+1, :) = {d.Name, pf, "", why, false}; %#ok<AGROW>
+                    continue
+                end
+                saved = false;
+                st = "would assign";
+                if ~opts.DryRun
+                    d.LocalReferenceMap = M;
+                    d.LocalReferenceProbe = pf;
+                    saved = d.writeManifest();
+                    st = "assigned";
+                end
+                T(end+1, :) = {d.Name, pf, EphysDataset.localReferenceText(M), st, saved}; %#ok<AGROW>
+            end
+        end
+
+        function key = localReferenceKey(d, probe, top)
+            %localReferenceKey  Each channel of dataset D as a chanMap value of PROBE.
+            %   KEY = EphysPipeline.localReferenceKey(D, PROBE): KEY(c) is
+            %   the chanMap value of D's channel c (EphysDataset.recordedProbe
+            %   INFO.probeChannel: its hardware number when channels were
+            %   disabled at acquisition). Without a channel count, the
+            %   channels are taken as the probe's rows: 0..TOP-1 (TOP: the
+            %   probe's site count by default). Local reference maps move
+            %   between recordings and to a probe's default through it
+            %   (EphysDataset.translateLocalReferenceMap).
+            if nargin < 3
+                top = 0;
+                if isstruct(probe) && isfield(probe, 'chanMap'); top = numel(probe.chanMap); end
+            end
+            [~, info] = d.recordedProbe(probe);
+            key = info.probeChannel;
+            if isempty(key); key = 0:top - 1; end
+        end
+
         function [st, note] = probeStatus(probe, d)
             %probeStatus  How the probe file PROBE fits dataset D, and a note.
             %   ST is "no probe", "probe file missing", "probe-channel
@@ -1537,4 +1665,11 @@ function s = autoNote(tf)
 %autoNote  ", automatic" when TF (an automatic weighted-CAR Q), else "".
 s = "";
 if tf; s = ", automatic"; end
+end
+
+
+function s = fileNameOf(f)
+%fileNameOf  A file's name and extension, without its folder ("" for "").
+[~, nm, ext] = fileparts(string(f));
+s = string(nm) + string(ext);
 end

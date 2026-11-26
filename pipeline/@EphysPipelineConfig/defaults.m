@@ -67,7 +67,10 @@ switch section
             'WCAR_Q',           w.Q, ...           % observation variance uV^2; NaN = automatic
             'WCAR_HighpassHz',  w.HighpassHz, ...  % high-pass of the estimation inputs; 0 = none
             'WCAR_Estimate',    w.Estimate, ...    % "prior" | "posterior" weights subtracted
-            'Local',            a.LocalReference); % subtract each dataset's local reference (a channel per shank or probe, its manifest) before Mode
+            'Local',            a.LocalReference, ... % subtract each dataset's local reference (a channel per shank or probe, its manifest) before Mode
+            'LocalAutoAssign',    false, ...             % a dataset without a local reference takes its probe's default (on Scan, and as a run starts)
+            'LocalDefaultProbes', string.empty(1,0), ... % the probe files that have a default local reference (matched by file name)
+            'LocalDefaultMaps',   string.empty(1,0));    % each one's map, on the probe's channels (c = chanMap value c-1): "17: 1-16; 40: 33-48"
 
     case "Behavior"
         s = struct( ...

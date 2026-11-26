@@ -188,6 +188,11 @@ classdef EphysPipelineScript
             end
             L(end+1, 1) = "    fprintf('%s: probe %s\n', d.Name, probe);";
             L(end+1, 1) = "end";
+            if cfg.Reference.LocalAutoAssign && ~isempty(cfg.Reference.LocalDefaultProbes)
+                L(end+1, 1) = "% A dataset without a local reference takes its probe's default (Reference.LocalDefaultMaps)";
+                L(end+1, 1) = "localDefaults = EphysPipeline.assignLocalReferenceDefaults(P.Datasets(idx), stepOptions.Probe, stepOptions.Reference);   % never replaces a dataset's own map; saves the manifests";
+                L(end+1, 1) = "if ~isempty(localDefaults); disp(localDefaults); end";
+            end
             L(end+1, 1) = "";
 
             % --- behavior ------------------------------------------------------------

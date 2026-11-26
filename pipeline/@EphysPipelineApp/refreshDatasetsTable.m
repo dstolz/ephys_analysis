@@ -14,14 +14,18 @@ function refreshDatasetsTable(obj, opts)
 %   keeps the datasets that hold any (or all) of the tags picked or typed,
 %   none of the "not" tags, and every search word somewhere in their name,
 %   key or tags; a typed term that is no valid tag matches nothing, and an
-%   empty filter passes every row.
+%   empty filter passes every row. The status filter under it keeps the
+%   datasets in any of the states ticked (datasetStatus: no behavior, not
+%   paired, pairing not approved, not sorted, not curated in phy, no probe);
+%   none ticked passes every row.
 %
 %   refreshDatasetsTable(Datasets=IDX) only recomputes the cells of the
 %   datasets IDX (indices into Project.Datasets) in the rows the table
 %   shows (the Kilosort4 monitor, as a run starts or ends), and their rows
 %   of the Review tab's Datasets table (refreshReviewDatasets); it rebuilds
 %   the whole table when the table does not hold those datasets' rows, or
-%   while the tag filter is on (a tag edit may show or hide a row). The
+%   while the tag or status filter is on (a tag edit, a sort or a pairing
+%   may show or hide a row). The
 %   Behavior column reads each Epsych2 session file's summary once, and
 %   again only when the file changes (EpsychMetaCache).
 %
@@ -122,6 +126,10 @@ syncTagFilterItems(obj, sets);
 [tagKeep, tagActive] = tagFilter(obj, sets, Name + " " + Key + " " + Tags);
 keep = keep & tagKeep;
 nActive = nActive + tagActive;
+% Status filter: the datasets in any ticked state; it counts as one filter.
+[statusKeep, statusActive] = statusFilter(obj, keep);
+keep = keep & statusKeep;
+nActive = nActive + statusActive;
 
 [~, loc] = ismember(shown, tokenNames);
 DatasetIdx = (1:n)';
@@ -174,10 +182,11 @@ end
 function done = refreshRows(obj, idx)
 %refreshRows  Recompute the cells of datasets IDX in the rows the table shows.
 %   False (nothing done) when the table does not hold this project's rows,
-%   or while the tag filter is on (a tag edit may show or hide a row).
+%   or while the tag or status filter is on (a change may show or hide a row).
 T = obj.DatasetsTable.Data;
 done = false;
-if isempty(obj.Project) || ~istable(T) || ~all(ismember({'Key', 'DatasetIdx'}, T.Properties.VariableNames))
+if isempty(obj.Project) || ~istable(T) || ~all(ismember({'Key', 'DatasetIdx'}, T.Properties.VariableNames)) ...
+        || ~isempty(statusTerms(obj))
     return
 end
 sets = arrayfun(@(d) d.Tags, obj.Project.Datasets, 'UniformOutput', false);
@@ -252,15 +261,79 @@ function txt = sortingCell(s)
 %   units" once phy saved a label, merge or split (phyStatus.modified), the
 %   good units counted from the labels in use (labelCounts). A folder
 %   picked on the Sorting tab adds ", manual folder".
-p = EphysDataset.phyStatus(s.results_dir);
 n = EphysDataset.labelCounts(s.results_dir);
 txt = "auto";
-if p.modified || n.source == "phy"; txt = "phy"; end
+if curatedInPhy(s.results_dir, n); txt = "phy"; end
 if isfinite(n.good)
     txt = txt + sprintf(": %d good unit", n.good);
     if n.good ~= 1; txt = txt + "s"; end
 end
 if s.source == "manual"; txt = txt + ", manual folder"; end
+end
+
+
+function tf = curatedInPhy(resultsDir, n)
+%curatedInPhy  Whether phy changed the sort in RESULTSDIR: the labels in use
+%   are phy's (labelCounts N), or a save labeled, merged or split a cluster
+%   (phyStatus.modified). The Sorting cell then reads "phy", else "auto".
+tf = n.source == "phy" || EphysDataset.phyStatus(resultsDir).modified;
+end
+
+
+function keys = statusTerms(obj)
+%statusTerms  The keys of the status filter's ticked boxes (none: the filter is off).
+keys = strings(1, 0);
+cb = obj.StatusFilterChecks;
+if isempty(cb); return; end
+cb = cb(isvalid(cb));
+cb = cb(logical([cb.Value]));
+keys = reshape(string({cb.UserData}), 1, []);
+end
+
+
+function [keep, active] = statusFilter(obj, shown)
+%statusFilter  Which datasets the status filter keeps: those in any ticked
+%   state (datasetStatus). Only the rows the other filters SHOW (n x 1) are
+%   looked at, as each look reads files; the others are kept here, hidden
+%   anyway. ACTIVE: a box is ticked.
+keep = true(numel(shown), 1);
+want = statusTerms(obj);
+active = ~isempty(want);
+if ~active; return; end
+for i = reshape(find(shown), 1, [])
+    keep(i) = any(ismember(datasetStatus(obj, obj.Project.Datasets(i)), want));
+end
+end
+
+
+function states = datasetStatus(obj, d)
+%datasetStatus  The states of dataset D the status filter tells apart, as keys:
+%   behavior   "nobehavior" no trial source (trialSource: no Epsych2 session,
+%                           or one not there now, and no TDT trial epocs)
+%              "unpaired"   a trial source, no trial pairing recorded
+%              "unapproved" a pairing recorded, not approved
+%   sorting    "unsorted"   no sorted output there (sortingStruct.exists)
+%              "uncurated"  sorted, phy has not changed it (curatedInPhy)
+%   probe      "noprobe"    no probe (EphysPipeline.resolveProbe: its own, a
+%                           rule's or the default), or its file not there
+states = strings(1, 0);
+if trialSource(d, true) == ""
+    states(end+1) = "nobehavior";
+elseif isempty(d.TrialPairing)
+    states(end+1) = "unpaired";
+elseif d.TrialPairing.status ~= "approved"
+    states(end+1) = "unapproved";
+end
+s = d.sortingStruct();
+if ~s.exists
+    states(end+1) = "unsorted";
+elseif ~curatedInPhy(s.results_dir, EphysDataset.labelCounts(s.results_dir))
+    states(end+1) = "uncurated";
+end
+f = EphysPipeline.resolveProbe(obj.Config.Probe, d);
+if f == "" || ~isfile(f)
+    states(end+1) = "noprobe";
+end
 end
 
 

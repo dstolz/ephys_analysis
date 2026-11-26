@@ -112,7 +112,7 @@ if ~isempty(failed)
     details(end + 1) = "Failed:" + newline + "  " + strjoin(failed, newline + "  ");
 end
 if ~isempty(details)
-    uialert(obj.Fig, strjoin([msg, details], newline + newline), dlgTitle, "Icon", "warning");
+    uialert(obj.Fig, strjoin([msg, details], [newline newline]), dlgTitle, "Icon", "warning");
 end
 end
 

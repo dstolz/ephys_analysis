@@ -7,7 +7,9 @@ function onLocalReference(obj)
 %   (EphysDataset.LocalReferenceMap), and lists what a run would stop on
 %   (EphysDataset.localReferenceProblems on that probe). Save keeps the map
 %   on the active dataset, Save to ticked datasets on every dataset ticked
-%   in the Project table that is on the same probe (saveLocalReference).
+%   in the Project table that is on the same probe (saveLocalReference),
+%   Save and use for new datasets keeps it on the active dataset and as
+%   the probe's default (saveLocalReferenceDefault).
 %   An open window is closed first: it belongs to the dataset it was opened on.
 %
 %   See also LocalReferenceDialog, saveLocalReference, refreshReferencePanel,
@@ -45,5 +47,6 @@ obj.ArtRefLocalDialog = LocalReferenceDialog(d.LocalReferenceMap, Probe=probe, N
     Dataset=d.Name, ProbeName=string(nm) + string(ext), ...
     CheckFcn=@(m) d.localReferenceProblems(Map=m, ProbeFile=pf), ...
     OnSave=@(m, ticked) obj.saveLocalReference(d, m, pf, ticked), ...
+    OnSaveDefault=@(m) obj.saveLocalReferenceDefault(d, m, pf), ...
     Ticked=numel(obj.tickedDatasetIndices()), Parent=obj.Fig);
 end

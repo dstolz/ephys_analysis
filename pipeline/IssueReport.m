@@ -56,7 +56,7 @@ classdef IssueReport
             if strlength(url) <= maxURL; return; end
 
             truncated = true;
-            note = newline + newline + "_The report was too long for the address bar and was cut here. " + ...
+            note = string(newline) + newline + "_The report was too long for the address bar and was cut here. " + ...
                 "The whole report is on the clipboard: paste it in place of this line._";
             chars = char(body);
             % Start from what the overrun says will fit, then shrink until it does.

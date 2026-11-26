@@ -697,7 +697,7 @@ which holds `H64LP_4x16.json` as a starting point.
   "Acquisition": { "OpenEphys": { "Recordings", "RecordNode", "Stream" }, "TDT": { "Stream", "GainToMicrovolts" } },
   "Parallel":  { "Enabled", "MaxWorkers" },
   "Probe":     { "DefaultProbeFile", "WriteDefaultToManifest", "AutoAssign", "RuleSubjects", "RuleProbes" },
-  "Reference": { "Mode", "BadLow", "BadHigh" },
+  "Reference": { "Mode", "BadLow", "BadHigh", "WCAR_...", "Local", "LocalAutoAssign", "LocalDefaultProbes", "LocalDefaultMaps" },
   "Behavior":  { "Enabled", "Search", "SearchDirs", "Match", "MaxStartOffsetMin", "Overwrite", "WriteFile",
                  "PairTrials", "AutoApprove", "TrialLine",
                  "DerivedEvents": [ { "Name", "Line", "Conditions", "Combine", "InDataset" }, ... ] },

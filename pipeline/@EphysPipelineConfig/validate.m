@@ -117,6 +117,40 @@ if ~(R.BadLow >= 0 && R.BadHigh > R.BadLow)
     add("reference", "BadLow", "error", ...
         "The reference noise bounds must satisfy 0 <= BadLow < BadHigh.");
 end
+% The probes' default local references (LocalDefaultProbes / LocalDefaultMaps):
+% a map per probe, each one readable, one per probe file name.
+if numel(R.LocalDefaultProbes) ~= numel(R.LocalDefaultMaps)
+    add("reference", "LocalDefaultMaps", "error", ...
+        "LocalDefaultProbes and LocalDefaultMaps must have one entry each per probe.");
+else
+    [~, nm, ext] = fileparts(R.LocalDefaultProbes);
+    names = lower(string(nm) + string(ext));
+    for k = 1:numel(R.LocalDefaultProbes)
+        what = "The default local reference of probe " + names(k);
+        if strtrim(R.LocalDefaultProbes(k)) == ""
+            add("reference", "LocalDefaultProbes", "error", sprintf("Default local reference %d names no probe file.", k));
+            continue
+        end
+        if any(names(1:k-1) == names(k))
+            add("reference", "LocalDefaultProbes", "error", what + " is given twice; keep one.");
+        end
+        try
+            if isempty(EphysDataset.parseLocalReferenceText(R.LocalDefaultMaps(k)))
+                add("reference", "LocalDefaultMaps", "error", what + " is empty.");
+            end
+        catch ME
+            add("reference", "LocalDefaultMaps", "error", what + ": " + string(ME.message));
+        end
+        if opts.CheckPaths && ~isfile(R.LocalDefaultProbes(k))
+            add("reference", "LocalDefaultProbes", "warning", "Probe file not found: " + R.LocalDefaultProbes(k) + ...
+                " (its default local reference still applies to datasets on a probe file of that name).");
+        end
+    end
+end
+if R.LocalAutoAssign && isempty(R.LocalDefaultProbes)
+    add("reference", "LocalAutoAssign", "warning", ...
+        "LocalAutoAssign is on but no probe has a default local reference; no dataset is given one.");
+end
 if R.Mode == "wcar"   % the weighted CAR's options (weightedCAR's checks)
     if ~(R.WCAR_Order >= 1 && R.WCAR_Order <= 16 && R.WCAR_Order == round(R.WCAR_Order))
         add("reference", "WCAR_Order", "error", "WCAR_Order must be an integer in 1..16.");

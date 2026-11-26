@@ -50,7 +50,7 @@ returns the defaults and is the single source of truth for field names.
 | `Acquisition` | – | reader options, see [Acquisition](#acquisition): `OpenEphys.Recordings` (`"concatenate"`), `OpenEphys.RecordNode` (`""`), `OpenEphys.Stream` (`""`), `OpenEphys.EventStream` (`""`), `TDT.Stream` (`""`), `TDT.GainToMicrovolts` (`NaN`) |
 | `Parallel` | – | `Enabled` (run the chunks of the artifacts and spike-detection steps on a process pool), `MaxWorkers` (`NaN` = automatic; always capped by free memory); see [Parallel execution](#parallel-execution) |
 | `Probe` | `probe` (always runs) | `DefaultProbeFile` (used for datasets without a probe of their own: for sorting, to place the derived signals' bad channels, and for the app's Artifacts lanes), `WriteDefaultToManifest` (`true`: also assign it to them and save it to their manifests), `AutoAssign` with `RuleSubjects` / `RuleProbes` (probe rules: the first subject pattern matching a dataset's `SubjectID` gives it that probe file; with `AutoAssign` the probe check assigns it and saves it to the manifest, before the default is used) |
-| `Reference` | – | the common reference, a setting for every step that reads the recording: `Mode` (`"none"`, `"car"`, `"cmr"` or `"wcar"`, the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car) of Khorasani et al. 2019: subtracted once from each read of the recording: artifact detection, the noise level of the artifact fill, the sorting `.bin` (Kilosort4's own `do_CAR`, or a SpikeInterface sorter's own common reference, is then off), spike detection, the derived signals of `Signals.<TYPE>_Reference` and the app's Visualize *As the pipeline*), `BadLow`, `BadHigh` (0.3 and 2: the noise band, as a multiple of the median, outside which a channel is suggested to stay out of the reference), and the weighted CAR's parameters `WCAR_Order` (1, an integer in 1-16), `WCAR_Alpha1k` (1, in (0, 1]), `WCAR_DriftPerSec` (1, > 0), `WCAR_Q` (`NaN` = automatic, else > 0 µV²), `WCAR_HighpassHz` (0.5, >= 0) and `WCAR_Estimate` (`"prior"` or `"posterior"`). Carried onto every dataset's `ArtifactConfig` as `Reference`, `ReferenceBadLow`, `ReferenceBadHigh` and `ReferenceWCAR` (`artifactConfig(A, R)`; `wcarOptions(R)` maps the `WCAR_*` fields). With `"wcar"`, each dataset's weighted-CAR state is worked out once, before the first step that streams the recording (`EphysDataset.prepareWCAR`: one pass over every channel, about 8 s per channel-hour at 30 kHz, and a pass before it for an automatic `Q`), and kept in `<Name>_wcar.mat` |
+| `Reference` | – | the common reference, a setting for every step that reads the recording: `Mode` (`"none"`, `"car"`, `"cmr"` or `"wcar"`, the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car) of Khorasani et al. 2019: subtracted once from each read of the recording: artifact detection, the noise level of the artifact fill, the sorting `.bin` (Kilosort4's own `do_CAR`, or a SpikeInterface sorter's own common reference, is then off), spike detection, the derived signals of `Signals.<TYPE>_Reference` and the app's Visualize *As the pipeline*), `BadLow`, `BadHigh` (0.3 and 2: the noise band, as a multiple of the median, outside which a channel is suggested to stay out of the reference), and the weighted CAR's parameters `WCAR_Order` (1, an integer in 1-16), `WCAR_Alpha1k` (1, in (0, 1]), `WCAR_DriftPerSec` (1, > 0), `WCAR_Q` (`NaN` = automatic, else > 0 µV²), `WCAR_HighpassHz` (0.5, >= 0) and `WCAR_Estimate` (`"prior"` or `"posterior"`). Carried onto every dataset's `ArtifactConfig` as `Reference`, `ReferenceBadLow`, `ReferenceBadHigh` and `ReferenceWCAR` (`artifactConfig(A, R)`; `wcarOptions(R)` maps the `WCAR_*` fields). With `"wcar"`, each dataset's weighted-CAR state is worked out once, before the first step that streams the recording (`EphysDataset.prepareWCAR`: one pass over every channel, about 8 s per channel-hour at 30 kHz, and a pass before it for an automatic `Q`), and kept in `<Name>_wcar.mat`. `Local` (`false`: subtract each dataset's [local reference](EphysDataset.md#local-reference-a-channel-per-shank-or-probe), its `LocalReferenceMap`, before `Mode`; carried as `ArtifactConfig.LocalReference`), `LocalAutoAssign` (`false`: a dataset without a local reference of its own takes its probe's default, see [A probe's default local reference](#a-probes-default-local-reference)), `LocalDefaultProbes` / `LocalDefaultMaps` (one entry each per probe: the probe file, matched by its name, and its default map as one line, `"17: 1-16; 40: 33-48"`, on the probe's channels) |
 | `Behavior` | `behavior` | `Enabled`, `Search` (`true`; `false`: no search or matching, only the sessions already associated), `SearchDirs`, `Match` (`"prefix"`, `"time"`, `"prefix-then-time"`), `MaxStartOffsetMin` (30), `Overwrite`, `WriteFile` (`true`: write `<Name>_behavior.mat` for every associated dataset), `PairTrials` (`true`), `AutoApprove` (`false`: approve a pairing whose trial and interval counts match without cuts), `TrialLine` (`"InTrial"`), `DerivedEvents` (none: new lines from a line's intervals in the trials that meet conditions, see [Derived events](#derived-events)) |
 | `Artifacts` | `artifacts` | `Enabled` (automatic detection; manual periods always apply), `ExcludeBadChannels` (`false`: leave each dataset's [bad channels](EphysDataset.md#bad-channels), a noise floor outside `Reference.BadLow` / `BadHigh`, out of every step, the Signals step and so the exports included; carried onto the datasets' `ArtifactConfig`), `Method`, `Threshold`, `RmsWindowMs`, `MergeGapMs`, `MinChannels`, `PadMs`, `Filter`, `FilterType`, `FilterCutoff` (a scalar, or `[lo hi]` for a band-pass), `FilterOrder`, `CommonModeUnreferenced` (`true`: under a common or a local reference the automatic detection also flags the samples where the unreferenced recording's mean across the channels that take part exceeds `CommonModeThreshold`, and combines the two, since the reference removes a broad artifact only from the signals that take it), `CommonModeThreshold` (`1500` µV; must be positive; both are part of the artifact cache's fingerprint, so a changed value detects again), `Fill` (`"noise"` or `"zero"`: what replaces the artifact samples), `NoiseBandHz`, `NoiseSeed`, `ApplyToSorting`, `ApplyToSpikes`, `ApplyToSignals` (whether the automatic detections reach those steps; manual periods always do), `CacheIntervals` |
 | `Sorting` | `sorting` | `Enabled`, `Sorter` (`"kilosort4"`, the default: Kilosort4 with the `KS4` settings below; or the name of a SpikeInterface sorter such as `"spykingcircus2"` or `"tridesclous2"`, run with `runSpikeInterface` into `si_<sorter>/`, see [Running a SpikeInterface sorter](EphysDataset.md#running-a-spikeinterface-sorter); every dataset's sorted output follows it), `SIParams` (per SpikeInterface sorter, `SIParams.<sorter>`: its parameters as JSON text, merged over SpikeInterface's defaults; `""` or missing = the defaults; `siParams(S)` reads the sorter's), `PythonExe`, `CondaEnv`, `Execution` (`"background"` or `"blocking"`), `MaxConcurrent` (background runs at once, default 1; see [Background Kilosort4 runs](#background-kilosort4-runs)), `Devices` (torch devices shared out among the runs, e.g. `["cuda:0" "cuda:1"]`; empty = Kilosort4's choice), `DryRun`, `SkipExisting` (`true`: a dataset already sorted is skipped, since a re-sort takes hours and sets the earlier sort's curation aside; turn it off to sort again), `BinDir` (the folder the sorting `.bin` and its sidecar are written to, `<BinDir>/<Name>.bin`, apart from the other outputs; `""`, the default, = the dataset's output folder), `KS4` (one typed field per `kilosortParamSpec` entry), `KS4ExtraJSON`; `Quality`: good-unit criteria on the units' quality metrics ([`unitQualityCriteria`](../pipeline/unitQualityCriteria.m): `isiViolationsRatioMax` 0.5, `presenceRatioMin` 0.9, `amplitudeCutoffMax` 0.1, the rest off), which the app's Review tab and QC report apply ([Unit quality metrics](EphysDataset.md#unit-quality-metrics)) |
@@ -521,6 +521,9 @@ none); `T = EphysPipeline.assignProbeRules(datasets, subjects, probes)` sets
 `ProbeFile` on the datasets without one that match a rule and saves their
 manifests (`Overwrite=true` also replaces a dataset's own probe, `DryRun=true`
 changes nothing; a rule whose probe file is missing is skipped);
+`[M, pf, why, has] = EphysPipeline.localReferenceDefault(d, cfg.Probe, cfg.Reference)`
+and `T = EphysPipeline.assignLocalReferenceDefaults(datasets, cfg.Probe, cfg.Reference)`
+give a probe's default local reference to datasets (see below);
 `[st, note] = EphysPipeline.probeStatus(probe, d)` how that probe fits the
 dataset (`ok`, `no probe`, `probe file missing`, `probe-channel mismatch`);
 `run = pipe.activeRun(d)` a Kilosort4 run of the dataset in `PriorRuns` or
@@ -528,6 +531,46 @@ dataset (`ok`, `no probe`, `probe file missing`, `probe-channel mismatch`);
 `f = pipe.exportExtractFiles(d)` the extract files the Export step reads (with
 `Signals.SeparateFiles` and a non-empty `Export.Signals`, only those signal
 types' files).
+
+#### A probe's default local reference
+
+A local reference map belongs to a dataset, but a probe can have a default
+that datasets without a map of their own take: `Reference.LocalDefaultProbes`
+names the probe files and `Reference.LocalDefaultMaps` gives each one's map as
+one line of text, the groups separated by semicolons, each its reference
+channel, a colon and its channels (`EphysDataset.localReferenceText` writes it,
+`parseLocalReferenceText` reads it). The map is on the probe's channels:
+channel `c` is chanMap value `c-1`, as on a recording of every channel.
+
+```matlab
+cfg.Reference.Local = true;
+cfg.Reference.LocalAutoAssign = true;
+cfg.Reference.LocalDefaultProbes = "C:\probes\H3_64ch.json";
+cfg.Reference.LocalDefaultMaps   = "17: 1-32; 49: 33-64";   % one reference per shank
+```
+
+`[M, pf, why, has] = EphysPipeline.localReferenceDefault(d, cfg.Probe, cfg.Reference)`
+is the map dataset `d` would take: `pf` is the probe the steps use for it
+(`probeFor`), `has` is true when a default names a file of that name (the
+folder may differ), and `M` is the default moved onto `d`'s own channels,
+matched by hardware number (`EphysDataset.recordedProbe`,
+`translateLocalReferenceMap`), so a recording with channels disabled at
+acquisition gets the channels it recorded. `M` is empty, and `why` says why,
+when the probe has no default, cannot be read, or `d` did not record a
+reference channel of it.
+`T = EphysPipeline.assignLocalReferenceDefaults(datasets, cfg.Probe, cfg.Reference)`
+sets the map (and `LocalReferenceProbe`) on each dataset that has none and
+whose probe has a default, and saves its manifest; a dataset's own map is never
+replaced, and `DryRun=true` changes nothing. `T` has a row per such dataset:
+`Dataset`, `Probe`, `Map` (its text), `Status` (`"assigned"`, `"would
+assign"`, or why not) and `Saved`. With `LocalAutoAssign` on, `run()` calls it
+on the selected datasets once its checks pass (not in a dry run) and logs each
+one, and the plan checks such a dataset with the map it would take; the app
+calls it on every Scan, and the standalone script before its steps.
+`key = EphysPipeline.localReferenceKey(d, probe)` is each of `d`'s channels as a
+chanMap value of `probe`, through which maps move between recordings.
+`configHash` leaves `LocalAutoAssign` and the defaults out: only a dataset's
+own map decides its outputs.
 
 **Artifact cache.** `artifactIntervalsFor(d)` returns the intervals for a
 dataset: manual periods always, automatic detections when `Artifacts.Enabled`.

@@ -744,6 +744,7 @@ with its Epsych2 session.
 | All / **Clear ticks (= all)** | **All** ticks every shown row; **Clear ticks (= all)** unticks every row, shown or hidden, and with no row ticked a run, a plan and every step take all the datasets |
 | **Tags...** | edits the tags of the datasets on the selected rows (Shift / Ctrl+click selects several), ticked or not, or of the active dataset when no row is selected; also **Dataset → Tags...** ([Dataset tags](#dataset-tags)) |
 | Tags: filter | (under the token filters) the tags picked or typed (**any of** / **all of** them), the tags to leave out (**not**) and a search over the name, key and tags, all applied, as in the [dataset browser](DatasetBrowser.md) ([Dataset tags](#dataset-tags)). A view only, like the token filters: not saved, and ticks on hidden rows stay in the selection |
+| Status: filter | (under the **Tags:** filter) a box per state a dataset can be in; ticked, only the datasets in that state show ([Status filter](#status-filter)). A view only, like the other filters |
 | **Source settings** panel (under the table) | the reader options of the **active dataset's** recording system (the [`Acquisition` section](EphysPipeline.md#acquisition)); the panel's title names the system and only its controls show. They are the config's, so they apply to every dataset of that system in the project, and a change rescans the project. **Open Ephys** ([Open Ephys sessions](#open-ephys-sessions)): what a session with several recordings is (**join recordings** = one dataset, **one dataset per recording** = part folders created in the session folder, **single recording only** = refused), **Record node**, **Stream** and **Event stream** (blank = automatic; the event stream is the stream whose TTL events to use when they are recorded on another stream than the continuous data, an NI-DAQ beside Neuropixels). **TDT (Synapse)**: **Stream** (`Acquisition.TDT.Stream`: an editable list of the active block's stream stores, or a typed name; **automatic** = the stream with the most channels, the highest rate among those) and **Gain (µV per unit)** (`Acquisition.TDT.GainToMicrovolts`: blank = 1e6 for float streams, which TDT stores in volts; needed for a stream stored as integers; a value that is not a number is refused in the status bar), and a line saying what the active block reads (its tooltip lists the block's streams). Intan and binary recordings have no source settings; without an active dataset the panel says so. The Open Ephys options therefore show only once an Open Ephys dataset is scanned and active (a config file can set them before a scan) |
 | **Tools** panel (beside the table) | opens datasets in another program. The box on top chooses which: **Active dataset** (the highlighted row) or **Ticked datasets** (the ticked rows, or every dataset when none is ticked, as a run takes them); the label under it names them, and how many of several have sorted output. **Manifest viewer**: each one's `<Name>_manifest.json` in a [manifest viewer](ManifestViewerApp.md), a window each, cascaded (the same as Dataset → View manifest...). **Copy manifests**: each one's `<Name>_manifest.json` on the Windows clipboard as files, as File Explorer's Copy puts them, to paste into a folder, an e-mail or a chat (a dataset without a manifest gets one written first); a message then lists the files the clipboard holds, read back from it, and any not copied with why (`copyFilesToClipboard`). **Analysis app**: one [analysis app](EphysFigGenApp.md) on the project with those datasets selected (a new config in project mode with `Source.Selection = "list"` and their keys: it lists every dataset but ticks only these to run, the first of them active; `"all"` when they are every dataset); needs the repository's `analysis` folder on the path. **phy**: phy's template-gui on each one's associated sorted output, a window each (on only when one of them has `params.py`; the others are skipped). **Output folder**: each one's output folder in the file browser (an alert names those not written yet). Opening more than four windows at once asks first |
 | **Notes** panel (under Tools) | the note on the **active dataset**, the analysis app's dataset note in `<Name>_notes.json` ([Dataset notes](#dataset-notes)); its title names the dataset |
@@ -776,7 +777,12 @@ the scan stops at the next dataset and the project stays unscanned (press
    duration, files; no samples are read) and restores what its manifest,
    `<Name>_manifest.json`, records (`applyManifest`): its probe, excluded
    channels, manual artifact periods, sorted-output folder and Epsych2
-   session.
+   session. An Intan recording whose files do not all hold the same
+   channels (one switched off or on in RHX while it recorded) keeps only the
+   channels every file holds; the scan does not print
+   `IntanReader:refreshMetadata:ChannelsDropped` in the Command Window. The
+   channels left out are in the dataset's `DroppedChannels` and its
+   manifest (**Dataset → View manifest...**, row *Channels left out*).
 3. A dataset with no Epsych2 session takes the one Epsych2 file (a `.mat`
    holding `Data` and `Info`) at the top of its own folder, when there is
    exactly one (`associateFolderBehavior`). That is where the [Copy](#copy)
@@ -939,6 +945,28 @@ every row. It is the [dataset browser](DatasetBrowser.md)'s filter
 (`datasetFilter`) without the subject lists. Both dropdowns list the tags in
 use, and follow every edit. The label counts the tag filter as one filter (`showing k of n (m ticked
 hidden)`).
+
+### Status filter
+
+The **Status:** boxes under the **Tags:** filter show the datasets that still
+need work. Tick a box and only the datasets in that state show:
+
+| Box | The datasets shown |
+| --- | --- |
+| No behavior | no trial source: no Epsych2 session associated (or the one associated is not there now) and no TDT trial epocs |
+| Not paired | a trial source, but no trial pairing recorded yet (the [Trials](#trials) tab, or the run's behavior step) |
+| Not approved | a trial pairing recorded but not approved (Trials tab: **Approve pairing**) |
+| Not sorted | no sorted output there: never sorted, or the folder associated is not there now |
+| Not curated in phy | sorted, but phy has not saved a label, merge or split there yet (the **Sorting** cell reads `auto`, not `phy`) |
+| No probe | no probe of its own, from a probe rule or the default, or its file is not there now |
+
+With several boxes ticked, a dataset in **any** of those states shows (tick
+**Not paired** and **Not approved** for every pairing still to do). The
+status filter and the token and tag filters are combined: a row shows when it
+passes them all. Like them, it is a view only, not saved; ticks on hidden
+rows stay in the selection, and the label counts it as one filter. A box is
+looked at again on every refresh of the table, so a dataset leaves the view
+as soon as it is sorted, paired or approved.
 
 ### Dataset variables
 
@@ -1458,6 +1486,7 @@ referenced signal. The Signals tab picks which derived signals take it.
 | Control | Maps to |
 | --- | --- |
 | **Local reference first** | `Reference.Local`, a setting for the whole pipeline: before the common reference, subtract from each channel its dataset's local reference channel, as recorded: one per shank, or one for the whole probe ([Local reference](#local-reference)). The line under it gives the active dataset's references and, while it is ticked, what a run would stop on, in red |
+| **Give new datasets their probe's default** | `Reference.LocalAutoAssign`: a dataset without a local reference of its own takes its probe's default, on its own channels, and keeps it in its manifest, on Scan and when a run starts ([A probe's default](#a-probes-default)). **Save and use for new datasets** in the window makes a probe's default and ticks it |
 | **Local reference...** | opens the [Local reference window](#local-reference) on the active dataset's probe |
 | Reference: *None (as recorded)* / *CAR: common average* / *CMR: common median* / *WCAR: adaptive weighted CAR* | `Reference.Mode` (`"none"` / `"car"` / `"cmr"` / `"wcar"`), a setting for the whole pipeline: subtract, sample by sample, the mean or median of the good channels from every channel, or each channel's own Kalman-tracked share of their mean (the [adaptive weighted CAR](EphysDataset.md#adaptive-weighted-car), Khorasani et al. 2019), once, as each step reads the recording - artifact detection, the noise level of the fill, the sorting `.bin` (Kilosort4's own `do_CAR`, or a SpikeInterface sorter's own common reference, is then turned off, so it is not referenced twice), spike detection, the derived signals ticked on the Signals tab (MUA and SPIKE by default, not the LFP), and the Visualize tab's *As the pipeline*. The preview and the viewer show the referenced signal. With WCAR the first read of a recording (a preview, the viewer, a run) first works out its state, once (`EphysDataset.prepareWCAR`: a pass over every channel, about 8 s per channel-hour at 30 kHz, and one before it for an automatic Q; the app waits, and **Detect / Preview** and the Visualize tab's dialog say which window it is on and the time left, *Weighted CAR: state, window 12/80 · about 40 s left*), kept in `<Name>_wcar.mat`. See [Common reference](EphysDataset.md#common-reference-car--cmr) |
 | WCAR order, Alpha at 1 kHz, Drift (/s), High-pass (Hz), Q (uV^2), Automatic Q, Estimate | `Reference.WCAR_Order` (1), `WCAR_Alpha1k` (1), `WCAR_DriftPerSec` (1), `WCAR_HighpassHz` (0.5; each read is padded by the filter's memory, 23 s on either side at 0.5 Hz, 0 = none), `WCAR_Q` (Q, used when *Automatic Q* is off; ticked = `NaN`, the robust variance of the high-passed plain-CAR residual per dataset) and `WCAR_Estimate` (*prior* / *posterior*): the weighted CAR's parameters, on while the reference is WCAR (Q while *Automatic Q* is off). The tooltips say where each default comes from |
@@ -1728,7 +1757,9 @@ a group of its own stays on its shank):
   disabled at acquisition gets the channels it recorded, renumbered to its
   rows, and the ones it lacks are left out. A dataset on another probe, or
   one that did not record a reference channel, is skipped, and the status
-  bar names it. **Cancel** or closing the window keeps nothing.
+  bar names it. **Save and use for new datasets** keeps it on the active
+  dataset and as its probe's default ([A probe's default](#a-probes-default)).
+  **Cancel** or closing the window keeps nothing.
 - On a recording with channels disabled at acquisition, the window draws the
   sites it recorded; the others are left off, as on every step.
 
@@ -1749,6 +1780,33 @@ files say `local` or `local+car` (and so on). Kilosort4's own `do_CAR` is
 turned off only for a common reference; with the local reference alone it
 stays as set on the Sorting tab. See
 [Local reference](EphysDataset.md#local-reference-a-channel-per-shank-or-probe).
+
+#### A probe's default
+
+When your recordings on one probe use the same reference sites, set them
+once. Pick the references on one dataset and press **Save and use for new
+datasets**: the map is saved on that dataset and kept in the config as the
+default of its probe (`Reference.LocalDefaultProbes` and `LocalDefaultMaps`,
+on the probe's channels; a probe keeps one default, matched by its file name),
+and **Give new datasets their probe's default** is ticked
+(`Reference.LocalAutoAssign`). Save the config to keep it. From then on every
+dataset without a local reference of its own takes its probe's default, on its
+own channels (matched by hardware number on a recording with channels disabled
+at acquisition), and keeps it in its manifest:
+
+- on **Scan**, after the probe rules; the status bar says how many took it,
+  and names those that could not (a recording that did not record a reference
+  channel of the default);
+- when a run starts, once its checks pass, for the ticked datasets; the log
+  says which (`[reference]` lines). The plan checks such a dataset with the
+  map it would take.
+
+A dataset's own map is never replaced: set one with **Save** to make an
+exception. Until a dataset takes the default, the line under **Local
+reference first** says that it will, and what the map is. Saving an empty map
+(**Clear all**) with **Save and use for new datasets** removes the probe's
+default. See [A probe's default local reference](EphysPipeline.md#a-probes-default-local-reference)
+for scripts.
 
 ### In a run
 

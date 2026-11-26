@@ -2675,6 +2675,47 @@ classdef EphysDataset < handle
             M = EphysDataset.normalizeLocalReferenceMap(G);
         end
 
+        function s = localReferenceText(M)
+            %localReferenceText  A local reference map as one line of text: "2: 1-2; 3: 3-4".
+            %   S = EphysDataset.localReferenceText(M): each group as its
+            %   reference channel, a colon and its channels as a compact
+            %   list (formatChannelList), the groups separated by
+            %   semicolons; "" for no map. parseLocalReferenceText reads it
+            %   back. The config keeps the probes' default maps so
+            %   (Reference.LocalDefaultMaps).
+            M = EphysDataset.normalizeLocalReferenceMap(M);
+            s = "";
+            if isempty(M); return; end
+            parts = arrayfun(@(g) string(g.reference) + ": " + EphysDataset.formatChannelList(g.channels), M);
+            s = strjoin(parts, "; ");
+        end
+
+        function M = parseLocalReferenceText(s)
+            %parseLocalReferenceText  The map a line of text gives (localReferenceText's inverse).
+            %   M = EphysDataset.parseLocalReferenceText("17: 1-16; 40: 33-48"):
+            %   groups separated by semicolons, each a reference channel, a
+            %   colon and its channels (numbers and ranges, separated by
+            %   commas or spaces: parseChannelList). "" is no map. Text that
+            %   is not of that form, or not a valid map, is an error
+            %   (EphysDataset:LocalReference:Bad).
+            s = strtrim(string(s));
+            M = struct('reference', {}, 'channels', {});
+            if isempty(s) || all(s == ""); return; end
+            parts = strtrim(split(strjoin(s, ";"), ";"));
+            parts = parts(parts ~= "");
+            for k = 1:numel(parts)
+                tok = regexp(parts(k), '^(\d+)\s*:\s*(\S.*)$', 'tokens', 'once');
+                ch = [];
+                if ~isempty(tok); ch = EphysDataset.parseChannelList(tok(2)); end
+                if isempty(ch)
+                    error('EphysDataset:LocalReference:Bad', ...
+                        'Local reference group "%s": write it as the reference channel, a colon and its channels, e.g. "17: 1-16".', parts(k));
+                end
+                M(end + 1) = struct('reference', str2double(tok(1)), 'channels', ch); %#ok<AGROW>
+            end
+            M = EphysDataset.normalizeLocalReferenceMap(M);
+        end
+
         function r = referenceRecord(ref)
             %referenceRecord  A common reference as the manifest's processing block gives it.
             %   R = EphysDataset.referenceRecord(REF), REF as referenceInfo or

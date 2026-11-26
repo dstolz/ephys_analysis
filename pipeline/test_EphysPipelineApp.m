@@ -1754,12 +1754,49 @@ if S.sec("3a0d", "Artifacts tab: the local reference and its window")
     app.onLocalReference();
     dlg = app.ArtRefLocalDialog;
     check(isequal(dlg.Map, Mlr) && dlg.Scope == "shank", 'opened again: the saved map');
-    dlg.cancel();
+    % Save and use for new datasets: the map on the dataset and as its probe's default
+    check(~app.ArtRefLocalAutoCheckBox.Value && strcmp(dlg.Ctl.SaveDefault.Enable, 'on'), ...
+        'Give new datasets their probe''s default: off by default; the window offers Save and use for new datasets');
+    dlg.saveDefault();
+    R1 = app.Config.Reference;
+    check(~dlg.isOpen() && R1.LocalAutoAssign && app.ArtRefLocalAutoCheckBox.Value && isequal(R1.LocalDefaultProbes, probeLR) ...
+        && isequal(R1.LocalDefaultMaps, "2: 1-2; 3: 3-4") && isequal(dA.LocalReferenceMap, Mlr) && startsWith(app.Fig.Name, "*") ...
+        && contains(app.StatusBar.Text, "default of probe localTwoShank.json"), ...
+        'Save and use for new datasets: the map on the dataset, and in the config as the probe''s default, the box ticked, the config unsaved');
+    dA.LocalReferenceMap = [];   % a dataset without a map of its own
+    dA.LocalReferenceProbe = "";
+    dA.writeManifest();
+    app.refreshReferencePanel();
+    check(contains(app.ArtRefLocalLabel.Text, "takes the default of probe localTwoShank.json") ...
+        && contains(app.ArtRefLocalLabel.Text, "2 from 1-2; 3 from 3-4") && ~contains(app.ArtRefLocalLabel.Text, "would stop"), ...
+        'a dataset without a map: the panel says it takes its probe''s default, and checks that map');
+    app.onPlan();
+    P = app.RunResultsTable.Data;
+    check(~any(P.Status == "error: local reference"), 'the plan checks it with its probe''s default: no stop');
+    app.onScan();
+    dA = app.Project.Datasets(1);
+    mLR = EphysDataset.readManifest(dA.manifestFile());
+    check(isequal(dA.LocalReferenceMap, Mlr) && dA.LocalReferenceProbe == probeLR && numel(mLR.local_reference.groups) == 2 ...
+        && contains(app.StatusBar.Text, "1 dataset(s) without a local reference took their probe's default"), ...
+        'Scan: the dataset takes its probe''s default, in its manifest; the status bar says so');
+    app.ArtRefLocalAutoCheckBox.Value = false;
+    app.onArtifactControlsChanged();
+    check(~app.Config.Reference.LocalAutoAssign && isequal(app.Config.Reference.LocalDefaultProbes, probeLR), ...
+        'unticked: off in the config, the probe''s default kept');
+    app.selectTab(app.TabArtifacts);
+    app.onLocalReference();
+    dlg = app.ArtRefLocalDialog;
+    dlg.clearAll();
+    dlg.saveDefault();
+    check(isempty(app.Config.Reference.LocalDefaultProbes) && isempty(app.Config.Reference.LocalDefaultMaps) ...
+        && isempty(dA.LocalReferenceMap) && contains(app.StatusBar.Text, "has no default any more"), ...
+        'an empty map saved as the default: the probe''s default removed');
     % put back
     dA.LocalReferenceMap = [];
     dA.LocalReferenceProbe = "";
     dA.ProbeFile = probe0;
     dA.writeManifest();
+    app.Config.Reference = R0;
     app.applyReferenceSection(R0);
     app.onArtifactControlsChanged();
     check(~app.Config.Reference.Local && ~dA.localReferenceOn() && isempty(dA.excludedChannels()), ...
@@ -1869,6 +1906,33 @@ if S.sec("3a2", "recursive scan")
     app.onScan();
     check(app.RecursiveCheckBox.Value && app.Config.Project.Recursive && app.Project.Recursive, ...
         'applying the section restores Recursive');
+
+    % An Intan recording whose second file lacks A-001 (switched off in RHX):
+    % the scan keeps the channel out without printing ChannelsDropped.
+    projX = fullfile(root, 'proj_switched_off');
+    fx = fullfile(projX, 'recX_260101_100000');
+    mkdir(fx);
+    nX = [640 640];
+    holds = {1:3, [1 3]};
+    for k = 1:2
+        writeSyntheticRHD(fullfile(fx, sprintf('recX_260101_10000%d.rhd', k)), ...
+            uint16(randi([0 65535], numel(holds{k}), nX(k))), zeros(1, nX(k)), 1000, 128, ...
+            'AmpNative', "A-" + string(compose('%03d', (holds{k} - 1).')).', 'FirstTimestamp', sum(nX(1:k-1)));
+    end
+    rootWas = app.RootPathField.Value;
+    app.RootPathField.Value = char(projX);
+    app.onConfigChanged();
+    lastwarn('');
+    app.onScan();
+    [~, widX] = lastwarn();
+    dX = app.Project.Datasets(1);
+    check(~strcmp(widX, 'IntanReader:refreshMetadata:ChannelsDropped') && dX.NumChannels == 2 ...
+        && isequal([dX.DroppedChannels.native], "A-001") ...
+        && strcmp(warning('query', 'IntanReader:refreshMetadata:ChannelsDropped').state, 'on'), ...
+        'a scan does not print the channels a recording leaves out (DroppedChannels keeps them), and the warning is on again after');
+    app.RootPathField.Value = rootWas;
+    app.onConfigChanged();
+    app.onScan();
 end
 
 if S.sec("3e", "Project tab: Tags column, dialog, filter")
@@ -2107,6 +2171,83 @@ if S.sec("3e3", "Project tab: Notes panel")
     N.reload();
     N.setNote("channel", 3, "");
     check(~isfile(nf), 'the fixture''s state back: no notes file');
+end
+
+if S.sec("3e4", "Project tab: status filter")
+    % recB beside recA (its session, its phy-curated sort): no session, no
+    % sort, then a sort phy has not touched. Both removed at the end.
+    fB = fullfile(proj, 'recB_260102_120000'); mkdir(fB);
+    writeSyntheticRHD(fullfile(fB, 'recB.rhd'), ampRaw, digRaw, Fs, spb);
+    app.onScan();
+    nameA = "recA_260101_120000"; nameB = "recB_260102_120000";
+    iA = find([app.Project.Datasets.Name] == nameA);
+    dA = app.Project.Datasets(iA);
+    dB = app.Project.Datasets([app.Project.Datasets.Name] == nameB);
+    pair0 = dA.TrialPairing; probe0 = dA.ProbeFile;
+    status = @(varargin) setStatusFilter(app, varargin{:});
+    shownNames = @() sort(app.DatasetsTable.Data.Name).';
+    boxes = app.StatusFilterChecks;
+    check(isequal(string({boxes.UserData}), ["nobehavior" "unpaired" "unapproved" "unsorted" "uncurated" "noprobe"]) ...
+        && ~any([boxes.Value]) && height(app.DatasetsTable.Data) == 2 && dA.ProbeFile == "" ...
+        && app.Config.Probe.DefaultProbeFile == "", ...
+        'a box per state under the tag filter, none ticked: every dataset shows (neither has a probe)');
+
+    % Behavior: no session; a session, no pairing; a pairing not approved.
+    dA.TrialPairing = struct([]);
+    status("nobehavior");
+    check(isequal(shownNames(), nameB) && contains(app.NameTokenStatusLabel.Text, "showing 1 of 2"), ...
+        'No behavior: the dataset without a session; the label counts the filter');
+    status("unpaired");
+    check(isequal(shownNames(), nameA), 'Not paired: a session, no pairing recorded');
+    dA.TrialPairing = struct('status', "unreviewed", 'auto_approved', false);
+    status("unapproved");
+    check(isequal(shownNames(), nameA), 'Not approved: a pairing recorded, not approved');
+    dA.TrialPairing.status = "approved";
+    app.refreshDatasetsTable();
+    check(height(app.DatasetsTable.Data) == 0, 'an approved pairing is in none of the behavior states');
+
+    % Sorting: no sorted output; sorted, phy has not changed it.
+    status("unsorted");
+    check(isequal(shownNames(), nameB), 'Not sorted: no sorted output');
+    phyAuto = fullfile(root, 'phy_auto');
+    makePhyFixture(phyAuto, Fs, ChannelMap=[0 1 2 3], PhyCurated=false);
+    dB.SortingDir = phyAuto;
+    status("uncurated");
+    check(isequal(shownNames(), nameB) && startsWith(app.DatasetsTable.Data.Sorting, "auto"), ...
+        'Not curated in phy: the sorter''s labels (the Sorting cell reads auto); recA''s phy-curated sort is not');
+    status("unsorted");
+    check(height(app.DatasetsTable.Data) == 0, 'a sort there is not "not sorted"');
+
+    % Several boxes: any of the states. With the tag filter: both.
+    dA.TrialPairing.status = "unreviewed";
+    status("unapproved", "uncurated");
+    check(isequal(shownNames(), [nameA nameB]), 'several boxes ticked: a dataset in any of the states shows');
+    setFilter(app, '(any)', 'any', 'recA');
+    check(isequal(shownNames(), nameA) && contains(app.NameTokenStatusLabel.Text, "showing 1 of 2"), ...
+        'the status filter and the tag filter are combined: a row passes both');
+    setFilter(app, '(any)', 'any', '');
+
+    % Probe: none, then one that is there.
+    status("noprobe");
+    check(isequal(shownNames(), [nameA nameB]), 'No probe: no probe of its own and no default');
+    dA.ProbeFile = probe4;
+    app.refreshDatasetsTable();
+    check(isequal(shownNames(), nameB), 'a dataset with a probe file there is not');
+    dA.ProbeFile = "";
+    app.refreshDatasetsTable(Datasets=iA);
+    check(isequal(shownNames(), [nameA nameB]), ...
+        'a refresh of one dataset while the status filter is on rebuilds the table: its row may come back');
+
+    status();
+    check(height(app.DatasetsTable.Data) == 2 && ~contains(app.NameTokenStatusLabel.Text, "showing"), ...
+        'no box ticked: every dataset shows');
+
+    % Back to the fixture: recA as it was, recB gone.
+    dA.TrialPairing = pair0; dA.ProbeFile = probe0;
+    rmdir(fB, 's'); rmdir(phyAuto, 's');
+    app.onScan();
+    app.selectDataset(1);
+    check(app.Project.NumDatasets == 1, 'the second recording removed again');
 end
 
 if S.sec("3e1", "Project tab: tags for new datasets")
@@ -4279,6 +4420,22 @@ app.TagFilterModeDropDown.Value = mode;
 app.NotTagFilterDropDown.Value = notTags;
 app.DatasetSearchField.Value = search;
 app.refreshDatasetsTable();
+end
+
+
+function setStatusFilter(app, keys)
+%setStatusFilter  Tick the Project table's status boxes KEYS (none: untick all) as the user would.
+arguments
+    app
+end
+arguments (Repeating)
+    keys
+end
+keys = string(keys);
+for b = app.StatusFilterChecks
+    b.Value = ismember(string(b.UserData), keys);
+end
+b.ValueChangedFcn(b, []);
 end
 
 

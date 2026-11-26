@@ -18,7 +18,11 @@ function tf = scanIsCurrent(obj, S, opts)
 %   config names datasets the datasets listed lack (TickedNotListed: a
 %   config opened while its project could not be scanned, the listing
 %   the last scan's): the run would draw only the listed ones and record
-%   a config that names the others. Without Action (gatherSourceSection,
+%   a config that names the others. The alert says what to do in each
+%   mode: in project mode Scan once the project can be reached (or open
+%   the config again then); in output folders mode the keys are folders
+%   that are not among the output folders, which a scan takes out of the
+%   selection, saying which (onScan). Without Action (gatherSourceSection,
 %   showScanLabel) those keys are no change of the source.
 %
 %   See also scannedSource, showScanLabel, gatherSourceSection.
@@ -42,10 +46,20 @@ if tf
     if isempty(obj.TickedNotListed); return; end
     tf = false;   % the config names datasets the last listing does not have: a run would leave them out, its record name them
     keys = obj.TickedNotListed;
-    stopAction(obj, opts.Action, "The config names datasets the last scan did not list (" + strjoin(keys(1:min(3, end)), ", ") + ...
-        ternary(numel(keys) > 3, sprintf(" and %d more", numel(keys) - 3), "") + "), so a run would leave them out and nothing was done." + ...
-        newline + "Press Scan to list them, then " + again + " again.", Tab=obj.TabData, Control=obj.ScanButton, ...
-        Status="The config names datasets the last scan did not list: press Scan, then " + again + " again.");
+    named = strjoin(keys(1:min(3, end)), ", ") + ternary(numel(keys) > 3, sprintf(" and %d more", numel(keys) - 3), "");
+    if string(S.Mode) == "folders"   % folders that are not among the output folders: a scan never lists them
+        what = "The config names datasets the last scan did not list (" + named + "): folders that are not among its " + ...
+            "output folders, so a run would leave them out and nothing was done." + newline + ...
+            "Press Scan once every output folder can be read: a scan takes them out of the selection and says which. " + ...
+            "Then " + again + " again.";
+        status = "The config names folders that are not among its output folders: press Scan (it takes them out), then " + again + " again.";
+    else   % keys the project's last scan did not list: it could not be scanned when the config was opened
+        what = "The config names datasets the last scan did not list (" + named + "): the project could not be scanned " + ...
+            "when the config was opened, so a run would leave them out and nothing was done." + newline + ...
+            "Press Scan once the project can be reached (or open the config again then), then " + again + " again.";
+        status = "The config names datasets the last scan did not list: press Scan once the project can be reached, then " + again + " again.";
+    end
+    stopAction(obj, opts.Action, what, Tab=obj.TabData, Control=obj.ScanButton, Status=status);
     return
 end
 stopAction(obj, opts.Action, "The source on the Data tab changed since the last scan (its root, output root, name pattern, " + ...

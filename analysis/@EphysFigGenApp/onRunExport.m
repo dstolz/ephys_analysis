@@ -15,8 +15,8 @@ function R = onRunExport(obj, opts)
 %   since the scan: press Scan first; scanIsCurrent; or a config, opened
 %   without its scan, that names datasets the listing lacks), a config error (the
 %   Export tab's issues table), no dataset ticked or no project (the Data
-%   tab; stopAction). The config's warnings (files that overwrite each
-%   other, say) do not stop it: the issues table lists them, the Log has
+%   tab; stopAction). The config's warnings (the datasets' pages getting
+%   the same file names, say: only the first is written) do not stop it: the issues table lists them, the Log has
 %   each, and an alert that leaves the window usable (Cancel stays
 %   reachable) names them, those about where files go first, when the run
 %   starts; Export or Report warnings only when the run writes figure

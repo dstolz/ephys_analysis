@@ -812,7 +812,8 @@ says how to cut a release.
   take it too). In the analysis app, Run, Plan, Generate selected figure and Test report stop with an alert to press
   Scan while the datasets listed are not the scan of the source the Data tab shows (one definition of what a scan
   reads; a tick, the filter or the signals' rates and filters no longer count as a source change); the config's
-  warnings (files that overwrite each other) are shown at Run, which goes on. A config opened without its scan keeps
+  warnings (the datasets' pages getting the same file names, of which a run writes only the first) are shown at Run,
+  which goes on. A config opened without its scan keeps
   its own ticks; in folders mode the ticks are the config's selection (`Selection "list"` with the folders), which the
   runner, the scripts and a scan follow; a scan matches a config's keys as `EphysProject.findByKey` does (case ignored
   on Windows) and names the ones it does not find. A folders-mode config saved before then, whose selection is the

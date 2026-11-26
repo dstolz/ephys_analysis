@@ -12,13 +12,17 @@ function tickConfigSelection(obj)
 %   bar and in the Log (selectionNotes, Kept=true) and kept in its
 %   selection (TickedNotListed: gatherSourceSection adds them to the ticked
 %   keys) until a scan lists the source anew, so a Save does not drop
-%   datasets the config names. A folders-mode list of a project's keys
-%   ticks every folder and is said likewise.
+%   datasets the config names; meanwhile Run, Plan, Generate selected
+%   figure and Test report stop with an alert to press Scan
+%   (scanIsCurrent), since a run would draw only the datasets listed and
+%   record a config that names the others. A folders-mode list of a
+%   project's keys ticks every folder and is said likewise.
 %   While the datasets listed are another source's the ticks are left
 %   alone: they are not gathered then, and the config keeps its own
 %   selection.
 %
 %   See also scanOpened, openConfigFile, selectionTicks, selectionNotes, gatherSourceSection.
+obj.TickedNotListed = string.empty(1, 0);   % this config's own, below; never the last config's
 if isempty(obj.Runner) || ~scanIsCurrent(obj, obj.Config.Source); return; end
 S = obj.Config.Source;
 [ticked, missing, legacy] = selectionTicks(obj.Runner, S);

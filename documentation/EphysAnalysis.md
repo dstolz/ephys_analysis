@@ -1861,8 +1861,9 @@ the `Datasets` keys) and each dataset's `outputs(CacheData=true)` finds its
 files; in folders mode each folder is a `DatasetOutputs(folder,
 CacheData=true)` (`Selection="list"` keeps the folders `Datasets` names:
 `EphysAnalysisRunner.selectedFolders(cfg.Source)`, the analysis app's Run
-ticks; a list that names no folder and holds no absolute path is a
-project's keys saved before folders mode had a selection of its own, and
+ticks; a list that names no folder and holds no absolute path, the
+folders all absolute, is a project's keys saved before folders mode had a
+selection of its own, and
 every folder runs, as it did then, with the warning
 `EphysAnalysisRunner:LegacySelection`). So a dataset's spikes and signals are read once, and
 cleared after its figures. `SearchDirs` are further folders every dataset's

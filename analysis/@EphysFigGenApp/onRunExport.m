@@ -12,7 +12,8 @@ function R = onRunExport(obj, opts)
 %   alert that names the first problem and takes the tab that fixes it:
 %   datasets listed that are not the scan of the source the Data tab shows
 %   (its root, output root, name pattern, recordings or folders changed
-%   since the scan: press Scan first; scanIsCurrent), a config error (the
+%   since the scan: press Scan first; scanIsCurrent; or a config, opened
+%   without its scan, that names datasets the listing lacks), a config error (the
 %   Export tab's issues table), no dataset ticked or no project (the Data
 %   tab; stopAction). The config's warnings (files that overwrite each
 %   other, say) do not stop it: the issues table lists them, the Log has

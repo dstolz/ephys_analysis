@@ -27,7 +27,8 @@ function test_EphysFigGenApp(opts)
 %   in the config, its scripts and its reopened scan; a folders-mode
 %   config whose selection is a project's keys, every folder ticked and
 %   said; a config opened without a scan of its own keeping the keys the
-%   listing lacks, said); a panel's Filter... (5d.sigfilter:
+%   listing lacks, said, Run and Plan refused meanwhile, forgotten when
+%   another config opens); a panel's Filter... (5d.sigfilter:
 %   the row by type, OK one undo step into options.filter, the preview
 %   read through it, closed with another panel); the Probe... buttons
 %   beside the Channels rows (5d.probepick: the window on the figure's
@@ -1089,18 +1090,18 @@ if S.sec("1h", "a run's datasets and config: a source changed since the scan sto
         && startsWith(app.LastExportFolder, string(out1h)) && app.Config.Export.Folder == string(fullfile(outEd, '{Name}')), ...
         ['an Export folder typed while the run goes reaches the runner but not that run: both datasets'' pages in the folder it ' ...
         'started with (and Open figure folder), none in the new one; the edit stays for the next run']);
-    % the config's warnings (files that overwrite each other) are said at Run, and the run goes on
+    % the config's warnings (files with the same names: only the first dataset's written) are said at Run, and the run goes on
     app.ExportControls.Folder.Value = fullfile(root, 'out1h_flat');   % no {Name} and no {OutputFolder} ...
-    app.ExportControls.FilenamePattern.Value = '{Plot}';              % ... nor here: the datasets' files would overwrite each other
+    app.ExportControls.FilenamePattern.Value = '{Plot}';              % ... nor here: the datasets' files would have the same names
     app.onConfigChanged("export");
     AppDialog.captured(Clear=true);
     Rw = app.onRunExport(Figures=idH, SessionFigures=string.empty(1, 0), Datasets=kF1, Export=true, Report=false);
     Aw = AppDialog.captured(Clear=true);
     logW = strjoin(string(app.LogArea.Value), newline);
-    check(numel(Aw) == 1 && Aw(1).Title == "Run" && contains(Aw(1).Message, "overwrite each other") && contains(Aw(1).Message, "the run goes on") ...
-        && height(Rw) == 1 && Rw.Status == "done" && any(contains(app.IssuesTable.Data.Message, "overwrite each other")) ...
+    check(numel(Aw) == 1 && Aw(1).Title == "Run" && contains(Aw(1).Message, "only the first dataset's are written") && contains(Aw(1).Message, "the run goes on") ...
+        && height(Rw) == 1 && Rw.Status == "done" && any(contains(app.IssuesTable.Data.Message, "files have the same names")) ...
         && contains(logW, "Run: warning: ") && contains(string(app.StatusBar.Text), "warning(s)"), ...
-        'a config whose files would overwrite each other: Run says so (an alert, the issues table, the Log, the status bar) and runs');
+        'a config whose datasets'' files would have the same names: Run says only the first dataset''s are written (an alert, the issues table, the Log, the status bar) and runs');
     % a config opened while its root is not there keeps its own selection, not the ticks of the config shown before
     T1h = app.DatasetsTable.Data;
     T1h.Run = T1h.Idx == kF1;
@@ -1197,6 +1198,19 @@ if S.sec("1h", "a run's datasets and config: a source changed since the scan sto
         && contains(statusH, F.folders(2)) && contains(logH, "stay in the config's selection"), ...
         ['a config opened without a scan of its own, the datasets listed the last scan of its folders: its selection ticks ' ...
         'them; a folder it ticks that the listing lacks is said (the status bar, the Log) and stays in its selection, so a Save keeps it']);
+    % ... and while it does, Run and Plan stop with an alert to press Scan: a run would leave that dataset out while its
+    % record names it; another config opened forgets those keys
+    AppDialog.captured(Clear=true);
+    Ru1h = app.onRunExport(Export=false, Report=false);
+    Au1h = AppDialog.captured(Clear=true);
+    Tu1h = app.onPlan();
+    Apu1h = AppDialog.captured(Clear=true);
+    app.openConfigFile(fileB);   % another config, its root not there: not scanned
+    check(height(Ru1h) == 0 && numel(Au1h) == 1 && Au1h(1).Title == "Run" && contains(Au1h(1).Message, "the last scan did not list") ...
+        && contains(Au1h(1).Message, "Press Scan") && height(Tu1h) == 0 && numel(Apu1h) == 1 && Apu1h(1).Title == "Plan" ...
+        && ~app.Running && isempty(app.TickedNotListed), ...
+        ['while the config names a dataset the listing lacks, Run and Plan stop with an alert to press Scan (a run would ' ...
+        'leave it out while its record names it); another config opened forgets those keys']);
     % put back: the config, its saved state, the recent list and the last config file; the project scanned, every dataset ticked
     app.applyConfig(c0, MarkSaved=true);
     app.SavedConfigStruct = saved0;

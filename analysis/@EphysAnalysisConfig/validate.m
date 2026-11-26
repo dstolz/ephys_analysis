@@ -866,11 +866,11 @@ checkPattern(X.FilenamePattern, "file", "Export", "FilenamePattern");
 checkPattern(X.Folder, "folder", "Export", "Folder");
 nFig = numel(obj.enabledFigures());   % every figure's {Kind} is "figure": only {Plot} (its id) tells them apart
 if nFig > 1 && ~contains(X.FilenamePattern, "{Plot}")
-    add("Export", "FilenamePattern", "warning", sprintf("The file-name pattern has no {Plot}, so the %d enabled figures' files overwrite each other.", nFig));
+    add("Export", "FilenamePattern", "warning", sprintf("The file-name pattern has no {Plot}, so the %d enabled figures' files have the same names: only the first figure's are written, the others' pages are not (a run never writes over a file it wrote).", nFig));
 end
 if ~contains(X.Folder, ["{OutputFolder}" "{Name}"]) && ~contains(X.FilenamePattern, "{Name}") ...
         && ~(S.Mode == "folders" && numel(S.Folders) <= 1)
-    add("Export", "Folder", "warning", "Neither the export folder nor the file-name pattern names the dataset ({OutputFolder} or {Name}), so the datasets' files overwrite each other.");
+    add("Export", "Folder", "warning", "Neither the export folder nor the file-name pattern names the dataset ({OutputFolder} or {Name}), so the datasets' files have the same names: only the first dataset's are written, the others' pages are not (a run never writes over a file it wrote).");
 end
 checkPattern(X.SessionsFolder, "folder", "Export", "SessionsFolder");
 if contains(X.SessionsFolder, "{OutputFolder}")

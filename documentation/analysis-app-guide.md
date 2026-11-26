@@ -361,9 +361,10 @@ See [Lab database](database.md) for the details.
   You changed the project root, output root, name pattern or output folders
   and did not scan. The list still shows the old recordings. Press **Scan**,
   then **Run** again. Plan, Generate and Test report say the same.
-- **Run shows warnings.** The run goes on. Read the window: if it says the
-  files *overwrite each other*, press **Cancel** and give the folder or the
-  file names `{Name}`. The Export tab's table lists every warning.
+- **Run shows warnings.** The run goes on. Read the window: if it says
+  *only the first dataset's are written* (the files would have the same
+  names), press **Cancel** and give the folder or the file names `{Name}`.
+  The Export tab's table lists every warning.
 - **A results row says *kept*.** **Overwrite existing** is off, so a figure
   file already on disk was not written again. The report shows the figure as
   it is drawn now, and lists the old file as kept.
@@ -397,7 +398,8 @@ See [Lab database](database.md) for the details.
   datasets listed*.** The config was opened while its project could not be
   scanned, so the list is the last scan's. Those datasets stay in the
   config, and **Save** keeps them. Press **Scan** once the project can be
-  reached.
+  reached: until then **Run**, **Plan**, **Generate** and **Test report**
+  ask you to.
 - **Right-click menus and keys.** **Help → Keyboard shortcuts and
   right-click menus** lists them.
 - **The Log tab** has the details of every run.

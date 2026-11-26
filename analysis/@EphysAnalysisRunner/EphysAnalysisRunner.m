@@ -417,10 +417,14 @@ classdef EphysAnalysisRunner < handle
             %   (root-relative, "Subj/Rec") that the analysis app carried into
             %   folders mode (File > Open from database..., the mode drop-down)
             %   and that folders mode then ignored, running every folder. Such
-            %   a list names no folder of S.Folders and holds no absolute path
-            %   (the app's folders-mode ticks are Folders entries themselves;
-            %   a folder ticked and then taken off Folders stays absolute), and
-            %   it is not empty. It runs as it ran then: FOLDERS is every
+            %   a list is not empty, names no folder of S.Folders and holds no
+            %   absolute path, and every entry of S.Folders is absolute (the app
+            %   gives absolute folders: Open from database..., Add folder...;
+            %   its folders-mode ticks are Folders entries themselves, so a
+            %   folder ticked and then taken off Folders stays absolute). A
+            %   config whose Folders are relative (a script's: "recA") is never
+            %   read so: there a relative name that is no folder of Folders (one
+            %   taken off since) is missing, as any. It runs as it ran then: FOLDERS is every
             %   folder of S.Folders, MISSING none. datasets() warns
             %   (EphysAnalysisRunner:LegacySelection), validate lists it as a
             %   warning, and the analysis app says it on its status bar and in
@@ -437,7 +441,7 @@ classdef EphysAnalysisRunner < handle
             have = EphysDataset.pathKey(folders);
             key = EphysDataset.pathKey(want);
             named = ismember(key, have);
-            if ~isempty(want) && ~any(named) && ~any(isAbsolutePath(want))
+            if ~isempty(want) && ~any(named) && ~any(isAbsolutePath(want)) && ~isempty(folders) && all(isAbsolutePath(folders))
                 legacy = true;   % a project's keys from before folders mode had ticks: every folder, as then
                 return
             end

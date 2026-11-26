@@ -1,6 +1,8 @@
 function applyConfig(obj, cfg, opts)
 %applyConfig  Show a config in every control (MarkSaved=true: it is the saved state).
-%   With MarkSaved (a config opened or made new) the Figures tab's drawings
+%   With MarkSaved (a config opened or made new) the keys the last config
+%   kept in its selection though the datasets listed lack them are
+%   forgotten (TickedNotListed: tickConfigSelection), the Figures tab's drawings
 %   of the last config are dropped, every figure's container and the
 %   editor states the figures left with them (clearFigureViews), and the
 %   preview marked Out of date (autoFigurePreview then draws the new
@@ -30,11 +32,13 @@ prev = obj.Config;   % what a control that cannot show CFG goes back to, as it i
 history = obj.FigureHistory;   % (a value: a copy)
 extra = obj.FigurePanelExtra;
 extraOf = obj.FigurePanelIds;
+unlisted = obj.TickedNotListed;   % (a config opened forgets them; given back if it cannot show)
 if ~opts.MarkSaved; trackFigureIds(obj, cfg); end   % an edit: an automatic figure id may follow it
 drawn = ~ismember(obj.FigurePreviewState, ["idle" "computing" "drawing"]);   % a preview of the last config shows
 busy = ismember(obj.FigurePreviewState, ["computing" "drawing"]);
 if opts.MarkSaved
     obj.FigurePanelExtra = strings(1, 0);   % another config's figures: the primary panel alone, whatever the ids
+    obj.TickedNotListed = string.empty(1, 0);   % another config: the keys the last one kept are not its (tickConfigSelection sets its own)
     obj.FigureHistory = obj.FigureHistory.clear();   % another config: its edits start here
     refreshEditMenu(obj);
 elseif opts.Action ~= ""
@@ -48,6 +52,7 @@ catch ME   % all or nothing: a control that cannot show a value must not leave t
         obj.FigureHistory = history;   % (an Action's step taken back; a config opened: its edits as they were)
         obj.FigurePanelExtra = extra;
         obj.FigurePanelIds = extraOf;   % (so the editor shown again keeps the Shift+click panels)
+        obj.TickedNotListed = unlisted;
         refreshEditMenu(obj);
         pushConfig(obj, prev);   % the controls as they were, the config the app holds with them
     catch

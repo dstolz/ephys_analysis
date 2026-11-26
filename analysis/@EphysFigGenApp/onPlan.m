@@ -9,7 +9,9 @@ function T = onPlan(obj)
 %   With no project scanned an alert says so, with a "Go to Data tab"
 %   button; with the datasets listed not the scan of the source the Data
 %   tab shows (its root, output root, name pattern, recordings or folders
-%   changed since: scanIsCurrent) an alert says to press Scan first; with
+%   changed since: scanIsCurrent), or with the config naming datasets the
+%   listing lacks (a config opened without its scan), an alert says to
+%   press Scan first; with
 %   no dataset ticked it takes the Data tab (AppDialog, stopAction).
 T = table();
 if isempty(obj.Runner)

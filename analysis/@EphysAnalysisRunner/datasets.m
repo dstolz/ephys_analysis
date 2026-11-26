@@ -17,7 +17,8 @@ function outs = datasets(obj)
 %                folders Datasets names (selectedFolders: the app's Run
 %                ticks); one it names that is not in Folders is warned
 %                about (EphysAnalysisRunner:UnknownDataset). A list that
-%                names no folder and holds no absolute path is a project's
+%                names no folder and holds no absolute path, the Folders
+%                all absolute (as the app writes them), is a project's
 %                keys saved before folders mode had a selection of its own:
 %                every folder is kept, as such a config ran then, with the
 %                warning EphysAnalysisRunner:LegacySelection

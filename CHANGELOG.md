@@ -853,13 +853,14 @@ says how to cut a release.
   is recorded as failed, not succeeded (`attributes.figure_errors` counts a run's failed figures). Figure files kept
   from an earlier run (`Export.Overwrite` off; the new `EphysAnalysisRunner.KeptFiles`) are no longer recorded as
   outputs of the run, which did not write them (`kept_outputs`); a file the run wrote itself is never kept: when two
-  datasets' pages have one file name, the second is no longer taken for "kept from an earlier run" (and left out of
+  pages of a run have one file name (two datasets', or two observations of one figure), the second is no longer taken for "kept from an earlier run" (and left out of
   the record), nor written over the first with `Export.Overwrite` on: it is not written, its row says so, and the
   file is the first page's, recorded once (`EphysAnalysisRunner.WrittenFiles`); the standalone script follows the
   same rule. The run's Log says what was noted
   (the event, its status, how many files it read and wrote) and which files were left out, by folder: those under
   no mapped storage root and the kept ones (`LabCapture.analysisRun` returns it as a second output); a `LogFcn` that
-  throws is a warning, never a second row for a figure done or an error in place of the run's. The output ledger (`analysis_outputs.json`) is written once per run instead of once
+  throws while a run goes is a warning (every Log line of the run), never a second row for a figure done, a failed
+  run for one canceled, or an error in place of the run's. The output ledger (`analysis_outputs.json`) is written once per run instead of once
   per output file (read for the lookups and again just before the write, to merge), and a ledger that cannot be
   read is no longer written over (warning `LabCapture:OutputLedger`).
 - `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had

@@ -53,8 +53,9 @@ function test_EphysAnalysisRunner()
 %   with); a figure that fails or is canceled after its first page was
 %   written (its row listing that page's file; a failed figure's report
 %   entry that cannot be added said in its row, not thrown; a LogFcn that
-%   throws, a warning; a page whose PDF page fails after its file was
-%   written, that file in the error row); two datasets' pages with
+%   throws, a warning, also on the run's "Canceled." line; a page whose
+%   PDF page fails after its file was written, that file in the error
+%   row, and in a session figure's canceled row); two datasets' pages with
 %   one file name (the first written, the second neither "kept" nor
 %   written over, with Export.Overwrite off and on, by the run and by the
 %   standalone script).
@@ -750,6 +751,33 @@ if nG >= 2
         && isscalar(dir(fullfile(outGC, "sessions", "all_card_*.png"))), ...
         'cancel() between a session figure''s observations: the first page is written, the figure "canceled"');
 end
+% the first page's PDF page fails after its PNG was written, then a cancel: the canceled row lists that PNG
+outGS = fullfile(root, 'outSesFigStray');
+cfgGS = cfgGC;
+cfgGS.Export.SessionsFolder = fullfile(outGS, "sessions");
+cfgGS.Report.Enabled = true;
+cfgGS.Report.Format = "pdf";   % each page also goes to the PDF report's page folder
+cfgGS.Report.Folder = outGS;
+rGS = EphysAnalysisRunner(cfgGS, LogFcn=[]);
+    function onSesStrayProgress(~, msg)
+        pfS = rGS.Report.pageFolder;
+        if contains(msg, "sessions: card (1/") && ~isfolder(pfS) && ~isfile(pfS)
+            fid = fopen(pfS, 'w'); fclose(fid);   % a file where the page folder goes: the first page's PDF page cannot be written
+        elseif contains(msg, "sessions: card (2/")
+            rGS.cancel();
+        end
+    end
+if nG >= 2
+    rGS.ProgressFcn = @onSesStrayProgress;
+    RGS = rGS.run();
+    rGS.ProgressFcn = [];
+    if isfile(rGS.Report.pageFolder); delete(rGS.Report.pageFolder); end
+    fGS = splitFiles(RGS.Files(RGS.Plot == "card"));
+    check(height(RGS) == 1 && RGS.Status == "canceled" && isscalar(fGS) && isfile(fGS) && endsWith(fGS, ".png") ...
+        && startsWith(fGS, string(fullfile(outGS, "sessions"))) && any(rGS.WrittenFiles == fGS), ...
+        ['a session figure whose first page''s PDF page fails after its PNG was written, then canceled: its canceled row ' ...
+        'lists that PNG (in no row before, though written)']);
+end
 % the standalone script: figureSessionCompute, runner-free, the same pages
 outSG = fullfile(root, 'outSesFigScript');
 cfgSG = cfgG; cfgSG.Export.Folder = fullfile(outSG, "{Name}"); cfgSG.Export.SessionsFolder = fullfile(outSG, "sessions");
@@ -1051,6 +1079,23 @@ check(height(rowPC) == 1 && rowPC.Status == "canceled" && isscalar(fPC) && isfil
     && startsWith(fPC, string(fullfile(outPC, names(1)))) && all(RPC.Status(RPC.Dataset == names(2)) == "canceled") ...
     && all(RPC.Files(RPC.Dataset == names(2)) == ""), ...
     'a figure canceled after its first page was written: its canceled row lists that file; the figures not reached list none');
+rPQ = EphysAnalysisRunner(cfgP, LogFcn=@throwOnCanceledLine);   % a LogFcn that throws on the run's "Canceled." line
+    function onQuietCancelProgress(~, msg)
+        if msg == names(1) + ": card (2/2)"; rPQ.cancel(); end
+    end
+rPQ.ProgressFcn = @onQuietCancelProgress;
+whyPQ = "";
+try
+    rPQ.run(Export=false, Report=false);
+catch ME
+    whyPQ = string(ME.message);
+end
+rPQ.ProgressFcn = [];
+recPQ = struct('outcome', "");
+if rPQ.RunRecordFile ~= "" && isfile(rPQ.RunRecordFile); recPQ = jsondecode(fileread(rPQ.RunRecordFile)); end
+check(whyPQ == "" && string(recPQ.outcome) == "canceled", ...
+    sprintf(['a LogFcn that throws on the run''s "Canceled." line is a warning: the run is recorded canceled, not ' ...
+    'failed, and returns (%s)'], whyPQ));
 rPE = EphysAnalysisRunner(cfgP, LogFcn=@throwOnDoneLine);   % a LogFcn that throws on a figure's "done" line
 lastwarn('');
 RPE = rPE.run(Datasets=1, Export=false, Report=false);   % rows, and no report to add an entry to
@@ -1145,6 +1190,14 @@ check(sameO && isscalar(pngsO) && contains(outSO, "not written: this script alre
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisRunner:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function throwOnCanceledLine(msg)
+%throwOnCanceledLine  A LogFcn that throws on the run's "Canceled." line.
+if string(msg) == "Canceled."
+    error('test_EphysAnalysisRunner:LogClosed', 'the Log is closed');
 end
 end
 

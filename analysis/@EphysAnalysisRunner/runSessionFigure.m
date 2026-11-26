@@ -164,7 +164,7 @@ for i = 1:nObs
     try
         obj.progress(opts.Span(1) + diff(opts.Span) * share * (i - 1) / nObs, sprintf("sessions: %s (%d/%d)", id, i, nObs));   % cancel() stops here
     catch ME
-        stoppedRow(obj, id, jobs, folder, t0);   % the pages on the workers canceled; a row with the files the finished ones wrote
+        stoppedRow(obj, id, jobs, folder, t0, [string.empty(1, 0) E.stray]);   % the pages on the workers canceled; a row with the files the finished ones wrote
         rethrow(ME);
     end
     t1 = tic;
@@ -214,7 +214,7 @@ for i = 1:nObs
             job.F = keptPart(e.F);   % what the report reads of it (its sessions), not every page's whole result
             jobs{end+1} = job; %#ok<AGROW>
         catch ME
-            if ME.identifier == "EphysAnalysisRunner:Canceled"; stoppedRow(obj, id, jobs, folder, t0); rethrow(ME); end
+            if ME.identifier == "EphysAnalysisRunner:Canceled"; stoppedRow(obj, id, jobs, folder, t0, [string.empty(1, 0) E.stray]); rethrow(ME); end
             E(q).stray = [E(q).stray obj.takeStrayFiles()];   % a page that failed after writing its files: in the row
             E(q).why(end+1) = string(T.label(i)) + ": " + string(ME.message);
             E(q).nError = E(q).nError + 1;
@@ -244,7 +244,7 @@ for j = 1:numel(jobs)   % the pages, in order
         E(q).rows(end+1) = job.i;
         E(q).F = job.F;
     catch ME
-        if ME.identifier == "EphysAnalysisRunner:Canceled"; stoppedRow(obj, id, jobs, folder, t0); rethrow(ME); end
+        if ME.identifier == "EphysAnalysisRunner:Canceled"; stoppedRow(obj, id, jobs, folder, t0, [string.empty(1, 0) E.stray]); rethrow(ME); end
         E(q).stray = [E(q).stray obj.takeStrayFiles()];   % a page that failed after writing its files: in the row
         E(q).why(end+1) = string(T.label(job.i)) + ": " + string(ME.message);
         E(q).nError = E(q).nError + 1;
@@ -354,11 +354,13 @@ if nFigures > 1; s.id = id + " (" + label + ")"; end
 end
 
 
-function stoppedRow(obj, id, jobs, folder, t0)
+function stoppedRow(obj, id, jobs, folder, t0, stray)
 %stoppedRow  A session figure canceled part way (EphysAnalysisRunner:Canceled): its pages still on the workers
-%   canceled, and a "canceled" row "sessions: all" listing the files its finished pages wrote (stopPages), so the run
-%   record and the lab database's record name them; run adds no row of its own for the figure then.
+%   canceled, and a "canceled" row "sessions: all" listing the files its finished pages wrote (stopPages) and those
+%   of its pages that failed after writing them (STRAY: every label's E.stray, pages that never reached JOBS), so the
+%   run record and the lab database's record name them; run adds no row of its own for the figure then.
 [written, stopped] = obj.stopPages(jobs);
+written = unique([written reshape(string(stray), 1, [])], 'stable');
 if stopped > 0
     obj.logQuietly("sessions: %s: %d page(s) stopped on the workers while drawn: each may have left a file partly written in %s", ...
         id, stopped, folder);

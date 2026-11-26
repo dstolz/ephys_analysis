@@ -160,7 +160,7 @@ perDataset = doReport && P.PerDataset;
 if doReport && ~perDataset
     obj.Report = newReport(cfg);
 end
-obj.log("Analysis ""%s"": %d dataset(s) x %d figure(s), %d session figure(s)", cfg.Name, numel(idx), numel(fids), numel(sfids));
+obj.logQuietly("Analysis ""%s"": %d dataset(s) x %d figure(s), %d session figure(s)", cfg.Name, numel(idx), numel(fids), numel(sfids));
 canceled = false;
 obj.BatchYLim = struct('figure', cell(1, 0), 'id', cell(1, 0), 'lim', cell(1, 0), 'n', cell(1, 0));
 obj.clearBatchCache();
@@ -184,7 +184,7 @@ try
     if canceled
         for kk = idx; cancelDataset(obj, obj.Names(kk), fids); end
         cancelSessionFigures(obj, sfids);
-        obj.log("Canceled.");
+        obj.logQuietly("Canceled.");
         idx = idx([]);
     end
     nUnits = numel(idx) + numel(sfids) + (doReport && ~perDataset);   % the run's progress: a share per dataset, session figure and the one report
@@ -208,7 +208,7 @@ try
                 cancelDataset(obj, obj.Names(kk), fids);
             end
             cancelSessionFigures(obj, sfids);
-            obj.log("Canceled.");
+            obj.logQuietly("Canceled.");
             break
         end
         if perDataset
@@ -231,7 +231,7 @@ try
                 if ME.identifier ~= "EphysAnalysisRunner:Canceled"; rethrow(ME); end
                 canceled = true;
                 cancelSessionFigures(obj, sfids(i:end));
-                obj.log("Canceled.");
+                obj.logQuietly("Canceled.");
                 break
             end
         end
@@ -294,17 +294,17 @@ function logLabRecord(obj, noted)
 %   figure files kept from an earlier run (kept_outputs).
 if noted.why == "off"; return; end
 if noted.id ~= ""
-    obj.log("Lab database: the run is noted as analysis event %s, status %s, %d input(s) and %d output(s); it waits in this computer's outbox until it is sent", ...
+    obj.logQuietly("Lab database: the run is noted as analysis event %s, status %s, %d input(s) and %d output(s); it waits in this computer's outbox until it is sent", ...
         noted.id, noted.status, noted.inputs, noted.outputs);
 else
-    obj.log("Lab database: nothing noted for this run: it read no file and wrote none under a storage root mapped here");
+    obj.logQuietly("Lab database: nothing noted for this run: it read no file and wrote none under a storage root mapped here");
 end
 if ~isempty(noted.unrecorded)
-    obj.log("Lab database: %d file(s) the run wrote are not recorded, being under no storage root mapped here (map one in File > Database...): in %s", ...
+    obj.logQuietly("Lab database: %d file(s) the run wrote are not recorded, being under no storage root mapped here (map one in File > Database...): in %s", ...
         numel(noted.unrecorded), folderList(noted.unrecorded));
 end
 if ~isempty(noted.kept)
-    obj.log("Lab database: %d figure file(s) kept from an earlier run (Export.Overwrite off) are not outputs of this run: in %s", ...
+    obj.logQuietly("Lab database: %d figure file(s) kept from an earlier run (Export.Overwrite off) are not outputs of this run: in %s", ...
         numel(noted.kept), folderList(noted.kept));
 end
 end
@@ -339,7 +339,7 @@ if inReport
 end
 for id = sfids
     obj.Results(end+1, :) = {"sessions: all", id, "figure", "skipped", why, "", 0};
-    obj.log("sessions: %s skipped (%s)", id, why);
+    obj.logQuietly("sessions: %s skipped (%s)", id, why);
     if inReport
         k = cfg.figureIndex(id);
         if k > 0; spec = cfg.Figures(k); else; spec = EphysAnalysisConfig.defaults("Figure"); spec.id = id; end
@@ -447,7 +447,7 @@ for i = 1:nf
     end
     obj.ReportFiles(end+1) = files(end);
 end
-obj.log("Report: %s", strjoin(files, ", "));
+obj.logQuietly("Report: %s", strjoin(files, ", "));
 end
 
 

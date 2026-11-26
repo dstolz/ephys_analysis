@@ -67,7 +67,7 @@ for k = idx
     catch ME
         src.outputs.clearCache();
         if ME.identifier == "EphysAnalysisRunner:Canceled"; rethrow(ME); end
-        obj.log("%s: %s y range FAILED: %s", name, spec.id, ME.message);
+        obj.logQuietly("%s: %s y range FAILED: %s", name, spec.id, ME.message);
         continue
     end
     src.outputs.clearCache();

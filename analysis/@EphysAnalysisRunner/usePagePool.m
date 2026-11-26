@@ -20,14 +20,14 @@ if ~isempty(pool)
     return
 end
 if obj.PagesSeen < obj.MinPoolPages; return; end
-obj.log("Starting %d workers to draw the pages ...", obj.Workers);
+obj.logQuietly("Starting %d workers to draw the pages ...", obj.Workers);
 obj.progress(obj.LastFraction, sprintf("Starting %d workers to draw the pages ...", obj.Workers));
 try
     parpool("Processes", obj.Workers);
     tf = true;
 catch ME
     obj.PoolFailed = true;
-    obj.log("No workers (%s): the pages are drawn here.", ME.message);
+    obj.logQuietly("No workers (%s): the pages are drawn here.", ME.message);
 end
 end
 

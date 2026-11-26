@@ -42,7 +42,7 @@ for j = 1:n
     catch ME
         sessions.status(j) = "error";
         sessions.message(j) = "cannot read the dataset: " + string(ME.message);
-        obj.log("%s: %s cannot be read: %s", spec.id, obj.Names(sessions.index(j)), ME.message);
+        obj.logQuietly("%s: %s cannot be read: %s", spec.id, obj.Names(sessions.index(j)), ME.message);
     end
 end
 T = figureSessionObservations(sources, spec);

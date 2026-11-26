@@ -45,7 +45,9 @@ function rows = runDataset(obj, k, opts)
 %   kept, nor written over, whatever Export.Overwrite says (WrittenFiles:
 %   another dataset's or figure's page at the same path, the file names
 %   not telling them apart): the page is drawn only for the report, its
-%   file stays the first page's, in that page's row, and this row's
+%   file stays the first page's, in that page's row (also a page of the
+%   same figure whose file name another observation's took: on the
+%   workers too, before either page is written), and this row's
 %   Message says so (EphysAnalysisRunner.overlapText: "; <k> not written:
 %   this run already wrote a file at that path ..."). Without Export and
 %   Report each observation is computed only. A
@@ -181,7 +183,7 @@ for jf = 1:numel(fids)
             obj.Results(end+1, :) = {name, spec.id, "figure", "skipped", reason, "", 0};
             obj.logQuietly("%s: %s skipped (%s)", name, spec.id, reason);
             if opts.Report
-                obj.Report = addReportFigure(obj.Report, rspec, [], Status="skipped", Message=reason);
+                obj.addFailureEntry(rspec, "skipped", reason, name, spec.id);   % never throws: no second row for the figure
             end
             continue
         end
@@ -208,6 +210,7 @@ for jf = 1:numel(fids)
         keptFiles = string.empty(1, 0);   % the files of the observations kept (Export.Overwrite off): on disk, not this run's
         nKept = 0;
         nMine = 0;   % the observations whose file this run wrote already (another page at that path): not written over
+        claimed = string.empty(1, 0);   % the files this figure's pages write: a later observation at one of those paths (its name collides) is not written over
         images = cell(1, 0);
         pages = strings(1, 0);
         F = [];
@@ -222,7 +225,8 @@ for jf = 1:numel(fids)
                 sprintf("%s: %s (%d/%d)", name, spec.id, i, nObs));   % cancel() stops between observations
             base = fullfile(folder, figureOutputName(X.FilenamePattern, name, spec, T(i, :), i, nObs));
             want = base + "." + X.Formats;
-            mine = opts.Export && obj.writtenByThisRun(want);   % this run wrote a file at that path: never written over, never "kept"
+            mine = opts.Export && (obj.writtenByThisRun(want) ...   % this run wrote a file at that path (or this figure is writing it):
+                || any(ismember(EphysDataset.pathKey(want), EphysDataset.pathKey(claimed))));   % never written over, never "kept"
             kept = opts.Export && ~mine && ~X.Overwrite && all(isfile(want));   % its files exist from an earlier run: not written again
             keptNow = string.empty(1, 0);
             if kept
@@ -243,7 +247,10 @@ for jf = 1:numel(fids)
             if ~draws; continue; end   % computed only
             page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, ...
                 'BatchYLim', BY, 'Images', withImages, 'Pages', withPages);   % a kept page: drawn for the report, its files left as they are
-            if opts.Export && ~kept && ~mine; page.Base = base; end
+            if opts.Export && ~kept && ~mine
+                page.Base = base;
+                claimed = [claimed want]; %#ok<AGROW>
+            end
             job = obj.submitPage(F, spec, onPool, page);
             job.kept = keptNow;
             jobs{end+1} = job; %#ok<AGROW>

@@ -136,7 +136,7 @@ obj.updateTitle();
 if replot
     replotFigures(obj, ids);
 else
-    if obj.FigurePreviewState == "drawn" && ~figureViewFresh(obj); obj.setFigurePreviewState("stale"); end
+    markStaleDrawing(obj);   % the shown figure, when it changed: Out of date
     markFigureTree(obj);   % the changed figures out of date
 end
 end

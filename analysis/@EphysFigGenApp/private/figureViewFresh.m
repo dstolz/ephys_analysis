@@ -12,8 +12,14 @@ function [tf, look] = figureViewFresh(obj, k)
 %     "none"    not drawn: no container (never shown, or dropped by the
 %               cap), nothing to draw yet (idle), or the dataset cannot
 %               draw it (skipped)
+%   It is the one test of a drawing being current: the preview's tails
+%   (finishPreview: Drawn or Out of date), markStaleDrawing, the tree,
+%   a switch back (previewFigureView), and what reads the drawing --
+%   Open in window, Export preview, Save look as design, Forget looks
+%   (onOpenFigureWindow, onExportPreview, onSaveDesign) -- read it, not
+%   the badge alone.
 %
-%   See also figureViewKey, markFigureTree, previewFigureView.
+%   See also figureViewKey, markFigureTree, previewFigureView, finishPreview.
 if nargin < 2; k = obj.SelectedFigure; end
 tf = false;
 look = "none";

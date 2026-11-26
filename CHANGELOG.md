@@ -789,6 +789,17 @@ says how to cut a release.
   on Windows) and names the ones it does not find. With `Export.Overwrite` off a report embedded the earlier run's
   file of a kept page under this run's caption: it now holds the page as this run draws it, and the result row,
   the report entry and the HTML say which files were kept.
+- The analysis app's figure preview no longer says *Drawn* for a drawing that is not the figure as it is now. A
+  preview ended *Drawn* after an edit or another dataset picked while it computed with Auto off, after an edit or an
+  observation picked while a run went, after a remembered look was undone, and after a change of the Export tab's
+  page size; **Open in window** and **Export preview** then drew the old result with the figure's settings of now
+  (Export preview named the file for the observation picked and drew another's). A preview now ends *Drawn* only when
+  the key it was computed for is still the figure's (the figure, defaults, dataset, observation, scan, rates,
+  filters, variables and, new, the page it is exported on), else *Out of date*; a run marks a drawing *Out of date*
+  when an edit or a pick makes it so; Open in window, Export preview, Save look as design and Forget looks test the
+  key, not the badge. A page change draws the shown preview again from what it computed (a figure across sessions
+  from its kept figures), and the other figures' kept previews are marked out of date. A look remembered from an
+  Open in window figure now updates the preview as an edit does.
 - `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had
   saved a pairing since the dataset object last wrote the manifest, and the new record was equal to the one the
   object wrote then (its `updated` time is to the second), the manifest merge took the record as unchanged and kept

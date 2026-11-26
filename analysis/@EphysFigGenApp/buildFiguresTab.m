@@ -2620,7 +2620,7 @@ id = obj.Config.Figures(k).id;
 obj.rememberFigureAesthetics(id, []);
 obj.setStatus("Forgot " + id + "'s remembered looks.");
 F = obj.FigurePreviewResult;
-if obj.FigurePreviewState ~= "drawn" || isempty(F) || F.id ~= id; return; end
+if ~figureViewFresh(obj) || isempty(F) || F.id ~= id; return; end   % (rememberFigureAesthetics: current but for the looks, or Out of date)
 try
     spec = obj.Config.figureFor(k);
     renderFigure(F, spec, obj.FigurePreviewPanel, Scale=previewScale(obj, spec), ...

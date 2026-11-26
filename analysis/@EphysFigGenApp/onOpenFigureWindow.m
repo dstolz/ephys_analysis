@@ -1,18 +1,24 @@
 function h = onOpenFigureWindow(obj)
 %onOpenFigureWindow  Draw the figure as previewed into a new MATLAB figure window of its own.
 %   H = onOpenFigureWindow(obj) is the Figures tab's "Open in window"
-%   button. When the preview is drawn and up to date it draws the result
-%   the preview computed (FigurePreviewResult) with the spec it was drawn
-%   with; otherwise (out of date, canceled, not yet drawn) it first
-%   previews as the Preview button does (refreshFigurePreview, Force), and
-%   opens the window only if that draws. The window is a regular figure()
+%   button. When the preview is drawn and up to date -- drawn from the key
+%   the figure has now (figureViewFresh: figureViewKey), whatever the
+%   badge says -- it draws the result the preview computed
+%   (FigurePreviewResult) with the spec it was drawn with; otherwise (out
+%   of date, canceled, not yet drawn) it first previews as the Preview
+%   button does (refreshFigurePreview, Force), and opens the window only
+%   if that draws the figure as it is now (an edit made while it computed
+%   leaves it Out of date: the status bar says so). So a result computed
+%   for another observation, dataset or version of the figure is never
+%   drawn with the figure's spec of now. The window is a regular figure()
 %   named "<figure id>: <observation> (<dataset>)", the shape of the
 %   figure's export page (figureExportSize; a probe figure's from its
 %   result, the tiles' rows) at its true size on screen
 %   (96 dpi; scaled down to fit when it is larger than the screen), drawn
 %   by renderFigure (Editable: the right-click aesthetics
 %   editor and its Design submenu work in it, and "remember for this
-%   figure" reaches the app's config while the app is open; so does an
+%   figure" reaches the app's config while the app is open (the preview
+%   then follows as after an edit: rememberFigureAesthetics Preview=false); so does an
 %   axis label's own text or side, set from its menu or the panel axes'
 %   (one panel's, or every panel's side at once), which also draws the
 %   window again; a Ctrl+Click on a panel selects it in the app's
@@ -35,13 +41,15 @@ if k < 1 || k > numel(obj.Config.Figures)
     obj.setStatus("No figure to open: add one first.");
     return
 end
-if obj.FigurePreviewState ~= "drawn" || isempty(obj.FigurePreviewResult)
+if ~figureViewFresh(obj) || isempty(obj.FigurePreviewResult)   % not the figure as it is now: computed again first
     obj.refreshFigurePreview(Force=true);
 end
 F = obj.FigurePreviewResult;
 id = obj.Config.Figures(k).id;
-if obj.FigurePreviewState ~= "drawn" || isempty(F) || F.id ~= id
-    obj.setStatus("Nothing to open: " + string(obj.FigurePreviewLabel.Text));
+if ~figureViewFresh(obj) || isempty(F) || F.id ~= id
+    why = string(obj.FigurePreviewLabel.Text);   % why it was not drawn (the preview's line)
+    if obj.FigurePreviewState == "stale"; why = "the figure changed while it was computed: press Preview, then open it."; end
+    obj.setStatus("Nothing to open: " + why);
     return
 end
 if obj.Config.Figures(k).sessions.enabled && isstruct(obj.FigureSessionResults) && isfield(obj.FigureSessionResults, 'spec')
@@ -91,9 +99,9 @@ end
 
 
 function rememberIfOpen(app, id, rules)
-%rememberIfOpen  Keep the window's remembered rules in the app's config while the app is open.
+%rememberIfOpen  Keep the window's remembered rules in the app's config while the app is open (its editor redraws the window, not the preview).
 if isvalid(app) && ~isempty(app.Fig) && isvalid(app.Fig)
-    app.rememberFigureAesthetics(id, rules);
+    app.rememberFigureAesthetics(id, rules, Preview=false);
 end
 end
 

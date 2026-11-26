@@ -177,6 +177,16 @@ function test_EphysFigGenApp(opts)
 %   report's Title and Folder, their tokens with their values now, a token
 %   added after a _, as a subfolder, a whole folder at the start, after a
 %   space);
+%   the preview's badge (5x: Drawn only for a drawing of the figure as it
+%   is now -- a title typed and another dataset picked from a timer while
+%   the preview computes with Auto off leave it Out of date; a look
+%   remembered in the preview's editor and undone, and one remembered in
+%   an Open in window figure, too; a larger Export tab page draws it again
+%   at its new scale with nothing computed, and another figure's kept
+%   preview, out of date in the tree, is drawn again from the cache when
+%   shown; an observation picked and a y axis moved from a timer while a
+%   run goes leave it Out of date; Open in window and Export preview
+%   compute such a drawing again first);
 %   Arrange over the preview (5h.arrange: the overlay and a box per panel,
 %   the outline hidden; a drag's step snapped with the guides and the
 %   fields, the figure untouched; its release one undo step, laid out in
@@ -6848,6 +6858,157 @@ if S.sec("5w", "label variables: the {x} button beside each label's text, its me
     app.Tabs.SelectedTab = app.TabData;
 end
 
+if S.sec("5x", "the preview's badge says Drawn only for a drawing of the figure as it is now: an edit or another dataset while it computes (Auto off), a remembered look undone or remembered in a window, the Export tab's page, a pick and an edit while a run goes; Open in window and Export preview compute such a drawing again")
+    noFigures();
+    exported();   % a run's report folder (its run record goes there)
+    wasCapture5x = AppDialog.capture(true);
+    captureBack5x = onCleanup(@() AppDialog.capture(wasCapture5x)); %#ok<NASGU> a run's warnings alert, if any, is read, not shown
+    app.selectTab(app.TabFigures);
+    app.selectDataset(kF1);
+    app.FigureAutoSlider.Value = 1;   % drawn at once as it is added
+    restore5x = onCleanup(@() resetAutoLimit(app));
+    app.onAddFigure("rasterPsth");
+    k5x = app.SelectedFigure;
+    id5x = app.Config.Figures(k5x).id;
+    lookOf5x = @(k) app.FigureTreeMarks.look([app.FigureTreeMarks.nodes.NodeData] == k);   % the tree's mark of figure K's preview (figureViewFresh)
+    app.refreshFigurePreview(Force=true);
+    check(app.FigurePreviewState == "drawn" && lookOf5x(k5x) == "fresh", 'a raster over a PSTH, drawn: Drawn, the tree plain');
+
+    % Auto off: an edit made while the preview computes (from a timer, as the runner's polls let it in) leaves the
+    % preview that finishes Out of date, its key not the figure's
+    app.FigureAutoSlider.Value = 0;
+    setappdata(groot, 'previewProbe', false);
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringPreview(t, app, @(a) typeTitle(a, "Typed while computing")));
+    start(tm);
+    app.refreshFigurePreview(Force=true);
+    stop(tm); delete(tm);
+    typed5x = getappdata(groot, 'previewProbe');
+    check(typed5x && app.Config.Figures(k5x).title == "Typed while computing" && app.FigurePreviewState == "stale" ...
+        && string(app.FigurePreviewBadge.Text.Text) == "Out of date" && lookOf5x(k5x) == "stale" && ~contains(figTitle(), "Typed while computing"), ...
+        sprintf(['Auto off: a title typed while the preview computes leaves the preview that finishes Out of date (the tree too), ' ...
+        'drawn without the title (typed: %d; badge %s)'], typed5x, app.FigurePreviewState));
+    app.refreshFigurePreview(Force=true);
+    dsA5x = previewResult(app, "dataset");
+    check(app.FigurePreviewState == "drawn" && contains(figTitle(), "Typed while computing") && lookOf5x(k5x) == "fresh", ...
+        'Preview then draws it with the title: Drawn');
+    % another dataset picked while it computes: the drawing of the one before is Out of date; Open in window computes the new one
+    setappdata(groot, 'previewProbe', false);
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringPreview(t, app, @(a) a.selectDataset(kF2)));
+    start(tm);
+    app.refreshFigurePreview(Force=true);
+    stop(tm); delete(tm);
+    moved5x = getappdata(groot, 'previewProbe');
+    rmappdata(groot, 'previewProbe');
+    check(moved5x && app.ActiveIdx == kF2 && app.FigurePreviewState == "stale" && previewResult(app, "dataset") == dsA5x, ...
+        sprintf('Auto off: another dataset picked while the preview computes: the preview of the first one is Out of date when drawn (picked: %d; %s)', ...
+        moved5x, app.FigurePreviewState));
+    h5x = app.onOpenFigureWindow();
+    dsB5x = previewResult(app, "dataset");
+    check(~isempty(h5x) && isgraphics(h5x, 'figure') && dsB5x ~= dsA5x && contains(string(h5x.Name), "(" + dsB5x + ")") && app.FigurePreviewState == "drawn", ...
+        sprintf('Open in window computes the Out of date drawing again first: the window is the active dataset''s (%s), not the drawing''s (%s)', dsB5x, dsA5x));
+    if isgraphics(h5x); delete(h5x); end
+    app.selectDataset(kF1);
+    app.refreshFigurePreview(Force=true);
+
+    % a look remembered for the figure in the preview's editor (its OK: the rules kept, then the preview drawn with
+    % them) stays Drawn; undone, the drawing still shows the look: Out of date (Auto off)
+    ctx5x = getappdata(app.FigurePreviewPanel, PlotAesthetics.ContextKey);
+    look5x = struct('role', "rateFill", 'group', "", 'property', "FaceAlpha", 'value', 0.4);
+    ctx5x.onRemember(look5x);
+    ctx5x.redraw(look5x);
+    remembered5x = app.FigurePreviewState == "drawn" && lookOf5x(k5x) == "fresh" && isscalar(app.Config.Figures(k5x).aesthetics);
+    app.onUndoRedo("undo");
+    check(remembered5x && isempty(app.Config.Figures(k5x).aesthetics) && app.FigurePreviewState == "stale" ...
+        && string(app.FigurePreviewBadge.Text.Text) == "Out of date" && lookOf5x(k5x) == "stale", ...
+        sprintf(['a look remembered in the preview''s editor leaves it Drawn (%d); Undo Remember looks with Auto off: ' ...
+        'the drawing, which shows the look, is Out of date (%s)'], remembered5x, app.FigurePreviewState));
+    % ... remembered in an Open in window figure's editor, which draws the window only: the preview follows as after an edit
+    app.refreshFigurePreview(Force=true);
+    hw5x = app.onOpenFigureWindow();
+    cw5x = getappdata(hw5x, PlotAesthetics.ContextKey);
+    cw5x.onRemember(look5x);
+    cw5x.redraw(look5x);
+    check(isscalar(app.Config.Figures(k5x).aesthetics) && app.FigurePreviewState == "stale" && lookOf5x(k5x) == "stale", ...
+        sprintf('a look remembered in an Open in window figure''s editor: the preview, not drawn with it, is Out of date with Auto off (%s)', app.FigurePreviewState));
+    if isgraphics(hw5x); delete(hw5x); end
+    app.onUndoRedo("undo");
+
+    % the Export tab's page: the preview drawn again on it from what it holds (nothing computed), the other figure's
+    % kept preview, laid out on the old page, out of date, and drawn again from the cache (no busy card) when shown
+    app.FigureAutoSlider.Value = 1;
+    app.onAddFigure("psth");
+    kB5x = app.SelectedFigure;
+    bDrawn5x = app.FigurePreviewState == "drawn";
+    app.onFigureSelected(k5x);
+    app.refreshFigurePreview(Force=true);
+    app.FigurePreviewResult.marker = 1;   % computeFigure's result has none: it is still there when nothing was computed again
+    scale0 = previewDrawScale(app.FigurePreviewPanel);
+    busy5x = app.FigurePreviewBusyCount;
+    XC5x = app.ExportControls;
+    X05x = [XC5x.Width.Value XC5x.Height.Value];
+    XC5x.Width.Value = 1.5 * X05x(1);
+    XC5x.Height.Value = 1.5 * X05x(2);   % the same shape, a larger page: the preview the same size, its drawing smaller
+    app.onConfigChanged("export");
+    wantScale = @(k) min(max(app.FigurePreviewPanel.InnerPosition(3) / (pageWidthCm(app, k) / 2.54 * 96), 0.35), 3);   % previewScale's
+    scaleA = previewDrawScale(app.FigurePreviewPanel);
+    wantA = wantScale(k5x);
+    check(bDrawn5x && app.FigurePreviewState == "drawn" && isfield(app.FigurePreviewResult, 'marker') && app.FigurePreviewBusyCount == busy5x ...
+        && abs(scaleA - wantA) < 1e-6 && abs(scaleA - scale0) > 1e-3 && lookOf5x(k5x) == "fresh" && lookOf5x(kB5x) == "stale", ...
+        sprintf(['a larger Export tab page: the preview drawn again at its new scale (%.3g, was %.3g; previewScale %.3g), nothing computed, ' ...
+        'Drawn; the other figure''s kept preview out of date in the tree (%s)'], scaleA, scale0, wantA, lookOf5x(kB5x)));
+    app.onFigureSelected(kB5x);
+    scaleB = previewDrawScale(app.FigurePreviewPanel);
+    wantB = wantScale(kB5x);
+    check(app.FigurePreviewState == "drawn" && app.FigurePreviewBusyCount == busy5x && abs(scaleB - wantB) < 1e-6 && lookOf5x(kB5x) == "fresh", ...
+        sprintf('shown again (Auto on), that figure is drawn again on the new page from the cache, no busy card (scale %.3g; previewScale %.3g)', scaleB, wantB));
+    XC5x.Width.Value = X05x(1);
+    XC5x.Height.Value = X05x(2);
+    app.onConfigChanged("export");
+    app.onFigureSelected(k5x);
+
+    % a run: an observation picked while it goes draws nothing, and the drawing of the one before says Out of date;
+    % Export preview then computes the observation picked first, so the file named for it holds it
+    app.FigureAutoSlider.Value = 0;
+    app.refreshFigurePreview(Force=true);
+    T5x = app.FigureObservations;
+    i05x = app.FigureObservationDropDown.Value;
+    i15x = 1 + mod(i05x, height(T5x));   % another observation
+    setappdata(groot, 'runProbe', "");
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, app, @(a) pickObservation(a, i15x)));
+    start(tm);
+    R5x = app.onRunExport(Figures=id5x, SessionFigures=string.empty(1, 0), Datasets=kF1, Export=false, Report=false);
+    stop(tm); delete(tm);
+    pr5x = string(getappdata(groot, 'runProbe'));
+    check(height(T5x) >= 2 && pr5x == "stale" && height(R5x) == 1 && ~app.Running && app.FigurePreviewState == "stale" ...
+        && app.FigureObservationDropDown.Value == i15x && previewResult(app, "observation") == T5x.label(i05x), ...
+        sprintf('an observation picked while a run goes: nothing computed, the drawing of the one before Out of date during the run and after (%s, %s)', ...
+        pr5x, app.FigurePreviewState));
+    app.ExportPreviewFolder = fullfile(root, 'export_preview_5x');
+    files5x = app.onExportPreview();
+    T5x = app.FigureObservations;
+    w5x = app.ExportPreviewWindow;
+    check(~isempty(files5x) && all(isfile(files5x)) && app.FigurePreviewState == "drawn" && previewResult(app, "observation") == T5x.label(i15x) ...
+        && ~isempty(w5x) && isvalid(w5x) && contains(string(w5x.Name), T5x.label(i15x)), ...
+        sprintf('Export preview of that drawing computes the observation picked first (%s): the files named for it hold it', T5x.label(i15x)));
+    if ~isempty(w5x) && isvalid(w5x); delete(w5x); end
+    % an edit while a run goes, Auto on (a look: not set on the drawing in place): nothing computed, Out of date
+    app.FigureAutoSlider.Value = 1;
+    pid5x = app.Config.Figures(k5x).panels(end).id;
+    setappdata(groot, 'runProbe', "");
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, app, ...
+        @(a) a.onFigureAxisEdited(id5x, pid5x, struct('ySide', "right"))));
+    start(tm);
+    app.onRunExport(Figures=id5x, SessionFigures=string.empty(1, 0), Datasets=kF1, Export=false, Report=false);
+    stop(tm); delete(tm);
+    pr5x = string(getappdata(groot, 'runProbe'));
+    rmappdata(groot, 'runProbe');
+    check(pr5x == "stale" && app.FigurePreviewState == "stale" && app.Config.Figures(k5x).panels(end).ySide == "right", ...
+        sprintf('Auto on: a y axis moved right while a run goes computes nothing and leaves the drawing Out of date (%s, %s)', pr5x, app.FigurePreviewState));
+    noFigures();
+    clear restore5x captureBack5x
+    app.Tabs.SelectedTab = app.TabData;
+end
+
 if S.sec("6", "close")
     savedConfig();
     app.onSaveConfig();   % the sections run before this one may have left the config dirty: saved, so Close asks nothing (under -batch it could not)
@@ -7162,6 +7323,62 @@ stop(tm);
 app.ExportControls.Folder.Value = char(folder);
 app.onConfigChanged("export");
 setappdata(groot, 'editProbe', string(app.Runner.Config.Export.Folder));
+end
+
+
+function duringPreview(tm, app, fcn)
+%duringPreview  Once the figure preview computes (its badge Computing), stop TM and call FCN(APP), as a person acts while it computes (the runner's polls let it in; appdata previewProbe: true once done).
+if ~isvalid(app) || app.FigurePreviewState ~= "computing"; return; end
+stop(tm);
+fcn(app);
+setappdata(groot, 'previewProbe', true);
+end
+
+
+function duringRun(tm, app, fcn)
+%duringRun  Once a run has started (the runner's Results emptied), stop TM and call FCN(APP), as a person acts while it goes (appdata runProbe: the preview's badge state after).
+if ~app.Running || isempty(app.Runner) || height(app.Runner.Results) > 0; return; end
+stop(tm);
+fcn(app);
+setappdata(groot, 'runProbe', app.FigurePreviewState);
+end
+
+
+function typeTitle(app, txt)
+%typeTitle  Type TXT as the selected figure's Title in the editor, as a person does (onConfigChanged, the step named Title).
+app.FigureEditor.title.Value = char(txt);
+app.onConfigChanged("figure", "Title");
+end
+
+
+function pickObservation(app, i)
+%pickObservation  Pick observation I in the drop-down over the preview, as a click does (onFigureObservationChanged).
+app.FigureObservationDropDown.Value = i;
+app.onFigureObservationChanged();
+end
+
+
+function v = previewResult(app, field)
+%previewResult  The preview's result's dataset or observation (FIELD "dataset", "observation": its label) as text; "" with no result.
+v = "";
+F = app.FigurePreviewResult;
+if ~isstruct(F); return; end
+if field == "dataset"; v = string(F.dataset); else; v = string(F.observation.label); end
+end
+
+
+function s = previewDrawScale(P)
+%previewDrawScale  The scale the preview in P is drawn at (PlotAesthetics.drawScale of its first panel's axes: renderFigure's Scale); NaN with no axes.
+ax = findall(P, 'Type', 'axes', '-regexp', 'Tag', '^(axes|rasterAxes)$');
+s = NaN;
+if ~isempty(ax); s = PlotAesthetics.drawScale(ax(1)); end
+end
+
+
+function w = pageWidthCm(app, k)
+%pageWidthCm  The width of the page figure K is exported on, cm (figureExportSize, as previewScale reads it).
+cm = figureExportSize(app.Config.Export, [], app.Config.figureFor(k));
+w = cm(1);
 end
 
 

@@ -29,7 +29,13 @@ function onConfigChanged(obj, what, src)
 %   "figuresize" edit is that too, but a drawn preview that was current is
 %   shaped like the new page (fitFigureViews) and drawn again from the
 %   figure it holds (redrawFigurePreview), not computed again; "export"
-%   shapes the previews to the Export tab's page. "ticks" (a Run tick on the Data tab: the
+%   shapes the previews to the Export tab's page, and when the selected
+%   figure's page changed (it follows the Export tab's Width and Height,
+%   or its own size is in px and the Dpi changed: figurePage) its preview
+%   is drawn again on the new page in the same way when it was current (a
+%   figure across sessions from its kept figures), else as after any edit;
+%   the other figures' kept previews, laid out on the old page, are out of
+%   date (figureViewKey's page; the tree marks them). "ticks" (a Run tick on the Data tab: the
 %   config's Selection and Datasets in either mode, gatherSourceSection): the
 %   Alignment and Figures tabs' Dataset drop-downs list the datasets ticked
 %   now (refreshDatasetLabels); when the figure in the editor is a session figure drawn across the ticked
@@ -74,7 +80,9 @@ if what == "figure" || what == "figuresize"
 else
     trackFigureIds(obj, cfg);
 end
-fresh = what == "figuresize" && figureViewFresh(obj);   % the preview drawn is the figure as it was: only its size changes
+fresh = ismember(what, ["figuresize" "export"]) && figureViewFresh(obj);   % the preview drawn is the figure as it was: only its page changes
+page0 = [];
+if what == "export"; page0 = figurePage(obj); end   % the selected figure's page before (the Export tab's, unless it has its own)
 obj.Config = cfg;
 if ~isempty(obj.Runner)
     obj.Runner.Config = cfg;
@@ -117,6 +125,11 @@ switch what
         obj.fitFigureViews();   % the page the figures are exported on is the Export tab's
         obj.showFigureSize();
         showPanelPlace(obj);   % a rect in cm, in or px is a length on that page
+        k = obj.SelectedFigure;
+        if k >= 1 && k <= numel(cfg.Figures) && ~isequal(figurePage(obj), page0)   % its drawing was laid out and scaled on the old page
+            if ~(fresh && obj.redrawFigurePreview(Page=true)); obj.autoFigurePreview(); end   % drawn again from what it holds, else as after any edit
+        end
+        markFigureTree(obj);   % the kept previews of the other figures that follow the page: out of date
     case "ticks"
         refreshDatasetLabels(obj);   % the Dataset drop-downs list the ticked datasets
         k = obj.SelectedFigure;

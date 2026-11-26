@@ -8,8 +8,9 @@ function onSaveDesign(obj, name, description)
 %   changed since), so the axes of heat map, probe map, correlation map
 %   and spectrogram panels give rules for those panel types only and the
 %   other panels the common rules. Nothing is saved while the preview is
-%   Out of date (the drawing is not the figure any more): the status bar
-%   says to preview first. Asks for the NAME and DESCRIPTION unless given
+%   Out of date, or drawn from a key that is no longer the figure's
+%   (figureViewFresh: the drawing is not the figure any more): the status
+%   bar says to preview first. Asks for the NAME and DESCRIPTION unless given
 %   (given: one of yours of that name is replaced). The Save look as
 %   design button in the Look section Design and looks (SaveDesignButton)
 %   and the Design menu call it.
@@ -24,7 +25,7 @@ if ~isappdata(P, PlotAesthetics.ContextKey) || isempty(obj.FigurePreviewResult) 
     uialert(obj.Fig, "Preview a figure first (Figures tab): its look is what the design keeps.", "Save design");
     return
 end
-if obj.FigurePreviewState == "stale"
+if ismember(obj.FigurePreviewState, ["drawn" "stale"]) && ~figureViewFresh(obj)
     obj.setStatus("Save design: preview first: the drawing is out of date.");
     return
 end

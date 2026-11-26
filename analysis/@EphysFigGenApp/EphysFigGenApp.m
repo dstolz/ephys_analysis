@@ -98,7 +98,9 @@ classdef EphysFigGenApp < handle
     %                computeSessionFigure; a probe figure every tile:
     %                computeProbeFigure; the Auto slider: an edit redraws it
     %                while that is predicted to take under the slider's
-    %                limit, autoFigurePreview), with its own badge (setFigurePreviewState), drawn
+    %                limit, autoFigurePreview), with its own badge (setFigurePreviewState:
+    %                Drawn only while the drawing's key is the figure's,
+    %                figureViewFresh: figureViewKey, its page included), drawn
     %                in the design picked above it (Design, PlotDesign; Save
     %                look as design...: onSaveDesign; Edit aesthetics...: the
     %                aesthetics editor without a right-click,
@@ -727,12 +729,12 @@ classdef EphysFigGenApp < handle
         onFigureSizeEdited(obj, part)
         showFigureSize(obj, z)
         fitFigureViews(obj)
-        ok = redrawFigurePreview(obj)
+        ok = redrawFigurePreview(obj, opts)
         onFigurePanelClicked(obj, id, panel, ctrl, fromWindow, shift)
         files = onExportPreview(obj)
         txt = onFigureCode(obj, file)
         setFigurePreviewState(obj, state, opts)
-        rememberFigureAesthetics(obj, id, rules)
+        rememberFigureAesthetics(obj, id, rules, opts)
         onFigureAxisEdited(obj, id, panel, change)
         onPickFigureDatasets(obj, opts)
         onBrowseFigureMapping(obj, file)

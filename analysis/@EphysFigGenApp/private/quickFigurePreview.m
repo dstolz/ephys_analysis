@@ -10,7 +10,7 @@ function ok = quickFigurePreview(obj, opts)
 %   be drawn alike kept by id, the rest drawn, the figure dressed again
 %   over all of them). Then the preview's tail as refreshFigurePreview's
 %   (finishPreview: FigurePreviewResult, the time, FigurePreviewDrawn, the
-%   badge Drawn, the status line), the selected panel outlined
+%   badge Drawn as the key is the figure's, the status line), the selected panel outlined
 %   (markFigurePanel) and a paint that runs no callback (drawnow
 %   nocallbacks).
 %   KeptOnly=true draws only when every panel is kept (renderFigure

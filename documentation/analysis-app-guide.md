@@ -323,8 +323,12 @@ See [Lab database](database.md) for the details.
   [Why is my figure skipped?](EphysFigGenApp.md#why-is-my-figure-skipped)
 - **The preview says *Out of date*.** The figure changed and was not drawn
   again: **Auto** is off, or the redraw would take longer than Auto allows
-  (the line under the preview says *slow*). Press **Preview**, or drag the
-  **Auto** slider to the right.
+  (the line under the preview says *slow*). It also says so when you changed
+  something while the preview was computing or while a run was going (the
+  figure, the dataset, the unit or channel, the Export tab's page size), or
+  undid a remembered look. Press **Preview**, or drag the **Auto** slider to
+  the right. **Open in window** and **Export preview** compute it again
+  first, so they never show an old drawing.
 - **A spectrum drops off at its top end, or Validate warns about *fpass*.**
   The signal was downsampled (Data tab, **Downsample...**), and the filter
   that keeps the lower rate clean also lowers the highest frequencies. Lower

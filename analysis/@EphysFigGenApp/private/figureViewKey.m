@@ -21,17 +21,30 @@ function key = figureViewKey(obj, k)
 %                  of DatasetVariables.values, datasetVariableSets: the
 %                  labels that name them print them); {} for a figure
 %                  across sessions
+%     page         the page it is exported on, [width height] cm
+%                  (figurePage: the figure's own size, else the Export
+%                  tab's Width and Height; Dpi for a size in px), which
+%                  the preview is shaped like and scaled to (fitFigureViews,
+%                  previewScale) and a run draws on (newExportFigure). Not
+%                  what it is computed from: previewDataKey leaves it out,
+%                  so another page draws the preview again from what was
+%                  computed (redrawFigurePreview, quickFigurePreview)
 %   refreshFigurePreview keeps the key it drew with (FigurePreviewDrawn,
-%   FigureViews.Drawn); previewFigureView and markFigureTree compare. So
+%   FigureViews.Drawn); its tails (finishPreview), previewFigureView,
+%   markFigureTree and the drawing's other readers (Open in window, Export
+%   preview: figureViewFresh) compare. So
 %   an edit of one figure leaves the others' previews current, an edit of
 %   the defaults reaches the figures that use them, a signal's new rate
 %   or filter the figures that read that signal, another dataset or a
 %   scan every figure, a dataset's variables edited the figures drawn
-%   from it, and an edit undone makes a preview current again.
+%   from it, the Export tab's page the figures that follow it, and an
+%   edit undone makes a preview current again.
 %   The design is not in it: choosing one redraws every drawn preview in
-%   place, the hidden ones too (PlotDesign.redrawAll).
+%   place, the hidden ones too (PlotDesign.redrawAll). Nor is the
+%   preview's own width on screen (the window's size): a resize lays the
+%   drawing out again (fitFigureViews) and leaves it current.
 %
-%   See also syncFigureView, previewFigureView, markFigureTree.
+%   See also syncFigureView, previewFigureView, markFigureTree, figureViewFresh.
 key = [];
 if k < 1 || k > numel(obj.Config.Figures); return; end
 fig = obj.Config.Figures(k);
@@ -56,7 +69,7 @@ if isa(obj.FigureObservation, 'containers.Map') && isKey(obj.FigureObservation, 
 end
 key = struct('figure', fig, 'data', data, 'observation', obs, 'downsample', signalRates(fig, sourceRates(obj.Config.Source)), ...
     'signalFilter', signalRates(fig, sourceFilters(obj.Config.Source)), 'generation', obj.FigurePreviewGeneration, ...
-    'variables', {vars});
+    'variables', {vars}, 'page', figurePage(obj, fig));
 end
 
 

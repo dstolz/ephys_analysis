@@ -38,8 +38,10 @@ function rows = runDataset(obj, k, opts)
 %   the report: an earlier run drew it, maybe with other settings). Its
 %   files stay in the row's Files, the Message says how many were kept
 %   (EphysAnalysisRunner.keptText: "; <k> kept: files on disk from an
-%   earlier run, not overwritten (Export.Overwrite off)") and the report
-%   entry lists them as kept (addReportFigure Kept=). Without Export and
+%   earlier run, not overwritten (Export.Overwrite off)"), the report
+%   entry lists them as kept (addReportFigure Kept=) and so does
+%   r.KeptFiles (the lab database's record of the run leaves them out of
+%   its outputs: LabCapture.analysisRun). Without Export and
 %   Report each observation is computed only. A
 %   layer or panel that cannot be computed for one observation is drawn as
 %   its note, not a failure; a figure that fails is an "error" row.
@@ -234,6 +236,7 @@ for jf = 1:numel(fids)
         obj.clearBatchCache(k, spec.id);
         msg = sprintf("%d observation(s)", nObs) + EphysAnalysisRunner.keptText(nKept);
         obj.Results(end+1, :) = {name, spec.id, "figure", "done", msg, strjoin(files, "; "), toc(t0)};
+        obj.KeptFiles = [obj.KeptFiles keptFiles];   % in Files, not this run's: the lab database's record leaves them out
         obj.log("%s: %s done (%s, %d file(s), %.1f s)", name, spec.id, msg, numel(files), toc(t0));
     catch ME
         cancelPages(jobs);   % the pages still on the workers
@@ -316,6 +319,7 @@ if opts.Report
 end
 msg = sprintf("%d tile(s)", nT) + EphysAnalysisRunner.keptText(double(kept));
 obj.Results(end+1, :) = {name, spec.id, "figure", "done", msg, strjoin(files, "; "), toc(t0)};
+obj.KeptFiles = [obj.KeptFiles keptFiles];
 obj.log("%s: %s done (%s, %d file(s), %.1f s)", name, spec.id, msg, numel(files), toc(t0));
 end
 

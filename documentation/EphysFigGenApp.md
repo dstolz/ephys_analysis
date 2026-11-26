@@ -2647,7 +2647,11 @@ A run writes, for each ticked dataset and enabled figure:
   `<output root>\analysis\data\all_<id>.mat`; [format](file-formats.md#session-figure-data-mat)).
 - **A run record**, `<report folder>/analysis_runs/<runId>_<name>.json`: the
   config, the code version, the machine and the results
-  ([Run records](file-formats.md#run-records)).
+  ([Run records](file-formats.md#run-records)); also for a run that stops
+  with an error (`outcome` `failed`, the error), which the lab database
+  records as failed. With the lab database on, the Log tab says what the run's
+  record holds and which files it left out (under no mapped storage root;
+  kept from an earlier run).
 
 Each figure's caption says what it shows, e.g. *unit_card: 12 observations (sorted
 units: su, mua) of RAT1_260918; panels: raster, PSTH; aligned to Stim onset; window

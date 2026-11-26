@@ -304,6 +304,11 @@ optional, and the app works the same without it.
   leave out; the ticks are saved with the config.
 - **What a run records:** each **Run** is noted with the files it read and
   the report and figure files it wrote (those under a mapped storage root).
+  A run that stops with an error is noted too, as failed, with the files it
+  wrote before. So is a run in which every figure failed. A figure file
+  kept from an earlier run (**Overwrite existing** off) is not counted as
+  this run's. The **Log** tab says what was noted, and which folders hold
+  files that were left out because no storage root is mapped there.
 - **Records wait for you** when the lamp says **· N need you**: open the
   Database window and read the outbox. A folder whose subject the database
   does not have asks for it in a small window: create the subject, or pick

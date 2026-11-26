@@ -620,10 +620,11 @@ classdef LabCapture
             LabCapture.startLarge(b, s);
         end
 
-        function id = analysisRun(r, idx, opts)
+        function [id, info] = analysisRun(r, idx, opts)
             %analysisRun  Capture a run of figures (EphysAnalysisRunner.run) for the lab database: one analysis event.
-            %   ID = LabCapture.analysisRun(R, IDX, Started=, Finished=,
-            %   Outcome=, RunRecord=), after runner R ran its datasets IDX:
+            %   [ID, INFO] = LabCapture.analysisRun(R, IDX, Started=,
+            %   Finished=, Outcome=, Error=, RunRecord=), after runner R ran
+            %   its datasets IDX:
             %     inputs   the files the run read (each dataset's read ledger,
             %              DatasetOutputs.Reads), each by its id when the
             %              dataset's records name that file as it was read;
@@ -633,27 +634,51 @@ classdef LabCapture
             %              files it wrote that lie under a storage root mapped
             %              here (the others listed in unrecorded_outputs); a
             %              file an earlier run here wrote at the same place
-            %              with other bytes is replaced by it
+            %              with other bytes is replaced by it. A figure file
+            %              kept from an earlier run (R.KeptFiles: on disk with
+            %              Export.Overwrite off, not written by this run) is no
+            %              output of it: listed in kept_outputs
             %   pipeline_name "ephys_analysis/figures", parameters the
             %   analysis config, the code and the machine, when it started
-            %   and finished; status succeeded, or failed with
-            %   attributes.outcome "canceled". The event names a session only
-            %   when the run covers one dataset. ID: the event's id ("" when
-            %   nothing was captured: the database off here, or nothing read
-            %   or written). Config= (an EphysAnalysisConfig; default [] =
-            %   R.Config) is the config recorded as the parameters and
-            %   config_name: EphysAnalysisRunner.run passes the one it
-            %   started with, since R.Config may have changed while it ran.
+            %   and finished. Status "succeeded", or "failed": a run that
+            %   did not finish (attributes.outcome "canceled", or "failed"
+            %   with attributes.error, Error=: the run threw), and a run
+            %   that finished having drawn no figure because every one it
+            %   tried failed (Results rows "error", none "done"; outcome
+            %   "finished"). attributes.figure_errors counts the "error"
+            %   rows, so a run that drew some figures and failed others is
+            %   "succeeded" and says how many failed. The event names a
+            %   session only when the run covers one dataset. ID: the
+            %   event's id ("" when nothing was captured: the database off
+            %   here, or nothing read or written). Config= (an
+            %   EphysAnalysisConfig; default [] = R.Config) is the config
+            %   recorded as the parameters and config_name:
+            %   EphysAnalysisRunner.run passes the one it started with,
+            %   since R.Config may have changed while it ran.
+            %
+            %   INFO says what was noted, for the run's Log: id, status,
+            %   inputs and outputs (how many), unrecorded (the files left
+            %   out for being under no storage root mapped here), kept (the
+            %   kept figure files left out) and why ("" when noted, "off"
+            %   while the database is off here, "nothing" when the run read
+            %   nothing and wrote nothing under a mapped root).
+            %
+            %   The output ledger (outputLedger) is read once per run, for
+            %   every output, and written once, after the record is in the
+            %   outbox.
             arguments
                 r
                 idx (1,:) double
                 opts.Started (1,1) datetime
                 opts.Finished (1,1) datetime
-                opts.Outcome (1,1) string = "finished"
+                opts.Outcome (1,1) string {mustBeMember(opts.Outcome, ["finished" "canceled" "failed"])} = "finished"
+                opts.Error (1,1) string = ""
                 opts.RunRecord (1,1) string = ""
                 opts.Config = []
             end
             id = "";
+            info = struct("id", "", "status", "", "inputs", 0, "outputs", 0, ...
+                "unrecorded", strings(1, 0), "kept", strings(1, 0), "why", "off");
             s = LabCapture.settings();
             if ~LabCapture.enabled(s); return; end
             ins = LabBridge.noItems();
@@ -703,13 +728,23 @@ classdef LabCapture
                     want(end + 1) = struct("path", p, "role", "figure", "kind", "figure", "dataset", string(T.Dataset(j))); %#ok<AGROW>
                 end
             end
+            keptKeys = strings(1, 0);   % the figure files on disk from an earlier run, kept (Export.Overwrite off): not this run's
+            try
+                keptKeys = EphysDataset.pathKey(reshape(string(r.KeptFiles), 1, []));
+            catch
+            end
             items = LabBridge.noItems();
             unrecorded = strings(1, 0);
+            kept = strings(1, 0);
             seen = strings(1, 0);
             for w = want
                 key = EphysDataset.pathKey(w.path);
                 if any(seen == key) || ~isfile(w.path); continue; end
                 seen(end + 1) = key; %#ok<AGROW>
+                if w.role == "figure" && any(keptKeys == key)
+                    kept(end + 1) = w.path; %#ok<AGROW>   % not written by this run: it would claim bytes it did not make
+                    continue
+                end
                 if labclient.Roots.locate(w.path, s) == ""
                     unrecorded(end + 1) = w.path; %#ok<AGROW>
                     continue
@@ -720,18 +755,27 @@ classdef LabCapture
                     ArtifactId=LabBridge.newId()); %#ok<AGROW>
             end
             items = LabCapture.hashSmall(LabCapture.locate(items, s), s);
-            for j = 1:numel(items)
-                % a file an earlier run here wrote at this place: the same bytes are that file, other bytes replace it
-                prev = split(LabCapture.outputLedger(items(j).path), " ");
-                if numel(prev) == 2 && prev(1) ~= ""
-                    if strlength(items(j).sha256) == 64 && items(j).sha256 == prev(2)
-                        items(j).artifact_id = prev(1);
-                    else
-                        items(j).replaces = prev(1);
+            if ~isempty(items)
+                prev = LabCapture.outputLedger([items.path]);   % one read of the ledger for every output
+                for j = 1:numel(items)
+                    % a file an earlier run here wrote at this place: the same bytes are that file, other bytes replace it
+                    pv = split(prev(j), " ");
+                    if numel(pv) == 2 && pv(1) ~= ""
+                        if strlength(items(j).sha256) == 64 && items(j).sha256 == pv(2)
+                            items(j).artifact_id = pv(1);
+                        else
+                            items(j).replaces = pv(1);
+                        end
                     end
                 end
             end
-            if isempty(ins) && isempty(items); return; end
+            info.why = "";
+            info.unrecorded = unrecorded;
+            info.kept = kept;
+            if isempty(ins) && isempty(items)
+                info.why = "nothing";
+                return
+            end
 
             cfg = opts.Config;
             if ~isa(cfg, "EphysAnalysisConfig"); cfg = r.Config; end   % the run's own config, as its run record holds it
@@ -742,16 +786,26 @@ classdef LabCapture
             if isempty(started.TimeZone); started.TimeZone = "local"; end
             finished = opts.Finished;
             if isempty(finished.TimeZone); finished.TimeZone = "local"; end
-            ok = opts.Outcome == "finished";
+            nError = 0;
+            nDone = 0;
+            if height(T) > 0
+                nError = nnz(string(T.Status) == "error");
+                nDone = nnz(string(T.Status) == "done");
+            end
+            % Failed: it did not finish (canceled, or it threw), or it finished having drawn nothing because every
+            % figure it tried failed (the others, if any, skipped). One that drew some and failed others succeeded,
+            % and figure_errors says how many failed: the database's status is succeeded | failed, nothing between.
+            ok = opts.Outcome == "finished" && ~(nError > 0 && nDone == 0);
+            status = LabCapture.ternary(ok, "succeeded", "failed");
             detail = struct("pipeline_name", "ephys_analysis/figures", ...
                 "code_version", LabCapture.codeVersion(prov), ...
                 "parameters_json", string(jsonencode(stringifyNonFinite(cfg.toStruct()))), ...   % as the run record writes it
                 "environment_json", string(jsonencode(provenanceForJson(p2))), ...
                 "started_at", LabBridge.timeText(started), "finished_at", LabBridge.timeText(finished), ...
-                "status", LabCapture.ternary(ok, "succeeded", "failed"));
+                "status", status);
             attr = struct("step", "analysis", "tool", "EphysAnalysisRunner", "config_name", string(cfg.Name), ...
-                "datasets", {cellstr(string(r.Names(idx)))}, "outcome", opts.Outcome, ...
-                "unrecorded_outputs", {cellstr(unrecorded)});
+                "datasets", {cellstr(string(r.Names(idx)))}, "outcome", opts.Outcome, "error", opts.Error, ...
+                "figure_errors", nError, "unrecorded_outputs", {cellstr(unrecorded)}, "kept_outputs", {cellstr(kept)});
             dsb = labclient.Bundles.noDataset();
             if isscalar(idx) && ~isempty(r.Outputs(idx).Dataset)
                 ds = r.Outputs(idx).Dataset;
@@ -764,8 +818,16 @@ classdef LabCapture
             b = labclient.Bundles.seal(b);
             labclient.Outbox.put(b);
             LabCapture.startLarge(b, s);
-            for j = 1:numel(items)
-                LabCapture.outputLedger(items(j).path, items(j).artifact_id + " " + items(j).sha256);
+            info.id = id;
+            info.status = status;
+            info.inputs = numel(ins);
+            info.outputs = numel(items);
+            if isempty(items); return; end
+            try   % the record is in the outbox: a ledger that cannot be written costs the next run its "replaces", not this record
+                LabCapture.outputLedger([items.path], [items.artifact_id] + " " + [items.sha256]);   % one write for the run
+            catch ME
+                warning("LabCapture:OutputLedger", "The outputs of this run could not be noted in this computer's " + ...
+                    "output ledger (%s): the next run here will not know which of them it replaces.", ME.message);
             end
         end
 
@@ -1240,28 +1302,71 @@ classdef LabCapture
         end
 
         function v = outputLedger(p, value)
-            %outputLedger  The last analysis output recorded here at path P ("<artifact id> <sha256>", "" when none); with VALUE, note it.
-            %   Kept in <labclient.DB.folder()>/analysis_outputs.json, so a run after a
-            %   restart still knows the file it replaces.
+            %outputLedger  The last analysis outputs recorded here at paths P ("<artifact id> <sha256>" each, "" when none); with VALUE, note them.
+            %   V = LabCapture.outputLedger(P) reads the ledger once for
+            %   every path of P (a string row); V is a row of the same size.
+            %   LabCapture.outputLedger(P, VALUE) notes VALUE(k) for P(k),
+            %   all in one write: the ledger is read again just before it
+            %   (another MATLAB on this computer may have noted outputs
+            %   since) and written once (writeJsonFile: atomic). There is no
+            %   lock: two MATLABs that write it within the same moment keep
+            %   one's entries, and the other's next run at those paths
+            %   records new files without "replaces"; the records already in
+            %   the outbox are not affected.
+            %   Kept in <labclient.DB.folder()>/analysis_outputs.json, one
+            %   entry per path (the latest), so a run after a restart still
+            %   knows the file it replaces. Nothing is pruned: an entry is
+            %   what the next run that writes its path needs, and a file
+            %   that is not there now (deleted, or on a share that is not
+            %   mounted) may be written again. A ledger that is there but
+            %   cannot be read is left as it is, and nothing is noted
+            %   (warning LabCapture:OutputLedger): written over, it would
+            %   lose every entry in it.
             f = fullfile(labclient.DB.folder(), "analysis_outputs.json");
-            key = EphysDataset.pathKey(p);
-            x = struct("format", "ephys-labdb-outputs/1", "entries", {{}});
-            if isfile(f)
-                y = readJsonFile(f, ErrorOnFail=false);
-                if isstruct(y) && isfield(y, "entries"); x.entries = LabCapture.cells(y.entries); end
-            end
-            keys = strings(1, numel(x.entries));
-            for k = 1:numel(x.entries); keys(k) = string(x.entries{k}.path); end
-            k = find(keys == key, 1);
+            keys = EphysDataset.pathKey(reshape(string(p), 1, []));
+            [E, have, readable] = LabCapture.readOutputLedger(f);
             if nargin < 2
-                v = "";
-                if ~isempty(k); v = string(x.entries{k}.value); end
+                v = strings(1, numel(keys));
+                [hit, at] = ismember(keys, have);
+                for j = find(hit); v(j) = string(E{at(j)}.value); end
                 return
             end
-            v = string(value);
-            e = struct("path", key, "value", v);
-            if isempty(k); x.entries{end + 1} = e; else; x.entries{k} = e; end
-            writeJsonFile(f, x);
+            v = reshape(string(value), 1, []);
+            if ~readable
+                warning("LabCapture:OutputLedger", "%s cannot be read, so this run's outputs are not noted in it; " + ...
+                    "it is left as it is (delete it to start a new one).", f);
+                return
+            end
+            for j = 1:numel(keys)
+                e = struct("path", keys(j), "value", v(j));
+                k = find(have == keys(j), 1);
+                if isempty(k)
+                    E{end + 1} = e; %#ok<AGROW>
+                    have(end + 1) = keys(j); %#ok<AGROW>
+                else
+                    E{k} = e;
+                end
+            end
+            writeJsonFile(f, struct("format", "ephys-labdb-outputs/1", "entries", {E}));
+        end
+
+        function [E, keys, readable] = readOutputLedger(f)
+            %readOutputLedger  The output ledger F's entries (a row cell of structs path, value) and their paths.
+            %   READABLE is false when F is there but is no ledger (not JSON,
+            %   or no entries); E is then empty.
+            E = {};
+            keys = strings(1, 0);
+            readable = true;
+            if ~isfile(f); return; end
+            y = readJsonFile(f, ErrorOnFail=false);
+            if ~isstruct(y) || ~isscalar(y) || ~isfield(y, "entries")
+                readable = false;
+                return
+            end
+            E = LabCapture.cells(y.entries);
+            E = E(cellfun(@(e) isfield(e, "path") && isfield(e, "value"), E));
+            keys = strings(1, numel(E));
+            for k = 1:numel(E); keys(k) = string(E{k}.path); end
         end
 
         function v = ledger(key, value)

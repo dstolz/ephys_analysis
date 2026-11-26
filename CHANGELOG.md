@@ -800,6 +800,18 @@ says how to cut a release.
   key, not the badge. A page change draws the shown preview again from what it computed (a figure across sessions
   from its kept figures), and the other figures' kept previews are marked out of date. A look remembered from an
   Open in window figure now updates the preview as an edit does.
+- An analysis run that stopped with an error had no run record and was not recorded for the lab database, though
+  its figure files and reports were on disk. `EphysAnalysisRunner.run` now ends such a run like any other: its run
+  record (`outcome` `failed`, and a new `error` field, as the pipeline's) and its lab database record (status
+  failed, `attributes.error`), both listing the files written before the error (`ReportFiles` grows as each report
+  file is written); then the error is thrown again. A run that drew no figure because every figure it tried failed
+  is recorded as failed, not succeeded (`attributes.figure_errors` counts a run's failed figures). Figure files kept
+  from an earlier run (`Export.Overwrite` off; the new `EphysAnalysisRunner.KeptFiles`) are no longer recorded as
+  outputs of the run, which did not write them (`kept_outputs`). The run's Log says what was noted (the event, its
+  status, how many files it read and wrote) and which files were left out, by folder: those under no mapped storage
+  root and the kept ones (`LabCapture.analysisRun` returns it as a second output). The output ledger
+  (`analysis_outputs.json`) is read once and written once per run instead of once per output file, and a ledger
+  that cannot be read is no longer written over (warning `LabCapture:OutputLedger`).
 - `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had
   saved a pairing since the dataset object last wrote the manifest, and the new record was equal to the one the
   object wrote then (its `updated` time is to the second), the manifest merge took the record as unchanged and kept

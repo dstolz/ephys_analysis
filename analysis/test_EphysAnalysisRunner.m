@@ -42,7 +42,10 @@ function test_EphysAnalysisRunner()
 %   ProgressFcn (a figure renamed, other folders: both datasets, the report
 %   and the run record are the started config's); Overwrite off with a
 %   report (the file on disk kept, the report embedding this run's drawing,
-%   the kept file said so in the row, the entry and the HTML).
+%   the kept file said so in the row, the entry and the HTML); a run that
+%   throws while it writes its PDF report (the error reaching the caller,
+%   the HTML written before it in ReportFiles, the run record written with
+%   outcome "failed" and the error).
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -874,6 +877,8 @@ check(isscalar(eW) && numel(eW.images) == 1 && eW.images{1}.data ~= string(matla
     && isfield(eW, 'kept') && isequal(eW.kept, pngW) && contains(HW, "Kept from an earlier run") && contains(HW, names(1) + "_map.png"), ...
     ['the report embeds the page this run drew (under this run''s caption and config), not the earlier run''s file; ' ...
     'its entry and the HTML name that file as kept']);
+check(isequal(rW.KeptFiles, pngW), ...
+    'KeptFiles lists the kept file (the lab database''s record of the run leaves it out of its outputs: LabCapture.analysisRun)');
 
 fprintf('\n== 13. folders mode: Selection "list" runs the folders it names (the app''s Run ticks) ==\n');
 cfgF = cfg;
@@ -893,6 +898,42 @@ check(isequal(rF.Keys, F.folders(2)) && string(widF) == "EphysAnalysisRunner:Unk
     && contains(txtF, "folders = " + EphysPipelineScript.literal(F.folders(2)) + ";"), ...
     ['folders mode with Selection "list": the runner (and so the compact script) and the standalone script take only the ' ...
     'folders Datasets names, a name that is no folder of Folders warned about; "all" takes every folder']);
+
+fprintf('\n== 14. a run that throws: its run record says so, the files written before the error listed; the error goes on ==\n');
+outX = fullfile(root, 'outFails');
+cfgX = cfg;
+cfgX.Name = "fails at the report";
+cfgX.Figures = cfgX.Figures(cfgX.figureIndex("map"));   % one page per dataset
+cfgX.Export.Folder = fullfile(outX, "{Name}");
+cfgX.Export.Formats = "png";
+cfgX.Report.Format = "both";   % the HTML first, then the PDF, which fails
+cfgX.Report.Folder = outX;
+rX = EphysAnalysisRunner(cfgX, LogFcn=[]);
+    function onFailProgress(~, msg)
+        if startsWith(msg, "Writing the report: joining")   % the PDF's last step: the HTML is written
+            error('test_EphysAnalysisRunner:Stopped', 'the disk is full');
+        end
+    end
+rX.ProgressFcn = @onFailProgress;
+idX = "";
+try
+    rX.run();
+catch ME
+    idX = string(ME.identifier);
+end
+rX.ProgressFcn = [];
+recX = struct('outcome', "", 'error', "", 'reportFiles', {{}}, 'results', {{}});
+if rX.RunRecordFile ~= "" && isfile(rX.RunRecordFile); recX = jsondecode(fileread(rX.RunRecordFile)); end
+htmlX = string(fullfile(outX, "analysis_report.html"));
+pngX = arrayfun(@(n) string(fullfile(outX, n, n + "_map.png")), names);
+check(idX == "test_EphysAnalysisRunner:Stopped" && isequal(rX.ReportFiles, htmlX) && isfile(htmlX) && all(isfile(pngX)) ...
+    && height(rX.Results) == 2 && all(rX.Results.Status == "done") && all(ismember(pngX, rX.Results.Files)), ...
+    sprintf(['a run that throws while it writes the PDF report: the error reaches the caller (%s); the HTML written ' ...
+    'before it is in ReportFiles, both datasets'' figure files in Results'], idX));
+check(startsWith(rX.RunRecordFile, string(fullfile(outX, "analysis_runs"))) && string(recX.outcome) == "failed" ...
+    && string(recX.error) == "test_EphysAnalysisRunner:Stopped: the disk is full" && isequal(string(recX.reportFiles), htmlX) ...
+    && numel(recX.results) == 2, ...
+    'its run record is written all the same: outcome "failed", the error, the HTML report and both rows');
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

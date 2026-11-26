@@ -28,7 +28,7 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %   | skipped (no observation drew: the reasons) | error, Message "<n>
 %   observation(s)" (and EphysAnalysisRunner.keptText's note on the pages
 %   kept), Files (the kept pages' files too; the report entry lists them as
-%   kept, addReportFigure Kept=). With Report each label is one entry of r.Report
+%   kept, addReportFigure Kept=, and so does r.KeptFiles). With Report each label is one entry of r.Report
 %   (in the section run started, "Across sessions"), its pages the
 %   observations', captioned by figureCaption(SPEC, <its observations>,
 %   Sessions=<its facet's sessions, as merged>, Results=<its last page's
@@ -250,6 +250,7 @@ for q = 1:numel(E)
             Caption=figureCaption(spec, T(E(q).rows, :), Sessions=E(q).F.sessions, YShared=nShared, Results={E(q).F.trial}));   % this figure's observations and its facet's sessions
     end
     obj.Results(end+1, :) = {label, id, "figure", "done", msg, strjoin(E(q).files, "; "), E(q).seconds};
+    obj.KeptFiles = [obj.KeptFiles E(q).kept];   % in Files, not this run's: the lab database's record leaves them out
     obj.log("%s: %s done (%d observation(s), %d file(s), %.1f s)", label, id, E(q).done, numel(E(q).files), E(q).seconds);
 end
 

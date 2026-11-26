@@ -1435,10 +1435,13 @@ outputs are already on disk.
 
 **Analysis runs.** Path: `<report folder>/analysis_runs/<runId>_<name>.json`,
 the report folder being `Report.Folder` resolved for the first dataset
-(whether or not a report was written). Written by `EphysAnalysisRunner.run`;
+(whether or not a report was written). Written by `EphysAnalysisRunner.run`
+when the run ends, whether it finished, was canceled or stopped with an error
+(then before the error goes on to the caller);
 schema `ephys-analysis-run/2`: `runId`, `name`, `outcome` (`finished` |
-`canceled`), `started`, `finished`, `seconds`, `datasets`,
-`figures` (the figure ids the run drew per dataset; a figure drawn across the datasets is not among them), `sessionFigures` (the session figures run: figures with `sessions.enabled`, drawn across the datasets), `reportFiles`, `results` (the runner's Results rows), `fromDatabase` (per
+`canceled` | `failed`), `error` (`<identifier>: <message>` of the error that
+stopped a failed run, else `""`, as in a pipeline run's record), `started`, `finished`, `seconds`, `datasets`,
+`figures` (the figure ids the run drew per dataset; a figure drawn across the datasets is not among them), `sessionFigures` (the session figures run: figures with `sessions.enabled`, drawn across the datasets), `reportFiles` (each report file written, also those written before the error of a failed run), `results` (the runner's Results rows; a failed run's, the rows it finished), `fromDatabase` (per
 dataset, `dataset` and `files`: the files, or a sort's folder, found in folders
 the lab database named because they were not in the dataset's own folders;
 `[]` when none), `provenance` and `config` (the analysis config the run
@@ -1448,7 +1451,8 @@ the figures, the report or the lab database's record of the run). A
 `results` row of a figure whose pages' files were already on disk with
 `Export.Overwrite` off lists those files in `Files` and says in `Message`
 how many were kept (`"3 observation(s); 2 kept: files on disk from an
-earlier run, not overwritten (Export.Overwrite off)"`). `EphysAnalysisRunner.RunRecordFile` names it.
+earlier run, not overwritten (Export.Overwrite off)"`); `EphysAnalysisRunner.KeptFiles`
+lists them. `EphysAnalysisRunner.RunRecordFile` names it.
 The pipeline's Analysis step writes one too (its `config.Source` is the
 pipeline's project and selected datasets), and the pipeline run's record
 lists the step's rows (`analysis:<figure id>`, `analysis:report`).

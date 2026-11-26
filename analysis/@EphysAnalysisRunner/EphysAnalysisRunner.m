@@ -76,7 +76,13 @@ classdef EphysAnalysisRunner < handle
     %                   Status (done | skipped | error | canceled), Message,
     %                   Files, Seconds
     %     Report        the last run's report struct (newAnalysisReport)
-    %     ReportFiles   the report files the last run wrote
+    %     ReportFiles   the report files the last run wrote (each one as it is
+    %                   written: a run that throws lists those written before)
+    %     KeptFiles     the figure files of the last run's Results that were on
+    %                   disk already and kept (Export.Overwrite off): listed
+    %                   in Files, not written by the run, so the lab
+    %                   database's record does not make them its outputs
+    %                   (LabCapture.analysisRun: kept_outputs)
     %     RunRecordFile the run record the last run wrote: the config, the code
     %                   version, MATLAB, host, user and the Results rows, in
     %                   <report folder>/analysis_runs (see run)
@@ -133,6 +139,7 @@ classdef EphysAnalysisRunner < handle
         Results table = EphysAnalysisRunner.emptyResults()
         Report = []
         ReportFiles (1,:) string = string.empty(1, 0)
+        KeptFiles (1,:) string = string.empty(1, 0)   % the last run's figure files kept from an earlier run (Export.Overwrite off)
         RunRecordFile (1,1) string = ""   % the run record the last run wrote ("" = none)
         BatchYLim = struct('figure', cell(1, 0), 'id', cell(1, 0), 'lim', cell(1, 0), 'n', cell(1, 0))   % the last run's shared y ranges
     end

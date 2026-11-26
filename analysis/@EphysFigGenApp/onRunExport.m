@@ -44,7 +44,8 @@ function R = onRunExport(obj, opts)
 %   records are written), its progress and its end write nothing to the
 %   window (windowOpen), and the window closes when it has ended
 %   (CloseWhenRunEnds). A window deleted some other way during the run
-%   leaves the run going and writing its files in the same way. The runner is given
+%   leaves the run going and writing its files in the same way, also when
+%   it goes while the run's controls are being set. The runner is given
 %   the config gathered here (EphysAnalysisRunner.run Config=), so an edit
 %   whose callback runs before the run starts is the next run's too.
 arguments
@@ -105,12 +106,16 @@ clock = ProgressClock();   % the time left, in the status bar
 showRunBar(obj, true);
 r.ProgressFcn = @(f, m) progress(obj, r, opts.Title, clock, f, m);
 obj.Running = true;
-obj.GenerateFigureMenu.Enable = 'off';
-set([obj.RunButton obj.PlanButton obj.ValidateButton obj.FigureRedrawAllButton obj.TestReportButton ...
-    obj.FigureExportPreviewButton obj.FigureExportPreviewColumnButton], 'Enable', 'off');
-set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'off');
-obj.CancelButton.Enable = 'on';
-obj.ToolbarCancelTool.Enable = 'on';
+try   % a callback can run between these lines (a Close, the window deleted): then the run goes on without them
+    obj.GenerateFigureMenu.Enable = 'off';
+    set([obj.RunButton obj.PlanButton obj.ValidateButton obj.FigureRedrawAllButton obj.TestReportButton ...
+        obj.FigureExportPreviewButton obj.FigureExportPreviewColumnButton], 'Enable', 'off');
+    set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'off');
+    obj.CancelButton.Enable = 'on';
+    obj.ToolbarCancelTool.Enable = 'on';
+catch ME
+    if windowOpen(obj); obj.Running = false; rethrow(ME); end   % (the window is there: a real error)
+end
 cleanup = onCleanup(@() finish(obj));
 closer = onCleanup(@() closeIfAsked(obj)); %#ok<NASGU> Close during the run: the window, hidden, closes when this returns
 t0 = tic;

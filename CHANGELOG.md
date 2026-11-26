@@ -33,8 +33,9 @@ says how to cut a release.
   was in the preview; the notepad open across
   a re-scan writes through the app's `DatasetNotes` (its note is written first, then it moves to the new object), so
   no note is dropped; Apply last change after Move figure up or down compares the figure with itself and offers
-  nothing wrong; the Shift+click panel selection is let go when another figure comes (Remove, Undo, Redo, a template,
-  a config opened).
+  nothing wrong; the Shift+click panel selection is let go when another figure is shown in the place of the one it
+  was made on (Remove, an Undo or Redo that brings another figure, a config opened) or that figure's panels change (a
+  template, a panel of another type); an Undo of an edit the selected panels took keeps it.
 
 ### Changed
 

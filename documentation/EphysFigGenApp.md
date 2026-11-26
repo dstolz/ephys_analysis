@@ -2962,7 +2962,7 @@ leaving the config and the controls as they were, and the undo history and the d
 leaves no step, a config opened neither clears the history nor drops the drawing), the arrow keys given back after a
 click in a field or the tree (the window's `CurrentObject`, set by the suite: when it cannot be set the check says
 SKIP; whether a real click sets it is a manual check), the notepad written through the new object after a re-scan,
-Apply last change after **Down** offering nothing, the Shift+click selection let go after Remove, Undo, Redo and a config opened,
+Apply last change after **Down** offering nothing, the Shift+click selection let go after Remove, an Undo and a Redo that show another figure, and a config opened,
 Save and Close with preferences that cannot be written, and Close during a run, and a window deleted during a run (its
 report still written). Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot

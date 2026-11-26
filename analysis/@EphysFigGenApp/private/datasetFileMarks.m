@@ -14,7 +14,8 @@ function M = datasetFileMarks(obj)
 r = obj.Runner;
 n = numel(r.Keys);
 C = obj.DatasetFileMarks;
-if isstruct(C) && isfield(C, 'Runner') && isequal(C.Runner, r) && size(C.Marks, 1) == n
+if isstruct(C) && isfield(C, 'Runner') && isa(C.Runner, 'EphysAnalysisRunner') && isscalar(C.Runner) ...
+        && C.Runner == r && size(C.Marks, 1) == n   % the same Runner (handle identity: isequal would compare every property's value)
     M = C.Marks;
     return
 end

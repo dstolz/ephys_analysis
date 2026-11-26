@@ -7,7 +7,8 @@ function recordFigureEdit(obj, cfg, label, opts)
 %   rememberFigureAesthetics, onPickFigureDatasets, onApplyToFigures and
 %   onCopyFigureSettings (Copy settings...). The step holds
 %   obj.Config.Figures and CFG.Figures and the figure, panel and layer
-%   selected (FigureEditHistory.record); an edit that leaves the figures as
+%   selected (FigureEditHistory.record; Selection=[figure panel layer] names
+%   another place, as Duplicate does: the original figure, where Undo goes); an edit that leaves the figures as
 %   they were is not one. Key=KEY (the control) lets a burst of edits
 %   from one control be one step. Undo and Redo (onUndoRedo) record
 %   nothing: they apply through applyConfig without Action. The Edit menu
@@ -19,9 +20,12 @@ arguments
     cfg (1,1) EphysAnalysisConfig
     label (1,1) string
     opts.Key = []
+    opts.Selection (1,3) double = [NaN NaN NaN]   % the place Undo returns to; NaN: where the editor is now
 end
+sel = opts.Selection;
+if any(isnan(sel)); sel = [obj.SelectedFigure obj.SelectedPanel obj.SelectedLayer]; end
 rememberPanelOptions(obj, obj.Config.Figures, cfg.Figures);   % a new panel of the type starts from them
 obj.FigureHistory = obj.FigureHistory.record(obj.Config.Figures, cfg.Figures, label, Key=opts.Key, ...
-    Selection=[obj.SelectedFigure obj.SelectedPanel obj.SelectedLayer]);
+    Selection=sel);
 refreshEditMenu(obj);
 end

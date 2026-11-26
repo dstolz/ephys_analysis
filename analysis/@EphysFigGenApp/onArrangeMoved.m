@@ -7,7 +7,9 @@ function onArrangeMoved(obj, id, evt)
 %   where the pointer left it rather than where it was snapped to), kept
 %   on the page with a width and height of at least 0.01, and set as the
 %   panel's rect (commitFigureEdit, "Move panel" or "Resize panel": one
-%   undo step per drag). The status bar says where the panel is now ("Moved psth_1:
+%   undo step per drag). A drag that never leaves 3 px of where it began
+%   (no edge moved farther) is a click that wobbled: the panel stays as it
+%   was, not snapped, and the status bar says so. The status bar says where the panel is now ("Moved psth_1:
 %   9.0 x 6.0 cm at 0, 6."). A drag that leaves the rect as it was changes
 %   nothing (a release with no step of a drag before it, where it started,
 %   is not snapped either); one Escape canceled (cancelArrange) puts the
@@ -39,6 +41,7 @@ arguments
     id (1,1) string
     evt = []
 end
+ClickPx = 3;   % a drag that never got this far (px of the page, each edge) is a click
 mode = obj.FigureArrangeMode;
 if mode == "corners"; return; end
 obj.FigureArrangeMode = "";
@@ -77,7 +80,13 @@ else
         return
     end
 end
-if obj.FigureSnap && ~C.alt
+wobble = false;   % a press that moved the pointer a pixel or two is a click, not a drag: snapping would move a panel only clicked
+if mode == "drag" && isstruct(D) && isfield(D, 'ctx') && isfield(D.ctx, 'pg') && numel(D.ctx.pg) == 4 && all(isfinite(D.ctx.pg))
+    wobble = max(abs(raw - C.rect0) .* [D.ctx.pg(3:4) D.ctx.pg(3:4)]) < ClickPx;
+end
+if wobble
+    rect = C.rect0;
+elseif obj.FigureSnap && ~C.alt
     rect = snapRect(raw, C.rect0, C.others, C.step, C.tol, Names=C.names);
 else
     rect = raw;

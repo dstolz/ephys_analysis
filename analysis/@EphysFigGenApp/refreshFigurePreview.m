@@ -36,7 +36,13 @@ function refreshFigurePreview(obj, opts)
 %   ("Figure:", Redraw) is not taken: the drop-down goes back to the one
 %   drawn (showSessionPick). A compute that throws, the three previews alike
 %   (a local previewFailed), empties the preview but for why: Canceled,
-%   Cannot draw (the runner's skip reason) or Failed (in the Log too).
+%   Cannot draw (the runner's skip reason) or Failed (in the Log too);
+%   except a Cancel (or an interrupt) while it still computes over a drawing
+%   of the figure (drawingShown), which leaves that drawing, Out of date,
+%   with the line saying it was canceled, as a signal extract over
+%   PreviewMaxMB does (never Drawn: it is the figure as it was). Both wait
+%   for Preview, also when the figure is shown again (FigurePreviewSeconds
+%   Inf: previewFigureView).
 %   A session figure (sessions.enabled) is drawn across the ticked (or
 %   listed) datasets instead: EphysAnalysisRunner.computeSessionFigure for
 %   the matched observation picked (refreshFigureObservations lists
@@ -191,9 +197,15 @@ dataKey = previewDataKey(obj, k);   % what its data are computed from (FigurePre
 if ~opts.Force
     mb = signalMB(spec, src);
     if mb > obj.PreviewMaxMB
-        clearPanel(obj, sprintf("A layer reads %.0f MB of signal (over %g MB): press Preview to read it.", mb, obj.PreviewMaxMB));
+        msg = sprintf("A layer reads %.0f MB of signal (over %g MB): press Preview to read it.", mb, obj.PreviewMaxMB);
         obj.FigurePreviewSeconds = Inf;
-        obj.setFigurePreviewState("waiting");
+        if drawingShown(obj)   % the last drawing stays, Out of date (never Drawn), the line says what waits
+            obj.FigurePreviewLabel.Text = msg;
+            obj.setFigurePreviewState("stale");
+        else
+            clearPanel(obj, msg);
+            obj.setFigurePreviewState("waiting");
+        end
         return
     end
 end
@@ -206,7 +218,8 @@ L.Text = "Computing " + what + " ...";
 rn = obj.Runner;
 rn.clearCancel();   % before the badge paints: a click on Cancel can come in while it does
 obj.FigurePreviewRedo = false;
-interrupted = onCleanup(@() previewInterrupted(obj, rn, spec.id, false)); %#ok<NASGU> to the end: the polls stop; an interrupt from here on is a cancel (the tail or the catch sets the state on every return)
+keep = drawingShown(obj);   % a drawing in the panel before this compute: a cancel leaves it (Out of date)
+interrupted = onCleanup(@() previewInterrupted(obj, rn, spec.id, false, keep)); %#ok<NASGU> to the end: the polls stop; an interrupt from here on is a cancel (the tail or the catch sets the state on every return)
 obj.setFigurePreviewState("computing", Message="Computing " + what + " on " + src.name + " ...");
 t0 = tic;
 rn.PollFcn = @() drawnow("limitrate");
@@ -224,7 +237,7 @@ try
         Reuse=true);   % only the panels that changed drawn again
     obj.markFigurePanel();   % the selected panel outlined
 catch ME
-    previewFailed(obj, spec, ME);   % Canceled, Cannot draw or Failed, and why
+    previewFailed(obj, spec, ME, Keep=keep);   % Canceled, Cannot draw or Failed, and why
     return
 end
 finishPreview(obj, spec, obs, src, drawnKey, dataKey, secsCompute, toc(t0));   % its time, key, badge (by key) and status line, as the others'
@@ -363,7 +376,8 @@ L.Text = "Computing " + what + " ...";
 rn = obj.Runner;
 rn.clearCancel();   % before the badge paints: a click on Cancel can come in while it does
 obj.FigurePreviewRedo = false;
-interrupted = onCleanup(@() previewInterrupted(obj, rn, spec.id, false)); %#ok<NASGU> to the end, after the tail: an interrupt is a cancel, a drawing finished is left alone
+keep = drawingShown(obj);   % (as previewNow's)
+interrupted = onCleanup(@() previewInterrupted(obj, rn, spec.id, false, keep)); %#ok<NASGU> to the end, after the tail: an interrupt is a cancel, a drawing finished is left alone
 obj.setFigurePreviewState("computing", Message="Computing the tiles of " + spec.id + " on " + src.name + " ...");
 t0 = tic;
 rn.PollFcn = @() drawnow("limitrate");
@@ -382,7 +396,7 @@ try
         Reuse=false);   % drawn whole: its tiles are placed by arithmetic, not kept
     obj.markFigurePanel();   % (hides the outline: a probe figure's panels are many)
 catch ME
-    previewFailed(obj, spec, ME);
+    previewFailed(obj, spec, ME, Keep=keep);
     return
 end
 secs = toc(t0);
@@ -409,15 +423,24 @@ function previewFailed(obj, spec, ME, opts)
 %   Log too. Sessions=true (a figure across sessions): its kept figures
 %   and their "Figure:" drop-down go too, a failure says "across
 %   sessions" (the Log: "session figure preview failed"), and a cancel is
-%   not logged. Nothing is done when the app was closed meanwhile.
+%   not logged. Keep=true (a drawing was in the panel before the compute
+%   began: drawingShown) and the state still "computing" -- renderFigure had
+%   not started, so the panel holds that drawing whole -- leaves a cancel
+%   there, with its result and key: the badge says Out of date (never
+%   Drawn: it is the figure as it was) and the line says what was canceled;
+%   Preview computes it. A failure, a skip or a cancel while it draws empties
+%   the panel as before. Nothing is done when the app was closed meanwhile.
 arguments
     obj
     spec (1,1) struct
     ME (1,1) MException
     opts.Sessions (1,1) logical = false
+    opts.Keep (1,1) logical = false
 end
 if ~isvalid(obj) || ~isvalid(obj.Fig); return; end   % the app was closed while it computed
-obj.FigurePreviewResult = [];
+canceled = string(ME.identifier) == "EphysAnalysisRunner:Canceled";
+keep = opts.Keep && canceled && ~opts.Sessions && obj.FigurePreviewState == "computing";   % renderFigure had not begun: the drawing in the panel is the last one's, whole
+if ~keep; obj.FigurePreviewResult = []; end
 if opts.Sessions
     obj.FigureSessionResults = [];
     showSessionPicker(obj, []);
@@ -426,9 +449,15 @@ obj.FigurePreviewSeconds = Inf;
 msg = string(ME.message);
 switch string(ME.identifier)
     case "EphysAnalysisRunner:Canceled"
-        clearPanel(obj, spec.id + " was canceled: press Preview to compute it.");
+        msg = spec.id + " was canceled: press Preview to compute it.";
+        if keep   % the last drawing stays, Out of date (the line says what was canceled), never Drawn
+            obj.FigurePreviewLabel.Text = msg;
+            obj.setFigurePreviewState("stale");
+        else
+            clearPanel(obj, msg);
+            obj.setFigurePreviewState("canceled");
+        end
         if ~opts.Sessions; obj.log(spec.id + " figure preview canceled."); end
-        obj.setFigurePreviewState("canceled");
     case {"EphysAnalysisRunner:FigureSkipped" "EphysAnalysisRunner:NoObservation"}
         clearPanel(obj, msg, "skipped");
         obj.setFigurePreviewState("skipped");
@@ -470,12 +499,18 @@ end
 end
 
 
+function tf = drawingShown(obj)
+%drawingShown  Whether the preview panel holds a drawing of the figure shown: Drawn or Out of date, with its result.
+tf = ismember(obj.FigurePreviewState, ["drawn" "stale"]) && ~isempty(obj.FigurePreviewResult);
+end
+
+
 function stopPolling(rn)
 if ~isempty(rn) && isvalid(rn); rn.PollFcn = []; end
 end
 
 
-function previewInterrupted(obj, rn, id, sessions)
+function previewInterrupted(obj, rn, id, sessions, keep)
 %previewInterrupted  A preview's cleanup: the runner's polls stop, and an interrupt (Ctrl+C) leaves the state as Cancel does.
 %   The onCleanup of each preview (previewNow's figure, sessionPreview,
 %   drawSessionEntry, which is the Redraw path's whole work, probePreview),
@@ -492,11 +527,15 @@ function previewInterrupted(obj, rn, id, sessions)
 %   Test report, Generate, Export preview, Redraw All, the previews
 %   themselves) are free again; after a success it changes nothing. RN [] =
 %   no polls to stop (drawSessionEntry). quickFigurePreview has its own
-%   (release: the state it had before, when its tail did not run).
+%   (release: the state it had before, when its tail did not run). KEEP
+%   (default false, the tests' Interrupted= check): a drawing was in the
+%   panel before the compute, which an interrupt while it still computes
+%   leaves there, Out of date (previewFailed Keep).
+if nargin < 5; keep = false; end
 stopPolling(rn);
 if ~isvalid(obj) || isempty(obj.Fig) || ~isvalid(obj.Fig); return; end
 if ismember(obj.FigurePreviewState, ["computing" "drawing"])
-    previewFailed(obj, struct('id', id), MException("EphysAnalysisRunner:Canceled", "The preview was interrupted."), Sessions=sessions);
+    previewFailed(obj, struct('id', id), MException("EphysAnalysisRunner:Canceled", "The preview was interrupted."), Sessions=sessions, Keep=keep);
 end
 end
 

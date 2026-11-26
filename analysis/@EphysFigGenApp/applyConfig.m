@@ -8,7 +8,9 @@ function applyConfig(obj, cfg, opts)
 %   preview marked Out of date (autoFigurePreview then draws the new
 %   config's figure when it can), and the undo history is cleared. Action=LABEL (the figure list's edits:
 %   "Add figure", "Remove figure") records the change of the figures as a
-%   step of the undo history (recordFigureEdit); without it (Undo and Redo
+%   step of the undo history (recordFigureEdit; Selection=[figure panel layer]
+%   is the place the step keeps for Undo, the one selected by default: Duplicate
+%   keeps the original's, so Undo selects it and not the figure after it); without it (Undo and Redo
 %   themselves, onUndoRedo) nothing is recorded. The Data tab's scan line
 %   says whether the datasets listed are the scan of the config's source
 %   (showScanLabel: what scannedSource reads, so a config that differs only
@@ -25,6 +27,7 @@ arguments
     cfg (1,1) EphysAnalysisConfig
     opts.MarkSaved (1,1) logical = false
     opts.Action (1,1) string = ""
+    opts.Selection (1,3) double = [NaN NaN NaN]
 end
 obj.Applying = true;
 restore = onCleanup(@() setApplying(obj, false));
@@ -42,7 +45,7 @@ if opts.MarkSaved
     obj.FigureHistory = obj.FigureHistory.clear();   % another config: its edits start here
     refreshEditMenu(obj);
 elseif opts.Action ~= ""
-    recordFigureEdit(obj, cfg, opts.Action);
+    recordFigureEdit(obj, cfg, opts.Action, Selection=opts.Selection);
 end
 try
     pushConfig(obj, cfg);

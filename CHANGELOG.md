@@ -10,6 +10,15 @@ says how to cut a release.
 
 ### Fixed
 
+- EphysFigGenApp, review backlog: Undo of Duplicate figure selects the figure that was copied, not the one after it;
+  a preview that was canceled or failed, or waits for a large signal extract, waits for Preview when its figure is
+  shown again (it was computed, and failed or canceled, at every return); Cancel and the size limit keep the drawing
+  that was in the panel, Out of date and never Drawn, instead of emptying it; the datasets table reads which files
+  exist once per scan, not at every star, note, tick and filter edit (a file that appears or goes away is noticed at
+  the next Scan); File > Open recent keeps a config that is not found now (a share not mounted), gray, instead of
+  dropping it for good; `fitToScreen` fits the window to the monitor that holds it, not the primary one; Arrange is
+  off unless the Image Processing Toolbox is installed as well as licensed (`toolboxAvailable`); a click on an Arrange box that moves the pointer under 3 px moves
+  nothing (it was snapped); the snap step keeps its exact length through the units (0.5 cm to px and back was 0.51).
 - EphysFigGenApp, stuck or broken states: an interrupt (Ctrl+C) during a preview leaves it Canceled, not
   "computing" or "drawing" for the session (a figure across sessions too, also while it draws a kept figure picked
   under *Figure:*), and a preview that finished is never touched by that cleanup (it runs after the preview's tail);

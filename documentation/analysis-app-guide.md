@@ -90,8 +90,10 @@ and what it does.
      panel gets a box. Click a box to select its panel: its width and height
      show under it. Drag a box to move it; drag a corner or an edge to
      resize it. The box snaps to the other panels and the page (hold **Alt**
-     to stop that), and magenta lines and distances show what lines up. Arrange
-     needs the Image Processing Toolbox; without it, type the numbers below.
+     to stop that; a click that moves the pointer a pixel or two moves
+     nothing), and magenta lines and distances show what lines up. Arrange
+     needs the Image Processing Toolbox installed and licensed; without it,
+     type the numbers below.
      When you let go, the panel is in its new place at once. If it parts from
      a neighbor, the time labels and ticks catch up when you switch Arrange
      off, and the badge says **Out of date** until then. If it still says
@@ -328,7 +330,8 @@ See [Lab database](database.md) for the details.
   [Why is my figure skipped?](EphysFigGenApp.md#why-is-my-figure-skipped)
 - **The preview says *Out of date*.** The figure changed and was not drawn
   again: **Auto** is off, or the redraw would take longer than Auto allows
-  (the line under the preview says *slow*). It also says so when you changed
+  (the line under the preview says *slow*), or you pressed **Cancel** over
+  a drawing (it stays, and the line says it was canceled). It also says so when you changed
   something while the preview was computing (the figure, the dataset, the
   unit or channel, the Export tab's page size) or while a run was going (the
   figure, the dataset, the unit or channel). A new page size on the Export

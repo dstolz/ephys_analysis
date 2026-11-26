@@ -1,7 +1,7 @@
 function onSnapChanged(obj)
 %onSnapChanged  The Layout section's Snap box or its step: Arrange's snapping and the arrow keys' nudge.
 %   Snap (FigureSnap) and the step (FigureSnapStep: its value in the
-%   Units shown) are preferences (saved at once: savePreferences), not part of the
+%   Units shown; held exactly, the box shows it rounded: snapStepIn) are preferences (saved at once: savePreferences), not part of the
 %   config: nothing is edited and no undo step is made. A step that is
 %   not a number above 0 is refused: the status bar says so and the field
 %   shows the step as it was.
@@ -18,7 +18,15 @@ if isempty(v) || ~isscalar(v) || ~isfinite(v) || v <= 0
     return
 end
 obj.FigureSnap = logical(E.snap.Value);
-obj.FigureSnapStep = struct('value', double(v), 'units', u);
+old = obj.FigureSnapStep;
+[~, d] = unitsShown([], "", u);
+if isstruct(old) && isfield(old, 'value') && isfield(old, 'units') && isscalar(string(old.units)) && string(old.units) == u ...
+        && isnumeric(old.value) && isscalar(old.value) && isfinite(old.value) && old.value > 0 ...
+        && v == max(round(double(old.value), d), 10^-d)
+    % the box shows the step it already holds (the Snap box was ticked, or the step typed as shown): its exact value stays
+else
+    obj.FigureSnapStep = struct('value', double(v), 'units', u);
+end
 obj.savePreferences();
 word = u;
 if u == "normalized"; word = "of the page (0-1)"; end

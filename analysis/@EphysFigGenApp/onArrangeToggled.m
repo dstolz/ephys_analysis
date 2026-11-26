@@ -17,8 +17,9 @@ function onArrangeToggled(obj)
 %   selected figure (not drawn, a probe figure) the status bar says why,
 %   and the boxes come once it does.
 %   Arrange needs the Image Processing Toolbox (its boxes are
-%   images.roi.Rectangle): without a license the button goes back off and
-%   the status bar says so.
+%   images.roi.Rectangle): without the toolbox installed and licensed
+%   (toolboxAvailable: a license alone is not an installation) the button
+%   goes back off and the status bar says so.
 %   Off, any drag or Set corners under way ends (cancelArrange), a
 %   panel a press selected has the editor's rows filled
 %   (finishPendingSelect), the boxes are hidden (kept for the next time:
@@ -38,7 +39,7 @@ function onArrangeToggled(obj)
 b = obj.FigureArrangeButton;
 on = ~isempty(b) && isvalid(b) && logical(b.Value);
 noLicense = false;
-if on && ~license('test', 'Image_Toolbox')
+if on && ~toolboxAvailable("images", "Image_Toolbox")   % installed and licensed, not a license alone
     b.Value = false;
     on = false;
     noLicense = true;

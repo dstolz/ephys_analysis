@@ -14,7 +14,11 @@ function previewFigureView(obj, opts)
 %   Preview, its kept figures forgotten), its last preview's time
 %   forgotten first (a figure shown is drawn even when its last preview
 %   was slow); so is a figure across sessions on another page while a run
-%   goes (redrawFigurePreview draws none then).
+%   goes (redrawFigurePreview draws none then). Not when the figure was
+%   canceled, failed or waits for a large signal extract (its time is Inf):
+%   it is shown as it was left, its badge and line saying so, and waits for
+%   Preview as after an edit (autoFigurePreview), instead of computing, and
+%   failing or being canceled again, on every return.
 %   Switched=false (Undo or Redo of the shown figure's own edit) keeps
 %   that time, as an edit does. While a preview computes nothing is done:
 %   refreshFigurePreview shows the selected figure and calls this when it
@@ -37,6 +41,6 @@ if page && obj.redrawFigurePreview(Page=true)   % drawn on the old page: drawn a
     markFigureTree(obj);
     return
 end
-if opts.Switched; obj.FigurePreviewSeconds = 0; end
+if opts.Switched && ~isinf(obj.FigurePreviewSeconds); obj.FigurePreviewSeconds = 0; end   % (Inf: it was canceled, failed or too large, and waits for Preview)
 obj.autoFigurePreview();
 end

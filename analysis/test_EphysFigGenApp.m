@@ -282,9 +282,14 @@ needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d
     "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.multi" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
     "5d.quick" "5d.layers"; "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
     "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.trialmeasure" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; ...
-    "5d.saveprefs" "5d.remove"; "1e" "1"; "1f" "1"; "1g" "1"; "1h" "1"; "5d.sigfilter" "5d.layers"; "5d.probepick" "5d.layers"];
+    "5d.saveprefs" "5d.remove"; "1e" "1"; "1f" "1"; "1g" "1"; "1h" "1"; "1i" "1"; "5d.sigfilter" "5d.layers"; "5d.probepick" "5d.layers"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
 timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a failure on the way
+
+    function restoreFile1i(from, to)
+        %restoreFile1i  A file section 1i moved away put back, when it is still where it was put.
+        if isfile(from) && ~isfile(to); movefile(from, to); end
+    end
 
     function savedConfig()
         %savedConfig  The config saved to cfgFile once (section 4's Save As): onSaveConfig then saves there instead of opening uiputfile.
@@ -949,6 +954,74 @@ if S.sec("1f", "Data tab: Downsample... (the Signals row, the dialog on the conf
         && isequal(app.gatherConfig().Source.Downsample.MUA, 500) && ~contains(app.ScanLabel.Text, "source changed"), ...
         'a config holding a rate shows it in the Signals row and keeps it through a gather; no scan asked for');
     app.applyConfig(cfg0);
+end
+
+if S.sec("1i", "Data tab and File menu: the files each dataset has are read once per scan; Open recent keeps a config that is not found; the window fits the monitor that holds it; a toolbox is installed and licensed")
+    % the datasets table reads which files exist at a scan, not at every star: a file that goes away is noticed at the next Scan
+    app.selectTab(app.TabData);
+    kO1i = kF2;
+    if app.ActiveIdx == kF2; kO1i = kF1; end
+    rowOf1i = @() find(app.DatasetsTable.Data.Idx == kO1i, 1);
+    fO1i = reshape(string(app.Runner.Outputs(kO1i).signalFile("LFP")), 1, []);
+    app.refreshDatasetsTable();
+    has1i = ~isempty(fO1i) && app.DatasetsTable.Data.LFP(rowOf1i()) == "✓";
+    tmp1i = fO1i + ".moved";
+    movedAway1i = false;
+    if has1i
+        try
+            for q = 1:numel(fO1i); movefile(fO1i(q), tmp1i(q)); end
+            movedAway1i = true;
+        catch
+        end
+    end
+    restore1i = onCleanup(@() arrayfun(@(q) restoreFile1i(tmp1i(q), fO1i(q)), 1:numel(fO1i))); %#ok<NASGU> the extract back, whatever happens
+    T1i = app.DatasetsTable.Data;
+    T1i.Star(rowOf1i()) = true;
+    app.DatasetsTable.Data = T1i;
+    app.onDatasetsTableEdited([]);   % a star: the table is filled again
+    keptMark1i = app.DatasetsTable.Data.LFP(rowOf1i()) == "✓";
+    T1i = app.DatasetsTable.Data;
+    T1i.Star(rowOf1i()) = false;
+    app.DatasetsTable.Data = T1i;
+    app.onDatasetsTableEdited([]);
+    app.onScan();
+    goneMark1i = app.DatasetsTable.Data.LFP(find(app.DatasetsTable.Data.Idx == kO1i, 1)) == "";
+    for q = 1:numel(fO1i); if isfile(tmp1i(q)); movefile(tmp1i(q), fO1i(q)); end; end
+    app.onScan();
+    backMark1i = app.DatasetsTable.Data.LFP(find(app.DatasetsTable.Data.Idx == kO1i, 1)) == "✓";
+    app.onTickDatasets("shown");
+    app.selectDataset(kF1);
+    app.selectTab(app.TabData);
+    check(has1i && movedAway1i && keptMark1i && goneMark1i && backMark1i, ...
+        sprintf(['the datasets table reads which files exist once per scan: an extract moved away still shows after a star (%d), ' ...
+        'is gone at the next Scan (%d) and back at the one after (%d); moved (%d)'], keptMark1i, goneMark1i, backMark1i, movedAway1i));
+
+    % File > Open recent: a config that is not found stays in the list, gray, instead of being dropped for good
+    recent1i = app.RecentConfigs;
+    gone1i = string(fullfile(root, 'unmounted_share', 'analysis.json'));
+    app.RecentConfigs = [gone1i recent1i];
+    app.refreshRecentMenu();
+    items1i = app.RecentMenu.Children;
+    at1i = find(string({items1i.Text}) == gone1i + " (not found)");
+    check(isscalar(at1i) && string(items1i(at1i).Enable) == "off" && any(app.RecentConfigs == gone1i) && numel(app.RecentConfigs) == numel(recent1i) + 1, ...
+        'Open recent keeps a config that is not found, listed as "(not found)" and not pickable, and in the list for the next time');
+    app.RecentConfigs = recent1i;
+    app.refreshRecentMenu();
+
+    % fitToScreen: the monitor that holds most of the window, else the primary one
+    mon1i = [1 1 1920 1080; 1921 1 1280 1024];   % the primary, and a second one at its right
+    on1 = fitToScreen([100 100 800 600], Monitors=mon1i, Primary=mon1i(1, :));
+    on2 = fitToScreen([2100 200 800 600], Monitors=mon1i, Primary=mon1i(1, :));
+    big2 = fitToScreen([1921 1 3000 3000], Monitors=mon1i, Primary=mon1i(1, :));
+    away = fitToScreen([5000 200 800 600], Monitors=mon1i, Primary=mon1i(1, :));
+    check(isequal(on1, [100 100 800 600]) && isequal(on2, [2100 200 800 600]) && isequal(big2, [1930 50 1260 894]) && isequal(away, [1110 200 800 600]), ...
+        sprintf(['a window fits the monitor that holds it (on the second monitor it stays there, a larger one is cut to that monitor), ' ...
+        'and one on no monitor goes to the primary (%s | %s | %s | %s)'], mat2str(on1), mat2str(on2), mat2str(big2), mat2str(away)));
+
+    % toolboxAvailable: installed (ver) and licensed (license), not a license alone
+    check(~toolboxAvailable("noSuchToolbox", "Image_Toolbox") && ~toolboxAvailable("images", "No_Such_Feature") ...
+        && toolboxAvailable("images", "Image_Toolbox") == (~isempty(ver('images')) && license('test', 'Image_Toolbox')), ...
+        'a toolbox is available when it is installed and licensed: a license for a toolbox that is not installed is not enough');
 end
 
 if S.sec("1g", "Data tab: Filter... (the Filters row, the dialog on the config's filters at the active dataset's rates, a cutoff past Nyquist refused, OK into Source.SignalFilter and the runner, Cancel, a config opened with a filter)")
@@ -2041,19 +2114,51 @@ if S.sec("5d.stale", "Out of date with Auto off; Cancel on the busy card")
         'with Auto off an edit leaves the preview Out of date; Preview draws it with the new title');
     FE.title.Value = '';
     app.onConfigChanged("figure");
+    axBefore5s = figAxes();   % the drawing the cancel must leave
     tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(~, ~) app.onCancelFigurePreview());   % a click on the busy card's Cancel
     start(tm);
     app.refreshFigurePreview(Force=true);
     stop(tm); delete(tm);
-    check(app.FigurePreviewState == "canceled" && string(app.FigurePreviewBadge.Text.Text) == "Canceled" && isempty(app.FigurePreviewResult) ...
+    check(app.FigurePreviewState == "stale" && string(app.FigurePreviewBadge.Text.Text) == "Out of date" && isstruct(app.FigurePreviewResult) ...
+        && ~isempty(axBefore5s) && all(isvalid(axBefore5s)) && numel(figAxes()) == numel(axBefore5s) ...
+        && contains(string(app.FigurePreviewLabel.Text), "was canceled") ...
         && isempty(findall(app.FigurePreviewPanel, 'Tag', 'previewBusyCard')) && isempty(app.Runner.PollFcn) ...
         && ~isfinite(app.FigurePreviewSeconds) && string(app.Fig.Pointer) == "arrow", ...
-        'Cancel on the busy card stops the figure preview while it computes: Canceled, the card and the polling gone');
+        'Cancel on the busy card over a drawing stops the figure preview while it computes: the drawing stays, Out of date (never Drawn), the line says canceled, the card and the polling gone');
     app.autoFigurePreview();
-    canceled = app.FigurePreviewState == "canceled";
+    waits5s = app.FigurePreviewState == "stale" && ~isfinite(app.FigurePreviewSeconds);
     app.refreshFigurePreview(Force=true);
-    check(canceled && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, sprintf(['an edit does not redraw a canceled preview; ' ...
-        'Preview does (canceled after the edit: %d; then %s, %d axes)'], canceled, app.FigurePreviewState, numel(figAxes())));
+    check(waits5s && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, sprintf(['an edit does not redraw a canceled preview; ' ...
+        'Preview does (waiting after the edit: %d; then %s, %d axes)'], waits5s, app.FigurePreviewState, numel(figAxes())));
+    % the size limit over a drawing: the drawing stays, Out of date, the line says what to do (Preview reads it)
+    app.PreviewMaxMB = -1;   % every extract is over the limit
+    app.refreshFigurePreview();
+    gate5s = app.FigurePreviewState == "stale" && isstruct(app.FigurePreviewResult) && numel(figAxes()) == 3 && ~isfinite(app.FigurePreviewSeconds) ...
+        && contains(string(app.FigurePreviewLabel.Text), "press Preview to read it");
+    app.refreshFigurePreview(Force=true);
+    app.PreviewMaxMB = 500;
+    check(gate5s && app.FigurePreviewState == "drawn", 'a signal extract over the size limit leaves the drawing in the panel, Out of date, not emptied; Preview draws it');
+    % a cancel with no drawing before it: the panel empty but for why, Canceled; and coming back to the figure does not compute it again
+    slider5s = app.FigureAutoSlider.Value;
+    k5s = app.SelectedFigure;
+    app.FigureAutoSlider.Value = 0;
+    app.onAddFigure("rasterPsth");   % a figure not drawn yet (Auto is off)
+    kNew5s = app.SelectedFigure;
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(~, ~) app.onCancelFigurePreview());
+    start(tm);
+    app.refreshFigurePreview(Force=true);
+    stop(tm); delete(tm);
+    none5s = app.FigurePreviewState == "canceled" && string(app.FigurePreviewBadge.Text.Text) == "Canceled" && isempty(app.FigurePreviewResult) && isempty(figAxes());
+    app.FigureAutoSlider.Value = 1;
+    app.onFigureSelected(k5s);
+    busy5s = app.FigurePreviewBusyCount;
+    app.onFigureSelected(kNew5s);
+    check(none5s && app.FigurePreviewState == "canceled" && app.FigurePreviewBusyCount == busy5s && ~isfinite(app.FigurePreviewSeconds), ...
+        sprintf(['a cancel with no drawing before it empties the panel, Canceled; with Auto on, coming back to the figure shows it as it was ' ...
+        'and computes nothing (%s, %d busy cards since)'], app.FigurePreviewState, app.FigurePreviewBusyCount - busy5s));
+    app.onRemoveFigure();
+    app.onFigureSelected(k5s);
+    app.FigureAutoSlider.Value = slider5s;
     % the Auto slider: the limit it gives, in steps of 0.05 (0.9: under 18 s); Ctrl+T off and on again where it was
     mods5 = {'control'};
     if ismac; mods5 = {'command'}; end
@@ -2860,6 +2965,18 @@ if S.sec("5d.remove", "Remove panel, Duplicate, Remove")
         'Duplicate copies the figure as "Raster+PSTH units (2)" (the id followed the panel removed), right after it, and selects the copy');
     app.onRemoveFigure();
     check(isscalar(app.Config.Figures) && app.SelectedFigure == 1 && string(FE.id.Value) == "Raster+PSTH units", 'Remove takes the copy away');
+    app.onAddFigure("blank");   % a figure after the one to duplicate: Undo must not land on it
+    app.onFigureSelected(1);
+    app.onDuplicateFigure();
+    check(numel(app.Config.Figures) == 3 && app.SelectedFigure == 2, 'Duplicate of the first of two figures puts the copy second and selects it');
+    app.onUndoRedo("undo");
+    check(numel(app.Config.Figures) == 2 && app.SelectedFigure == 1 && string(FE.id.Value) == "Raster+PSTH units", ...
+        'Undo of Duplicate selects the original figure, not the one after it');
+    app.onUndoRedo("redo");
+    check(numel(app.Config.Figures) == 3 && app.SelectedFigure == 2 && string(FE.id.Value) == "Raster+PSTH units (2)", 'Redo of Duplicate selects the copy');
+    app.onRemoveFigure();
+    app.onRemoveFigure();   % the copy, then the blank figure: the section's figure alone again
+    check(isscalar(app.Config.Figures) && app.SelectedFigure == 1, 'the extra figures taken away');
 end
 
 if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where (the first fills the page, below / above / right / left, the free space, a rect), Remove, the rect's fields in each unit (typed, refused, kept on the page), the units switched, Boxes mean and Padding, Bring forward / Send back, Snap and its step, Arrange's button and Escape, layer and figure Up and Down (Auto off: nothing here needs drawing)")
@@ -2980,6 +3097,19 @@ if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where
     unitsTo("cm");
     check(snapPref && stepIn && FE.snapStep.Value == 0.25 && FE.setCorners.Enable == "off" && contains(string(FE.setCorners.Tooltip), "Arrange"), ...
         'Snap and its step are preferences (no edit, no undo step); the step keeps its length in other units; Set corners waits for Arrange');
+    % the step keeps its exact length through the units: 0.123 in is 0.31 cm shown, and 0.123 in again, not 0.122, on the way back
+    unitsTo("in");
+    FE.snapStep.Value = 0.123;
+    FE.snapStep.ValueChangedFcn(FE.snapStep, []);
+    unitsTo("cm");
+    shownCm5a = FE.snapStep.Value;
+    FE.snap.Value = true;
+    FE.snap.ValueChangedFcn(FE.snap, []);   % the Snap box alone does not replace the step by what the box shows
+    exactCm5a = abs(app.FigureSnapStep.value - 0.123 * 2.54) < 1e-9;
+    unitsTo("in");
+    check(shownCm5a == 0.31 && exactCm5a && FE.snapStep.Value == 0.123 && abs(app.FigureSnapStep.value - 0.123) < 1e-9, ...
+        sprintf('the snap step keeps its exact length through the units and the Snap box (0.123 in: %g cm shown, back %g in)', shownCm5a, FE.snapStep.Value));
+    unitsTo("cm");
     FE.snap.Value = true;
     FE.snap.ValueChangedFcn(FE.snap, []);
     FE.snapStep.Value = 0.5;
@@ -4722,6 +4852,23 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     check(spaced && sized && rectIs(rectOf5("psth_2"), [0.55 0 0.45 0.5]), ...
         sprintf(['psth_2 moved near an equal spacing snaps to it (both gaps read "%s"); its right edge near raster_1''s ' ...
         'width snaps to it (the readout says "= raster_1", raster_1 outlined)'], strjoin(eqTexts, '", "')));
+
+    % a press that moves the pointer a pixel is a click: the panel is not snapped (to the grid or an edge), nothing is recorded
+    cfgJ = app.gatherConfig();
+    cfgJ.Figures(k5).panels(3).rect = [0.6137 0.0213 0.3 0.3];   % off the grid, away from the other panels' edges
+    app.applyConfig(cfgJ);
+    rJ = rectOf5("psth_2");
+    nUndoJ = numel(app.FigureHistory.Undo);
+    wob = rJ + [px2(1) / 2 0 0 0];   % half of 2 px
+    app.onArrangeMoving("psth_2", roiMove(rJ, wob));
+    app.onArrangeMoved("psth_2", roiMove(rJ, wob));
+    stayed = rectIs(rectOf5("psth_2"), rJ) && numel(app.FigureHistory.Undo) == nUndoJ && contains(app.StatusBar.Text, "is where it was");
+    far = rJ + [2 * px2(1) 0 0 0];   % 4 px: a drag, snapped as before
+    app.onArrangeMoving("psth_2", roiMove(rJ, far));
+    app.onArrangeMoved("psth_2", roiMove(rJ, far));
+    moved = ~rectIs(rectOf5("psth_2"), rJ) && numel(app.FigureHistory.Undo) == nUndoJ + 1;
+    app.applyConfig(cfgA);
+    check(stayed && moved, 'a drag under 3 px is a click: the panel stays exactly where it was, not snapped, no undo step; one of 4 px moves it');
 
     % a resize that parts psth_1 from the raster: the time stack's labels change, but while Arrange is on nothing is drawn
     % or dressed again: the parts are laid out at the new rect (psth_1 alone), the preview out of date until Arrange is off

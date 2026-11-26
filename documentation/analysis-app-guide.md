@@ -367,6 +367,14 @@ See [Lab database](database.md) for the details.
 - **A results row says *kept*.** **Overwrite existing** is off, so a figure
   file already on disk was not written again. The report shows the figure as
   it is drawn now, and lists the old file as kept.
+- **A results row says *not written: this run already wrote a file at that
+  path*.** Two recordings (or figures) got the same file name, so the
+  second would have replaced the first. The first one's file is kept, the
+  second is not written. Put `{Name}` in the figure folder or the file
+  names on the Export tab, and run again.
+- **A failed or canceled row lists files.** Those are the figures it
+  finished before it stopped; they are on disk, and the run's records
+  name them.
 - **A run** shows a bar, the time left and **Cancel** at the bottom of the
   window; you can look at the other tabs meanwhile, and keep editing: the
   run uses the settings it started with, and your changes are for the next

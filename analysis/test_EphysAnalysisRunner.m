@@ -50,7 +50,11 @@ function test_EphysAnalysisRunner()
 %   the HTML written before it in ReportFiles, the run record written with
 %   outcome "failed" and the error); a plot design chosen and a look
 %   remembered while a run goes (its pages drawn in the looks it started
-%   with).
+%   with); a figure that fails or is canceled after its first page was
+%   written (its row listing that page's file; a failed figure's report
+%   entry that cannot be added said in its row, not thrown); two datasets' pages with
+%   one file name (the first written, the second neither "kept" nor
+%   written over, with Export.Overwrite off and on).
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -998,10 +1002,100 @@ check(nLooks == 1 && designLk == "Night" && isscalar(rulesLk) && height(RLk) == 
     ['a design chosen and a look remembered while the run goes (from its ProgressFcn, before the second dataset) do not ' ...
     'reach its pages: both drawn as in a run with neither, pixel for pixel; the run forgets its looks when it ends']);
 
+fprintf('\n== 16. a figure that fails or is canceled part way: its row lists the files its finished pages wrote ==\n');
+cfgP = cfg;
+cfgP.Figures = cfgP.Figures(cfgP.figureIndex("card"));   % two units per dataset: a page each
+cfgP.Export.Formats = "png";
+cfgP.Report.Format = "html";
+outP = fullfile(root, 'outPartFailed');
+cfgP.Export.Folder = fullfile(outP, "{Name}");
+cfgP.Report.Folder = outP;
+rP = EphysAnalysisRunner(cfgP, LogFcn=[]);   % its pages drawn here (Workers 0): page 1 is written before page 2 is computed
+    function onPartFailedProgress(~, msg)
+        if msg == names(1) + ": card (2/2)"
+            error('test_EphysAnalysisRunner:SecondUnit', 'the second unit cannot be read');
+        end
+    end
+rP.ProgressFcn = @onPartFailedProgress;
+RP = rP.run();
+rP.ProgressFcn = [];
+rowP = RP(RP.Dataset == names(1) & RP.Plot == "card", :);
+fP = splitFiles(rowP.Files);
+check(height(rowP) == 1 && rowP.Status == "error" && contains(rowP.Message, "the second unit cannot be read") ...
+    && isscalar(fP) && isfile(fP) && startsWith(fP, string(fullfile(outP, names(1)))) && endsWith(fP, ".png") ...
+    && all(RP.Status(RP.Dataset == names(2)) == "done") && ~isempty(rP.ReportFiles) && any(rP.WrittenFiles == fP), ...
+    ['a figure that fails after its first page was written: its error row lists that page''s file (so the run record ' ...
+    'and the lab database''s record name it); the other dataset runs and the report is written']);
+outPC = fullfile(root, 'outPartCanceled');
+cfgP.Export.Folder = fullfile(outPC, "{Name}");
+cfgP.Report.Folder = outPC;
+rPC = EphysAnalysisRunner(cfgP, LogFcn=[]);
+    function onPartCanceledProgress(~, msg)
+        if msg == names(1) + ": card (2/2)"; rPC.cancel(); end
+    end
+rPC.ProgressFcn = @onPartCanceledProgress;
+RPC = rPC.run();
+rPC.ProgressFcn = [];
+rowPC = RPC(RPC.Dataset == names(1) & RPC.Plot == "card", :);
+fPC = splitFiles(rowPC.Files);
+check(height(rowPC) == 1 && rowPC.Status == "canceled" && isscalar(fPC) && isfile(fPC) ...
+    && startsWith(fPC, string(fullfile(outPC, names(1)))) && all(RPC.Status(RPC.Dataset == names(2)) == "canceled") ...
+    && all(RPC.Files(RPC.Dataset == names(2)) == ""), ...
+    'a figure canceled after its first page was written: its canceled row lists that file; the figures not reached list none');
+rPE = EphysAnalysisRunner(cfgP, LogFcn=[]);
+rPE.run(Datasets=1, Export=false, Report=false);   % a row, and no report to add an entry to
+heardPE = "";
+try
+    rPE.addFailureEntry(cfgP.Figures(1), "error", "the second unit cannot be read", names(1), "card");
+catch ME
+    heardPE = string(ME.message);
+end
+check(heardPE == "" && contains(rPE.Results.Message(end), "its report entry could not be added"), ...
+    ['a failed figure''s report entry that cannot be added (here: no report) is no error: the row says so, so its own ' ...
+    'error stays and the run goes on']);
+
+fprintf('\n== 17. two datasets'' pages with one file name: the first is written, the second neither "kept" nor written over ==\n');
+cfgO = cfg;
+cfgO.Figures = cfgO.Figures(cfgO.figureIndex("map"));   % one page per dataset
+cfgO.Export.Formats = "png";
+cfgO.Export.FilenamePattern = "{Plot}";   % no {Name} here ...
+outO = fullfile(root, 'outOneName');
+cfgO.Export.Folder = outO;                % ... nor here: both datasets' pages have one file (validate warns of it)
+cfgO.Report.Enabled = false;
+cfgO.Export.Overwrite = false;
+rO = EphysAnalysisRunner(cfgO, LogFcn=[]);
+RO = rO.run();
+fO1 = splitFiles(RO.Files(RO.Dataset == names(1)));
+fO2 = splitFiles(RO.Files(RO.Dataset == names(2)));
+mO2 = RO.Message(RO.Dataset == names(2));
+check(isscalar(fO1) && isfile(fO1) && isempty(fO2) && height(RO) == 2 && all(RO.Status == "done") ...
+    && contains(mO2, "1 not written: this run already wrote a file at that path") && ~contains(mO2, "kept") ...
+    && isempty(rO.KeptFiles) && isequal(rO.WrittenFiles, fO1), ...
+    ['Export.Overwrite off, two datasets'' pages with one file name: the first is written and in its row; the second is ' ...
+    'not written, nor "kept from an earlier run" (KeptFiles empty: the lab database records the file once, the first''s ' ...
+    'output), and its row says so']);
+pxO1 = imread(fO1);   % the first dataset's page
+cfgO.Export.Overwrite = true;
+rO2 = EphysAnalysisRunner(cfgO, LogFcn=[]);
+RO2 = rO2.run();
+pxO2 = imread(fO1);
+check(isequal(splitFiles(RO2.Files(RO2.Dataset == names(1))), fO1) && isempty(splitFiles(RO2.Files(RO2.Dataset == names(2)))) ...
+    && contains(RO2.Message(RO2.Dataset == names(2)), "1 not written") && isequal(size(pxO1), size(pxO2)) ...
+    && nnz(any(pxO1 ~= pxO2, 3)) <= 16, ...
+    ['Export.Overwrite on: the second dataset''s page is not written over the first''s within the run (the file holds the ' ...
+    'first dataset''s page, as its row says), and its row says so']);
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisRunner:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function f = splitFiles(s)
+%splitFiles  A Results row's Files ("a; b") as a string row; none for "".
+f = reshape(strtrim(split(string(s), ";")), 1, []);
+f = f(f ~= "");
 end
 
 

@@ -663,9 +663,10 @@ classdef LabCapture
             %   while the database is off here, "nothing" when the run read
             %   nothing and wrote nothing under a mapped root).
             %
-            %   The output ledger (outputLedger) is read once per run, for
-            %   every output, and written once, after the record is in the
-            %   outbox.
+            %   The output ledger (outputLedger) is read twice per run: once
+            %   for every output's lookup, and once more just before it is
+            %   written, to merge what another MATLAB here noted meanwhile;
+            %   it is written once, after the record is in the outbox.
             arguments
                 r
                 idx (1,:) double

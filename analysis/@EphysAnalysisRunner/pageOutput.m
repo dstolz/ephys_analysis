@@ -5,7 +5,7 @@ function out = pageOutput(obj, job, fraction, message)
 %   second, so cancel() stops the wait (EphysAnalysisRunner:Canceled). A
 %   page that failed on its worker rethrows the worker's error.
 %
-%   See also EphysAnalysisRunner.submitPage, EphysAnalysisRunner.cancelPages.
+%   See also EphysAnalysisRunner.submitPage, EphysAnalysisRunner.stopPages.
 
 if isempty(job.future)
     out = job.out;

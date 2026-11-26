@@ -79,7 +79,8 @@ classdef EphysAnalysisRunner < handle
     %     Results       last run: Dataset ("sessions: <label>" for a session
     %                   figure), Plot (the figure's id), Kind ("figure"),
     %                   Status (done | skipped | error | canceled), Message,
-    %                   Files, Seconds
+    %                   Files (an error or canceled row's: the files its
+    %                   figure's finished pages wrote, stopPages), Seconds
     %     Report        the last run's report struct (newAnalysisReport)
     %     ReportFiles   the report files the last run wrote (each one as it is
     %                   written: a run that throws lists those written before)
@@ -87,7 +88,17 @@ classdef EphysAnalysisRunner < handle
     %                   disk already and kept (Export.Overwrite off): listed
     %                   in Files, not written by the run, so the lab
     %                   database's record does not make them its outputs
-    %                   (LabCapture.analysisRun: kept_outputs)
+    %                   (LabCapture.analysisRun: kept_outputs). A file the
+    %                   run itself wrote is never one of them
+    %     WrittenFiles  the figure files the last run wrote, as each page's
+    %                   are taken (also those of a figure that failed or was
+    %                   canceled part way: stopPages). A page of the run
+    %                   whose file is one of them (another dataset's or
+    %                   figure's page at the same path: the file names do not
+    %                   tell them apart) is not written over, whatever
+    %                   Export.Overwrite says: its row's Message says so
+    %                   (overlapText), and the file stays the first page's,
+    %                   in that page's row
     %     RunRecordFile the run record the last run wrote: the config, the code
     %                   version, MATLAB, host, user and the Results rows, in
     %                   <report folder>/analysis_runs (see run)
@@ -145,6 +156,7 @@ classdef EphysAnalysisRunner < handle
         Report = []
         ReportFiles (1,:) string = string.empty(1, 0)
         KeptFiles (1,:) string = string.empty(1, 0)   % the last run's figure files kept from an earlier run (Export.Overwrite off)
+        WrittenFiles (1,:) string = string.empty(1, 0)   % the figure files the last run wrote (noteWritten): a page whose file is one of them is not written again
         RunRecordFile (1,1) string = ""   % the run record the last run wrote ("" = none)
         BatchYLim = struct('figure', cell(1, 0), 'id', cell(1, 0), 'lim', cell(1, 0), 'n', cell(1, 0))   % the last run's shared y ranges
     end
@@ -188,6 +200,7 @@ classdef EphysAnalysisRunner < handle
         tf = usePagePool(obj, n)
         job = submitPage(obj, F, spec, onPool, page)
         out = pageOutput(obj, job, fraction, message)
+        [files, stopped] = stopPages(obj, jobs)
 
         function obj = EphysAnalysisRunner(cfg, opts)
             %EphysAnalysisRunner  Find the config's datasets (Scan=false: later, with datasets()).
@@ -319,6 +332,38 @@ classdef EphysAnalysisRunner < handle
             %forgetPageLooks  Forget the looks holdPageLooks took (the next pages read them anew).
             if isvalid(obj); obj.PageLooks = []; end
         end
+
+        function noteWritten(obj, files)
+            %noteWritten  Add FILES (figure files this run just wrote) to WrittenFiles, each once (EphysDataset.pathKey).
+            files = reshape(string(files), 1, []);
+            files = files(files ~= "");
+            if isempty(files); return; end
+            files = files(~ismember(EphysDataset.pathKey(files), EphysDataset.pathKey(obj.WrittenFiles)));
+            obj.WrittenFiles = [obj.WrittenFiles unique(files, 'stable')];
+        end
+
+        function addFailureEntry(obj, rspec, status, message, label, id)
+            %addFailureEntry  The report entry of a figure that failed or drew nothing (STATUS, MESSAGE); never throws.
+            %   runDataset and runSessionFigure write the figure's Results row
+            %   first: an entry that cannot be added (addReportFigure throws)
+            %   is said in the Log ("<label>: <id>: its report entry could not
+            %   be added: ...") and appended to that row's Message, so the row
+            %   stays and the error that stopped the figure is not hidden.
+            try
+                obj.Report = addReportFigure(obj.Report, rspec, [], Status=status, Message=message);
+            catch MR
+                obj.log("%s: %s: its report entry could not be added: %s", label, id, MR.message);
+                if height(obj.Results) > 0
+                    obj.Results.Message(end) = obj.Results.Message(end) + "; its report entry could not be added: " + string(MR.message);
+                end
+            end
+        end
+
+        function tf = writtenByThisRun(obj, files)
+            %writtenByThisRun  Whether any of FILES is one this run wrote (WrittenFiles, compared as paths).
+            tf = ~isempty(obj.WrittenFiles) && any(ismember(EphysDataset.pathKey(reshape(string(files), 1, [])), ...
+                EphysDataset.pathKey(obj.WrittenFiles)));
+        end
     end
 
     methods (Static, Hidden)
@@ -411,6 +456,23 @@ classdef EphysAnalysisRunner < handle
             m = "";
             if n > 0
                 m = sprintf("; %d kept: files on disk from an earlier run, not overwritten (Export.Overwrite off)", n);
+            end
+        end
+
+        function m = overlapText(n)
+            %overlapText  What a Results row's Message adds for N pages not written because a file this run wrote is at their path ("" for none).
+            %   Two datasets (or figures) whose pages the file name does not
+            %   tell apart (an Export.FilenamePattern and Folder without {Name}
+            %   or {OutputFolder}; validate warns of it) would write one file:
+            %   the first page's is written, and a later page of the same run
+            %   at that path is not written over, whatever Export.Overwrite
+            %   says (nor is it "kept": the file is this run's, of another
+            %   page). Its row's Message gains "; <N> not written: this run
+            %   already wrote a file at that path (the file names do not tell
+            %   the datasets or figures apart)", and its Files leave it out.
+            m = "";
+            if n > 0
+                m = sprintf("; %d not written: this run already wrote a file at that path (the file names do not tell the datasets or figures apart)", n);
             end
         end
 

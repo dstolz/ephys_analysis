@@ -831,16 +831,23 @@ says how to cut a release.
   figures). A look remembered from an Open in window figure now updates the preview as an edit does.
 - An analysis run that stopped with an error had no run record and was not recorded for the lab database, though
   its figure files and reports were on disk. `EphysAnalysisRunner.run` now ends such a run like any other: its run
-  record (`outcome` `failed`, and a new `error` field, as the pipeline's) and its lab database record (status
+  record (`outcome` `failed`, and a new `error` field, `<identifier>: <message>` or the message alone when the
+  error has none) and its lab database record (status
   failed, `attributes.error`), both listing the files written before the error (`ReportFiles` grows as each report
-  file is written); then the error is thrown again. A run that drew no figure because every figure it tried failed
+  file is written); then the error is thrown again. A figure that fails or is canceled part way lists in its
+  result row the files its finished pages wrote (they were in no record), and a report entry that cannot be added
+  for a failed figure no longer stops the run. A run that drew no figure because every figure it tried failed
   is recorded as failed, not succeeded (`attributes.figure_errors` counts a run's failed figures). Figure files kept
   from an earlier run (`Export.Overwrite` off; the new `EphysAnalysisRunner.KeptFiles`) are no longer recorded as
-  outputs of the run, which did not write them (`kept_outputs`). The run's Log says what was noted (the event, its
-  status, how many files it read and wrote) and which files were left out, by folder: those under no mapped storage
-  root and the kept ones (`LabCapture.analysisRun` returns it as a second output). The output ledger
-  (`analysis_outputs.json`) is read once and written once per run instead of once per output file, and a ledger
-  that cannot be read is no longer written over (warning `LabCapture:OutputLedger`).
+  outputs of the run, which did not write them (`kept_outputs`); a file the run wrote itself is never kept: when two
+  datasets' pages have one file name, the second is no longer taken for "kept from an earlier run" (and left out of
+  the record), nor written over the first with `Export.Overwrite` on: it is not written, its row says so, and the
+  file is the first page's, recorded once (`EphysAnalysisRunner.WrittenFiles`). The run's Log says what was noted
+  (the event, its status, how many files it read and wrote) and which files were left out, by folder: those under
+  no mapped storage root and the kept ones (`LabCapture.analysisRun` returns it as a second output); a `LogFcn` that
+  throws then is a warning. The output ledger (`analysis_outputs.json`) is written once per run instead of once
+  per output file (read for the lookups and again just before the write, to merge), and a ledger that cannot be
+  read is no longer written over (warning `LabCapture:OutputLedger`).
 - `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had
   saved a pairing since the dataset object last wrote the manifest, and the new record was equal to the one the
   object wrote then (its `updated` time is to the second), the manifest merge took the record as unchanged and kept

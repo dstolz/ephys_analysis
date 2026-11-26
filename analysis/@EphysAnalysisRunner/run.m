@@ -44,7 +44,10 @@ function T = run(obj, opts)
 %   threw, or drew no figure because every one it tried failed. LogFcn
 %   hears what was noted (the event, its status, how many inputs and
 %   outputs) and which files were left out: those under no storage root
-%   mapped here, and the kept ones.
+%   mapped here, and the kept ones. A LogFcn that throws on those lines
+%   (or on the run record's) is the warning EphysAnalysisRunner:LogFcn: it
+%   neither hides the error that stopped the run nor fails one that
+%   finished.
 %
 %   A run that throws (an error, not a cancel) still ends as every run
 %   does, with its run record (outcome "failed" and the error) and its lab
@@ -68,9 +71,17 @@ function T = run(obj, opts)
 %   worker (submitPage), whatever design is chosen or look remembered
 %   while it goes.
 %
+%   Each Results row lists in Files the figure files its figure wrote:
+%   also a figure that failed ("error") or was canceled part way, whose
+%   finished pages are on disk (stopPages). A page whose file this run
+%   wrote already, for another dataset or figure at the same path, is not
+%   written over, whatever Export.Overwrite says, nor counted as kept
+%   (WrittenFiles, overlapText).
+%
 %   The run record (schema "ephys-analysis-run/2") holds the run id,
 %   outcome (finished | canceled | failed) and error ("<identifier>:
-%   <message>" of a failed run, else ""), start, end and seconds, the
+%   <message>" of a failed run, the message alone when the error has no
+%   identifier, else ""), start, end and seconds, the
 %   datasets, figures and session
 %   figures, the report files, the Results rows, the code and machine
 %   (ephysProvenance) and the config.
@@ -141,6 +152,7 @@ end
 obj.Results = EphysAnalysisRunner.emptyResults();
 obj.ReportFiles = string.empty(1, 0);
 obj.KeptFiles = string.empty(1, 0);
+obj.WrittenFiles = string.empty(1, 0);   % the figure files this run writes: none written over, none "kept" (noteWritten)
 for k = idx; obj.Outputs(k).clearReads(); end   % what this run reads: its inputs for the lab database
 P = cfg.Report;
 perDataset = doReport && P.PerDataset;
@@ -245,13 +257,20 @@ if ~isempty(idx)
         if string(failure.identifier) ~= ""; why = string(failure.identifier) + ": " + why; end
     end
     obj.RunRecordFile = writeRunRecord(obj, cfg, idx, fids, sfids, started, outcome, why);
+    noted = [];
     try
         [~, noted] = LabCapture.analysisRun(obj, idx, Started=started, Finished=datetime('now'), Outcome=outcome, ...
             Error=why, RunRecord=obj.RunRecordFile, Config=cfg);   % for the lab database, when it is on here: the config the run started with
-        logLabRecord(obj, noted);
     catch ME
         warning('EphysAnalysisRunner:LabCapture', 'The run was not noted for the lab database: %s', ME.message);
-        obj.log("Lab database: the run was not noted: %s", ME.message);
+        logQuietly(obj, "Lab database: the run was not noted: %s", ME.message);
+    end
+    if ~isempty(noted)
+        try   % what was noted, said in the Log: a LogFcn that throws neither hides the run's error nor fails the run
+            logLabRecord(obj, noted);
+        catch ME
+            warning('EphysAnalysisRunner:LogFcn', 'The run''s lab database record was noted, but the Log could not say so: %s', ME.message);
+        end
     end
 end
 if ~isempty(failure)
@@ -343,8 +362,9 @@ function file = writeRunRecord(obj, cfg, idx, fids, sfids, started, outcome, why
 %writeRunRecord  What this run did and with what: <report folder>/analysis_runs/<runId>_<name>.json.
 %   Schema ephys-analysis-run/2: the run id, outcome (finished | canceled |
 %   failed) and error (WHY: "<identifier>: <message>" of the error that
-%   stopped a failed run, "" otherwise, as the pipeline's run record
-%   writes it), start, end, the
+%   stopped a failed run, the message alone when it has no identifier,
+%   "" otherwise; the pipeline's run record writes "<identifier>:
+%   <message>" even then), start, end, the
 %   datasets, figures and session figures, the report files, the Results
 %   rows, the files found through the lab database (fromDatabase), the
 %   code and machine (ephysProvenance) and the config: CFG, the one the run
@@ -384,10 +404,21 @@ try
     rec.provenance = rmfield(prov, 'config');
     rec.config = cfg.toStruct();
     writeJsonFile(file, rec, NonFinite="string");
-    obj.log("Run record: %s", file);
 catch ME
     warning('EphysAnalysisRunner:RunRecord', 'The run record could not be written (%s): %s', file, ME.message);
     file = "";
+end
+if file ~= ""; logQuietly(obj, "Run record: %s", file); end   % (a LogFcn that throws does not unmake the record)
+end
+
+
+function logQuietly(obj, fmt, varargin)
+%logQuietly  obj.log, a LogFcn that throws a warning only (EphysAnalysisRunner:LogFcn): while a run ends, its run record
+%   and its lab database record are written, and the error that stopped it is still to be thrown.
+try
+    obj.log(fmt, varargin{:});
+catch ME
+    warning('EphysAnalysisRunner:LogFcn', 'The Log could not be written: %s', ME.message);
 end
 end
 

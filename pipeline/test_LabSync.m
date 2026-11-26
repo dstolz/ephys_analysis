@@ -19,8 +19,10 @@ classdef test_LabSync < matlab.unittest.TestCase
     %   run that throws (EphysAnalysisRunner.run: its run record and its
     %   record failed, with the error, the Log saying what was noted or which
     %   folder is under no mapped root), a run that drew no figure because
-    %   each failed recorded as failed, kept figure files (Export.Overwrite
-    %   off) left out of its outputs, the output ledger read and written
+    %   each failed recorded as failed, a LogFcn that throws as the run ends
+    %   (a warning: the run's error still thrown, a finished run not
+    %   failed), kept figure files (Export.Overwrite
+    %   off) left out of its outputs, the output ledger written
     %   once per run and never written over when it cannot be read; a
     %   discarded record kept, never sent; where a
     %   dataset's records stand (labclient.Sync.datasetText, the Review tab's
@@ -433,6 +435,27 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.verifyEqual(height(labclient.Outbox.list(State="pending")), 1, "nothing more in the outbox");
         end
 
+        function aLogThatThrowsHidesNoError(tc)
+            % a LogFcn that throws on the lines the run's end writes ("Lab database: ..."): a warning only, so the
+            % error that stopped the run still reaches the caller, a run that finished does not fail, and each is noted
+            ds = tc.dataset();
+            cfg = EphysAnalysisConfig();
+            cfg.Name = "log throws";
+            cfg.Source.Mode = "folders";
+            cfg.Source.Folders = string(ds.Folder);
+            cfg.Report.Folder = string(fullfile(tc.Top, "analysis"));   % under the storage root "nas"
+            r = EphysAnalysisRunner(cfg, LogFcn=@throwOnLabLine);
+            r.ProgressFcn = @(~, ~) error("test_LabSync:Stopped", "the disk is full");
+            tc.verifyError(@() r.run(Export=false, Report=false), "test_LabSync:Stopped", ...
+                "the error that stopped the run reaches the caller, not the Log's");
+            tc.verifyEqual(height(labclient.Outbox.list(State="pending")), 1, "the run is noted");
+            r.ProgressFcn = [];
+            tc.verifyWarning(@() r.run(Export=false, Report=false), "EphysAnalysisRunner:LogFcn", ...
+                "a run that finished: the Log that throws is a warning, not an error");
+            tc.verifyEqual(height(labclient.Outbox.list(State="pending")), 2, "that run is noted too");
+            tc.verifyTrue(isfile(r.RunRecordFile), "and its run record written");
+        end
+
         function aFigureRunThatDrewNothingIsFailed(tc)
             % a run that finished with every figure it tried an "error" row (the other skipped): failed, not
             % succeeded; one that drew a figure and failed another: succeeded, its failures counted
@@ -488,7 +511,7 @@ classdef test_LabSync < matlab.unittest.TestCase
         end
 
         function theOutputLedgerIsKeptWhole(tc)
-            % LabCapture's output ledger, read once and written once per run: an entry another run here noted
+            % LabCapture's output ledger, written once per run: an entry another run here noted
             % stays, every output of this run is noted; a ledger that cannot be read is left as it is (a warning)
             % and the run is noted all the same
             ds = tc.dataset();
@@ -942,4 +965,12 @@ end
 function appendLog(map, msg)
 %appendLog  A LogFcn that keeps every line in MAP (a containers.Map, a handle), in order.
 map(map.Count + 1) = string(msg); %#ok<NASGU> containers.Map is a handle
+end
+
+
+function throwOnLabLine(msg)
+%throwOnLabLine  A LogFcn that throws on the lines about the lab database's record ("Lab database: ...").
+if startsWith(string(msg), "Lab database:")
+    error("test_LabSync:LogClosed", "the Log is closed");
+end
 end

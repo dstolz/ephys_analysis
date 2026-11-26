@@ -28,7 +28,9 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %   | skipped (no observation drew: the reasons) | error, Message "<n>
 %   observation(s)" (and EphysAnalysisRunner.keptText's note on the pages
 %   kept), Files (the kept pages' files too; the report entry lists them as
-%   kept, addReportFigure Kept=, and so does r.KeptFiles). With Report each label is one entry of r.Report
+%   kept, addReportFigure Kept=, and so does r.KeptFiles; a page whose
+%   file this run wrote already, for another page at that path, is
+%   neither kept nor written over: overlapText's note). With Report each label is one entry of r.Report
 %   (in the section run started, "Across sessions"), its pages the
 %   observations', captioned by figureCaption(SPEC, <its observations>,
 %   Sessions=<its facet's sessions, as merged>, Results=<its last page's
@@ -40,7 +42,11 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %   observation, facet, group, label, status, message, F) and perSession
 %   ({nObs x nSessions}: each dataset's own figure), config and created;
 %   the file is added to the first row's Files. A failure is an "error"
-%   row; EphysAnalysisRunner:Canceled is rethrown.
+%   row; EphysAnalysisRunner:Canceled is rethrown, after a "canceled" row
+%   "sessions: all" listing the files the finished pages wrote (stopPages;
+%   run adds none for it then). A report entry that cannot be added is
+%   said in the Log and the row's Message, never thrown: a label whose
+%   entry fails is an "error" row listing the files its pages wrote.
 %   A panel with options.yLimMode "batch" shares one y range over the
 %   figure's every matched observation: they are all computed first (held
 %   for their pages, as Export.Data holds them), measured (figureYExtents,
@@ -69,7 +75,8 @@ end
 
 cfg = opts.Config;
 if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.Config; end   % alone: the config now; from run: the one it started with
-looksBack = obj.holdPageLooks(); %#ok<NASGU> alone: the plot design and rules now, for every page; from run: the run's
+looksBack = obj.holdPageLooks();   % alone: the plot design and rules now, for every page; from run: the run's
+if ~isempty(looksBack); obj.WrittenFiles = string.empty(1, 0); end   % alone: the files this call writes (from run: the run's)
 X = cfg.Export;
 first = height(obj.Results) + 1;
 t0 = tic;
@@ -92,7 +99,7 @@ catch ME
     obj.Results(end+1, :) = {"sessions: all", id, "figure", "error", string(ME.message), "", toc(t0)};
     obj.log("sessions: %s FAILED: %s", id, ME.message);
     if opts.Report
-        obj.Report = addReportFigure(obj.Report, reportSpec(cfg, id, "all", 1), [], Status="error", Message=string(ME.message));
+        obj.addFailureEntry(reportSpec(cfg, id, "all", 1), "error", string(ME.message), "sessions: all", id);   % never throws
     end
     rows = obj.Results(first:end, :);
     return
@@ -116,7 +123,7 @@ withPages = opts.Report && obj.Report.options.Format ~= "html";
 withData = X.Data.Enabled;
 nObs = height(T);
 E = struct('label', {}, 'files', {}, 'images', {}, 'pages', {}, 'done', {}, 'why', {}, 'nError', {}, 'F', {}, 'seconds', {}, 'rows', {}, ...
-    'kept', {}, 'nKept', {});   % kept, nKept: the files of the pages kept (Export.Overwrite off) and how many pages
+    'kept', {}, 'nKept', {}, 'nMine', {});   % kept, nKept: the files of the pages kept (Export.Overwrite off) and how many pages; nMine: the pages whose file this run wrote already
 usedNames = strings(1, 0);   % the file names written in this run: a sanitized name met again gets "_2", "_3", ...
 results = struct('index', {}, 'observation', {}, 'facet', {}, 'group', {}, 'label', {}, 'status', {}, 'message', {}, 'F', {});
 perSession = cell(nObs * withData, height(sessions));
@@ -151,7 +158,7 @@ for i = 1:nObs
     try
         obj.progress(opts.Span(1) + diff(opts.Span) * share * (i - 1) / nObs, sprintf("sessions: %s (%d/%d)", id, i, nObs));   % cancel() stops here
     catch ME
-        cancelPages(jobs);
+        stoppedRow(obj, id, jobs, folder, t0);   % the pages on the workers canceled; a row with the files the finished ones wrote
         rethrow(ME);
     end
     t1 = tic;
@@ -167,7 +174,7 @@ for i = 1:nObs
         if isempty(q)
             E(end+1) = struct('label', e.label, 'files', string.empty(1, 0), 'images', {cell(1, 0)}, 'pages', strings(1, 0), ...
                 'done', 0, 'why', strings(1, 0), 'nError', 0, 'F', [], 'seconds', 0, 'rows', zeros(1, 0), ...
-                'kept', string.empty(1, 0), 'nKept', 0); %#ok<AGROW>
+                'kept', string.empty(1, 0), 'nKept', 0, 'nMine', 0); %#ok<AGROW>
             q = numel(E);
         end
         if withData
@@ -184,22 +191,24 @@ for i = 1:nObs
             [fname, usedNames] = uniqueName(fname, usedNames);   % e.g. cells "A/1" and "A_1" both sanitize to A_1
             base = fullfile(folder, fname);
             want = base + "." + X.Formats;
-            kept = opts.Export && ~X.Overwrite && all(isfile(want));   % its files exist: not written again
+            mine = opts.Export && obj.writtenByThisRun(want);   % this run wrote a file at that path: never written over, never "kept"
+            kept = opts.Export && ~mine && ~X.Overwrite && all(isfile(want));   % its files exist from an earlier run: not written again
             job = struct('future', [], 'out', noPage());
-            if (opts.Export && ~kept) || withImages || withPages
+            if (opts.Export && ~kept && ~mine) || withImages || withPages
                 page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, ...
                     'BatchYLim', BY, 'Images', withImages, 'Pages', withPages);   % a kept page: drawn for the report, its files left as they are
-                if opts.Export && ~kept; page.Base = base; end
+                if opts.Export && ~kept && ~mine; page.Base = base; end
                 job = obj.submitPage(e.F, spec, onPool, page);
             end
             job.kept = string.empty(1, 0);
             if kept; job.kept = want; end
+            job.mine = mine;
             job.q = q;
             job.i = i;
             job.F = keptPart(e.F);   % what the report reads of it (its sessions), not every page's whole result
             jobs{end+1} = job; %#ok<AGROW>
         catch ME
-            if ME.identifier == "EphysAnalysisRunner:Canceled"; cancelPages(jobs); rethrow(ME); end
+            if ME.identifier == "EphysAnalysisRunner:Canceled"; stoppedRow(obj, id, jobs, folder, t0); rethrow(ME); end
             E(q).why(end+1) = string(T.label(i)) + ": " + string(ME.message);
             E(q).nError = E(q).nError + 1;
         end
@@ -213,18 +222,22 @@ for j = 1:numel(jobs)   % the pages, in order
     try
         out = obj.pageOutput(job, opts.Span(1) + diff(opts.Span) * (0.5 + 0.5 * (j - 1) / numel(jobs)), ...
             sprintf("sessions: %s drawing page %d/%d", id, j, numel(jobs)));
+        jobs{j}.out = out;   % taken: should the figure stop after it, stopPages lists its files
+        jobs{j}.future = [];
+        obj.noteWritten(out.files);
         E(q).files = [E(q).files job.kept out.files];
         if ~isempty(job.kept)
             E(q).kept = [E(q).kept job.kept];
             E(q).nKept = E(q).nKept + 1;
         end
+        E(q).nMine = E(q).nMine + job.mine;
         if ~isempty(out.image); E(q).images{end+1} = out.image; end
         if out.page ~= ""; E(q).pages(end+1) = out.page; end
         E(q).done = E(q).done + 1;
         E(q).rows(end+1) = job.i;
         E(q).F = job.F;
     catch ME
-        if ME.identifier == "EphysAnalysisRunner:Canceled"; cancelPages(jobs(j:end)); rethrow(ME); end
+        if ME.identifier == "EphysAnalysisRunner:Canceled"; stoppedRow(obj, id, jobs, folder, t0); rethrow(ME); end
         E(q).why(end+1) = string(T.label(job.i)) + ": " + string(ME.message);
         E(q).nError = E(q).nError + 1;
     end
@@ -242,15 +255,24 @@ for q = 1:numel(E)
         obj.Results(end+1, :) = {label, id, "figure", status, msg, "", E(q).seconds};
         obj.log("%s: %s %s (%s)", label, id, status, msg);
         if opts.Report
-            obj.Report = addReportFigure(obj.Report, rspec, [], Status=status, Message=msg);
+            obj.addFailureEntry(rspec, status, msg, label, id);   % never throws
         end
         continue
     end
-    msg = sprintf("%d observation(s)", E(q).done) + EphysAnalysisRunner.keptText(E(q).nKept);
+    msg = sprintf("%d observation(s)", E(q).done) + EphysAnalysisRunner.keptText(E(q).nKept) + EphysAnalysisRunner.overlapText(E(q).nMine);
     if ~isempty(E(q).why); msg = msg + "; not drawn: " + strjoin(E(q).why, "; "); end
     if opts.Report
-        obj.Report = addReportFigure(obj.Report, rspec, E(q).F, Files=E(q).files, Kept=E(q).kept, Images=E(q).images, Pages=E(q).pages, ...
-            Caption=figureCaption(spec, T(E(q).rows, :), Sessions=E(q).F.sessions, YShared=nShared, Results={E(q).F.trial}));   % this figure's observations and its facet's sessions
+        try
+            obj.Report = addReportFigure(obj.Report, rspec, E(q).F, Files=E(q).files, Kept=E(q).kept, Images=E(q).images, Pages=E(q).pages, ...
+                Caption=figureCaption(spec, T(E(q).rows, :), Sessions=E(q).F.sessions, YShared=nShared, Results={E(q).F.trial}));   % this figure's observations and its facet's sessions
+        catch ME
+            % its pages are written: an "error" row that lists them (not the kept ones), and the next label goes on
+            written = E(q).files(~ismember(E(q).files, E(q).kept));
+            obj.Results(end+1, :) = {label, id, "figure", "error", string(ME.message), strjoin(written, "; "), E(q).seconds};
+            obj.log("%s: %s FAILED: %s", label, id, ME.message);
+            obj.addFailureEntry(rspec, "error", string(ME.message), label, id);
+            continue
+        end
     end
     obj.Results(end+1, :) = {label, id, "figure", "done", msg, strjoin(E(q).files, "; "), E(q).seconds};
     obj.KeptFiles = [obj.KeptFiles E(q).kept];   % in Files, not this run's: the lab database's record leaves them out
@@ -324,11 +346,16 @@ if nFigures > 1; s.id = id + " (" + label + ")"; end
 end
 
 
-function cancelPages(jobs)
-%cancelPages  Cancel the pages of JOBS still on the workers.
-for j = 1:numel(jobs)
-    if ~isempty(jobs{j}.future); cancel(jobs{j}.future); end
+function stoppedRow(obj, id, jobs, folder, t0)
+%stoppedRow  A session figure canceled part way (EphysAnalysisRunner:Canceled): its pages still on the workers
+%   canceled, and a "canceled" row "sessions: all" listing the files its finished pages wrote (stopPages), so the run
+%   record and the lab database's record name them; run adds no row of its own for the figure then.
+[written, stopped] = obj.stopPages(jobs);
+if stopped > 0
+    obj.log("sessions: %s: %d page(s) stopped on the workers while drawn: each may have left a file partly written in %s", ...
+        id, stopped, folder);
 end
+obj.Results(end+1, :) = {"sessions: all", id, "figure", "canceled", "canceled", strjoin(written, "; "), toc(t0)};
 end
 
 

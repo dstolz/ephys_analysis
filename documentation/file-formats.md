@@ -1440,8 +1440,10 @@ when the run ends, whether it finished, was canceled or stopped with an error
 (then before the error goes on to the caller);
 schema `ephys-analysis-run/2`: `runId`, `name`, `outcome` (`finished` |
 `canceled` | `failed`), `error` (`<identifier>: <message>` of the error that
-stopped a failed run, else `""`, as in a pipeline run's record), `started`, `finished`, `seconds`, `datasets`,
-`figures` (the figure ids the run drew per dataset; a figure drawn across the datasets is not among them), `sessionFigures` (the session figures run: figures with `sessions.enabled`, drawn across the datasets), `reportFiles` (each report file written, also those written before the error of a failed run), `results` (the runner's Results rows; a failed run's, the rows it finished), `fromDatabase` (per
+stopped a failed run, the message alone when the error has no identifier,
+else `""`; a pipeline run's record writes `<identifier>: <message>` even
+then), `started`, `finished`, `seconds`, `datasets`,
+`figures` (the figure ids the run drew per dataset; a figure drawn across the datasets is not among them), `sessionFigures` (the session figures run: figures with `sessions.enabled`, drawn across the datasets), `reportFiles` (each report file written, also those written before the error of a failed run), `results` (the runner's Results rows; a failed run's, the rows it finished; an `error` or `canceled` row's `Files` the files its figure wrote before it stopped), `fromDatabase` (per
 dataset, `dataset` and `files`: the files, or a sort's folder, found in folders
 the lab database named because they were not in the dataset's own folders;
 `[]` when none), `provenance` and `config` (the analysis config the run

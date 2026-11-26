@@ -43,6 +43,11 @@ function R = run(obj, opts)
 %   waited for before the run record is written; otherwise run() returns
 %   while it goes on, and whoever follows it polls it (TransferFcn).
 %
+%   Local reference: with Reference.LocalAutoAssign, once the checks pass
+%   (not a dry run), each selected dataset without a local reference map
+%   takes its probe's default and keeps it in its manifest
+%   (assignLocalReferenceDefaults); the log says which.
+%
 %   Locks: a run (not a dry run, and not one of the probe and behavior
 %   steps alone) takes a run lock (RunLock, a file
 %   <Name>_run.lock.json in each selected dataset's output folder, its
@@ -74,6 +79,21 @@ else
     steps = EphysPipelineConfig.StepNames(ismember(EphysPipelineConfig.StepNames, steps));
 end
 obj.checkRun(Steps=steps);
+
+% Reference.LocalAutoAssign: each selected dataset without a local reference
+% takes its probe's default now, saved in its manifest, before any step reads
+% the recording (the plan above checked it with that map).
+if c.Reference.LocalAutoAssign && ~opts.DryRun
+    A = EphysPipeline.assignLocalReferenceDefaults(obj.selected(), c.Probe, c.Reference);
+    for r = 1:height(A)
+        if A.Status(r) == "assigned"
+            obj.log("[reference] %s: local reference from the default of %s (%s)", A.Dataset(r), ...
+                fileNameOf(A.Probe(r)), A.Map(r));
+        else
+            obj.log("[reference] %s: default local reference not given: %s", A.Dataset(r), A.Status(r));
+        end
+    end
+end
 
 obj.reset();
 obj.RunRecordFile = "";
@@ -173,4 +193,11 @@ end
 
 function out = ternary(cond, a, b)
 if cond; out = string(a); else; out = string(b); end
+end
+
+
+function s = fileNameOf(f)
+%fileNameOf  A file's name and extension, without its folder.
+[~, nm, ext] = fileparts(string(f));
+s = string(nm) + string(ext);
 end

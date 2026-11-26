@@ -27,7 +27,12 @@ classdef EphysPipelineConfig
     %                artifact detection, the sorting .bin, spike detection,
     %                the signals of Signals.<TYPE>_Reference), BadLow /
     %                BadHigh (the noise bounds that suggest channels to leave
-    %                out of it); carried onto the datasets' ArtifactConfig
+    %                out of it); carried onto the datasets' ArtifactConfig.
+    %                Local (each dataset's local reference first),
+    %                LocalAutoAssign + LocalDefaultProbes / LocalDefaultMaps
+    %                (a probe's default local reference, "17: 1-16; 40:
+    %                33-48" on the probe's channels, taken by each dataset on
+    %                it without a map of its own: on Scan, as a run starts)
     %     Behavior   Enabled, Search (off: the associated sessions only, no
     %                search), SearchDirs, Match, MaxStartOffsetMin, Overwrite,
     %                WriteFile, PairTrials, AutoApprove, TrialLine

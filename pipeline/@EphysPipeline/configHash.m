@@ -92,8 +92,10 @@ function r = referencePart(c, d)
 %referencePart  The Reference section, with D's local reference map while
 %   Reference.Local is on. Local itself is dropped while it is off, so a
 %   config without the local reference hashes as it did before Local
-%   existed (its outputs are not stale for it).
-r = c.Reference;
+%   existed (its outputs are not stale for it). The probes' default maps
+%   and whether new datasets take them (LocalAutoAssign) are dropped: they
+%   decide only which map a dataset gets, and its map is what is hashed.
+r = without(c.Reference, ["LocalAutoAssign" "LocalDefaultProbes" "LocalDefaultMaps"]);
 if isfield(r, 'Local') && r.Local
     r.LocalMap = EphysDataset.localReferenceRecord(d.LocalReferenceMap);
 elseif isfield(r, 'Local')

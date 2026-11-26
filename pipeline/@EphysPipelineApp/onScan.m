@@ -14,7 +14,13 @@ function onScan(obj)
 %   constructor offers the kept queue once the window shows. With "Tag new
 %   datasets" on (Project.AutoTag), each dataset found for the first time
 %   (no manifest yet) takes Project.NewDatasetTags (EphysProject.refresh,
-%   NewTags), and the status bar says how many were tagged.
+%   NewTags), and the status bar says how many were tagged. With "Give new
+%   datasets their probe's default" on (Reference.LocalAutoAssign), each
+%   dataset without a local reference takes its probe's default, after the
+%   probe rules (EphysPipeline.assignLocalReferenceDefaults), and the status
+%   bar says how many did, and names those that could not. The scan does
+%   not print IntanReader:refreshMetadata:ChannelsDropped: the channels a
+%   recording leaves out are in its DroppedChannels and manifest.
 
 if obj.refuseWhileRunning("Scan"); return; end
 root = string(obj.RootPathField.Value);
@@ -31,6 +37,10 @@ end
 obj.savePreferences();
 obj.ScanButton.Enable = "off";
 cleanup = onCleanup(@() set(obj.ScanButton, "Enable", "on"));
+% Channels switched on or off mid-recording are kept in each dataset's
+% DroppedChannels (and its manifest); the scan does not print them.
+ws = warning('off', 'IntanReader:refreshMetadata:ChannelsDropped');
+restoreWarn = onCleanup(@() warning(ws));
 
 starting = obj.Splash.isActive();   % the window is hidden: no dialog on it
 if starting
@@ -94,6 +104,12 @@ try
     if obj.Config.Probe.AutoAssign
         nRule = height(EphysPipeline.assignProbeRules(P.Datasets, obj.Config.Probe.RuleSubjects, obj.Config.Probe.RuleProbes));
     end
+    localTaken = 0; localRefused = strings(1, 0);   % datasets given their probe's default local reference, and those that could not take it
+    if obj.Config.Reference.LocalAutoAssign   % after the probe rules: a dataset's probe decides its default
+        A = EphysPipeline.assignLocalReferenceDefaults(P.Datasets, obj.Config.Probe, obj.Config.Reference);
+        localTaken = nnz(A.Status == "assigned");
+        localRefused = A.Dataset(A.Status ~= "assigned").';
+    end
 
     obj.Project = P;
     obj.SelectedDatasetIdx = sameFolder(P, active);   % 0: the first dataset (populateDatasetPickers)
@@ -110,6 +126,13 @@ try
     scanMsg = sprintf("Scanned %s: found %d dataset(s).", root, n);
     if nRule > 0
         scanMsg = scanMsg + sprintf(" Probe rules assigned a probe to %d.", nRule);
+    end
+    if localTaken > 0
+        scanMsg = scanMsg + sprintf(" %d dataset(s) without a local reference took their probe's default.", localTaken);
+    end
+    if ~isempty(localRefused)
+        scanMsg = scanMsg + sprintf(" %d could not take their probe's default local reference (%s): see the Artifacts tab.", ...
+            numel(localRefused), strjoin(localRefused, ", "));
     end
     if nTagged > 0
         scanMsg = scanMsg + sprintf(" Tagged %d new dataset(s) with %s.", nTagged, ...

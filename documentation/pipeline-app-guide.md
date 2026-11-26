@@ -260,8 +260,10 @@ any processing.
 | see what a run would do, without changing anything | Run tab: **Show plan** lists it and runs nothing |
 | go through the steps without writing output files | Run tab: **Rehearse (no files)**. The steps do run; only the files are left out, except that the Sorting step still writes its run files (its config and script) and does not sort |
 | choose which datasets a run takes | tick them in the Project table; **Clear ticks (= all)** unticks every row, and with no row ticked a run takes all the datasets |
+| find the recordings that still need work | Project tab, the **Status:** boxes under the table's filters: **No behavior**, **Not paired**, **Not approved**, **Not sorted**, **Not curated in phy**, **No probe**. Tick one and only those recordings show; tick several and a recording in any of them shows. [More](EphysPipelineApp.md#status-filter) |
 | run one step again, on the ticked datasets | that step's tab: **Run this step** |
 | reference each shank, or the whole probe, to one channel | Artifacts tab: tick **Local reference first**, then press **Local reference...**. The window draws the probe. Click a site and it becomes the reference of its own shank. To use it for other shanks, click those shanks first, then the site. Pick **One reference for the whole probe** to use one site for every shank. Each reference gets its own color, and its site is drawn as a diamond. Press **Save**, or **Save to ticked datasets** for recordings on the same probe. A recording with channels switched off during recording gets the channels it has; the ones it lacks are left out. A reference on its own shank becomes zeros and is left out of every step. A common reference, if you chose one, comes after it. [More](EphysPipelineApp.md#local-reference) |
+| use the same reference channels for every new recording on a probe | In the **Local reference...** window, pick the references and press **Save and use for new datasets**. This saves them on the recording and makes them the default for its probe. It also ticks **Give new datasets their probe's default** on the Artifacts tab. Save the config. From then on, each recording on that probe that has no references of its own gets the default when you press **Scan** and when a run starts. A recording that already has its own keeps them. [More](EphysPipelineApp.md#a-probes-default) |
 | look at the raw signal around an event or an artifact | [Visualize](EphysPipelineApp.md#visualize) tab |
 | a picture of the traces with the units on them, for a figure | Visualize tab: show the stretch, set the units to **Waveforms** (tick **Waveforms on every channel of the unit** to color each unit on all its channels), then **Save view as SVG...**. Each unit is a path of its own, in its color; the artifact shading is left out |
 | check how well units are sorted | [Review](EphysPipelineApp.md#review) tab, or **Open in phy** |
@@ -347,8 +349,9 @@ See [Lab database](database.md) for the details.
   untick **Local reference first**.
 - **A channel was switched off in RHX during a recording.** The recording is
   read as if that channel had been off from the start: its channels are the
-  ones every file of the recording holds, and the MATLAB window says which
-  channels were left out and at which file. To keep what a channel recorded
+  ones every file of the recording holds. **Dataset → View manifest...**
+  shows which channels were left out and at which file (row *Channels left
+  out*). To keep what a channel recorded
   before it was switched off, split the recording's files into two folders
   at that file.
 - **Still stuck?** **Help → Report an issue on GitHub...** opens a report with

@@ -41,6 +41,18 @@ says how to cut a release.
 
 ### Added
 
+- A probe's default local reference, for new datasets. **Save and use for new datasets** in the Local reference
+  window keeps the map on the active dataset and, in the config, as the default of its probe
+  (`Reference.LocalDefaultProbes` / `LocalDefaultMaps`, one line per probe such as `"17: 1-16; 40: 33-48"`, on the
+  probe's channels), and ticks **Give new datasets their probe's default** on the Artifacts tab
+  (`Reference.LocalAutoAssign`). With it on, every dataset without a local reference of its own takes its probe's
+  default (matched by probe file name), on its own channels (by hardware number when channels were disabled at
+  acquisition), and keeps it in its manifest: on Scan, after the probe rules, and when a run starts, after the
+  checks (`EphysPipeline.assignLocalReferenceDefaults`; the standalone script too). A dataset's own map is never
+  replaced; one that did not record a reference channel of the default is named. The plan and the Artifacts tab check
+  such a dataset with the map it would take (`EphysPipeline.localReferenceDefault`). `validate` checks the defaults.
+  `configHash` leaves the new fields out, so no output turns stale. New: `EphysDataset.localReferenceText` /
+  `parseLocalReferenceText`, `EphysPipeline.localReferenceKey`.
 - Local reference: a reference channel per shank, or one for the whole probe, subtracted before the common
   reference. `Reference.Local` (**Local reference first** on the Artifacts tab; `ArtifactConfig.LocalReference`)
   turns it on for the pipeline, and each dataset keeps its own map, `EphysDataset.LocalReferenceMap` (groups of
@@ -774,6 +786,10 @@ says how to cut a release.
 
 ### Fixed
 
+- The pipeline app's Prefetch digital lines (Trials tab) failed with a `strjoin` error at the end of a run in which a
+  dataset failed or a pairing needed review, instead of showing the list. Copy sessions failed the same way when a
+  session failed to copy, and a report too long for the address bar (`IssueReport`) began its note with "20"
+  instead of a blank line. In each, `newline + newline` added two characters as numbers (20).
 - `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had
   saved a pairing since the dataset object last wrote the manifest, and the new record was equal to the one the
   object wrote then (its `updated` time is to the second), the manifest merge took the record as unchanged and kept

@@ -39,7 +39,7 @@ else
 end
 top = max([0, [map.reference], map.channels]);
 probe = readJsonFile(probeFile, ErrorOnFail=false);
-srcKey = probeChannels(d, probe, top);
+srcKey = EphysPipeline.localReferenceKey(d, probe, top);
 keep = true(1, numel(targets));
 maps = cell(1, numel(targets));
 skipped = strings(1, 0);
@@ -51,7 +51,7 @@ for k = 1:numel(targets)
         skipped(end + 1) = t.Name + " (probe " + ternary(pf == "", "none", fileName(pf)) + ")"; %#ok<AGROW>
         continue
     end
-    [maps{k}, lost] = EphysDataset.translateLocalReferenceMap(map, srcKey, probeChannels(t, probe, top));
+    [maps{k}, lost] = EphysDataset.translateLocalReferenceMap(map, srcKey, EphysPipeline.localReferenceKey(t, probe, top));
     if ~isempty(lost)
         keep(k) = false;
         skipped(end + 1) = t.Name + " (reference channel(s) " + ...
@@ -94,16 +94,6 @@ end
 function s = fileName(f)
 [~, nm, ext] = fileparts(string(f));
 s = string(nm) + string(ext);
-end
-
-
-function key = probeChannels(ds, probe, top)
-%probeChannels  Each channel of DS as a chanMap value of PROBE (EphysDataset.recordedProbe).
-%   Without a channel count, the channels are taken as rows of the probe
-%   (0..TOP-1).
-[~, info] = ds.recordedProbe(probe);
-key = info.probeChannel;
-if isempty(key); key = 0:top - 1; end
 end
 
 

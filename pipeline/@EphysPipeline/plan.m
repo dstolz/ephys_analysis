@@ -67,7 +67,10 @@ function T = plan(obj, opts)
 %                                  shank of its probe without a reference, a
 %                                  reference excluded or bad, a map drawn on
 %                                  another probe); rows of the steps that
-%                                  read the recording through it
+%                                  read the recording through it. With
+%                                  Reference.LocalAutoAssign, a dataset
+%                                  without a map is checked with its
+%                                  probe's default (localReferenceDefault)
 %     error: ...                   a setting cannot apply to this dataset
 %                                  (e.g. LFP_Fs above the recording rate)
 %     error: analysis config       the Analysis step's config cannot be
@@ -411,7 +414,9 @@ end
 % dataset's local reference first: a dataset whose map a run would refuse
 % stops the run here, before any step, not at its first read. Only the rows
 % that read through the reference: detection when it is on, the signals when
-% one of them takes the reference.
+% one of them takes the reference. With Reference.LocalAutoAssign, a dataset
+% without a map is checked with the one its probe's default gives it (a run
+% assigns it before the first step).
 if c.Reference.Local
     G = c.Signals;
     reads = startsWith(T.Status, ["ready" "exists: overwrite" "exists: will re-sort"]) & ...
@@ -420,7 +425,18 @@ if c.Reference.Local
     for k = 1:numel(ds)
         rows = reads & Idx == obj.DatasetIdx(k);
         if ~any(rows); continue; end
-        p = ds(k).localReferenceProblems(ProbeFile=obj.probeFor(ds(k)));
+        pf = obj.probeFor(ds(k));
+        byDefault = false;
+        if c.Reference.LocalAutoAssign && isempty(ds(k).LocalReferenceMap)
+            [defMap, ~, why, byDefault] = EphysPipeline.localReferenceDefault(ds(k), c.Probe, c.Reference);
+        end
+        if byDefault && isempty(defMap)
+            p = "The default local reference cannot be given: " + why + ".";
+        elseif byDefault
+            p = ds(k).localReferenceProblems(Map=defMap, ProbeFile=pf);
+        else
+            p = ds(k).localReferenceProblems(ProbeFile=pf);
+        end
         if isempty(p); continue; end
         T.Status(rows) = "error: local reference";
         T.Note(rows) = strjoin(p, " ");

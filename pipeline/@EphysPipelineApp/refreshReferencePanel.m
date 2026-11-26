@@ -10,6 +10,9 @@ function refreshReferencePanel(obj)
 %   local reference line: the active dataset's map in words and, while
 %   Local reference first is ticked, what a run would stop on
 %   (EphysDataset.localReferenceProblems, on the probe the steps resolve).
+%   With Give new datasets their probe's default ticked, a dataset without
+%   a map is shown and checked with the one its probe's default gives it
+%   (EphysPipeline.localReferenceDefault).
 %
 %   See also buildArtifactsTab, onSuggestReferenceExclude, onReferenceExcludeEdited,
 %   onSuggestBadChannels, onBadChannelsEdited, onLocalReference.
@@ -84,7 +87,19 @@ if isempty(d)
 end
 local = logical(obj.ArtRefLocalCheckBox.Value);
 M = d.LocalReferenceMap;
-if isempty(M)
+pf = EphysPipeline.resolveProbe(obj.Config.Probe, d);
+check = M;   % the map a run would use: its own, else (Give new datasets ...) its probe's default
+byDefault = false;
+if isempty(M) && logical(obj.ArtRefLocalAutoCheckBox.Value)
+    [check, ~, why, byDefault] = EphysPipeline.localReferenceDefault(d, obj.Config.Probe, obj.Config.Reference);
+end
+if byDefault && ~isempty(check)
+    [~, nm, ext] = fileparts(pf);
+    txt = d.Name + ": no local reference of its own; it takes the default of probe " + string(nm) + string(ext) + ...
+        " on the next Scan or run (" + ManifestText.localReference(EphysDataset.localReferenceRecord(check)) + ").";
+elseif byDefault
+    txt = d.Name + ": no local reference assigned, and its probe's default cannot be given: " + why + ".";
+elseif isempty(M)
     txt = d.Name + ": no local reference assigned.";
 else
     txt = d.Name + ": " + ManifestText.localReference(EphysDataset.localReferenceRecord(M)) + ".";
@@ -100,7 +115,13 @@ if ~local
     return
 end
 try
-    p = d.localReferenceProblems(ProbeFile=EphysPipeline.resolveProbe(obj.Config.Probe, d));
+    if byDefault && isempty(check)
+        p = "No reference channel is assigned to any shank.";
+    elseif byDefault
+        p = d.localReferenceProblems(Map=check, ProbeFile=pf);
+    else
+        p = d.localReferenceProblems(ProbeFile=pf);
+    end
 catch ME
     p = "It cannot be checked: " + string(ME.message);
 end

@@ -2,7 +2,7 @@ function buildProjectTab(obj)
 %buildProjectTab  Config name, project root / output root, the tags for
 %   new datasets (under Scan: onAutoTags), name pattern,
 %   dataset table, selection helpers, the dataset tags (Tags..., a click on
-%   a Tags cell: onEditTags; the tag filter), the dataset variables
+%   a Tags cell: onEditTags; the tag filter; the status filter), the dataset variables
 %   (Variables..., a click on a Variables cell: onEditVariables), the Tools panel beside the table (the
 %   datasets in the manifest viewer, the analysis app, phy or the file
 %   browser) with the Notes panel under it (the active dataset's note in
@@ -107,12 +107,13 @@ obj.NameTokenGrid.RowHeight = {'fit'};
 obj.NameTokenGrid.Padding   = [0 0 0 0];
 
 % --- row 2: table toolbar ----------------------------------------------------
-% Two rows, so a 1280 px window holds it all: Datasets, All / None, Tags...
+% Three rows, so a 1280 px window holds it all: Datasets, All / None, Tags...
 % and the token filters on top; under the token filters the tag filter, then
-% the names-match / "showing k of n" label and the scan status on its right.
-tb = uigridlayout(g, [2 7]);
+% the names-match / "showing k of n" label and the scan status on its right;
+% under the tag filter the status filter.
+tb = uigridlayout(g, [3 7]);
 tb.Layout.Row = 2;
-tb.RowHeight   = {30, 30};
+tb.RowHeight   = {30, 30, 'fit'};
 tb.ColumnWidth = {'fit', 60, 150, 96, 'fit', '3x', '2x'};
 tb.Padding     = [0 0 0 0];
 tb.RowSpacing  = 6;
@@ -170,6 +171,30 @@ obj.NameTokenStatusLabel.Layout.Row = 2; obj.NameTokenStatusLabel.Layout.Column 
 obj.ScanStatusLabel = uilabel(tb, "Text", "No datasets scanned yet.", "FontColor", [0.4 0.4 0.4], ...
     "HorizontalAlignment", "right");
 obj.ScanStatusLabel.Layout.Row = 2; obj.ScanStatusLabel.Layout.Column = 7;
+% The status filter, under the tag filter: a box per state a dataset can be
+% in (behavior, pairing, sorting, phy, probe); refreshDatasetsTable keeps the
+% rows in any ticked state (datasetStatus).
+sf = uigridlayout(tb, [1 7]);
+sf.Layout.Row = 3; sf.Layout.Column = [5 7];
+sf.RowHeight   = {'fit'};
+sf.ColumnWidth = repmat({'fit'}, 1, 7);
+sf.Padding     = [12 0 0 0];
+sf.ColumnSpacing = 14;
+uilabel(sf, "Text", "Status:", "Tooltip", ...
+    ["Show only the datasets in a ticked state: with several ticked, a dataset in any of them shows." ...
+    "Combined with the token and tag filters: a row shows when it passes them all. A view only: not saved."]);
+states = { ...
+    "nobehavior", "No behavior",  "No trial source: no Epsych2 session associated (or the one associated is not there now), and no TDT trial epocs."
+    "unpaired",   "Not paired",   "A trial source, but no trial pairing recorded yet (Trials tab, or the run's behavior step)."
+    "unapproved", "Not approved", "A trial pairing recorded but not approved yet (Trials tab: Approve pairing)."
+    "unsorted",   "Not sorted",   "No sorted output there: never sorted, or the folder associated is not there now."
+    "uncurated",  "Not curated in phy", "Sorted, but phy has not saved labels, merges or splits there yet (the Sorting cell reads ""auto"")."
+    "noprobe",    "No probe",     "No probe of its own and no default probe, or the probe file is not there now."};
+obj.StatusFilterChecks = matlab.ui.control.CheckBox.empty;
+for k = 1:height(states)
+    obj.StatusFilterChecks(k) = uicheckbox(sf, "Text", states{k, 2}, "UserData", states{k, 1}, ...
+        "Tooltip", states{k, 3}, "ValueChangedFcn", @(~,~) obj.refreshDatasetsTable());
+end
 
 % --- row 3: datasets table, and the Tools panel beside it --------------------
 % Columns (headers, widths, the trailing hidden "DatasetIdx" that maps a row

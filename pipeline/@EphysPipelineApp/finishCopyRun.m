@@ -11,7 +11,7 @@ obj.setStatus(obj.copySummaryText("Copy sessions", R), "");
 
 if any(R.CopyStatus == "failed")
     bad = R(R.CopyStatus == "failed", :);
-    msg = strjoin(compose("%s: %s", bad.DestDir, bad.Message), newline + newline);
+    msg = strjoin(compose("%s: %s", bad.DestDir, bad.Message), [newline newline]);
     uialert(obj.Fig, msg, sprintf("%d session(s) failed", height(bad)));
 elseif any(R.CopyStatus == "canceled")
     obj.setStatus(obj.copySummaryText("Copy sessions", R), ...

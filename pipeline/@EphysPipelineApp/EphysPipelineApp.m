@@ -294,6 +294,7 @@ classdef EphysPipelineApp < handle
         TagFilterModeDropDown matlab.ui.control.DropDown   % ItemsData "any" | "all": of the tags picked
         NotTagFilterDropDown  matlab.ui.control.DropDown   % editable, as the tag filter: leave out the datasets holding any of these
         DatasetSearchField    matlab.ui.control.EditField  % words that must all appear in a shown dataset's name, key or tags
+        StatusFilterChecks    matlab.ui.control.CheckBox   % the status filter: a box per state (UserData: its key, datasetStatus)
         TagDialog = []                                     % the open TagDialog ([] when none)
         TagPolicy (1,1) string = "all"                     % the bulk policy last chosen this session ("all" | "skip")
         % Dataset variables (DatasetVariables): the grid dialog (onEditVariables)
@@ -413,6 +414,7 @@ classdef EphysPipelineApp < handle
         ArtRefSuggestButton matlab.ui.control.Button
         ArtRefStatusLabel   matlab.ui.control.Label
         ArtRefLocalCheckBox matlab.ui.control.CheckBox           % Reference.Local: the local reference first
+        ArtRefLocalAutoCheckBox matlab.ui.control.CheckBox       % Reference.LocalAutoAssign: a dataset without a map takes its probe's default
         ArtRefLocalButton   matlab.ui.control.Button             % Local reference...: the active dataset's map (LocalReferenceDialog)
         ArtRefLocalLabel    matlab.ui.control.Label              % the active dataset's map in words, and what a run would say of it
         ArtRefLocalDialog = []                                   % the open LocalReferenceDialog ([] when none)
@@ -1293,6 +1295,7 @@ classdef EphysPipelineApp < handle
         onReferenceExcludeEdited(obj)
         onLocalReference(obj)
         why = saveLocalReference(obj, d, map, probeFile, ticked)
+        why = saveLocalReferenceDefault(obj, d, map, probeFile)
         onSuggestBadChannels(obj)
         onBadChannelsEdited(obj, scope)
         onClearManualArtifacts(obj, opts)

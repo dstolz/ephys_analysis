@@ -4,10 +4,22 @@ function R = onRunExport(obj, opts)
 %   progress in the status bar (a bar, the runner's message and the time
 %   left, and a Cancel button; the Export tab's and the toolbar's Cancel
 %   stop it too: onCancelRun). Nothing is modal: the window stays usable
-%   (a scan is refused meanwhile). What stops a run before it starts is an
-%   alert that names the first problem and takes the tab that fixes it (the
-%   Export tab's issues table for a config error, the Data tab for no
-%   dataset ticked or no project, stopAction). A run that throws still
+%   (a scan is refused meanwhile), and an edit made while the run goes is
+%   the next run's: the runner draws, writes and records with the config
+%   as it was when the run started (EphysAnalysisRunner.run reads it once),
+%   and what is shown after it (the figure folder, its tooltip) is that
+%   config's too. What stops a run before it starts is an
+%   alert that names the first problem and takes the tab that fixes it:
+%   datasets listed that are not the scan of the source the Data tab shows
+%   (its root, output root, name pattern, recordings or folders changed
+%   since the scan: press Scan first; scanIsCurrent), a config error (the
+%   Export tab's issues table), no dataset ticked or no project (the Data
+%   tab; stopAction). The config's warnings (files that overwrite each
+%   other, say) do not stop it: the issues table lists them, the Log has
+%   each, and an alert that leaves the window usable (Cancel stays
+%   reachable) names them, those about where files go first, when the run
+%   starts; Export or Report warnings only when the run writes figure
+%   files or a report. A run that throws still
 %   fills the results table with the rows it finished and says which
 %   dataset it was on (AppDialog.failure). Figures= and Datasets= narrow the run (the
 %   tests use them); by default every enabled figure on every ticked
@@ -42,6 +54,7 @@ if isempty(obj.Runner)
 end
 cfg = opts.Config;
 if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.gatherConfig(); end
+if ~scanIsCurrent(obj, cfg.Source, Action="Run", Again="run"); return; end   % the datasets listed must be the source's
 issues = cfg.validate(DatasetVariables=obj.datasetVariableSets());   % the datasets' variables are label variables
 if any(issues.Severity == "error")
     obj.IssuesTable.Data = issues;
@@ -56,6 +69,18 @@ if isempty(idx); idx = obj.tickedDatasetIndices(); end
 if isempty(idx)
     stopAction(obj, "Run", "No dataset is ticked to run. On the Data tab, tick Run for at least one dataset.", Tab=obj.TabData);
     return
+end
+doExport = cfg.Export.Enabled;
+if ~isempty(opts.Export); doExport = logical(opts.Export); end
+doReport = cfg.Report.Enabled;
+if ~isempty(opts.Report); doReport = logical(opts.Report); end
+W = runWarnings(issues, doExport, doReport);
+if height(W) > 0   % they do not stop the run: said where they are seen at once
+    obj.IssuesTable.Data = issues;   % the Export tab's table, as Validate fills it (double-click a row: its setting)
+    for w = 1:height(W)
+        obj.log("Run: warning: " + W.Message(w) + " (" + W.Section(w) + " > " + W.Field(w) + ")");
+    end
+    AppDialog.alert(obj.Fig, warningsText(W), "Run", "Icon", "warning", "Modal", false);   % the window stays usable: Cancel stops the run
 end
 r = obj.Runner;
 r.Config = cfg;
@@ -89,14 +114,12 @@ end
 obj.ResultsTable.Data = withSubjectDate(obj, addRemedy(R));
 obj.LastReportFiles = r.ReportFiles;
 obj.LastExportFolder = "";
-doExport = cfg.Export.Enabled;
-if ~isempty(opts.Export); doExport = logical(opts.Export); end
-if doExport
+if doExport   % the run's config (CFG), not r.Config: an edit made while it went is the next run's
     obj.LastExportFolder = figureFileName(cfg.Export.Folder, struct('OutputFolder', r.datasetFolder(idx(1)), ...
-        'OutputRoot', r.outputRoot(), 'Root', cfg.Source.Root, 'Name', r.Names(idx(1))), Kind="folder");
+        'OutputRoot', r.outputRoot(cfg), 'Root', cfg.Source.Root, 'Name', r.Names(idx(1))), Kind="folder");
 end
 sids = EphysAnalysisRunner.idList(opts.SessionFigures, @() cfg.enabledSessionFigures());
-obj.OpenFolderButton.Tooltip = openFolderTip(obj, cfg, idx, sids);
+obj.OpenFolderButton.Tooltip = openFolderTip(obj, cfg, idx, sids);   % the run's config, as the folder above
 obj.OpenReportButton.Enable = matlab.lang.OnOffSwitchState(~isempty(obj.LastReportFiles));
 obj.OpenFolderButton.Enable = matlab.lang.OnOffSwitchState(obj.LastExportFolder ~= "" && isfolder(obj.LastExportFolder));
 obj.ToolbarReportTool.Enable = obj.OpenReportButton.Enable;
@@ -105,7 +128,31 @@ counts = arrayfun(@(s) nnz(R.Status == s), ["done" "skipped" "error" "canceled"]
 obj.RunLabel.Text = sprintf("Results: %d done, %d skipped, %d failed, %d canceled (%.0f s)", counts, toc(t0));
 obj.RunLabel.FontColor = ternary(counts(3) > 0, [0.75 0.1 0.1], [0 0 0]);   % a failed row shows red; its message is in the table
 clear cleanup   % the strip goes, then the status bar says how it ended
-obj.setStatus(obj.RunLabel.Text);
+if height(W) > 0
+    obj.setStatus(string(obj.RunLabel.Text) + sprintf(". The config has %d warning(s): see the table on the Export tab.", height(W)));
+else
+    obj.setStatus(obj.RunLabel.Text);
+end
+end
+
+
+function W = runWarnings(issues, doExport, doReport)
+%runWarnings  The config's warnings that bear on this run: an Export one only when it writes figure files, a Report one
+%   only when it writes a report; those about where the files go (Export, Report) first, then the others, in order.
+W = issues(issues.Severity == "warning", :);
+W = W(~(W.Section == "Export" & ~doExport) & ~(W.Section == "Report" & ~doReport), :);
+[~, o] = sort(double(~ismember(W.Section, ["Export" "Report"])));   % a stable sort: each part keeps validate's order
+W = W(o, :);
+end
+
+
+function txt = warningsText(W)
+%warningsText  The run's warnings alert: how many, the first three ("<message> (<Section> > <Field>)"), where the rest are.
+n = height(W);
+lines = W.Message(1:min(3, n)) + " (" + W.Section(1:min(3, n)) + " > " + W.Field(1:min(3, n)) + ")";
+txt = sprintf("The config has %d warning(s); the run goes on (Cancel stops it):", n) + newline + strjoin(reshape("- " + lines, 1, []), newline);
+if n > 3; txt = txt + newline + sprintf("... and %d more.", n - 3); end
+txt = txt + newline + "The table on the Export tab lists them: double-click a row to go to its setting.";
 end
 
 
@@ -187,9 +234,9 @@ tip = "The first dataset's figure folder of the last run.";
 if isempty(sids); return; end
 try
     r = obj.Runner;
-    first = r.sessionTable(idx).index(1);
+    first = r.sessionTable(idx, cfg).index(1);
     folder = figureFileName(cfg.Export.SessionsFolder, struct('OutputFolder', r.datasetFolder(first), ...
-        'OutputRoot', r.outputRoot(), 'Root', cfg.Source.Root, 'Name', r.Names(first)), Kind="folder");
+        'OutputRoot', r.outputRoot(cfg), 'Root', cfg.Source.Root, 'Name', r.Names(first)), Kind="folder");
     tip = tip + " The session figures' files are in " + folder + ".";
 catch
     tip = tip + " The session figures' files are in the sessions folder (Export.SessionsFolder).";

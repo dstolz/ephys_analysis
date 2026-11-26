@@ -358,13 +358,21 @@ classdef test_LabSync < matlab.unittest.TestCase
             a = jsondecode(char(e.attributes));
             tc.verifyEqual(key(string(a.unrecorded_outputs)), key(away), "listed instead");
 
-            % the next run writes the report again, other bytes: it replaces the first
+            % the next run writes the report again, other bytes: it replaces the first; it records the config it
+            % started with (Config=, as EphysAnalysisRunner.run passes it), not the runner's Config, set meanwhile
             tc.writeBytes(rep, uint8('<html>2</html>'));
-            id2 = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"));
+            ran = EphysAnalysisConfig();
+            ran.Name = "as the run started";
+            id2 = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"), Config=ran);
             labclient.Sync.flush(Budget=10);
             tc.verifyNotEqual(id2, "");
             D = tc.Fake.Dispositions;
             tc.verifyEqual(D.artifact_id(D.disposition == "replaced"), A.artifact_id, "the report the run rewrote: replaced");
+            e2 = tc.Fake.Events(string({tc.Fake.Events.event_id}) == id2);
+            tc.verifySize(e2, [1 1]);
+            a2 = jsondecode(char(e2.attributes));
+            tc.verifyEqual(string(a2.config_name), "as the run started", "the config the run started with, not R.Config");
+            tc.verifyNotEqual(string(r.Config.Name), "as the run started");
         end
 
         function anUnreachableServerCostsNoWait(tc)

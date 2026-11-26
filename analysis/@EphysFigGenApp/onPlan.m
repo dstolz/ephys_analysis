@@ -7,15 +7,19 @@ function T = onPlan(obj)
 %   "What to do" column beside its Reason (figureSkipRemedy), and a double
 %   click on a row shows the figure on the Figures tab (onIssueActivated).
 %   With no project scanned an alert says so, with a "Go to Data tab"
-%   button; with no dataset ticked it takes the Data tab (AppDialog,
-%   stopAction).
+%   button; with the datasets listed not the scan of the source the Data
+%   tab shows (its root, output root, name pattern, recordings or folders
+%   changed since: scanIsCurrent) an alert says to press Scan first; with
+%   no dataset ticked it takes the Data tab (AppDialog, stopAction).
 T = table();
 if isempty(obj.Runner)
     obj.setStatus("No project is loaded: choose the project root on the Data tab and press Scan.");
     AppDialog.alertNoProject(obj.Fig, @() obj.selectTab(obj.TabData), Where="Data");
     return
 end
-obj.Runner.Config = obj.gatherConfig();
+cfg = obj.gatherConfig();
+if ~scanIsCurrent(obj, cfg.Source, Action="Plan", Again="plan"); return; end   % the datasets listed must be the source's
+obj.Runner.Config = cfg;
 idx = obj.tickedDatasetIndices();
 if isempty(idx)
     stopAction(obj, "Plan", "No dataset is ticked to run. On the Data tab, tick Run for at least one dataset.", Tab=obj.TabData);

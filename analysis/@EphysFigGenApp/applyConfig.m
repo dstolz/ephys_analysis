@@ -7,7 +7,10 @@ function applyConfig(obj, cfg, opts)
 %   config's figure when it can), and the undo history is cleared. Action=LABEL (the figure list's edits:
 %   "Add figure", "Remove figure") records the change of the figures as a
 %   step of the undo history (recordFigureEdit); without it (Undo and Redo
-%   themselves, onUndoRedo) nothing is recorded.
+%   themselves, onUndoRedo) nothing is recorded. The Data tab's scan line
+%   says whether the datasets listed are the scan of the config's source
+%   (showScanLabel: what scannedSource reads, so a config that differs only
+%   in its ticks or filter asks for no scan).
 arguments
     obj (1,1) EphysFigGenApp
     cfg (1,1) EphysAnalysisConfig
@@ -50,10 +53,8 @@ if opts.MarkSaved
 end
 clear restore
 if ~isempty(obj.Runner)
-    obj.Runner.Config = cfg;
-    if ~isequaln(withoutFilter(cfg.Source), withoutFilter(obj.ScannedSource))   % the filter only shows some of the datasets scanned; the rates and signal filters are read after
-        obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
-    end
+    obj.Runner.Config = cfg;   % a run going on keeps the config it started with (EphysAnalysisRunner.run)
+    showScanLabel(obj, cfg.Source);   % what a scan reads (scannedSource): not the ticks, the filter or the signals' rates and filters
 end
 obj.refreshFigureObservations();
 if opts.MarkSaved && drawn && ~ismember(obj.FigurePreviewState, ["computing" "drawing"])
@@ -67,12 +68,6 @@ end
 obj.refreshAlignPreview();
 obj.refreshEpochDiagram();
 obj.updateTitle();
-end
-
-
-function S = withoutFilter(S)
-%withoutFilter  Source without what a scan does not read: the filter and the signals' rates and filters (Downsample, SignalFilter).
-S = rmfield(S, intersect({'Filter', 'Downsample', 'SignalFilter'}, fieldnames(S)));
 end
 
 

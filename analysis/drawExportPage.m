@@ -7,9 +7,12 @@ function out = drawExportPage(F, spec, opts)
 %     image   the HTML report's image (reportImage; [] without Images)
 %     page    the PDF report's page file (reportPdfPage; "" without Pages)
 %     title   the page's title (renderFigure's H.title)
-%   The report reuses a file just written or already on disk (Kept): an
-%   Export PNG is the HTML image (at the Export Dpi), an Export PDF the
-%   PDF page, so no page is written twice.
+%   The report reuses a file just written (Base): an Export PNG is the
+%   HTML image (at the Export Dpi), an Export PDF the PDF page, so no page
+%   is written twice. A page whose files were kept (Export.Overwrite off:
+%   no Base, its files left as they are) is put in the report as drawn
+%   here, never as the file on disk: an earlier run drew that, maybe with
+%   other settings, and the report's caption and config are this run's.
 %
 %   EphysAnalysisRunner draws every page of a run through it, in this
 %   MATLAB or on the process workers that draw the pages (Workers): a
@@ -22,7 +25,6 @@ function out = drawExportPage(F, spec, opts)
 %     Export     the config's Export section (newExportFigure: the page size)
 %     Base       the figure files' path without extension ("" = none written)
 %     Formats    their formats (exportFigure Format=), Dpi their PNG dpi
-%     Kept       files of this page already on disk (Export.Overwrite off)
 %     BatchYLim  renderFigure's BatchYLim=
 %     Report     the report (newAnalysisReport; its options and pageFolder
 %                are all that is read)
@@ -41,7 +43,6 @@ arguments
     opts.Base (1,1) string = ""
     opts.Formats (1,:) string = "png"
     opts.Dpi (1,1) double {mustBePositive} = 150
-    opts.Kept (1,:) string = string.empty(1, 0)
     opts.BatchYLim = []
     opts.Report = []
     opts.Images (1,1) logical = false
@@ -62,7 +63,7 @@ out = struct('files', string.empty(1, 0), 'image', [], 'page', "", 'title', stri
 if opts.Base ~= ""
     out.files = exportFigure(fig, opts.Base, Format=opts.Formats, Dpi=opts.Dpi);
 end
-have = [opts.Kept out.files];
+have = out.files;   % what this run wrote of this page: never a kept file (an earlier run's drawing)
 if opts.Images
     out.image = reportImage(fig, opts.Report, Title=h.title, Files=have);
 end

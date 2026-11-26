@@ -3,8 +3,10 @@ function openFolders(obj, folders)
 %   File > Open from database... calls it with the output folders of the
 %   recordings picked (LabLocatorDialog). The config's figures and
 %   defaults stay; its source becomes Mode "folders" with Folders = FOLDERS
-%   (its Data tab filter kept), so the config is unsaved (Save writes the
-%   new source to its file). The datasets are scanned.
+%   (its Data tab filter kept) and every one of them ticked (Selection
+%   "all": the last source's keys name none of them), so the config is
+%   unsaved (Save writes the new source to its file). The datasets are
+%   scanned.
 arguments
     obj (1,1) EphysFigGenApp
     folders (1,:) string
@@ -14,6 +16,8 @@ if isempty(folders); return; end
 cfg = obj.gatherConfig();
 cfg.Source.Mode = "folders";
 cfg.Source.Folders = folders;
+cfg.Source.Selection = "all";   % every folder picked runs
+cfg.Source.Datasets = string.empty(1, 0);
 obj.applyConfig(cfg);
 scanOpened(obj);
 obj.updateTitle();

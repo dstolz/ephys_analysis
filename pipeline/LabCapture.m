@@ -640,7 +640,10 @@ classdef LabCapture
             %   attributes.outcome "canceled". The event names a session only
             %   when the run covers one dataset. ID: the event's id ("" when
             %   nothing was captured: the database off here, or nothing read
-            %   or written).
+            %   or written). Config= (an EphysAnalysisConfig; default [] =
+            %   R.Config) is the config recorded as the parameters and
+            %   config_name: EphysAnalysisRunner.run passes the one it
+            %   started with, since R.Config may have changed while it ran.
             arguments
                 r
                 idx (1,:) double
@@ -648,6 +651,7 @@ classdef LabCapture
                 opts.Finished (1,1) datetime
                 opts.Outcome (1,1) string = "finished"
                 opts.RunRecord (1,1) string = ""
+                opts.Config = []
             end
             id = "";
             s = LabCapture.settings();
@@ -729,7 +733,8 @@ classdef LabCapture
             end
             if isempty(ins) && isempty(items); return; end
 
-            cfg = r.Config;
+            cfg = opts.Config;
+            if ~isa(cfg, "EphysAnalysisConfig"); cfg = r.Config; end   % the run's own config, as its run record holds it
             prov = ephysProvenance();
             p2 = prov;
             if isfield(p2, "config"); p2 = rmfield(p2, "config"); end

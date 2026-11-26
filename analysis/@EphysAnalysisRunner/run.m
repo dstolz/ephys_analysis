@@ -41,6 +41,16 @@ function T = run(obj, opts)
 %   ledger, DatasetOutputs.Reads) as its inputs, its reports, run record
 %   and figure files as its outputs.
 %
+%   The run reads Config once, when it starts, and passes that config to
+%   every step (runDataset, runSessionFigure, batchYLimits: Config=; the
+%   report, the run record and LabCapture.analysisRun's record): Config
+%   may be set while the run goes (a ProgressFcn; EphysFigGenApp, whose
+%   window stays usable meanwhile) and the run still draws, writes and
+%   records the config it started with -- its figures (a figure renamed
+%   meanwhile is still found), folders and file names, and the config in
+%   the report, the run record and the database. The new Config is the
+%   next run's.
+%
 %   The run record (schema "ephys-analysis-run/2") holds the run id,
 %   outcome, start, end and seconds, the datasets, figures and session
 %   figures, the report files, the Results rows, the code and machine
@@ -81,7 +91,7 @@ arguments
     opts.Observation = []
 end
 
-cfg = obj.Config;
+cfg = obj.Config;   % read once: every step below takes this one, whatever Config becomes while the run goes
 obj.CancelRequested = false;
 obj.RunRecordFile = "";
 obj.PagesSeen = 0;   % usePagePool: the workers start once the run has enough pages
@@ -127,7 +137,7 @@ if (doExport || doReport) && ~isempty(idx)   % "batch" panels: one y range over 
         try
             spec = cfg.figureFor(id);
             if isempty(figureBatchPanels(spec)); continue; end
-            obj.BatchYLim = [obj.BatchYLim obj.batchYLimits(idx, spec, Observation=opts.Observation)];
+            obj.BatchYLim = [obj.BatchYLim obj.batchYLimits(idx, spec, Observation=opts.Observation, Config=cfg)];
         catch ME
             if ME.identifier ~= "EphysAnalysisRunner:Canceled"; rethrow(ME); end
             canceled = true;
@@ -149,7 +159,7 @@ for j = 1:numel(idx)
         span = [j - 1, j] / nUnits;   % this dataset's share of the run, which its figures report within
         obj.progress(span(1), "Dataset " + obj.Names(k));
         obj.runDataset(k, Figures=fids, Export=doExport, Report=doReport, Span=span, ...
-            Observation=opts.Observation, BatchYLim=obj.BatchYLim);   % appends to obj.Results
+            Observation=opts.Observation, BatchYLim=obj.BatchYLim, Config=cfg);   % appends to obj.Results
     catch ME
         if ME.identifier ~= "EphysAnalysisRunner:Canceled"; rethrow(ME); end
         canceled = true;
@@ -166,7 +176,7 @@ for j = 1:numel(idx)
         break
     end
     if perDataset
-        obj.ReportFiles = [obj.ReportFiles writeReports(obj, k, obj.Names(k), [j j] / nUnits)];
+        obj.ReportFiles = [obj.ReportFiles writeReports(obj, cfg, k, obj.Names(k), [j j] / nUnits)];
     end
 end
 
@@ -174,13 +184,13 @@ end
 if ~canceled && ~isempty(sfids) && ~isempty(idx)
     if doReport
         if perDataset; obj.Report = newReport(cfg); end
-        obj.Report = addReportSection(obj.Report, "Across sessions", Summary=struct('sessions', sessionsSummary(obj, idx)));
+        obj.Report = addReportSection(obj.Report, "Across sessions", Summary=struct('sessions', sessionsSummary(obj, idx, cfg)));
     end
     for i = 1:numel(sfids)
         span = [numel(idx) + i - 1, numel(idx) + i] / nUnits;
         try
             obj.progress(span(1), "Session figure " + sfids(i));
-            obj.runSessionFigure(sfids(i), idx, Export=doExport, Report=doReport, Span=span);   % appends to obj.Results
+            obj.runSessionFigure(sfids(i), idx, Export=doExport, Report=doReport, Span=span, Config=cfg);   % appends to obj.Results
         catch ME
             if ME.identifier ~= "EphysAnalysisRunner:Canceled"; rethrow(ME); end
             canceled = true;
@@ -190,22 +200,22 @@ if ~canceled && ~isempty(sfids) && ~isempty(idx)
         end
     end
     if perDataset && ~canceled
-        obj.ReportFiles = [obj.ReportFiles writeReports(obj, idx(1), "sessions", [1 1])];
+        obj.ReportFiles = [obj.ReportFiles writeReports(obj, cfg, idx(1), "sessions", [1 1])];
     end
 end
 if ~canceled && ~isempty(sfOut) && ~isempty(idx)
     skipSessionFigures(obj, cfg, sfOut, doReport && ~perDataset);
 end
 if doReport && ~perDataset && ~canceled && ~isempty(idx)
-    obj.ReportFiles = writeReports(obj, idx(1), obj.Names(idx(1)), [nUnits - 1, nUnits] / nUnits);
+    obj.ReportFiles = writeReports(obj, cfg, idx(1), obj.Names(idx(1)), [nUnits - 1, nUnits] / nUnits);
 end
 if ~isempty(idx)
     outcome = "finished";
     if canceled; outcome = "canceled"; end
-    obj.RunRecordFile = writeRunRecord(obj, idx, fids, sfids, started, outcome);
+    obj.RunRecordFile = writeRunRecord(obj, cfg, idx, fids, sfids, started, outcome);
     try
         LabCapture.analysisRun(obj, idx, Started=started, Finished=datetime('now'), Outcome=outcome, ...
-            RunRecord=obj.RunRecordFile);   % for the lab database, when it is on here
+            RunRecord=obj.RunRecordFile, Config=cfg);   % for the lab database, when it is on here: the config the run started with
     catch ME
         warning('EphysAnalysisRunner:LabCapture', 'The run was not noted for the lab database: %s', ME.message);
     end
@@ -250,29 +260,29 @@ end
 end
 
 
-function T = sessionsSummary(obj, idx)
-%sessionsSummary  The "Across sessions" section's table: the run's sessions by date.
-S = obj.sessionTable(idx);
+function T = sessionsSummary(obj, idx, cfg)
+%sessionsSummary  The "Across sessions" section's table: the run's sessions by date (CFG: the run's config, its name pattern).
+S = obj.sessionTable(idx, cfg);
 T = table(S.label, S.subject, S.dateText, S.name, S.key, S.tags, ...
     'VariableNames', {'Session', 'Subject', 'Date', 'Dataset', 'Key', 'Tags'});
 T = [T, S(:, startsWith(S.Properties.VariableNames, DatasetVariables.ColumnPrefix))];   % the datasets' variables, after Tags
 end
 
 
-function file = writeRunRecord(obj, idx, fids, sfids, started, outcome)
+function file = writeRunRecord(obj, cfg, idx, fids, sfids, started, outcome)
 %writeRunRecord  What this run did and with what: <report folder>/analysis_runs/<runId>_<name>.json.
 %   Schema ephys-analysis-run/2: the run id, outcome, start, end, the
 %   datasets, figures and session figures, the report files, the Results
 %   rows, the files found through the lab database (fromDatabase), the
-%   code and machine (ephysProvenance) and the config. The
-%   report folder is Report.Folder resolved for the first dataset, whether
+%   code and machine (ephysProvenance) and the config: CFG, the one the run
+%   started with (not Config, which may have changed meanwhile). The
+%   report folder is CFG's Report.Folder resolved for the first dataset, whether
 %   or not a report was written. A record that cannot be written is a
 %   warning, never an error.
 file = "";
 try
-    cfg = obj.Config;
     folder = figureFileName(cfg.Report.Folder, struct('OutputFolder', obj.datasetFolder(idx(1)), ...
-        'OutputRoot', obj.outputRoot(), 'Root', cfg.Source.Root, 'Name', obj.Names(idx(1))), Kind="folder");
+        'OutputRoot', obj.outputRoot(cfg), 'Root', cfg.Source.Root, 'Name', obj.Names(idx(1))), Kind="folder");
     prov = ephysProvenance(RunId=string(started, "yyyyMMdd'T'HHmmssSSS"));
     name = regexprep(char(cfg.Name), '[^\w\-]', '_');
     if isempty(name); name = 'analysis'; end
@@ -315,16 +325,17 @@ report = newAnalysisReport(Title=title, Config=cfg.toStruct(), Export=cfg.Export
 end
 
 
-function files = writeReports(obj, k, name, span)
+function files = writeReports(obj, cfg, k, name, span)
 %writeReports  Write obj.Report as HTML and / or PDF (reportFiles); {OutputFolder} = dataset K's.
-%   NAME (the dataset's name for a per-dataset report) is the report's
+%   CFG is the run's config (the one it started with): its Report section
+%   and folder tokens name the files. NAME (the dataset's name for a
+%   per-dataset report) is the report's
 %   {Name}: "sessions" names the session figures' own report
 %   <FileName>_sessions. ProgressFcn hears its pages ("Writing the report:
 %   page 3/12") across SPAN, the run's fraction [from to] it has (both
 %   the same: the bar stays); a cancel waits for the report to be written.
-cfg = obj.Config;
 want = EphysAnalysisRunner.reportFiles(cfg, struct('OutputFolder', obj.datasetFolder(k), ...
-    'OutputRoot', obj.outputRoot(), 'Root', cfg.Source.Root, 'Name', name));
+    'OutputRoot', obj.outputRoot(cfg), 'Root', cfg.Source.Root, 'Name', name));
 files = string.empty(1, 0);
 nf = numel(want);
 for i = 1:nf

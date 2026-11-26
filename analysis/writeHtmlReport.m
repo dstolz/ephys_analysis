@@ -11,7 +11,9 @@ function file = writeHtmlReport(report, file, opts)
 %   -- its pages embedded as PNG
 %   (data:image/png;base64) or inline SVG, its caption, the parameters it
 %   was drawn with (IncludeParameters, folded) and links to its exported
-%   files -- and the config JSON at the end (IncludeConfig, folded). A starred
+%   files (those kept from an earlier run, addReportFigure Kept=, on a line
+%   of their own: "Kept from an earlier run (on disk already, not
+%   overwritten ...)") -- and the config JSON at the end (IncludeConfig, folded). A starred
 %   dataset (its starred field: DatasetFavorites) has a ★ after its name,
 %   in the contents and over its section. No file beside it is needed;
 %   opening it needs only a browser.
@@ -190,8 +192,17 @@ else
 end
 L(end+1) = "<p class=""cap"">" + htmlEscape(e.caption) + "</p>";
 if full && ~isempty(e.files)
-    links = arrayfun(@(f) "<a href=""" + htmlEscape(relativePath(folder, f)) + """>" + htmlEscape(fileName(f)) + "</a>", e.files);
-    L(end+1) = "<p class=""files"">Files: " + strjoin(links, ", ") + "</p>";
+    link = @(f) "<a href=""" + htmlEscape(relativePath(folder, f)) + """>" + htmlEscape(fileName(f)) + "</a>";
+    kept = string.empty(1, 0);
+    if isfield(e, 'kept'); kept = e.kept; end   % files on disk from an earlier run (Export.Overwrite off): not the drawing above
+    old = ismember(e.files, kept);
+    parts = strings(1, 0);
+    if any(~old); parts(end+1) = "Files: " + strjoin(arrayfun(link, e.files(~old)), ", "); end
+    if any(old)
+        parts(end+1) = "Kept from an earlier run (on disk already, not overwritten: Export.Overwrite off; the pages above " + ...
+            "are this run's drawing): " + strjoin(arrayfun(link, e.files(old)), ", ");
+    end
+    L(end+1) = "<p class=""files"">" + strjoin(parts, "<br>") + "</p>";
 end
 if full && report.options.IncludeParameters
     L(end+1) = "<details><summary>Parameters</summary><pre>" + ...

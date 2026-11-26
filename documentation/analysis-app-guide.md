@@ -73,7 +73,8 @@ and what it does.
    **Project root** and press **Scan**). Click a recording in the table to
    make it the *active* one: the previews show it. The **Dataset** list on
    the Alignment and Figures tabs offers the recordings ticked in the
-   table's **Run** column (all of them when none is ticked).
+   table's **Run** column (all of them when none is ticked). The ticks are
+   saved with the config.
 2. **Alignment.** Pick the **Line** to align to (a stimulus line, say) and
    the **Edge** (onset). Set the window, for example 0.2 s before to 0.8 s
    after. Pick a trial parameter in **Group by** (`Depth`, say) to draw one
@@ -299,7 +300,8 @@ optional, and the app works the same without it.
   open the Database window.
 - **Find recordings:** **File → Open from database...**. Type a subject,
   pick a project or days, **Search**, select the sessions and **Open**: the
-  app shows their output folders.
+  app shows their output folders, all ticked to run. Untick the ones to
+  leave out; the ticks are saved with the config.
 - **What a run records:** each **Run** is noted with the files it read and
   the report and figure files it wrote (those under a mapped storage root).
 - **Records wait for you** when the lamp says **· N need you**: open the
@@ -340,9 +342,20 @@ See [Lab database](database.md) for the details.
   Double-click a row to go to the setting it is about. **Run** stops with a
   message that names the first problem and takes you to the tab that fixes it
   (no recording ticked, no project root, a setting that does not fit).
+- **Run says *the source on the Data tab changed since the last scan*.**
+  You changed the project root, output root, name pattern or output folders
+  and did not scan. The list still shows the old recordings. Press **Scan**,
+  then **Run** again. Plan, Generate and Test report say the same.
+- **Run shows warnings.** The run goes on. Read the window: if it says the
+  files *overwrite each other*, press **Cancel** and give the folder or the
+  file names `{Name}`. The Export tab's table lists every warning.
+- **A results row says *kept*.** **Overwrite existing** is off, so a figure
+  file already on disk was not written again. The report shows the figure as
+  it is drawn now, and lists the old file as kept.
 - **A run** shows a bar, the time left and **Cancel** at the bottom of the
-  window; you can look at the other tabs meanwhile. A figure that failed is
-  in the results table with its message.
+  window; you can look at the other tabs meanwhile, and keep editing: the
+  run uses the settings it started with, and your changes are for the next
+  run. A figure that failed is in the results table with its message.
 - **Right-click menus and keys.** **Help → Keyboard shortcuts and
   right-click menus** lists them.
 - **The Log tab** has the details of every run.

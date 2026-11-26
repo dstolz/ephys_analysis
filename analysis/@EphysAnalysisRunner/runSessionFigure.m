@@ -21,12 +21,14 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %         or "dataset", and "_<group>" for a trial group's figure; a name
 %         this run already wrote (two cells that sanitize alike) gets
 %         "_2", "_3", ...; with
-%         Export.Overwrite off a page whose files all exist is not written
-%         again
+%         Export.Overwrite off a page whose files all exist is kept: not
+%         written again (the report holds the page as this run draws it)
 %   One Results row per figure label (facet / group): Dataset "sessions:
 %   <label>", Plot ID, Kind "figure", Status done (a page per observation)
 %   | skipped (no observation drew: the reasons) | error, Message "<n>
-%   observation(s)", Files. With Report each label is one entry of r.Report
+%   observation(s)" (and EphysAnalysisRunner.keptText's note on the pages
+%   kept), Files (the kept pages' files too; the report entry lists them as
+%   kept, addReportFigure Kept=). With Report each label is one entry of r.Report
 %   (in the section run started, "Across sessions"), its pages the
 %   observations', captioned by figureCaption(SPEC, <its observations>,
 %   Sessions=<its facet's sessions, as merged>, Results=<its last page's
@@ -45,6 +47,10 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %   figureBatchYLim; appended to r.BatchYLim) and then drawn at the union
 %   (renderFigure BatchYLim=), each caption saying "y shared across <n>
 %   observations".
+%   Config= (an EphysAnalysisConfig; default [] = Config) is the config
+%   the figure is drawn, exported and reported with: run passes the one it
+%   started with, so an edit of Config while the run goes does not reach
+%   it (the figure, Export, the folder tokens, the sessions' name pattern).
 %
 %   See also figureSessionCompute, EphysAnalysisRunner.computeSessionFigure,
 %   EphysAnalysisRunner.run.
@@ -56,16 +62,18 @@ arguments
     opts.Export (1,1) logical = true
     opts.Report (1,1) logical = false
     opts.Span (1,2) double = [0 1]
+    opts.Config = []
 end
 
-cfg = obj.Config;
+cfg = opts.Config;
+if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.Config; end   % alone: the config now; from run: the one it started with
 X = cfg.Export;
 first = height(obj.Results) + 1;
 t0 = tic;
 try
     spec = cfg.figureFor(id);
     spec.enabled = true;   % asked for: drawn whatever its enabled flag (as figureCompute)
-    [T, sessions, sources] = obj.sessionFigureObservations(spec, idx);
+    [T, sessions, sources] = obj.sessionFigureObservations(spec, idx, Config=cfg);
     reasons = strings(1, height(sessions));
     for j = 1:height(sessions)
         if isempty(sources{j})
@@ -97,14 +105,15 @@ if reason ~= ""
 end
 
 k1 = sessions.index(1);
-tokens = struct('OutputFolder', obj.datasetFolder(k1), 'OutputRoot', obj.outputRoot(), 'Root', cfg.Source.Root, ...
+tokens = struct('OutputFolder', obj.datasetFolder(k1), 'OutputRoot', obj.outputRoot(cfg), 'Root', cfg.Source.Root, ...
     'Name', obj.Names(k1));
 folder = figureFileName(X.SessionsFolder, tokens, Kind="folder");
 withImages = opts.Report && obj.Report.options.Format ~= "pdf";
 withPages = opts.Report && obj.Report.options.Format ~= "html";
 withData = X.Data.Enabled;
 nObs = height(T);
-E = struct('label', {}, 'files', {}, 'images', {}, 'pages', {}, 'done', {}, 'why', {}, 'nError', {}, 'F', {}, 'seconds', {}, 'rows', {});
+E = struct('label', {}, 'files', {}, 'images', {}, 'pages', {}, 'done', {}, 'why', {}, 'nError', {}, 'F', {}, 'seconds', {}, 'rows', {}, ...
+    'kept', {}, 'nKept', {});   % kept, nKept: the files of the pages kept (Export.Overwrite off) and how many pages
 usedNames = strings(1, 0);   % the file names written in this run: a sanitized name met again gets "_2", "_3", ...
 results = struct('index', {}, 'observation', {}, 'facet', {}, 'group', {}, 'label', {}, 'status', {}, 'message', {}, 'F', {});
 perSession = cell(nObs * withData, height(sessions));
@@ -154,7 +163,8 @@ for i = 1:nObs
         q = find(string({E.label}) == e.label, 1);
         if isempty(q)
             E(end+1) = struct('label', e.label, 'files', string.empty(1, 0), 'images', {cell(1, 0)}, 'pages', strings(1, 0), ...
-                'done', 0, 'why', strings(1, 0), 'nError', 0, 'F', [], 'seconds', 0, 'rows', zeros(1, 0)); %#ok<AGROW>
+                'done', 0, 'why', strings(1, 0), 'nError', 0, 'F', [], 'seconds', 0, 'rows', zeros(1, 0), ...
+                'kept', string.empty(1, 0), 'nKept', 0); %#ok<AGROW>
             q = numel(E);
         end
         if withData
@@ -174,10 +184,9 @@ for i = 1:nObs
             kept = opts.Export && ~X.Overwrite && all(isfile(want));   % its files exist: not written again
             job = struct('future', [], 'out', noPage());
             if (opts.Export && ~kept) || withImages || withPages
-                page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, 'Kept', string.empty(1, 0), ...
-                    'BatchYLim', BY, 'Images', withImages, 'Pages', withPages);
+                page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, ...
+                    'BatchYLim', BY, 'Images', withImages, 'Pages', withPages);   % a kept page: drawn for the report, its files left as they are
                 if opts.Export && ~kept; page.Base = base; end
-                if kept; page.Kept = want; end
                 job = obj.submitPage(e.F, spec, onPool, page);
             end
             job.kept = string.empty(1, 0);
@@ -202,6 +211,10 @@ for j = 1:numel(jobs)   % the pages, in order
         out = obj.pageOutput(job, opts.Span(1) + diff(opts.Span) * (0.5 + 0.5 * (j - 1) / numel(jobs)), ...
             sprintf("sessions: %s drawing page %d/%d", id, j, numel(jobs)));
         E(q).files = [E(q).files job.kept out.files];
+        if ~isempty(job.kept)
+            E(q).kept = [E(q).kept job.kept];
+            E(q).nKept = E(q).nKept + 1;
+        end
         if ~isempty(out.image); E(q).images{end+1} = out.image; end
         if out.page ~= ""; E(q).pages(end+1) = out.page; end
         E(q).done = E(q).done + 1;
@@ -230,10 +243,10 @@ for q = 1:numel(E)
         end
         continue
     end
-    msg = sprintf("%d observation(s)", E(q).done);
+    msg = sprintf("%d observation(s)", E(q).done) + EphysAnalysisRunner.keptText(E(q).nKept);
     if ~isempty(E(q).why); msg = msg + "; not drawn: " + strjoin(E(q).why, "; "); end
     if opts.Report
-        obj.Report = addReportFigure(obj.Report, rspec, E(q).F, Files=E(q).files, Images=E(q).images, Pages=E(q).pages, ...
+        obj.Report = addReportFigure(obj.Report, rspec, E(q).F, Files=E(q).files, Kept=E(q).kept, Images=E(q).images, Pages=E(q).pages, ...
             Caption=figureCaption(spec, T(E(q).rows, :), Sessions=E(q).F.sessions, YShared=nShared, Results={E(q).F.trial}));   % this figure's observations and its facet's sessions
     end
     obj.Results(end+1, :) = {label, id, "figure", "done", msg, strjoin(E(q).files, "; "), E(q).seconds};

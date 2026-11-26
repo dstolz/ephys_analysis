@@ -64,7 +64,7 @@ switch section
             'Downsample',  downsampleDefaults(), ... % the rate (Hz) each signal is brought to before any figure reads it; [] = the rate on file (selectChannels' Rate: anti-aliased, resampleSignal)
             'SignalFilter', signalFilterDefaults(), ... % the filter each signal is read through by every figure, the whole recording before the epochs are cut (a SignalFilter each; enabled false = none; selectChannels' Filter)
             'Selection',   "all", ...               % "all" | "list"
-            'Datasets',    string.empty(1,0), ...   % root-relative keys when "list"
+            'Datasets',    string.empty(1,0), ...   % when "list": root-relative keys (Mode "project"), the folders to run (Mode "folders")
             'Folders',     string.empty(1,0), ...   % output folders (Mode "folders")
             'Filter',      struct( ...              % the analysis app's Data tab filter (which rows show; never what runs): datasetFilter's options, "" = off
                 'Subjects',        "", ...          % comma-separated, * ? wildcards

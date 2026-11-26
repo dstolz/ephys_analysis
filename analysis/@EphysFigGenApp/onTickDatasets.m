@@ -3,8 +3,9 @@ function onTickDatasets(obj, mode)
 %   MODE "shown": Run ticked for the datasets the table shows and cleared
 %   for those the Subject and Tags filters hide (no filter on: every
 %   dataset ticked); "none": cleared for every dataset, shown or hidden.
-%   As a tick in the table, the selection (and, in project mode, the
-%   config) follows (onConfigChanged "ticks").
+%   As a tick in the table, the selection and the config's Selection and
+%   Datasets follow, in either mode (onConfigChanged "ticks",
+%   gatherSourceSection).
 %
 %   See also refreshDatasetsTable, onDatasetsTableEdited.
 arguments

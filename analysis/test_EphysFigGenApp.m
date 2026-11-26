@@ -16,7 +16,15 @@ function test_EphysFigGenApp(opts)
 %   file, a config opened with a rate); the Data tab's Filter... (1g: the
 %   Filters row, the dialog on the config's filters, a cutoff past
 %   Nyquist refused, OK into Source.SignalFilter and the runner, Cancel,
-%   a config opened with a filter); a panel's Filter... (5d.sigfilter:
+%   a config opened with a filter); a run's datasets and config (1h: a
+%   project root changed since the scan stopping Run, Plan, Generate and
+%   Test report with an alert, the scan line back with the root, a tick
+%   no source change; an Export folder typed while a run goes, from a
+%   timer, not reaching that run; a config whose files overwrite each
+%   other warned of at Run, which goes on; a config opened while its root
+%   is not there keeping its own selection; a config's keys found as the
+%   runner finds them and the ones not found said; folders mode's ticks
+%   in the config, its scripts and its reopened scan); a panel's Filter... (5d.sigfilter:
 %   the row by type, OK one undo step into options.filter, the preview
 %   read through it, closed with another panel); the Probe... buttons
 %   beside the Channels rows (5d.probepick: the window on the figure's
@@ -257,7 +265,7 @@ needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d
     "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.multi" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
     "5d.quick" "5d.layers"; "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
     "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.trialmeasure" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; ...
-    "5d.saveprefs" "5d.remove"; "1e" "1"; "1f" "1"; "1g" "1"; "5d.sigfilter" "5d.layers"; "5d.probepick" "5d.layers"];
+    "5d.saveprefs" "5d.remove"; "1e" "1"; "1f" "1"; "1g" "1"; "1h" "1"; "5d.sigfilter" "5d.layers"; "5d.probepick" "5d.layers"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
 timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a failure on the way
 
@@ -980,6 +988,163 @@ if S.sec("1g", "Data tab: Filter... (the Filters row, the dialog on the config's
         && ~contains(app.ScanLabel.Text, "source changed"), ...
         'a config holding a filter shows it in the Filters row and keeps it through a gather; no scan asked for');
     app.applyConfig(cfg0);
+end
+
+if S.sec("1h", "a run's datasets and config: a source changed since the scan stops Run, Plan, Generate and Test report; an edit while a run goes; warnings at Run; a config's ticks (both modes) and keys not found")
+    wasCapture1h = AppDialog.capture(true);
+    captureBack1h = onCleanup(@() AppDialog.capture(wasCapture1h)); %#ok<NASGU> the tests read the alerts, none is shown
+    filterBy(app, '(any)', '(any)', 'any');
+    app.onTickDatasets("shown");   % every dataset ticked
+    c0 = app.Config;   % put back at the end, with its saved state, the recent list and the last config file
+    saved0 = app.SavedConfigStruct;
+    recent0 = app.RecentConfigs;
+    hadLast = AppPrefs.ispref(g, 'LastConfigFile');
+    last0 = "";
+    if hadLast; last0 = AppPrefs.getpref(g, 'LastConfigFile'); end
+    root0 = string(app.RootField.Value);
+    app.selectTab(app.TabFigures);
+    app.onAddFigure("psth");
+    kH = app.SelectedFigure;
+    idH = app.Config.Figures(kH).id;
+    out1h = fullfile(root, 'out1h');
+    app.ExportControls.Folder.Value = fullfile(out1h, '{Name}');
+    app.onConfigChanged("export");
+    % the source changed since the scan (another project root): nothing runs on the old datasets
+    other = fullfile(root, 'otherproj');
+    mkdir(other);
+    app.RootField.Value = other;
+    app.onConfigChanged("source");
+    changedLine = string(app.ScanLabel.Text);
+    AppDialog.captured(Clear=true);
+    Rr = app.onRunExport(Figures=idH, SessionFigures=string.empty(1, 0), Export=false, Report=false);
+    Ar = AppDialog.captured(Clear=true);
+    Tp = app.onPlan();
+    Ap = AppDialog.captured(Clear=true);
+    app.selectTab(app.TabFigures);
+    app.onFigureSelected(kH);
+    Rg = app.onGenerateFigure();
+    Ag = AppDialog.captured(Clear=true);
+    if isnumeric(app.FigureObservationDropDown.ItemsData) && ismember(1, app.FigureObservationDropDown.ItemsData)
+        app.FigureObservationDropDown.Value = 1;   % the first unit
+        app.onFigureObservationChanged();
+    end
+    [Rt, ft] = app.onTestReport(Open=false);
+    At = AppDialog.captured(Clear=true);
+    refused = @(A, title) numel(A) == 1 && A(1).Title == title && contains(A(1).Message, "changed since the last scan") ...
+        && contains(A(1).Message, "Press Scan");
+    check(contains(changedLine, "The source changed") && height(Rr) == 0 && refused(Ar, "Run") && height(Tp) == 0 && refused(Ap, "Plan") ...
+        && height(Rg) == 0 && refused(Ag, "Generate") && height(Rt) == 0 && ft == "" && refused(At, "Test report") ...
+        && ~app.Running && app.Tabs.SelectedTab == app.TabData && ~isfolder(out1h), ...
+        'the project root changed since the scan: Run, Plan, Generate and Test report draw nothing, an alert says to press Scan first, on the Data tab');
+    app.RootField.Value = root0;
+    app.onConfigChanged("source");
+    backLine = string(app.ScanLabel.Text);
+    T1h = app.DatasetsTable.Data;
+    T1h.Run = T1h.Idx == kF1;
+    app.DatasetsTable.Data = T1h;
+    app.onDatasetsTableEdited([]);   % a tick: the config's selection, no source change
+    app.applyConfig(app.gatherConfig());   % as Undo applies one: its selection the ticks
+    tickLine = string(app.ScanLabel.Text);
+    app.onTickDatasets("shown");
+    AppDialog.captured(Clear=true);
+    Tp2 = app.onPlan();
+    check(~contains(backLine, "source changed") && ~contains(tickLine, "source changed") && height(Tp2) >= 2 ...
+        && isempty(AppDialog.captured(Clear=true)), ...
+        'the root back to the one scanned: the scan line says what the scan found again; a tick and a config applied with it are no source change; Plan plans');
+    % an edit made while the run goes is the next run's: the run keeps the config it started with
+    outEd = fullfile(root, 'out1h_edited');
+    setappdata(groot, 'editProbe', "");
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) editDuringRun(t, app, fullfile(outEd, '{Name}')));
+    start(tm);
+    Re = app.onRunExport(Figures=idH, SessionFigures=string.empty(1, 0), Export=true, Report=false);
+    stop(tm); delete(tm);
+    edProbe = string(getappdata(groot, 'editProbe'));
+    rmappdata(groot, 'editProbe');
+    namesH = app.Runner.Names(app.tickedDatasetIndices());
+    check(edProbe == string(fullfile(outEd, '{Name}')) && height(Re) == 2 && all(Re.Status == "done") ...
+        && all(arrayfun(@(n) ~isempty(dir(fullfile(out1h, n, '*.png'))), namesH)) && ~isfolder(outEd) ...
+        && startsWith(app.LastExportFolder, string(out1h)) && app.Config.Export.Folder == string(fullfile(outEd, '{Name}')), ...
+        ['an Export folder typed while the run goes reaches the runner but not that run: both datasets'' pages in the folder it ' ...
+        'started with (and Open figure folder), none in the new one; the edit stays for the next run']);
+    % the config's warnings (files that overwrite each other) are said at Run, and the run goes on
+    app.ExportControls.Folder.Value = fullfile(root, 'out1h_flat');   % no {Name} and no {OutputFolder} ...
+    app.ExportControls.FilenamePattern.Value = '{Plot}';              % ... nor here: the datasets' files would overwrite each other
+    app.onConfigChanged("export");
+    AppDialog.captured(Clear=true);
+    Rw = app.onRunExport(Figures=idH, SessionFigures=string.empty(1, 0), Datasets=kF1, Export=true, Report=false);
+    Aw = AppDialog.captured(Clear=true);
+    logW = strjoin(string(app.LogArea.Value), newline);
+    check(numel(Aw) == 1 && Aw(1).Title == "Run" && contains(Aw(1).Message, "overwrite each other") && contains(Aw(1).Message, "the run goes on") ...
+        && height(Rw) == 1 && Rw.Status == "done" && any(contains(app.IssuesTable.Data.Message, "overwrite each other")) ...
+        && contains(logW, "Run: warning: ") && contains(string(app.StatusBar.Text), "warning(s)"), ...
+        'a config whose files would overwrite each other: Run says so (an alert, the issues table, the Log, the status bar) and runs');
+    % a config opened while its root is not there keeps its own selection, not the ticks of the config shown before
+    T1h = app.DatasetsTable.Data;
+    T1h.Run = T1h.Idx == kF1;
+    app.DatasetsTable.Data = T1h;
+    app.onDatasetsTableEdited([]);   % only the first dataset ticked
+    cB = app.gatherConfig();
+    cB.Source.Root = string(fullfile(root, 'unreachable_root'));   % not there: not scanned when opened
+    cB.Source.Selection = "list";
+    cB.Source.Datasets = app.Runner.Keys(kF2);
+    fileB = fullfile(root, 'unreachable.json');
+    cB.save(fileB);
+    app.openConfigFile(fileB);
+    statusB = string(app.StatusBar.Text);
+    SB = app.gatherConfig().Source;
+    check(contains(statusB, "was not scanned") && SB.Selection == "list" && isequal(SB.Datasets, app.Runner.Keys(kF2)) ...
+        && contains(string(app.ScanLabel.Text), "The source changed"), ...
+        'a config opened while its root is not there keeps its own selection at the next gather (not the last config''s ticks); the scan line asks for a scan');
+    % its keys tick the datasets as the runner finds them; a key not found is said
+    key1 = app.Runner.Keys(kF1);
+    k1typed = key1;
+    if ispc; k1typed = upper(key1); end   % Windows paths ignore case, as EphysProject.findByKey does
+    cC = cB;
+    cC.Source.Root = root0;
+    cC.Source.Datasets = [k1typed "nosuch/dataset"];
+    fileC = fullfile(root, 'keys_not_found.json');
+    cC.save(fileC);
+    app.openConfigFile(fileC);
+    statusC = string(app.StatusBar.Text);
+    logC = strjoin(string(app.LogArea.Value), newline);
+    check(isequal(app.Ticked, app.Runner.Keys == key1) && contains(statusC, "1 dataset(s) ticked in the config were not found") ...
+        && contains(statusC, "nosuch/dataset") && contains(logC, "nosuch/dataset"), ...
+        'a config''s dataset keys tick the datasets the runner finds by them (case ignored on Windows); a key not found is said on the status bar and in the Log');
+    % folders mode: the ticks are the config's selection, kept by a saved config, its scan and the scripts
+    app.openFolders(F.folders);
+    allOn = all(app.Ticked) && app.Config.Source.Mode == "folders" && isequal(app.Runner.Keys, F.folders);
+    Tf = app.DatasetsTable.Data;
+    Tf.Run = Tf.Idx == 1;
+    app.DatasetsTable.Data = Tf;
+    app.onDatasetsTableEdited([]);
+    SF = app.Config.Source;
+    cF = app.gatherConfig();
+    rF = EphysAnalysisRunner(cF, LogFcn=[]);   % what the compact script runs on the saved config
+    txtF = EphysAnalysisScript.standalone(cF);
+    fileD = fullfile(root, 'folders_ticks.json');
+    cF.save(fileD);
+    app.openConfigFile(fileD);
+    check(allOn && SF.Selection == "list" && isequal(SF.Datasets, F.folders(1)) && isequal(rF.Keys, F.folders(1)) ...
+        && contains(txtF, "folders = " + EphysPipelineScript.literal(F.folders(1)) + ";") ...
+        && isequal(app.Ticked, [true false]) && isequal(app.Runner.Keys, F.folders), ...
+        ['folders mode: a Run tick goes into the config''s selection; the runner (the compact script), the standalone script ' ...
+        'and the config reopened and scanned run that folder alone']);
+    % put back: the config, its saved state, the recent list and the last config file; the project scanned, every dataset ticked
+    app.applyConfig(c0, MarkSaved=true);
+    app.SavedConfigStruct = saved0;
+    app.updateTitle();
+    app.RecentConfigs = recent0;
+    app.refreshRecentMenu();
+    app.savePreferences();
+    if hadLast
+        AppPrefs.setpref(g, 'LastConfigFile', last0);
+    elseif AppPrefs.ispref(g, 'LastConfigFile')
+        AppPrefs.rmpref(g, 'LastConfigFile');
+    end
+    app.onScan();
+    app.onTickDatasets("shown");
+    app.selectDataset(kF1);
+    app.selectTab(app.TabData);
 end
 
 if S.sec("2", "Alignment: group by Depth")
@@ -6987,6 +7152,16 @@ app.refreshFigurePreview(Force=true);
 setappdata(groot, 'genProbe', struct('generate', string(app.GenerateFigureMenu.Enable), 'redraw', string(app.FigureRedrawAllButton.Enable), 'run', string(app.RunButton.Enable), ...
     'cancel', string(app.CancelButton.Enable), 'preview', string(app.FigurePreviewLabel.Text), 'state', app.FigurePreviewState));
 app.CancelButton.ButtonPushedFcn(app.CancelButton, []);   % the Export tab's Cancel, as a click
+end
+
+
+function editDuringRun(tm, app, folder)
+%editDuringRun  Once a run has started (the runner's Results emptied), type FOLDER as the Export tab's folder, as a person would while it goes (appdata editProbe: the runner's Export folder after it).
+if ~app.Running || isempty(app.Runner) || height(app.Runner.Results) > 0; return; end
+stop(tm);
+app.ExportControls.Folder.Value = char(folder);
+app.onConfigChanged("export");
+setappdata(groot, 'editProbe', string(app.Runner.Config.Export.Folder));
 end
 
 

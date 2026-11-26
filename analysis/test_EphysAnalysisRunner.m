@@ -37,7 +37,12 @@ function test_EphysAnalysisRunner()
 %   Overwrite off, a cancel between observations, and the standalone
 %   script (figureSessionCompute) writing the same pixels; a trial
 %   figure (trialDist): its caption's statistics (trialStatsText) and, as
-%   a session figure, its data file with both sessions' merged values.
+%   a session figure, its data file with both sessions' merged values; a
+%   run that keeps the config it started with while Config is set from its
+%   ProgressFcn (a figure renamed, other folders: both datasets, the report
+%   and the run record are the started config's); Overwrite off with a
+%   report (the file on disk kept, the report embedding this run's drawing,
+%   the kept file said so in the row, the entry and the HTML).
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -796,6 +801,98 @@ check(height(RTS) == 1 && RTS.Status == "done" && isfile(dT) && LdT.schema == "e
     && height(LdT.sessions) == 2 && RdT.kind == "trialDist" && isequal(unique(RdT.values.session).', [1 2]) && height(RdT.categories) == 2 ...
     && isscalar(eTS) && contains(eTS.caption, "across 2 sessions") && contains(eTS.caption, " p = "), ...
     "a session run of a trial figure: its data file holds the merged values of both sessions; the caption its statistics: " + eTS.caption);
+
+fprintf('\n== 11. a run keeps the config it started with: an edit while it goes (a figure renamed, other folders) is the next run''s ==\n');
+outK = fullfile(root, 'outKeep');
+outKE = fullfile(root, 'outKeepEdited');
+cfgK = cfg;
+cfgK.Name = "kept config";
+cfgK.Figures = cfgK.Figures(cfgK.figureIndex("map"));   % one page per dataset
+cfgK.Export.Folder = fullfile(outK, "{Name}");
+cfgK.Export.Formats = "png";
+cfgK.Report.Format = "html";
+cfgK.Report.Folder = outK;
+edited = cfgK;
+edited.Name = "edited while it runs";
+edited.Figures(1).id = "map_renamed";   % an automatic id that followed an edit: the old id names no figure of it
+edited.Export.Folder = fullfile(outKE, "{Name}");
+edited.Export.Formats = "svg";
+edited.Report.Folder = outKE;
+rK = EphysAnalysisRunner(cfgK, LogFcn=[]);
+nEdits = 0;
+    function onKeepProgress(~, ~)
+        rK.Config = edited;   % what the app's edits do while a run goes (onConfigChanged, through setStatus's drawnow)
+        nEdits = nEdits + 1;
+    end
+rK.ProgressFcn = @onKeepProgress;
+whyK = "";
+try
+    RK = rK.run();
+catch ME
+    RK = rK.Results;
+    whyK = string(ME.message);
+end
+rK.ProgressFcn = [];
+recK = struct('name', "", 'config', struct('Figures', struct('id', ""), 'Export', struct('Formats', "")));
+if rK.RunRecordFile ~= "" && isfile(rK.RunRecordFile); recK = jsondecode(fileread(rK.RunRecordFile)); end
+wantK = arrayfun(@(n) string(fullfile(outK, n, n + "_map.png")), names);
+check(whyK == "" && nEdits > 2 && height(RK) == 2 && all(RK.Status == "done") && all(RK.Plot == "map") && all(isfile(wantK)) ...
+    && ~isfolder(outKE), ...
+    sprintf(['a config set while the run goes (its figure renamed, other folders and formats; %d times) does not reach ' ...
+    'it: both datasets drawn, as png into the folder it started with, none into the edited one (%s)'], nEdits, whyK));
+check(isequal(rK.ReportFiles, string(fullfile(outK, "analysis_report.html"))) && startsWith(rK.RunRecordFile, string(fullfile(outK, "analysis_runs"))) ...
+    && string(recK.name) == "kept config" && string(recK.config.Figures(1).id) == "map" && all(string(recK.config.Export.Formats) == "png") ...
+    && rK.Config.Name == "edited while it runs", ...
+    'the report and the run record are the started config''s (its folder, its name, its figure and formats); Config keeps the edit for the next run');
+
+fprintf('\n== 12. Overwrite off with a report: the report holds the page as this run draws it, its kept files said so ==\n');
+outW = fullfile(root, 'outKeptReport');
+cfgW = cfg;
+cfgW.Figures = cfgW.Figures(cfgW.figureIndex("map"));   % one page per dataset
+cfgW.Export.Folder = fullfile(outW, "{Name}");
+cfgW.Export.Formats = "png";
+cfgW.Report.Enabled = false;
+EphysAnalysisRunner(cfgW, LogFcn=[]).run(Datasets=1);   % its file on disk
+pngW = string(fullfile(outW, names(1), names(1) + "_map.png"));
+imwrite(cat(3, 255 * ones(20, 30, 'uint8'), zeros(20, 30, 'uint8'), zeros(20, 30, 'uint8')), char(pngW));   % an earlier run's file: a red square
+fid = fopen(pngW, 'r'); markBytes = fread(fid, Inf, '*uint8'); fclose(fid);
+cfgW.Export.Overwrite = false;
+cfgW.Report.Enabled = true;
+cfgW.Report.Format = "html";
+cfgW.Report.EmbedFormat = "png";
+cfgW.Report.Folder = outW;
+rW = EphysAnalysisRunner(cfgW, LogFcn=[]);
+RW = rW.run(Datasets=1);
+fid = fopen(pngW, 'r'); nowBytes = fread(fid, Inf, '*uint8'); fclose(fid);
+eW = [rW.Report.datasets.entries];
+eW = eW([eW.plot] == "map");
+HW = string(fileread(rW.ReportFiles(1)));
+check(isfile(pngW) && isequal(nowBytes, markBytes) && height(RW) == 1 && RW.Status == "done" && RW.Files == pngW ...
+    && contains(RW.Message, "1 kept") && contains(RW.Message, "not overwritten"), ...
+    sprintf('Overwrite off: the file on disk is kept as it was, listed in Files, and the row says it was kept ("%s")', RW.Message));
+check(isscalar(eW) && numel(eW.images) == 1 && eW.images{1}.data ~= string(matlab.net.base64encode(markBytes)) ...
+    && isfield(eW, 'kept') && isequal(eW.kept, pngW) && contains(HW, "Kept from an earlier run") && contains(HW, names(1) + "_map.png"), ...
+    ['the report embeds the page this run drew (under this run''s caption and config), not the earlier run''s file; ' ...
+    'its entry and the HTML name that file as kept']);
+
+fprintf('\n== 13. folders mode: Selection "list" runs the folders it names (the app''s Run ticks) ==\n');
+cfgF = cfg;
+cfgF.Source.Mode = "folders";
+cfgF.Source.Folders = F.folders;
+cfgF.Source.Selection = "list";
+cfgF.Source.Datasets = [F.folders(2) + filesep, string(fullfile(root, 'not_a_folder'))];   % a trailing separator is the same folder
+lastwarn('');
+rF = EphysAnalysisRunner(cfgF, LogFcn=[]);
+[~, widF] = lastwarn();
+[selF, missF] = EphysAnalysisRunner.selectedFolders(cfgF.Source);
+txtF = EphysAnalysisScript.standalone(cfgF);
+cfgF.Source.Selection = "all";
+rFa = EphysAnalysisRunner(cfgF, LogFcn=[]);
+check(isequal(rF.Keys, F.folders(2)) && string(widF) == "EphysAnalysisRunner:UnknownDataset" && isequal(selF, F.folders(2)) ...
+    && isequal(missF, string(fullfile(root, 'not_a_folder'))) && isequal(rFa.Keys, F.folders) ...
+    && contains(txtF, "folders = " + EphysPipelineScript.literal(F.folders(2)) + ";"), ...
+    ['folders mode with Selection "list": the runner (and so the compact script) and the standalone script take only the ' ...
+    'folders Datasets names, a name that is no folder of Folders warned about; "all" takes every folder']);
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

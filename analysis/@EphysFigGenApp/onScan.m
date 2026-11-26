@@ -1,7 +1,14 @@
 function onScan(obj)
 %onScan  Find the datasets (a new EphysAnalysisRunner) and list them.
-%   In project mode every dataset under the root is listed and the config's
-%   "list" selection only sets the Run ticks. The first ticked dataset
+%   Every dataset of the source is listed (every recording under the root,
+%   or every output folder) and the config's "list" selection only sets the
+%   Run ticks, in either mode (selectionTicks: a project's keys as
+%   EphysProject.findByKey matches them, so case is ignored on Windows; a
+%   folder as EphysDataset.pathKey compares it). A key of the selection that
+%   names no dataset found is said on the status bar ("<n> dataset(s)
+%   ticked in the config were not found, so they are not ticked: <keys>")
+%   and in the Log. A re-scan of the same source keeps the ticks
+%   (gatherSourceSection takes them as the selection first). The first ticked dataset
 %   becomes the active one -- unless a ticked dataset has a starred unit:
 %   the first such unit is gone to (goToFavorite: its dataset is active and
 %   the unit is picked in the Figures tab's observation list). The Figures tab's preview (a session figure's
@@ -68,11 +75,8 @@ obj.FigureObservationDropDown.UserData = [];   % the Figures tab's observation l
 forgetFigurePickers(obj);   % and each figure's kept one
 obj.ScannedSource = cfg.Source;
 n = numel(r.Keys);
-if cfg.Source.Mode == "project" && cfg.Source.Selection == "list"
-    obj.Ticked = ismember(r.Keys, EphysProject.normalizeKey(cfg.Source.Datasets));   % as the runner's findByKey
-else
-    obj.Ticked = true(1, n);
-end
+[ticked, missing] = selectionTicks(r, cfg.Source);   % the config's selection, in either mode (a project's keys as findByKey matches them)
+obj.Ticked = ticked;
 obj.ActiveIdx = 0;
 obj.FigurePreviewResult = [];
 obj.FigureSessionResults = [];   % a session figure's last preview was drawn on the old runner's datasets
@@ -93,7 +97,15 @@ obj.refreshDatasetsTable();
 refreshDatasetLabels(obj);   % with what each holds of spikes (the units counted when a dataset was opened)
 obj.ScanLabel.Text = sprintf("%d dataset(s) found (%s).", n, ternary(cfg.Source.Mode == "project", ...
     "project " + cfg.Source.Root, "output folders"));
+obj.ScanLabel.UserData = string(obj.ScanLabel.Text);   % shown again when the source comes back to this one (showScanLabel)
 obj.log("Scan: " + obj.ScanLabel.Text);
+notFound = "";   % the config's ticked keys this scan did not find: said on the status bar and in the Log
+if ~isempty(missing) && n > 0
+    notFound = sprintf(" %d dataset(s) ticked in the config were not found, so they are not ticked: %s (see the Log tab).", ...
+        numel(missing), strjoin(missing, ", "));
+    obj.log("Scan: " + numel(missing) + " dataset(s) ticked in the config were not found " + ...
+        ternary(cfg.Source.Mode == "project", "under " + cfg.Source.Root, "among the output folders") + ": " + strjoin(missing, ", "));
+end
 if n == 0
     if cfg.Source.Mode == "project"
         msg = "No processed recordings under " + string(cfg.Source.Root) + ". Check the root, or run the pipeline app first.";
@@ -124,7 +136,7 @@ if n > 0
         obj.selectDataset(first);
     end
 end
-obj.setStatus(obj.ScanLabel.Text);
+obj.setStatus(string(obj.ScanLabel.Text) + notFound);
 end
 
 

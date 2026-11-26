@@ -774,6 +774,21 @@ says how to cut a release.
 
 ### Fixed
 
+- Analysis runs draw, write and record the config and datasets they started with. `EphysAnalysisRunner.run` read
+  its config once but its steps read `Config` again, and the analysis app sets it on every edit while a run goes (its
+  window stays usable): later datasets were drawn with the new settings, the report could go to another folder, the
+  run record and the lab database's record held the last config, and a figure whose automatic id followed an edit
+  stopped the run. `run` now passes its config to every step (`Config=` on `runDataset`, `runSessionFigure`,
+  `batchYLimits`, `sessionFigureObservations` and `LabCapture.analysisRun`; `source`, `sessionTable` and `outputRoot`
+  take it too). In the analysis app, Run, Plan, Generate selected figure and Test report stop with an alert to press
+  Scan while the datasets listed are not the scan of the source the Data tab shows (one definition of what a scan
+  reads; a tick, the filter or the signals' rates and filters no longer count as a source change); the config's
+  warnings (files that overwrite each other) are shown at Run, which goes on. A config opened without its scan keeps
+  its own ticks; in folders mode the ticks are the config's selection (`Selection "list"` with the folders), which the
+  runner, the scripts and a scan follow; a scan matches a config's keys as `EphysProject.findByKey` does (case ignored
+  on Windows) and names the ones it does not find. With `Export.Overwrite` off a report embedded the earlier run's
+  file of a kept page under this run's caption: it now holds the page as this run draws it, and the result row,
+  the report entry and the HTML say which files were kept.
 - `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had
   saved a pairing since the dataset object last wrote the manifest, and the new record was equal to the one the
   object wrote then (its `updated` time is to the second), the manifest merge took the record as unchanged and kept

@@ -10,7 +10,14 @@ function onConfigChanged(obj, what, src)
 %   (its Size rows: a "figure" edit that changes how the figure is drawn,
 %   not what it is computed from) or "export" (the Layout section's
 %   lengths shown again on the new page: showPanelPlace).
-%   The runner gets the new config. "defaults": the Alignment count, the
+%   The runner gets the new config, also while a run goes (the window
+%   stays usable): that run keeps the config it started with
+%   (EphysAnalysisRunner.run), the edit is the next run's. "source": the
+%   Data tab's scan line says when the datasets listed are another
+%   source's (showScanLabel, scannedSource: what a scan reads; the ticks,
+%   the filter and the signals' rates and filters are no change of the
+%   source), and back to the scan's own line when the source is the one
+%   scanned again. "defaults": the Alignment count, the
 %   figure editor's rows that show the defaults (applyFigureEditorDefaults),
 %   the observation picker, the epoch diagram (when open) and the figure
 %   preview (autoFigurePreview) follow. "figure": its list and editor
@@ -22,7 +29,8 @@ function onConfigChanged(obj, what, src)
 %   "figuresize" edit is that too, but a drawn preview that was current is
 %   shaped like the new page (fitFigureViews) and drawn again from the
 %   figure it holds (redrawFigurePreview), not computed again; "export"
-%   shapes the previews to the Export tab's page. "ticks" (a Run tick on the Data tab): the
+%   shapes the previews to the Export tab's page. "ticks" (a Run tick on the Data tab: the
+%   config's Selection and Datasets in either mode, gatherSourceSection): the
 %   Alignment and Figures tabs' Dataset drop-downs list the datasets ticked
 %   now (refreshDatasetLabels); when the figure in the editor is a session figure drawn across the ticked
 %   datasets, its observations are matched again and its preview, drawn
@@ -74,9 +82,7 @@ end
 switch what
     case "source"
         obj.syncSourceEnable();
-        if ~isempty(obj.Runner) && ~isempty(fieldnames(obj.ScannedSource)) && ~isequaln(scanned(cfg.Source), scanned(obj.ScannedSource))
-            obj.ScanLabel.Text = "The source changed: Scan to list its datasets.";
-        end
+        showScanLabel(obj, cfg.Source);   % "The source changed: ..." while the datasets listed are another source's (scannedSource)
     case "downsample"
         obj.showDownsample();
         obj.refreshDatasetInfo();   % the active dataset's signals: the rate the figures read each at
@@ -120,10 +126,4 @@ switch what
         end
 end
 obj.updateTitle();
-end
-
-
-function S = scanned(S)
-%scanned  What of Source a scan reads: without the ticks (Selection, Datasets), the filter and the signals' rates and filters.
-S = rmfield(S, intersect({'Selection', 'Datasets', 'Filter', 'Downsample', 'SignalFilter'}, fieldnames(S)));
 end

@@ -3,7 +3,7 @@ function job = submitPage(obj, F, spec, onPool, page)
 %   JOB = r.submitPage(F, SPEC, ONPOOL, PAGE) draws F (one observation of
 %   the figure SPEC) with drawExportPage: here when ONPOOL is false (JOB.out
 %   is its result), else on the open process pool (parfeval; JOB.future).
-%   PAGE holds drawExportPage's options (Export, Base, Formats, Dpi, Kept,
+%   PAGE holds drawExportPage's options (Export, Base, Formats, Dpi,
 %   BatchYLim, Images, Pages); the report's options and page folder are
 %   added. A worker gets the user's design and remembered plot rules as
 %   they are when the run sends its first page (pageLooks): it reads no

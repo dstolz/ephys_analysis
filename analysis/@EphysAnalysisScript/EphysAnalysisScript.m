@@ -151,7 +151,11 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "end";
             else
                 L(end+1, 1) = "root = " + lit(S.Root) + ";";
-                L(end+1, 1) = "folders = " + lit(S.Folders) + ";   % the datasets' output folders";
+                if S.Selection == "list"   % the folders ticked (Source.Datasets), as the runner keeps them (datasets)
+                    L(end+1, 1) = "folders = " + lit(EphysAnalysisRunner.selectedFolders(S)) + ";   % the datasets' output folders ticked to run";
+                else
+                    L(end+1, 1) = "folders = " + lit(S.Folders) + ";   % the datasets' output folders";
+                end
                 L(end+1, 1) = "outs = DatasetOutputs.empty(1, 0);";
                 if across
                     L(end+1, 1) = "names = strings(1, 0); acq = NaT(1, 0); tags = strings(1, 0); varSets = cell(1, 0);   % folders carry no acquisition date";
@@ -724,7 +728,7 @@ classdef EphysAnalysisScript
             C(end+1, 1) = "tokens = struct('OutputFolder', folders(k1), 'OutputRoot', outputRoot, 'Root', root, 'Name', names(k1));";
             C(end+1, 1) = "folder = figureFileName(exportOpts.SessionsFolder, tokens, Kind=""folder"");";
             C(end+1, 1) = "nObs = height(obsT);";
-            C(end+1, 1) = "E = struct('label', {}, 'files', {}, 'images', {}, 'pages', {}, 'done', {}, 'why', {}, 'nError', {}, 'F', {}, 'rows', {});";
+            C(end+1, 1) = "E = struct('label', {}, 'files', {}, 'images', {}, 'pages', {}, 'done', {}, 'why', {}, 'nError', {}, 'F', {}, 'rows', {}, 'kept', {});";
             C(end+1, 1) = "usedNames = strings(1, 0);   % the file names written: a sanitized name met again gets ""_2"", ""_3"", ...";
             if withData
                 C(end+1, 1) = "results = struct('index', {}, 'observation', {}, 'facet', {}, 'group', {}, 'label', {}, 'status', {}, 'message', {}, 'F', {});";
@@ -776,7 +780,7 @@ classdef EphysAnalysisScript
             C(end+1, 1) = "        q = find(string({E.label}) == e.label, 1);";
             C(end+1, 1) = "        if isempty(q)";
             C(end+1, 1) = "            E(end+1) = struct('label', e.label, 'files', strings(1, 0), 'images', {cell(1, 0)}, 'pages', strings(1, 0), ...";
-            C(end+1, 1) = "                'done', 0, 'why', strings(1, 0), 'nError', 0, 'F', [], 'rows', zeros(1, 0)); %#ok<AGROW>";
+            C(end+1, 1) = "                'done', 0, 'why', strings(1, 0), 'nError', 0, 'F', [], 'rows', zeros(1, 0), 'kept', strings(1, 0)); %#ok<AGROW>";
             C(end+1, 1) = "            q = numel(E);";
             C(end+1, 1) = "        end";
             if withData
@@ -800,7 +804,7 @@ classdef EphysAnalysisScript
             if doExport
                 C(end+1, 1) = "            want = base + ""."" + exportOpts.Formats;";
                 C(end+1, 1) = "            kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: not written again";
-                C(end+1, 1) = "            if kept; E(q).files = [E(q).files want]; end";
+                C(end+1, 1) = "            if kept; E(q).files = [E(q).files want]; E(q).kept = [E(q).kept want]; end   % kept from an earlier run: the report names them apart";
             end
             if draws
                 if doExport && ~withImages && ~withPages
@@ -864,6 +868,7 @@ classdef EphysAnalysisScript
             C(end+1, 1) = "    end";
             if doReport
                 drawn = "Files=E(q).files";
+                if doExport; drawn = drawn + ", Kept=E(q).kept"; end   % the kept files named apart
                 if withImages; drawn = drawn + ", Images=E(q).images"; end
                 if withPages; drawn = drawn + ", Pages=E(q).pages"; end
                 C(end+1, 1) = "    report = addReportFigure(report, rspec, E(q).F, " + drawn + ", Caption=figureCaption(fspec, obsT(E(q).rows, :), Sessions=E(q).F.sessions" + yArg + ", Results={E(q).F}));";
@@ -925,6 +930,9 @@ classdef EphysAnalysisScript
             B(end+1, 1) = "if reason == """"";
             B(end+1, 1) = "    try";
             B(end+1, 1) = "        files = strings(1, 0);";
+            if doExport && doReport
+                B(end+1, 1) = "        keptFiles = strings(1, 0);   % the files kept from an earlier run (Overwrite off): the report names them apart";
+            end
             if withImages; B(end+1, 1) = "        images = cell(1, 0);   % each observation's page as the HTML report embeds it"; end
             if withPages; B(end+1, 1) = "        pages = strings(1, 0);   % ... and as the PDF report holds it"; end
             B(end+1, 1) = "        nObs = height(obsT);";
@@ -938,6 +946,9 @@ classdef EphysAnalysisScript
                 B(end+1, 1) = "            want = base + ""."" + exportOpts.Formats;";
                 B(end+1, 1) = "            kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: not written again";
                 B(end+1, 1) = "            if kept; files = [files want]; end %#ok<AGROW>";
+                if doReport
+                    B(end+1, 1) = "            if kept; keptFiles = [keptFiles want]; end %#ok<AGROW>";
+                end
                 if ~withImages && ~withPages
                     B(end+1, 1) = "            if kept; continue; end   % ... nor computed";
                 end
@@ -975,8 +986,10 @@ classdef EphysAnalysisScript
                 drawn = "Files=files";
                 if withImages; drawn = drawn + ", Images=images"; end
                 if withPages; drawn = drawn + ", Pages=pages"; end
+                kArg = "";
+                if doExport; kArg = "Kept=keptFiles, "; end   % the kept files named apart
                 B(end+1, 1) = "        report = addReportFigure(report, fspecKind, fres, " + drawn + ", Observations=obsT, ...   % each page's observation: Report.Order";
-                B(end+1, 1) = "            Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls" + yArg + ", Results={fres}));";
+                B(end+1, 1) = "            " + kArg + "Caption=figureCaption(fspec, obsT, Dataset=name, Auroc=acalls" + yArg + ", Results={fres}));";
             end
             B(end+1, 1) = "        fprintf('%s: %s done (%d observation(s), %d file(s))\n', name, fspec.id, nObs, numel(files));";
             B(end+1, 1) = "    catch ME";
@@ -1029,6 +1042,10 @@ classdef EphysAnalysisScript
                 B(end+1, 1) = "        want = base + ""."" + exportOpts.Formats;";
                 B(end+1, 1) = "        kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: not written again";
                 B(end+1, 1) = "        if kept; files = want; end";
+                if doReport
+                    B(end+1, 1) = "        keptFiles = strings(1, 0);   % kept from an earlier run (Overwrite off): the report names them apart";
+                    B(end+1, 1) = "        if kept; keptFiles = want; end";
+                end
                 if ~withImages && ~withPages
                     B(end+1, 1) = "        if ~kept   % ... nor computed";
                     in = "            ";
@@ -1065,8 +1082,10 @@ classdef EphysAnalysisScript
                 drawn = "Files=files";
                 if withImages; drawn = drawn + ", Images=images"; end
                 if withPages; drawn = drawn + ", Pages=pages"; end
+                kArg = "";
+                if doExport; kArg = "Kept=keptFiles, "; end   % the kept files named apart
                 B(end+1, 1) = "        report = addReportFigure(report, fspecKind, PF, " + drawn + ", Observations=tilesT, ...   % one page: every tile";
-                B(end+1, 1) = "            Caption=figureCaption(fspec, tilesT, Dataset=name));";
+                B(end+1, 1) = "            " + kArg + "Caption=figureCaption(fspec, tilesT, Dataset=name));";
             end
             B(end+1, 1) = "        fprintf('%s: %s done (%d tile(s), %d file(s))\n', name, fspec.id, height(tilesT), numel(files));";
             B(end+1, 1) = "    catch ME";

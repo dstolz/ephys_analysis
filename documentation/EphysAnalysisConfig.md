@@ -153,8 +153,8 @@ has plots is version 1: [below](#loading-a-version-1-config)).
 | `Recordings` | `"concatenate"` | what an Open Ephys session with several recordings is (`"concatenate"`, `"separate"`, `"single"`), as in the pipeline config's `Acquisition.OpenEphys.Recordings`: with `"separate"` the datasets are the part folders |
 | `Downsample` | every field `[]` | the rate, Hz, each signal is brought to before any figure reads it: a field per signal (`LFP`, `MUA`, `SPIKE`, `AUX`), `[]` = the rate on file. Low-pass filtered first, so nothing aliases ([Downsampled signals](#downsampled-signals)) |
 | `SignalFilter` | every field off | the filter each signal is read through by every figure: a field per signal (`LFP`, `MUA`, `SPIKE`, `AUX`), each a [`SignalFilter`](#filtered-signals) (`enabled false` = none). Each channel's whole recording is filtered before the epochs are cut ([Filtered signals](#filtered-signals)) |
-| `Selection` | `"all"` | project mode: `"all"` datasets under the root, or the `"list"` in `Datasets` |
-| `Datasets` | none | root-relative [dataset keys](EphysPipeline.md#dataset-keys) for `"list"`. A key not found is warned about (`EphysAnalysisRunner:UnknownDataset`) and skipped |
+| `Selection` | `"all"` | `"all"` datasets (under the root, or every folder of `Folders`), or the `"list"` in `Datasets`: the analysis app's **Run** ticks, in either mode |
+| `Datasets` | none | for `"list"`: in project mode root-relative [dataset keys](EphysPipeline.md#dataset-keys) (matched as `EphysProject.findByKey` matches them: `\` or `/`, and on Windows case, alike); in folders mode the folders to run, each one of `Folders` (compared as paths, `EphysAnalysisRunner.selectedFolders`). A key or folder not found is warned about (`EphysAnalysisRunner:UnknownDataset`) and skipped; the analysis app says so on its status bar and in its Log when it scans |
 | `Folders` | none | dataset output folders (`"folders"` mode) |
 | `Filter` | off | the analysis app's [Data tab filter](EphysFigGenApp.md#data-tab), saved so the config opens with it: `Subjects`, `ExcludeSubjects`, `Tags`, `TagMode` (`"any"` or `"all"` of `Tags`), `ExcludeTags` and `Search`, each text as typed (several values comma-separated; `""` = off), the options of [`datasetFilter`](../pipeline/datasetFilter.m). It only chooses which datasets the app's table shows: what runs is `Selection` and `Datasets`, and the runner and scripts ignore it |
 
@@ -3936,7 +3936,7 @@ and layout), apart from what the plot itself held that was invalid.
 | `FilenamePattern` | `{Name}_{Plot}` | a [file-name pattern](#file-name-tokens): `{Name}` (dataset) `{Plot}` (the figure's id) `{Kind}` (`figure`) `{Group}` `{Unit}` `{Index}` `{Date}`. A [figure](#figures) writes a file set per observation: [below](#figures-in-an-export) |
 | `Dpi` | 150 | PNG resolution |
 | `FigureSizeCm` | `[18 12]` | figure size `[width height]`: a figure's page (its panels' rects are parts of it), unless the figure has a size of its own; a probe figure's page is made taller for its rows of tiles |
-| `Overwrite` | `true` | `false`: an observation (a figure's page) whose files all exist is not written again, nor drawn unless the report needs its image (HTML) or page (PDF); a session figure's data file is not replaced either (a note in the row's message) |
+| `Overwrite` | `true` | `false`: an observation (a figure's page) whose files all exist is kept: not written again, nor drawn unless the report needs its image (HTML) or page (PDF), and then the report holds the page as this run draws it, never the file on disk (an earlier run drew that, maybe with other settings). The kept files stay in the result row's `Files`; its `Message` says how many pages were kept (*"; 2 kept: files on disk from an earlier run, not overwritten (Export.Overwrite off)"*) and the HTML report lists them apart, *Kept from an earlier run*. A session figure's data file is not replaced either (a note in the row's message) |
 | `SessionsFolder` | `{OutputRoot}\analysis\sessions` | where the [session figures'](#session-figures) pages go: a [folder pattern](#file-name-tokens) whose tokens are the first session's (`{OutputFolder}` is one dataset's folder, so a warning there). Named with `FilenamePattern`, `{Name}` being the facet (`all`, or the subject) and `{Plot}` the figure's id, then `_<trial group>` for `trialGroups "each"`; a session figure adds `_<Unit>` per observation (`site_ch7`, a mapping cell, `ch7`) as a figure does |
 | `Data.Enabled` | `false` | write each session figure's data as a `.mat` file in a run ([format](file-formats.md#session-figure-data-mat)); the only data export: there are no per-session data or epoch tables |
 | `Data.Folder` | `{OutputRoot}\analysis\data` | a folder pattern, as `SessionsFolder` |
@@ -3980,7 +3980,9 @@ token values (the folder pattern is the plots'):
 - A figure's page is `FigureSizeCm` (or the figure's own `size`), however
   many panels it holds.
 - With `Overwrite` off an observation whose files all exist is neither computed
-  nor drawn again, unless the report needs its image or page.
+  nor drawn again, unless the report needs its image or page; the report then
+  holds the page as drawn in this run, and the kept files are named as kept
+  (the row's message, the HTML report's *Kept from an earlier run* line).
 - A layer or panel that cannot be computed for one observation (no sorted unit
   left, no event in the window) is drawn as a note in the page, not as a failure;
   a figure that fails is an `error` row and the others still run.
@@ -4392,6 +4394,12 @@ the *Across sessions* entry with its caption (and its own `<FileName>_sessions` 
 data file; `run(SessionFigures=)` alone keeps the files of `Overwrite` off; `cancel()`
 between observations leaves the first page and a `canceled` row; and the standalone script
 (`sfspec<k>`, `figureSessionCompute`, no runner) writes PNGs pixel-identical to the runner's.
+Sections 11 to 13: a run whose `Config` is set from its `ProgressFcn` (its figure renamed,
+other folders and formats) draws both datasets, writes the report and the run record with the
+config it started with; `Overwrite` off with a report keeps the file on disk, embeds this
+run's drawing and names the kept file (the row's message, the entry's `kept`, the HTML); a
+folders-mode `Selection "list"` runs only the folders it names (the runner, so the compact
+script, and the standalone script), one not among `Folders` warned about.
 
 `test_PlotAesthetics` and `test_PlotDesign` draw one figure per panel type and per layout that
 matters (`figureTestCases`: a stack, the auROC baseline, waveforms on the probe, stacked

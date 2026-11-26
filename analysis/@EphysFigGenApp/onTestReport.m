@@ -27,7 +27,12 @@ function [R, file] = onTestReport(obj, opts)
 %   none: nothing to report on, or canceled).
 %   The button is off without a dataset or an observation picked, while a
 %   run goes, and for a figure across sessions (its observations are
-%   matched across datasets, not one dataset's).
+%   matched across datasets, not one dataset's). It is refused, an alert
+%   saying to press Scan, while the datasets listed are not the scan of
+%   the source the Data tab shows (scanIsCurrent): the report would draw
+%   the old source's dataset under a config that names the new one. The
+%   run keeps the config it started with (EphysAnalysisRunner.run): an
+%   edit while it goes cannot send the report to the output folder.
 %
 %   See also onRunExport, onGenerateFigure, onOpenReport, EphysAnalysisRunner.run,
 %   figureObservations.
@@ -65,6 +70,7 @@ end
 obs = struct('kind', T.kind(i), 'data', spec.observe.data, 'unitId', T.unitId(i), 'channel', T.channel(i), 'label', label);
 name = obj.Runner.Names(obj.ActiveIdx);
 cfg = obj.gatherConfig();
+if ~scanIsCurrent(obj, cfg.Source, Action="Test report", Again="make the test report"); return; end   % the datasets listed must be the source's
 id = cfg.Figures(k).id;
 wasOff = ~cfg.Figures(k).enabled;
 cfg.Figures(k).enabled = true;   % for this run only: obj.Config keeps it as it is

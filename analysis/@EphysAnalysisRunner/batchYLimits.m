@@ -19,6 +19,8 @@ function B = batchYLimits(obj, idx, spec, opts)
 %   an observation is left out of the range (runDataset reports it).
 %   A probe figure (SPEC.probe.enabled) gives no row: its panels share y
 %   across its tiles on its one page (probe.sharedY), not across a run.
+%   Config= (default [] = Config) is the config the sources are read with
+%   (source: the name pattern); run passes the one it started with.
 %
 %   See also figureYExtents, figureBatchYLim, figureBatchPanels,
 %   EphysAnalysisRunner.run, EphysAnalysisRunner.runDataset.
@@ -28,7 +30,10 @@ arguments
     spec (1,1) struct
     opts.Observation = []
     opts.Fraction (1,1) double = 0
+    opts.Config = []
 end
+cfg = opts.Config;
+if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.Config; end
 ids = figureBatchPanels(spec);
 B = struct('figure', cell(1, 0), 'id', cell(1, 0), 'lim', cell(1, 0), 'n', cell(1, 0));
 if isempty(ids) || (isfield(spec, 'probe') && spec.probe.enabled); return; end   % a probe figure shares y across its tiles itself
@@ -38,7 +43,7 @@ end
 E = cell(1, 0);
 for k = idx
     name = obj.Names(k);
-    src = obj.source(k);
+    src = obj.source(k, cfg);
     try
         if figureSkipReason(src, spec) ~= ""; continue; end
         T = figureObservations(src, spec, Observation=opts.Observation);

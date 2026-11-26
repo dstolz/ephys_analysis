@@ -4,9 +4,10 @@ function im = reportImage(fig, report, opts)
 %   (one page drawn by renderFigure) the way REPORT (newAnalysisReport)
 %   embeds images: with EmbedFormat "png" a PNG at REPORT.options.Dpi,
 %   base64; with "svg" the SVG text. F lists the files just exported from
-%   FIG (exportFigure), or already on disk for it: an .svg (or, for "png",
-%   a .png, at the dpi it was written at) among them is read instead of
-%   printing FIG again. IM is a struct (format, data, title, sizeCm) for
+%   FIG (exportFigure): an .svg (or, for "png", a .png, at the dpi it was
+%   written at) among them is read instead of printing FIG again. The
+%   runner never passes a file it kept from an earlier run (Export.Overwrite
+%   off): that page is embedded as FIG draws it now. IM is a struct (format, data, title, sizeCm) for
 %   addReportFigure(..., Images=); T is the PNG's alt text (renderFigure's
 %   H.title) and sizeCm FIG's [width height] in cm, which the HTML report
 %   sizes its tiles by (Report.FiguresPerPage).

@@ -11,7 +11,8 @@ classdef EphysAnalysisConfig
     %   Sections (see defaults(section))
     %     Source    Mode "project" (a pipeline project: Root, OutputRoot,
     %               NamePattern, Selection "all"|"list", Datasets keys) or
-    %               "folders" (Folders: the output folders themselves);
+    %               "folders" (Folders: the output folders themselves;
+    %               Selection "list" with Datasets the folders to run);
     %               Filter, the analysis app's Data tab filter (subjects,
     %               tags, search: which rows show, never what runs)
     %     Defaults  EventRef, Window (EpochWindow) and Selection

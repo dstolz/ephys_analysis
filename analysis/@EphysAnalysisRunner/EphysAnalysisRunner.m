@@ -33,7 +33,16 @@ classdef EphysAnalysisRunner < handle
     %   them), string.empty(1, 0) = none, else the ids (idList).
     %
     %   Properties
-    %     Config        the EphysAnalysisConfig
+    %     Config        the EphysAnalysisConfig. run() reads it once, when it
+    %                   starts, and passes that config down to every step of
+    %                   the run (runDataset, runSessionFigure, batchYLimits,
+    %                   source, sessionTable, outputRoot, the report, the run
+    %                   record and LabCapture.analysisRun: Config=), so Config
+    %                   may be set while a run goes (EphysFigGenApp's edits, a
+    %                   ProgressFcn) and the run still draws, writes and
+    %                   records the config it started with; the new one is
+    %                   the next run's. Each of those methods called alone
+    %                   reads Config
     %     ProgressFcn   ProgressFcn(fraction, message), called before each
     %                   dataset, figure and observation; FRACTION is how far
     %                   the whole run is (dataset j of n spans [(j-1)/n,
@@ -147,7 +156,7 @@ classdef EphysAnalysisRunner < handle
     methods
         % --- methods defined in separate files ---
         outs = datasets(obj)
-        src = source(obj, k)
+        src = source(obj, k, cfg)
         T = plan(obj, opts)
         F = computeFigure(obj, src, spec, opts)
         PF = computeProbeFigure(obj, src, spec, opts)
@@ -158,9 +167,9 @@ classdef EphysAnalysisRunner < handle
         progress(obj, fraction, message)
         checkpoint(obj)
         log(obj, fmt, varargin)
-        S = sessionTable(obj, idx)
+        S = sessionTable(obj, idx, cfg)
         idx = sessionFigureIndices(obj, spec, idx)
-        [T, sessions, sources] = sessionFigureObservations(obj, fig, idx)
+        [T, sessions, sources] = sessionFigureObservations(obj, fig, idx, opts)
         [res, sessions, spec, Fs] = computeSessionFigure(obj, fig, idx, opts)
         rows = runSessionFigure(obj, id, idx, opts)
         B = batchYLimits(obj, idx, spec, opts)
@@ -199,10 +208,13 @@ classdef EphysAnalysisRunner < handle
             if isempty(k); k = 0; end
         end
 
-        function root = outputRoot(obj)
+        function root = outputRoot(obj, cfg)
             %outputRoot  The {OutputRoot} token: Source.OutputRoot, else Root,
             %   else the folder above the first dataset's output folder.
-            S = obj.Config.Source;
+            %   ROOT = r.outputRoot(CFG) reads CFG's Source (run passes the
+            %   config it started with); without CFG, Config's.
+            if nargin < 2 || isempty(cfg); cfg = obj.Config; end
+            S = cfg.Source;
             root = S.OutputRoot;
             if root == ""; root = S.Root; end
             if root == "" && ~isempty(obj.Outputs)
@@ -289,6 +301,41 @@ classdef EphysAnalysisRunner < handle
         function T = emptyResults()
             T = table(strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), zeros(0, 1), ...
                 'VariableNames', {'Dataset', 'Plot', 'Kind', 'Status', 'Message', 'Files', 'Seconds'});
+        end
+
+        function [folders, missing] = selectedFolders(S)
+            %selectedFolders  The output folders a folders-mode Source runs: Folders, or with Selection "list" those Datasets names.
+            %   [FOLDERS, MISSING] = EphysAnalysisRunner.selectedFolders(S)
+            %   (a config's Source): every folder of S.Folders with Selection
+            %   "all"; with "list" the folders of S.Folders that S.Datasets
+            %   names (the analysis app's Run ticks, gatherSourceSection),
+            %   compared as paths (EphysDataset.pathKey: "\" or "/", a
+            %   trailing separator, and on Windows case, alike), in Folders'
+            %   order. MISSING: the entries of S.Datasets that name no folder
+            %   of S.Folders. datasets() and EphysAnalysisScript.standalone
+            %   read a folders-mode selection this way.
+            folders = reshape(string(S.Folders), 1, []);
+            missing = string.empty(1, 0);
+            if S.Selection ~= "list"; return; end
+            want = reshape(string(S.Datasets), 1, []);
+            have = EphysDataset.pathKey(folders);
+            key = EphysDataset.pathKey(want);
+            missing = want(~ismember(key, have));
+            folders = folders(ismember(have, key));
+        end
+
+        function m = keptText(n)
+            %keptText  What a Results row's Message adds for N pages whose files were kept ("" for none).
+            %   With Export.Overwrite off a page whose files all exist is
+            %   not written again: its files are listed in the row's Files
+            %   all the same, and the Message ("<n> observation(s)", "<n>
+            %   tile(s)") gains "; <N> kept: files on disk from an earlier
+            %   run, not overwritten (Export.Overwrite off)", so a reader can
+            %   tell them from the files this run wrote.
+            m = "";
+            if n > 0
+                m = sprintf("; %d kept: files on disk from an earlier run, not overwritten (Export.Overwrite off)", n);
+            end
         end
 
         function files = reportFiles(cfg, tokens)

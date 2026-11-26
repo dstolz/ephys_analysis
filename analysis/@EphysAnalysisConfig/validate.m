@@ -249,11 +249,6 @@ elseif S.Mode == "project"
     if S.OutputRoot ~= "" && opts.CheckPaths && ~isfolder(S.OutputRoot)
         add("Source", "OutputRoot", "warning", "The output root does not exist: " + S.OutputRoot);
     end
-    if ~ismember(S.Selection, ["all" "list"])
-        add("Source", "Selection", "error", "Selection must be ""all"" or ""list"".");
-    elseif S.Selection == "list" && isempty(S.Datasets)
-        add("Source", "Datasets", "warning", "Selection is ""list"" but no datasets are listed; nothing will run.");
-    end
     try
         parseNameTokens("", S.NamePattern);
     catch ME
@@ -269,6 +264,13 @@ else
         for f = S.Folders
             if ~isfolder(f); add("Source", "Folders", "error", "Folder not found: " + f); end
         end
+    end
+end
+if ismember(S.Mode, ["project" "folders"])   % both modes: the datasets ticked to run (project keys, or folders)
+    if ~ismember(S.Selection, ["all" "list"])
+        add("Source", "Selection", "error", "Selection must be ""all"" or ""list"".");
+    elseif S.Selection == "list" && isempty(S.Datasets)
+        add("Source", "Datasets", "warning", "Selection is ""list"" but no datasets are listed; nothing will run.");
     end
 end
 if ~ismember(S.Filter.TagMode, ["any" "all"])

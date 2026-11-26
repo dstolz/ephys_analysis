@@ -32,8 +32,15 @@ function rows = runDataset(obj, k, opts)
 %   when the pattern tells the observations apart by neither {Unit} nor
 %   {Index}; {Group} a per-group observation's group, "_<Group>" appended
 %   likewise). With Export.Overwrite off an observation whose files all
-%   exist is neither computed nor drawn again unless the report needs its
-%   page. Without Export and Report each observation is computed only. A
+%   exist is kept: its files are not written again, nor is it computed or
+%   drawn unless the report needs its page, and then the report holds the
+%   page as this run draws it (drawExportPage never reads a kept file into
+%   the report: an earlier run drew it, maybe with other settings). Its
+%   files stay in the row's Files, the Message says how many were kept
+%   (EphysAnalysisRunner.keptText: "; <k> kept: files on disk from an
+%   earlier run, not overwritten (Export.Overwrite off)") and the report
+%   entry lists them as kept (addReportFigure Kept=). Without Export and
+%   Report each observation is computed only. A
 %   layer or panel that cannot be computed for one observation is drawn as
 %   its note, not a failure; a figure that fails is an "error" row.
 %   Progress before each observation: "<name>: <id> (<i>/<n>)".
@@ -79,6 +86,13 @@ function rows = runDataset(obj, k, opts)
 %   observation's page. It has no "batch" range (its panels share y
 %   across its tiles: probe.sharedY) and ignores observe.perGroup.
 %
+%   Config= (an EphysAnalysisConfig; default [] = Config) is the config
+%   the figures are drawn, exported and reported with: run passes the one
+%   it started with, so an edit of Config while the run goes (the app's
+%   window stays usable) does not reach its later datasets. Every read of
+%   the config here is of that one (the figures, Export, the folder tokens:
+%   outputRoot; the source's name pattern: source).
+%
 %   See also EphysAnalysisRunner.run, EphysAnalysisRunner.computeFigure,
 %   EphysAnalysisRunner.computeProbeFigure, renderFigure, figureOutputName.
 
@@ -91,19 +105,21 @@ arguments
     opts.Span (1,2) double = [0 1]
     opts.Observation = []
     opts.BatchYLim = []
+    opts.Config = []
 end
 
-cfg = obj.Config;
+cfg = opts.Config;
+if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.Config; end   % alone: the config now; from run: the one it started with
 fids = EphysAnalysisRunner.idList(opts.Figures, @() cfg.enabledFigures());
 nAll = max(1, numel(fids));   % the figures share the dataset's span
 first = height(obj.Results) + 1;
 name = obj.Names(k);
-src = obj.source(k);
+src = obj.source(k, cfg);
 if opts.Report
     obj.Report = addReportDataset(obj.Report, src);
 end
 X = cfg.Export;
-folder = figureFileName(X.Folder, struct('OutputFolder', obj.datasetFolder(k), 'OutputRoot', obj.outputRoot(), ...
+folder = figureFileName(X.Folder, struct('OutputFolder', obj.datasetFolder(k), 'OutputRoot', obj.outputRoot(cfg), ...
     'Root', cfg.Source.Root, 'Name', name), Kind="folder");
 withImages = opts.Report && obj.Report.options.Format ~= "pdf";   % the HTML report embeds each page
 withPages = opts.Report && obj.Report.options.Format ~= "html";   % the PDF report holds each page
@@ -147,7 +163,7 @@ for jf = 1:numel(fids)
         end
         if onProbe
             probePage(obj, src, spec, rspec, T, name, folder, opts, withImages, withPages, ...
-                opts.Span(1) + diff(opts.Span) * at / nAll, diff(opts.Span) / nAll, t0);
+                opts.Span(1) + diff(opts.Span) * at / nAll, diff(opts.Span) / nAll, t0, X);
             continue
         end
         nObs = height(T);
@@ -157,12 +173,15 @@ for jf = 1:numel(fids)
             if isstruct(B) && ~isempty(B) && any([B.figure] == spec.id)
                 BY = B([B.figure] == spec.id);
             else   % runDataset alone: this dataset's observations
-                BY = obj.batchYLimits(k, spec, Observation=opts.Observation, Fraction=opts.Span(1) + diff(opts.Span) * at / nAll);
+                BY = obj.batchYLimits(k, spec, Observation=opts.Observation, Fraction=opts.Span(1) + diff(opts.Span) * at / nAll, ...
+                    Config=cfg);
             end
         end
         nShared = NaN;
         if ~isempty(BY); nShared = max([BY.n]); end
         files = string.empty(1, 0);
+        keptFiles = string.empty(1, 0);   % the files of the observations kept (Export.Overwrite off): on disk, not this run's
+        nKept = 0;
         images = cell(1, 0);
         pages = strings(1, 0);
         F = [];
@@ -178,6 +197,10 @@ for jf = 1:numel(fids)
             base = fullfile(folder, figureOutputName(X.FilenamePattern, name, spec, T(i, :), i, nObs));
             want = base + "." + X.Formats;
             kept = opts.Export && ~X.Overwrite && all(isfile(want));   % its files exist: not written again
+            if kept
+                keptFiles = [keptFiles want]; %#ok<AGROW>
+                nKept = nKept + 1;
+            end
             if kept && ~withImages && ~withPages   % ... nor computed, unless the report needs the page
                 jobs{end+1} = struct('future', [], 'out', noPage(), 'kept', want); %#ok<AGROW>
                 continue
@@ -188,12 +211,12 @@ for jf = 1:numel(fids)
             if ~isempty(ac); calls{end+1} = ac; end %#ok<AGROW>
             if withTrials; trialFs{end+1} = trialPart(F); end %#ok<AGROW>
             if ~draws; continue; end   % computed only
-            page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, 'Kept', string.empty(1, 0), ...
-                'BatchYLim', BY, 'Images', withImages, 'Pages', withPages);
+            page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, ...
+                'BatchYLim', BY, 'Images', withImages, 'Pages', withPages);   % a kept page: drawn for the report, its files left as they are
             if opts.Export && ~kept; page.Base = base; end
-            if kept; page.Kept = want; end
             job = obj.submitPage(F, spec, onPool, page);
-            job.kept = page.Kept;
+            job.kept = string.empty(1, 0);
+            if kept; job.kept = want; end
             jobs{end+1} = job; %#ok<AGROW>
         end
         for j = 1:numel(jobs)
@@ -205,12 +228,13 @@ for jf = 1:numel(fids)
         end
         if opts.Report
             if isempty(F); F = struct('kind', "figure"); end
-            obj.Report = addReportFigure(obj.Report, rspec, F, Files=files, Images=images, Pages=pages, Observations=T, ...
+            obj.Report = addReportFigure(obj.Report, rspec, F, Files=files, Kept=keptFiles, Images=images, Pages=pages, Observations=T, ...
                 Caption=figureCaption(spec, T, Dataset=name, Auroc=calls, YShared=nShared, Results=trialFs));
         end
         obj.clearBatchCache(k, spec.id);
-        obj.Results(end+1, :) = {name, spec.id, "figure", "done", sprintf("%d observation(s)", nObs), strjoin(files, "; "), toc(t0)};
-        obj.log("%s: %s done (%d observation(s), %d file(s), %.1f s)", name, spec.id, nObs, numel(files), toc(t0));
+        msg = sprintf("%d observation(s)", nObs) + EphysAnalysisRunner.keptText(nKept);
+        obj.Results(end+1, :) = {name, spec.id, "figure", "done", msg, strjoin(files, "; "), toc(t0)};
+        obj.log("%s: %s done (%s, %d file(s), %.1f s)", name, spec.id, msg, numel(files), toc(t0));
     catch ME
         cancelPages(jobs);   % the pages still on the workers
         if ME.identifier == "EphysAnalysisRunner:Canceled"
@@ -246,15 +270,16 @@ end
 end
 
 
-function probePage(obj, src, spec, rspec, T, name, folder, opts, withImages, withPages, from, span, t0)
+function probePage(obj, src, spec, rspec, T, name, folder, opts, withImages, withPages, from, span, t0, X)
 %probePage  A probe figure on one dataset: its tiles computed (computeProbeFigure), one page drawn, exported, reported.
 %   FROM and SPAN: the figure's share of the run's progress, the tiles
 %   dividing it. The page is drawn here (drawExportPage through
-%   submitPage), never on the workers: it is one page. With
-%   Export.Overwrite off and its files on disk it is neither computed nor
-%   drawn again unless the report needs it. A Results row: "done",
-%   "<n> tile(s)".
-X = obj.Config.Export;
+%   submitPage), never on the workers: it is one page. X: the Export
+%   section of the run's config (runDataset's Config=). With
+%   Export.Overwrite off and its files on disk it is kept: neither
+%   computed nor drawn again unless the report needs it (the report then
+%   holds the page as drawn here). A Results row: "done", "<n> tile(s)"
+%   (and keptText's note when kept).
 nT = height(T);
 obsP = struct('kind', "probe", 'label', "probe", 'unitId', NaN, 'channel', NaN, 'column', NaN, 'meta', [], 'groupLabel', "");
 base = fullfile(folder, figureOutputName(X.FilenamePattern, name, spec, obsP, 1, 1));
@@ -262,6 +287,8 @@ want = base + "." + X.Formats;
 kept = opts.Export && ~X.Overwrite && all(isfile(want));   % its files exist: not written again
 draws = opts.Export || withImages || withPages;
 files = string.empty(1, 0);
+keptFiles = string.empty(1, 0);
+if kept; keptFiles = want; end
 images = cell(1, 0);
 pages = strings(1, 0);
 PF = [];
@@ -272,24 +299,24 @@ else
     PF = obj.computeProbeFigure(src, spec, ProgressFcn=@(i, n, ~) obj.progress(from + span * (i - 1) / max(n, 1), ...
         sprintf("%s: %s tile %d/%d", name, spec.id, i, n)));   % cancel() stops between the tiles
     if draws
-        page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, 'Kept', string.empty(1, 0), ...
+        page = struct('Export', X, 'Base', "", 'Formats', X.Formats, 'Dpi', X.Dpi, ...
             'BatchYLim', [], 'Images', withImages, 'Pages', withPages);
         if opts.Export && ~kept; page.Base = base; end
-        if kept; page.Kept = want; end
         job = obj.submitPage(PF, spec, false, page);
         out = obj.pageOutput(job, from + span, sprintf("%s: %s drawing the page", name, spec.id));
-        files = [page.Kept out.files];
+        files = [keptFiles out.files];
         if ~isempty(out.image); images{end+1} = out.image; end
         if out.page ~= ""; pages(end+1) = out.page; end
     end
 end
 if opts.Report
     if isempty(PF); PF = struct('kind', "probeFigure"); end
-    obj.Report = addReportFigure(obj.Report, rspec, PF, Files=files, Images=images, Pages=pages, Observations=T, ...
+    obj.Report = addReportFigure(obj.Report, rspec, PF, Files=files, Kept=keptFiles, Images=images, Pages=pages, Observations=T, ...
         Caption=figureCaption(spec, T, Dataset=name));
 end
-obj.Results(end+1, :) = {name, spec.id, "figure", "done", sprintf("%d tile(s)", nT), strjoin(files, "; "), toc(t0)};
-obj.log("%s: %s done (%d tile(s), %d file(s), %.1f s)", name, spec.id, nT, numel(files), toc(t0));
+msg = sprintf("%d tile(s)", nT) + EphysAnalysisRunner.keptText(double(kept));
+obj.Results(end+1, :) = {name, spec.id, "figure", "done", msg, strjoin(files, "; "), toc(t0)};
+obj.log("%s: %s done (%s, %d file(s), %.1f s)", name, spec.id, msg, numel(files), toc(t0));
 end
 
 

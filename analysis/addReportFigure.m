@@ -1,6 +1,6 @@
 function report = addReportFigure(report, spec, F, opts)
 %addReportFigure  Add one figure to the current dataset of a report.
-%   REPORT = addReportFigure(REPORT, SPEC, F, Files=, Images=, Pages=,
+%   REPORT = addReportFigure(REPORT, SPEC, F, Files=, Kept=, Images=, Pages=,
 %   Observations=, Caption=) adds the figure SPEC (figureFor's spec; its kind "figure",
 %   given or assumed) to the last dataset added with addReportDataset, as
 %   one entry for all its observations: F is a figureCompute result of it
@@ -17,6 +17,11 @@ function report = addReportFigure(report, spec, F, opts)
 %   without the trial group), which the reports group the pages by when
 %   Report.Order is "unit". Without it, or when its rows do not match the
 %   pages, the entry keeps none and is reported whole, in figure order.
+%   Kept lists the files among Files that were on disk already and were
+%   not written again (Export.Overwrite off): an earlier run drew them,
+%   while the entry's images and pages are this run's drawing. The entry
+%   keeps them (kept) and the HTML report names them apart ("kept from an
+%   earlier run", writeHtmlReport).
 %
 %   REPORT = addReportFigure(REPORT, SPEC, [], Status="error", Message=M)
 %   records a figure that could not be drawn (or Status="skipped": one
@@ -30,6 +35,7 @@ arguments
     spec (1,1) struct
     F
     opts.Files (1,:) string = string.empty(1,0)
+    opts.Kept (1,:) string = string.empty(1, 0)   % those of Files kept from an earlier run (Export.Overwrite off)
     opts.Images (1,:) cell = cell(1, 0)
     opts.Pages (1,:) string = string.empty(1, 0)
     opts.Observations = []   % figureObservations rows, one per page
@@ -50,7 +56,7 @@ if contains(ttl, "{")
 end
 e = struct('plot', spec.id, 'kind', kind, 'title', ttl, 'caption', "", 'spec', spec, ...
     'images', {cell(1, 0)}, 'pages', string.empty(1, 0), 'files', opts.Files, 'status', opts.Status, 'message', opts.Message, ...
-    'obsKeys', string.empty(1, 0), 'obsLabels', string.empty(1, 0));
+    'obsKeys', string.empty(1, 0), 'obsLabels', string.empty(1, 0), 'kept', opts.Kept);
 if ~isempty(F) && opts.Status == "done"
     if ~isempty(opts.Caption); e.caption = string(opts.Caption); end
     e.images = opts.Images;

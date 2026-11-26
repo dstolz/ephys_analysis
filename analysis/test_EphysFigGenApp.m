@@ -7076,9 +7076,57 @@ if S.sec("5y", "stuck or broken states: an interrupted preview, Run and Scan whi
     app.refreshFigurePreview(Force=true);
     rn5y = app.Runner;
 
-    % C1: an interrupt (Ctrl+C) in a compute leaves the state as Cancel does. The suite cannot press Ctrl+C: it puts the
-    % app where the interrupt leaves it (computing, the polls on) and runs the check the preview's onCleanup runs
-    % (refreshFigurePreview Interrupted=ID; the cleanup itself, run by MATLAB on the interrupt, is not exercised)
+    % C1, the real cleanup sites: each preview makes an onCleanup (previewInterrupted) before its state becomes computing
+    % or drawing and keeps it to its end, after the tail, so it runs on every return. After a preview that finished it
+    % must change nothing: Drawn, the drawing in the panel, the result kept, the polls off, no cancel in the Log. A
+    % figure, a figure on the probe (whose cleanup once ran before the tail and wiped the drawing), a figure across
+    % sessions and the redraw of its kept figure (drawSessionEntry). Auto off: only Preview computes here.
+    nCanceled5y = @() nnz(contains(string(app.LogArea.Value), "figure preview canceled"));
+    c05y = nCanceled5y();
+    app.FigureAutoSlider.Value = 0;
+    app.refreshFigurePreview(Force=true);
+    check(app.FigurePreviewState == "drawn" && ~isempty(figAxes()) && isstruct(app.FigurePreviewResult) && isempty(rn5y.PollFcn) ...
+        && nCanceled5y() == c05y && string(app.FigurePreviewBadge.Text.Text) == "Drawn", ...
+        sprintf('a figure previewed: the cleanup, run as the preview returns, changes nothing (%s)', app.FigurePreviewState));
+    FE.pages.Value = "probe";
+    app.onConfigChanged("figure", FE.pages);
+    app.refreshFigureObservations(Force=true);
+    app.refreshFigurePreview(Force=true);
+    PF5y = app.FigurePreviewResult;
+    tiles5y = findall(app.FigurePreviewPanel, 'Type', 'axes');
+    tiles5y = tiles5y(arrayfun(@(a) isappdata(a, 'ProbeTile'), tiles5y));
+    check(app.FigurePreviewState == "drawn" && isstruct(PF5y) && isfield(PF5y, 'kind') && string(PF5y.kind) == "probeFigure" ...
+        && ~isempty(tiles5y) && isempty(rn5y.PollFcn) && nCanceled5y() == c05y && contains(string(app.FigurePreviewLabel.Text), " tile"), ...
+        sprintf(['a figure on the probe previewed: the cleanup, run after the tail, changes nothing: Drawn, %d tile axes, the result ' ...
+        'kept, no cancel in the Log ("%s")'], numel(tiles5y), string(app.FigurePreviewLabel.Text)));
+    FE.pages.Value = "sessions";
+    app.onConfigChanged("figure", FE.pages);
+    idS5y = app.Config.Figures(k5y).id;
+    app.refreshFigureObservations(Force=true);
+    app.refreshFigurePreview(Force=true);
+    sessionsKept5y = @() isstruct(app.FigureSessionResults) && isfield(app.FigureSessionResults, 'res') && ~isempty(app.FigureSessionResults.res);
+    sesDrawn5y = app.FigurePreviewState == "drawn" && isstruct(app.FigurePreviewResult) && isfield(app.FigurePreviewResult, 'nSessions') ...
+        && sessionsKept5y() && ~isempty(findall(app.FigurePreviewPanel, 'Type', 'axes')) && isempty(rn5y.PollFcn);
+    app.onFigureSessionPicked();   % the "Figure:" drop-down's redraw of the kept figure (refreshFigurePreview Redraw: drawSessionEntry alone)
+    check(sesDrawn5y && app.FigurePreviewState == "drawn" && sessionsKept5y() && ~isempty(findall(app.FigurePreviewPanel, 'Type', 'axes')), ...
+        sprintf(['a figure across sessions previewed, then its kept figure drawn again: the cleanups (the compute''s, kept to ' ...
+        'its end over the drawing, and the drawing''s) change nothing: Drawn, its kept figures kept (%d, %s)'], sesDrawn5y, app.FigurePreviewState));
+
+    % C1, what the cleanup does on an interrupt. The suite cannot press Ctrl+C: it puts the app where an interrupt leaves it
+    % and runs the check the cleanup runs (refreshFigurePreview Interrupted=ID). A figure across sessions caught drawing
+    % (its kept figure, as drawSessionEntry draws it): Canceled, its kept figures and the "Figure:" drop-down let go
+    app.setFigurePreviewState("drawing", Message="Drawing ...");
+    app.refreshFigurePreview(Interrupted=idS5y, Sessions=true);
+    check(app.FigurePreviewState == "canceled" && ~sessionsKept5y() && app.FigureSessionDropDown.Visible == "off" ...
+        && string(app.FigurePreviewBadge.Text.Text) == "Canceled", ...
+        sprintf('an interrupted drawing of a figure across sessions: Canceled, its kept figures forgotten (%s)', app.FigurePreviewState));
+    FE.pages.Value = "each";
+    app.onConfigChanged("figure", FE.pages);
+    id5y = app.Config.Figures(k5y).id;
+    app.FigureAutoSlider.Value = 1;
+    app.refreshFigurePreview(Force=true);
+    % a figure caught computing (the polls on), caught computing after the polls ended, caught drawing: Canceled each
+    % time, the polls off, nothing kept; a preview that finished is left alone
     app.setFigurePreviewState("computing", Message="Computing ...");
     rn5y.PollFcn = @() drawnow("limitrate");
     app.refreshFigurePreview(Interrupted=id5y);
@@ -7087,13 +7135,21 @@ if S.sec("5y", "stuck or broken states: an interrupted preview, Run and Scan whi
         sprintf('an interrupted compute (polls on, state computing): Canceled, the polls off, nothing kept (%s)', app.FigurePreviewState));
     app.refreshFigurePreview(Force=true);
     app.refreshFigurePreview(Interrupted=id5y);   % a preview that finished is left alone (Drawn stays)
-    drawn5y = app.FigurePreviewState == "drawn";
+    drawn5y = app.FigurePreviewState == "drawn" && isstruct(app.FigurePreviewResult) && ~isempty(figAxes());
     rn5y.PollFcn = [];
     app.setFigurePreviewState("computing", Message="Computing ...");
-    app.refreshFigurePreview(Interrupted=id5y);   % computing, but the polls are off (the compute returned): the tail decides
-    check(drawn5y && app.FigurePreviewState == "computing", 'the check acts only when neither the tail nor the catch ran: a Drawn preview stays, a compute whose polls ended is left to its tail');
+    app.refreshFigurePreview(Interrupted=id5y);   % computing, the polls off: an interrupt after the compute returned, before the drawing
+    afterCompute5y = app.FigurePreviewState == "canceled";
+    app.refreshFigurePreview(Force=true);
+    app.setFigurePreviewState("drawing", Message="Drawing ...");
+    app.refreshFigurePreview(Interrupted=id5y);
+    check(drawn5y && afterCompute5y && app.FigurePreviewState == "canceled" && isempty(app.FigurePreviewResult), ...
+        sprintf(['the check acts only while the state is computing or drawing, that is, when neither the tail nor the catch ran: ' ...
+        'a Drawn preview stays (%d), an interrupt between the compute and the drawing (%d) or while it draws is Canceled'], drawn5y, afterCompute5y));
 
     % C2: Run and Scan are refused while a preview computes, as Test report and Generate are
+    app.refreshFigurePreview(Force=true);
+    app.setFigurePreviewState("computing", Message="Computing ...");   % (as a compute leaves it while its polls let a click in)
     rn5y.PollFcn = @() drawnow("limitrate");
     R5y = app.onRunExport(Figures=id5y, SessionFigures=string.empty(1, 0), Datasets=kF1, Export=false, Report=false);
     msgRun5y = string(app.StatusBar.Text);
@@ -7126,25 +7182,56 @@ if S.sec("5y", "stuck or broken states: an interrupted preview, Run and Scan whi
         && app.Config.Defaults.EventRef.n == before5y.Defaults.EventRef.n && app.AlignControls.N.Value == before5y.Defaults.EventRef.n ...
         && isequaln(app.gatherConfig().Defaults, before5y.Defaults), ...
         sprintf('a config whose control throws (threw: %d): the config and the controls stay as they were, not half the other config', threw5y));
+    % ... and the undo history and the kept previews with them: an edit of the figures (Action=) that cannot be shown leaves
+    % no step to undo; a config opened (MarkSaved) that cannot be shown neither clears the history nor drops the drawings
+    app.refreshFigurePreview(Force=true);
+    nUndo5y = numel(app.FigureHistory.Undo);
+    undoText5y = string(app.UndoMenu.Text);
+    badA5y = bad5y;
+    badA5y.Figures(k5y).title = "an edit that cannot be shown";   % the figures differ: the Action records a step first
+    try
+        app.applyConfig(badA5y, Action="Add figure");
+    catch
+    end
+    stepGone5y = numel(app.FigureHistory.Undo) == nUndo5y && string(app.UndoMenu.Text) == undoText5y ...
+        && app.Config.Figures(k5y).title == before5y.Figures(k5y).title;
+    panel5y = app.FigurePreviewPanel;
+    state5y = app.FigurePreviewState;
+    try
+        app.applyConfig(bad5y, MarkSaved=true);
+    catch
+    end
+    check(nUndo5y >= 1 && stepGone5y && numel(app.FigureHistory.Undo) == nUndo5y && string(app.UndoMenu.Text) == undoText5y ...
+        && isvalid(panel5y) && app.FigurePreviewPanel == panel5y && app.FigurePreviewState == state5y && state5y == "drawn" ...
+        && isstruct(app.FigurePreviewResult) && ~isempty(figAxes()) && app.Config.Name == before5y.Name, ...
+        sprintf(['an edit of the figures that cannot be shown leaves no undo step (%d), and a config opened that cannot be shown keeps ' ...
+        'the %d undo step(s) and the drawing in its container (%s)'], stepGone5y, nUndo5y, app.FigurePreviewState));
 
     % C6: the arrow keys are Arrange's only while the last click was in the preview; a click in a field or the tree gives them back
+    % (what a real click sets is not checked here: whether a click on a field, a spinner or a button of a uifigure sets the
+    % window's CurrentObject is a manual check; the suite sets CurrentObject itself, and says SKIP when it cannot)
     pressed5y = @(k) struct('Key', k, 'Modifier', {{}}, 'Character', '');
-    app.FigureArrangeFocus = true;
-    app.onKeyPress(pressed5y('leftarrow'));
-    stays5y = app.FigureArrangeFocus;   % (nothing clicked since: the overlay's click is the last)
     canSet5y = true;
     try
-        app.Fig.CurrentObject = app.ConfigNameField;
+        app.Fig.CurrentObject = app.FigurePreviewPanel;   % the last click in the preview (the overlay is in its container)
+        inPreview5y = isequal(app.Fig.CurrentObject, app.FigurePreviewPanel);
+        app.Fig.CurrentObject = app.ConfigNameField;      % a click in a field since
+        canSet5y = inPreview5y && isequal(app.Fig.CurrentObject, app.ConfigNameField);
     catch
         canSet5y = false;
     end
-    app.FigureArrangeFocus = true;
-    app.onKeyPress(pressed5y('leftarrow'));
     if canSet5y
-        check(stays5y && ~app.FigureArrangeFocus, 'an arrow key after a click in a field (the window''s CurrentObject): the arrows are the field''s, Arrange''s focus is cleared; with nothing clicked since the overlay, it stays');
+        app.Fig.CurrentObject = app.FigurePreviewPanel;
+        app.FigureArrangeFocus = true;
+        app.onKeyPress(pressed5y('leftarrow'));
+        stays5y = app.FigureArrangeFocus;
+        app.Fig.CurrentObject = app.ConfigNameField;
+        app.FigureArrangeFocus = true;
+        app.onKeyPress(pressed5y('leftarrow'));
+        check(stays5y && ~app.FigureArrangeFocus, ['an arrow key after a click in a field (the window''s CurrentObject): the arrows ' ...
+            'are the field''s, Arrange''s focus is cleared; with the preview clicked last, it stays']);
     else
-        fprintf('  (the window''s CurrentObject cannot be set here: the arrow keys after a click in a field are not exercised)\n');
-        check(stays5y, 'an arrow key with the overlay clicked last keeps Arrange''s focus');
+        fprintf('  SKIP: the window''s CurrentObject cannot be set here: the arrow keys after a click in the preview or in a field are not checked\n');
     end
     app.FigureArrangeFocus = true;
     app.onFigureTreeSelected(app.FiguresTree.SelectedNodes);

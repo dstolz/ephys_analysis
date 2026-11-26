@@ -1507,10 +1507,16 @@ still the figure as it is (`finishPreview`). An edit undone meanwhile leaves it
 Auto's limit); with **Auto** on (the Figures tab shown, the redraw under its
 limit) the edit asked for one, as a **Preview** press does, and the preview
 ends *Out of date*, undone or not. Closing the app stops it too. An interrupt (Ctrl+C in the
-Command Window) while it computes or draws leaves it as **Cancel** does:
-*Canceled*, the panel empty but for why, **Preview** computes it again (the
-cleanup that stops the runner's polls does it when neither the tail nor the
-catch ran: `refreshFigurePreview`'s `previewInterrupted`).
+Command Window) while it computes or draws -- a figure, a figure on the probe,
+a figure across sessions, or one of its kept figures drawn after a **Figure:**
+pick -- leaves it as **Cancel** does: *Canceled*, the panel empty but for why
+(a figure across sessions forgets its kept figures too), **Preview** computes
+it again. Each preview keeps a cleanup to its end (`refreshFigurePreview`'s
+`previewInterrupted`), which stops the runner's polls and acts only while the
+state is still *Computing* or *Drawing*, that is, when neither the tail nor
+the catch ran: a preview that finished is never touched. A redraw from what
+the app holds with no busy card (`quickFigurePreview`) goes back to the badge
+it had instead.
 A preview and a run share the runner's computing and refuse each other: **Run**
 (and so Generate and Test report) and **Scan** do nothing while a preview computes or draws, and
 the status bar says so (see
@@ -2923,11 +2929,16 @@ exactly), a PSTH's **Onset line**, the preview taking the latencies once for
 both panels (one `F.latency` entry) and the onset for the PSTH, an edit of the
 method computing the latencies again and nothing else, **Copy settings**
 listing the block, and a figure without a raster, PSTH or heat map hiding the
-section. Section 5y is the stuck and broken states: an interrupted preview (the check the
-cleanup runs, called by hand: the suite cannot press Ctrl+C), Run and Scan refused while a
+section. Section 5y is the stuck and broken states: a figure, a figure on the probe, a figure across sessions and
+its kept figure drawn again each previewed and left **Drawn** with its drawing and result by the cleanup that runs as
+the preview returns (no cancel in the Log), and an interrupted preview (the check the cleanup runs, called by hand:
+the suite cannot press Ctrl+C): computing with the polls on or off, or drawing (a figure across sessions forgetting
+its kept figures), is *Canceled*, a drawn one is left alone; Run and Scan refused while a
 preview computes, a Max groups of 150 shown and gathered unchanged, a config a control cannot show
-leaving the config and the controls as they were, the arrow keys given back after a click in a field or the tree
-(the window's `CurrentObject`, when it can be set), the notepad written through the new object after a re-scan,
+leaving the config and the controls as they were, and the undo history and the drawing too (an edit of the figures
+leaves no step, a config opened neither clears the history nor drops the drawing), the arrow keys given back after a
+click in a field or the tree (the window's `CurrentObject`, set by the suite: when it cannot be set the check says
+SKIP; whether a real click sets it is a manual check), the notepad written through the new object after a re-scan,
 Apply last change after **Down** offering nothing, the Shift+click selection let go after Remove, Undo, Redo and a config opened,
 Save and Close with preferences that cannot be written, and Close during a run, and a window deleted during a run (its
 report still written). Section 6 is the preferences remembered (the last

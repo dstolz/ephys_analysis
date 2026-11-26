@@ -12,8 +12,12 @@ function applyConfig(obj, cfg, opts)
 %   (showScanLabel: what scannedSource reads, so a config that differs only
 %   in its ticks or filter asks for no scan). It is all or nothing: when a
 %   control cannot show a value (it throws), the controls and the config
-%   the app holds go back to what they were, the Log says so and the error
-%   goes on, so a Save does not write half of each config.
+%   the app holds go back to what they were, and so do the undo history
+%   (an Action's step is taken back; a config opened does not clear it),
+%   the panels Shift+click selected and the figure ids followed
+%   (trackFigureIds); a config opened drops the figures' kept previews
+%   only once it shows, so they are kept too. The Log says so and the
+%   error goes on, so a Save does not write half of each config.
 arguments
     obj (1,1) EphysFigGenApp
     cfg (1,1) EphysAnalysisConfig
@@ -22,28 +26,38 @@ arguments
 end
 obj.Applying = true;
 restore = onCleanup(@() setApplying(obj, false));
+prev = obj.Config;   % what a control that cannot show CFG goes back to, as it is before anything below changes
+history = obj.FigureHistory;   % (a value: a copy)
+extra = obj.FigurePanelExtra;
+extraOf = obj.FigurePanelIds;
 if ~opts.MarkSaved; trackFigureIds(obj, cfg); end   % an edit: an automatic figure id may follow it
 drawn = ~ismember(obj.FigurePreviewState, ["idle" "computing" "drawing"]);   % a preview of the last config shows
+busy = ismember(obj.FigurePreviewState, ["computing" "drawing"]);
 if opts.MarkSaved
     obj.FigurePanelExtra = strings(1, 0);   % another config's figures: the primary panel alone, whatever the ids
     obj.FigureHistory = obj.FigureHistory.clear();   % another config: its edits start here
     refreshEditMenu(obj);
-    if ~ismember(obj.FigurePreviewState, ["computing" "drawing"]); clearFigureViews(obj); end   % its figures' containers and editor states (ids may repeat)
 elseif opts.Action ~= ""
     recordFigureEdit(obj, cfg, opts.Action);
 end
-prev = obj.Config;
-history = obj.FigureHistory;
 try
     pushConfig(obj, cfg);
 catch ME   % all or nothing: a control that cannot show a value must not leave the controls (what Save gathers) half one config, half another
     try
+        if ~opts.MarkSaved; trackFigureIds(obj, prev); end   % the ids followed back
+        obj.FigureHistory = history;   % (an Action's step taken back; a config opened: its edits as they were)
+        obj.FigurePanelExtra = extra;
+        obj.FigurePanelIds = extraOf;   % (so the editor shown again keeps the Shift+click panels)
+        refreshEditMenu(obj);
         pushConfig(obj, prev);   % the controls as they were, the config the app holds with them
-        obj.FigureHistory = history;
     catch
     end
     obj.log("Could not show the config: " + string(ME.message) + " The window keeps the config it had.");
     rethrow(ME);
+end
+if opts.MarkSaved && ~busy
+    clearFigureViews(obj);   % the last config's containers and editor states (ids may repeat), once this one shows
+    obj.syncFigureView();    % the selected figure's own container, new
 end
 if opts.MarkSaved
     obj.SavedConfigStruct = cfg.toStruct();

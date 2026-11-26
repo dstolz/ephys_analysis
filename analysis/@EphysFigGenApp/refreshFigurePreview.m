@@ -67,12 +67,18 @@ function refreshFigurePreview(obj, opts)
 %   selected figure's is shown (syncFigureView) and drawn when out of date
 %   (previewFigureView).
 %   An interrupt (Ctrl+C) while it computes or draws leaves the preview as
-%   Cancel does (Canceled, the panel empty but for why, press Preview):
-%   the onCleanup that stops the runner's polls also acts when the state is
-%   still computing (polls running) or drawing, that is, when neither the
-%   tail (finishPreview) nor the catch (previewFailed) ran. Interrupted=ID
-%   (+ Sessions) runs that same check by hand, as the cleanup does (the
-%   tests use it: they cannot press Ctrl+C).
+%   Cancel does (Canceled, the panel empty but for why, press Preview; a
+%   figure across sessions also forgets its kept figures): each preview --
+%   a figure, a figure across sessions and the drawing of its kept figure
+%   (drawSessionEntry: the Redraw path too), a probe figure -- makes an
+%   onCleanup (previewInterrupted) before the state becomes computing or
+%   drawing and keeps it to its end, after the tail. It stops the runner's
+%   polls, and acts only when the state is still computing or drawing,
+%   that is, when neither the tail (finishPreview) nor the catch
+%   (previewFailed) nor a kept figure's skip set it: never after a
+%   drawing that finished. Interrupted=ID (+ Sessions) runs that same
+%   check by hand, as the cleanup does (the tests use it: they cannot press
+%   Ctrl+C).
 arguments
     obj (1,1) EphysFigGenApp
     opts.Force (1,1) logical = false
@@ -200,10 +206,10 @@ L.Text = "Computing " + what + " ...";
 rn = obj.Runner;
 rn.clearCancel();   % before the badge paints: a click on Cancel can come in while it does
 obj.FigurePreviewRedo = false;
+interrupted = onCleanup(@() previewInterrupted(obj, rn, spec.id, false)); %#ok<NASGU> to the end: the polls stop; an interrupt from here on is a cancel (the tail or the catch sets the state on every return)
 obj.setFigurePreviewState("computing", Message="Computing " + what + " on " + src.name + " ...");
 t0 = tic;
 rn.PollFcn = @() drawnow("limitrate");
-polling = onCleanup(@() previewInterrupted(obj, rn, spec.id, false));
 try
     F = rn.computeFigure(src, spec, Observation=obs, Reuse=true);   % what an earlier preview computed on the same data is taken again (a look-only edit computes nothing)
     rn.PollFcn = [];
@@ -256,10 +262,10 @@ L.Text = "Computing " + what + " across " + obs.nSessions + " session(s) ...";
 rn = obj.Runner;
 rn.clearCancel();
 obj.FigurePreviewRedo = false;
+interrupted = onCleanup(@() previewInterrupted(obj, rn, spec.id, true)); %#ok<NASGU> to the end, over drawSessionEntry too: an interrupt is a cancel
 obj.setFigurePreviewState("computing", Message="Computing " + what + " across " + obs.nSessions + " session(s) ...");
 t0 = tic;
 rn.PollFcn = @() drawnow("limitrate");
-polling = onCleanup(@() previewInterrupted(obj, rn, spec.id, true));
 try
     res = rn.computeSessionFigure(spec, obj.tickedDatasetIndices(), Observation=obs);
     rn.PollFcn = [];
@@ -267,7 +273,6 @@ catch ME
     previewFailed(obj, spec, ME, Sessions=true);   % (its kept figures and their picker go too)
     return
 end
-clear polling
 labels = string({res.label});
 j = 1;
 if isstruct(obj.FigureSessionResults) && isfield(obj.FigureSessionResults, 'label')   % keep the figure picked, by its label
@@ -299,6 +304,7 @@ end
 F = e.F;
 obj.FigurePreviewResult = F;
 L.Text = "Drawing " + K.what + " ...";
+interrupted = onCleanup(@() previewInterrupted(obj, [], spec.id, true)); %#ok<NASGU> the Redraw path's only one (no polls): an interrupt while it draws is a cancel; nothing once drawn, skipped or failed
 obj.setFigurePreviewState("drawing", Message="Drawing " + K.what + " ...");
 try
     renderFigure(F, spec, obj.FigurePreviewPanel, Scale=previewScale(obj, spec), OnRemember=@(rules) obj.rememberFigureAesthetics(spec.id, rules), ...
@@ -357,10 +363,10 @@ L.Text = "Computing " + what + " ...";
 rn = obj.Runner;
 rn.clearCancel();   % before the badge paints: a click on Cancel can come in while it does
 obj.FigurePreviewRedo = false;
+interrupted = onCleanup(@() previewInterrupted(obj, rn, spec.id, false)); %#ok<NASGU> to the end, after the tail: an interrupt is a cancel, a drawing finished is left alone
 obj.setFigurePreviewState("computing", Message="Computing the tiles of " + spec.id + " on " + src.name + " ...");
 t0 = tic;
 rn.PollFcn = @() drawnow("limitrate");
-polling = onCleanup(@() previewInterrupted(obj, rn, spec.id, false));
 try
     PF =rn.computeProbeFigure(src, spec, Reuse=true, ProgressFcn=@(i, n, lab) obj.setFigurePreviewState("computing", ...
         Message=sprintf("Computing tile %d/%d (%s) on %s ...", i, n, lab, src.name)));
@@ -379,7 +385,6 @@ catch ME
     previewFailed(obj, spec, ME);
     return
 end
-clear polling
 secs = toc(t0);
 nLeft = 0;
 if isfield(PF, 'left') && isstruct(PF.left)
@@ -471,16 +476,26 @@ end
 
 
 function previewInterrupted(obj, rn, id, sessions)
-%previewInterrupted  The cleanup of a preview's polls: they stop, and an interrupt (Ctrl+C) leaves the state as Cancel does.
-%   Acts only when neither finishPreview nor previewFailed ran: the state is
-%   still "computing" with the polls on (rn.PollFcn is cleared when the
-%   compute returns), or "drawing". Then the preview is Canceled (previewFailed's
-%   words), so the badge, the card and the guards that read "computing"
-%   (Run, Scan, Test report, Redraw All) are free again.
-wasPolling = ~isempty(rn) && isvalid(rn) && ~isempty(rn.PollFcn);
+%previewInterrupted  A preview's cleanup: the runner's polls stop, and an interrupt (Ctrl+C) leaves the state as Cancel does.
+%   The onCleanup of each preview (previewNow's figure, sessionPreview,
+%   drawSessionEntry, which is the Redraw path's whole work, probePreview),
+%   made before the state becomes "computing" (or "drawing") and kept to
+%   the end of that function, so it runs once the function has returned,
+%   after its tail. Every return sets the state the preview ends in --
+%   finishPreview (Drawn, Out of date), previewFailed (Canceled, Cannot
+%   draw, Failed), a kept session figure that is skipped or failed -- so
+%   the state is still "computing" or "drawing" only when none of them ran:
+%   an interrupt (or an error thrown outside the catch). Then, and only
+%   then, the preview is Canceled (previewFailed's words; SESSIONS: a
+%   figure across sessions, its kept figures forgotten too), so the badge,
+%   the card and the guards that read "computing" or "drawing" (Run, Scan,
+%   Test report, Generate, Export preview, Redraw All, the previews
+%   themselves) are free again; after a success it changes nothing. RN [] =
+%   no polls to stop (drawSessionEntry). quickFigurePreview has its own
+%   (release: the state it had before, when its tail did not run).
 stopPolling(rn);
 if ~isvalid(obj) || isempty(obj.Fig) || ~isvalid(obj.Fig); return; end
-if obj.FigurePreviewState == "drawing" || (obj.FigurePreviewState == "computing" && wasPolling)
+if ismember(obj.FigurePreviewState, ["computing" "drawing"])
     previewFailed(obj, struct('id', id), MException("EphysAnalysisRunner:Canceled", "The preview was interrupted."), Sessions=sessions);
 end
 end

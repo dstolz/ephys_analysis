@@ -467,7 +467,9 @@ drawn on it current again.
 (`syncFigureView`), so a figure you switch away from keeps its drawing, badge,
 status line and *Figure:* pick, and switching back shows it at once, without
 computing or drawing it again, unless it is out of date: then it is drawn as
-after an edit (at once with **Auto**, else marked *Out of date*). The eight
+after an edit (at once with **Auto**, else marked *Out of date*), or, when only
+the Export tab's page changed since it was drawn, drawn again on the new page
+from what it holds, nothing computed ([the page](#the-page-a-figure-is-exported-on)). The eight
 figures shown last keep theirs (`EphysFigGenApp.MaxFigureViews`, a constant:
 each holds its computed result and its graphics); a figure beyond them is drawn
 again when it is shown. Removing a figure frees its container, and another
@@ -1401,8 +1403,13 @@ figure with the Export tab size shows that page in the units, and follows the
 Export tab when it changes: its preview is drawn again on the new page from the
 figure it holds, nothing computed, when it was current (a figure across sessions
 from its kept figures), else it waits as after any edit; the other figures'
-previews kept on the old page are out of date (the tree marks them), and are
-drawn again when shown. Every export of the figure -- a run, Generate,
+previews kept on the old page are out of date (the tree marks them) until you
+show one: a preview that was current on the old page is then drawn again on the
+new one from what it holds, nothing computed and whatever **Auto** says (a
+figure across sessions from its kept figures, which it keeps;
+`figureViewFresh`, `previewFigureView`), any other as after an edit. While a
+run goes a figure across sessions is not drawn again: it waits as after an
+edit, its kept figures forgotten. Every export of the figure -- a run, Generate,
 **Export preview**, the generated scripts -- draws on that page
 (`figureExportSize`, `newExportFigure`).
 
@@ -1495,8 +1502,11 @@ stopped. Edits made while it computes do not start a second preview; they
 leave the one that finishes *Out of date*, whether **Auto** is on or off, and so
 does another dataset or observation picked, a scan or a page changed
 meanwhile: a preview ends **Drawn** only when what it was computed for is
-still the figure as it is (an edit undone meanwhile leaves it **Drawn**;
-`finishPreview`). Closing the app stops it too. An interrupt (Ctrl+C in the
+still the figure as it is (`finishPreview`). An edit undone meanwhile leaves it
+**Drawn** when the edit asked for no redraw (**Auto** off, or a redraw over
+Auto's limit); with **Auto** on (the Figures tab shown, the redraw under its
+limit) the edit asked for one, as a **Preview** press does, and the preview
+ends *Out of date*, undone or not. Closing the app stops it too. An interrupt (Ctrl+C in the
 Command Window) while it computes or draws leaves it as **Cancel** does:
 *Canceled*, the panel empty but for why, **Preview** computes it again (the
 cleanup that stops the runner's polls does it when neither the tail nor the
@@ -1540,7 +1550,7 @@ the config keeps it off and the status bar says so. **Cancel** on the
 progress dialog, the Export tab's **Cancel** and the toolbar's **Cancel run**
 stop it before the next observation; the observations left are *canceled*. One
 run goes at a time: while Generate runs, Validate, Plan, Run, Generate selected figure, Redraw All and
-Export preview are off, and the previews compute nothing: an edit, or an observation or dataset picked, marks a drawn preview *Out of date* (one of a figure across sessions' figures picked under **Figure:** too; with **Auto** on, a label's or title's text alone is still set on the drawing);
+Export preview are off, and the previews compute nothing: an edit, or an observation or dataset picked, marks a drawn preview *Out of date* (with **Auto** on, a label's or title's text alone is still set on the drawing); another of a figure across sessions' figures picked under **Figure:** is not drawn, so it is not taken: the drop-down goes back to the one drawn, which stays **Drawn**, and the line under the preview says to pick it when the run is done; an Export tab page of another size draws the shown figure's current preview again on it from what it holds, as at any time (it stays **Drawn**), but a figure across sessions is marked *Out of date* instead, its kept figures forgotten;
 a preview that is computing (or Redraw All going) makes Generate wait too (the status bar says so).
 When it ends, the Export tab's results table holds the
 figure's rows (one per dataset, `Kind` `figure`, `<n> observation(s)` as the
@@ -2145,9 +2155,13 @@ datasets.
   when the observation makes several figures (one per subject, or per trial
   group), picks which of them is drawn. They are all kept, so picking another
   draws it without computing; the pick is kept by its label through the next
-  Preview. The kept figures are forgotten, and the drop-down hidden, when
-  another figure is selected or this one is edited, so an entry never redraws
-  a result that is no longer current (press **Preview** again). A figure that
+  Preview. While a run goes a pick draws nothing and is not taken: the
+  drop-down goes back to the figure drawn (pick it again when the run is done).
+  The kept figures stay with the figure when another figure is selected (its
+  own preview container), and an Export tab page of another size draws the one
+  picked again on the new page from them, when it is shown. They are
+  forgotten, and the drop-down hidden, when this figure is edited, so an entry
+  never redraws a result that is no longer current (press **Preview** again). A figure that
   could not be made (too few sessions drew it, or hold the trial group) is
   *Cannot draw*, with the reason.
 - The line under the preview reads *"card, site ch 7 -320 µm across sessions: 3
@@ -3194,7 +3208,12 @@ merged figure (a `nSessions` result over both sessions, the status line *"...
 across sessions: 2 merged"*, the PSTH drawn, the "Figure:" drop-down hidden for
 one figure). An edit (a figure per subject, a figure per trial group) leaves the
 preview *Out of date* with the *press Preview* line; after **Preview** the
-"Figure:" drop-down picks which figure is drawn without computing, and the
+"Figure:" drop-down picks which figure is drawn without computing. Another
+picked from a timer while a run of the figure goes is not taken (the drop-down
+back on the figure drawn, **Drawn** during the run and after); with a PSTH
+added and shown, an Export tab page 1.5 times larger, the figure across
+sessions shown again is drawn on the new page from its kept figures, the pick
+kept, no busy card. The
 script of **Export code**, run, merges the observation over both datasets and
 gives the figure picked there. **Generate selected figure**
 then writes a page per matched site into the sessions folder
@@ -3243,12 +3262,13 @@ figure as it is now. With Auto off, a title typed from a timer while the preview
 it in) leaves the preview that finishes *Out of date*, the tree's mark too, its drawing without the title, and
 **Preview** then draws it; another dataset picked while it computes leaves the drawing of the first *Out of date*,
 and **Open in window** computes it again first, so the window is the active dataset's. A look remembered in the
-preview's editor (its OK: `onRemember`, then the redraw) stays **Drawn**, and *Undo Remember looks* leaves the
-drawing that shows it *Out of date*; one remembered in an **Open in window** figure's editor leaves the preview
+preview's editor (its OK: `onRemember`, then the redraw) stays **Drawn**, the drawing's key holding the look
+(`FigurePreviewDrawn`) and the tree, marked again, plain, and *Undo Remember looks* leaves the drawing that shows
+it *Out of date*; one remembered in an **Open in window** figure's editor leaves the preview
 *Out of date* too. An Export tab page 1.5 times larger draws the preview again at its new scale (`renderFigure`'s
 `Scale`, as `previewScale` gives it) from the result it holds, nothing computed and no busy card, and marks the
-other figure's kept preview out of date in the tree; shown again with Auto on, that one is drawn on the new page
-from the cache, no busy card. While a run goes (one figure on one dataset, from a timer), an observation picked
+other figure's kept preview out of date in the tree; shown again with Auto off, that one is drawn on the new page
+from what it holds, nothing computed, no busy card: **Drawn**. While a run goes (one figure on one dataset, from a timer), an observation picked
 draws nothing and leaves the drawing *Out of date*, and **Export preview** then computes the observation picked
 first, its window naming it; with Auto on, a y axis moved to the right while a run goes leaves it *Out of date*.
 

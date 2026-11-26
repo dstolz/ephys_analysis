@@ -16,7 +16,11 @@ function finishPreview(obj, spec, obs, src, drawnKey, dataKey, secsCompute, secs
 %       computed (the runner's polls let callbacks run: Runner.PollFcn) --
 %       an edit with Auto on or off, another dataset, observation or page,
 %       a scan -- or a Preview press meanwhile (FigurePreviewRedo). An edit
-%       undone meanwhile leaves it Drawn.
+%       undone meanwhile leaves it Drawn when the edit asked for no redraw
+%       (Auto off, or a redraw over Auto's limit: autoFigurePreview only
+%       marks); one that asked for a redraw (Auto on, under its limit)
+%       set FigurePreviewRedo, as a Preview press does, and leaves it Out
+%       of date, undone or not.
 %     - the status line: "<id>, <observation> on <dataset> (0.4 s);
 %       right-click to change colors, lines and fonts", with slowNote's
 %       and batchNote's words

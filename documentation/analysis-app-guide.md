@@ -329,11 +329,17 @@ See [Lab database](database.md) for the details.
 - **The preview says *Out of date*.** The figure changed and was not drawn
   again: **Auto** is off, or the redraw would take longer than Auto allows
   (the line under the preview says *slow*). It also says so when you changed
-  something while the preview was computing or while a run was going (the
-  figure, the dataset, the unit or channel, the Export tab's page size), or
-  undid a remembered look. Press **Preview**, or drag the **Auto** slider to
-  the right. **Open in window** and **Export preview** compute it again
-  first, so they never show an old drawing.
+  something while the preview was computing (the figure, the dataset, the
+  unit or channel, the Export tab's page size) or while a run was going (the
+  figure, the dataset, the unit or channel). A new page size on the Export
+  tab does not make an up-to-date preview out of date: it is drawn again on
+  the new page at once (another figure's when you show it), nothing
+  computed, also during a run, except a figure across sessions during a run,
+  which then waits for **Preview**. Press **Preview**, or drag the **Auto**
+  slider to the right. **Open in window** and **Export preview** compute it
+  again first, so they never show an old drawing.
+- **A pick under *Figure:* does nothing while a run goes.** The figure
+  shown stays as it is. Pick it again when the run is done.
 - **A spectrum drops off at its top end, or Validate warns about *fpass*.**
   The signal was downsampled (Data tab, **Downsample...**), and the filter
   that keeps the lower rate clean also lowers the highest frequencies. Lower

@@ -4043,7 +4043,7 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
     clear restoreAutoLimit
 end
 
-if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the preview, Generate")
+if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the preview, a Figure: pick while a run goes, shown again after an Export page change, Generate")
     savedConfig();
     noFigures();
     groupedBy("Depth");
@@ -4121,6 +4121,49 @@ if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the 
     check(app.FigurePreviewState == "drawn" && nRes > 1 && app.FigureSessionDropDown.Visible == "on" ...
         && app.FigureSessionResults.label == app.FigureSessionResults.res(2).label && contains(string(app.FigurePreviewLabel.Text), app.FigureSessionResults.res(2).label), ...
         sprintf('a figure per trial group: the "Figure:" drop-down picks which of the %d is drawn, computing nothing', nRes));
+    % a "Figure:" pick while a run goes draws nothing and is not taken: the drop-down goes back to the figure drawn, which
+    % stays Drawn (its label, which Preview, Export preview and Export code follow, is still the drawing's)
+    exported();   % a run's report folder (its run record goes there)
+    wasCapture5g = AppDialog.capture(true);   % a run's warnings alert, if any, is read, not shown
+    pick5g = app.FigureSessionDropDown.Value;
+    other5g = 1 + mod(pick5g, max(nRes, 1));   % another of its figures
+    setappdata(groot, 'runProbe', "");
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, app, @(a) pickSessionFigure(a, other5g)));
+    start(tm);
+    app.onRunExport(Figures=string.empty(1, 0), SessionFigures=sid, Datasets=app.tickedDatasetIndices(), Export=false, Report=false);
+    stop(tm); delete(tm);
+    AppDialog.capture(wasCapture5g);
+    pr5g = string(getappdata(groot, 'runProbe'));
+    rmappdata(groot, 'runProbe');
+    K5g = app.FigureSessionResults;
+    check(pr5g == "drawn" && ~app.Running && app.FigurePreviewState == "drawn" && app.FigureSessionDropDown.Value == pick5g ...
+        && isstruct(K5g) && isfield(K5g, 'res') && K5g.label == K5g.res(pick5g).label && contains(string(app.FigurePreviewLabel.Text), "when it is done"), ...
+        sprintf(['a "Figure:" pick while a run goes draws nothing and is not taken: the drop-down back on the figure drawn, ' ...
+        'Drawn during the run and after (%s, %s; "%s")'], pr5g, app.FigurePreviewState, string(app.FigurePreviewLabel.Text)));
+    % the Export tab's page changed while another figure shows: shown again, the figure across sessions is drawn on the new
+    % page from its kept figures (the "Figure:" pick too), nothing computed, and they are not forgotten
+    app.onAddFigure("psth");   % another figure, shown
+    idO5g = app.Config.Figures(app.SelectedFigure).id;
+    XS5g = app.ExportControls;
+    X05g = [XS5g.Width.Value XS5g.Height.Value];
+    XS5g.Width.Value = 1.5 * X05g(1);
+    XS5g.Height.Value = 1.5 * X05g(2);
+    app.onConfigChanged("export");   % the PSTH drawn again on the new page; the figure across sessions' kept preview out of date
+    busy5g = app.FigurePreviewBusyCount;
+    app.onFigureSelected(app.Config.figureIndex(sid));
+    K5g = app.FigureSessionResults;
+    nK5g = 0;
+    if isstruct(K5g) && isfield(K5g, 'res'); nK5g = numel(K5g.res); end
+    check(app.FigurePreviewState == "drawn" && app.FigurePreviewBusyCount == busy5g && nK5g == nRes ...
+        && app.FigureSessionDropDown.Visible == "on" && app.FigureSessionDropDown.Value == pick5g && K5g.label == K5g.res(pick5g).label, ...
+        sprintf(['the Export tab''s page changed while another figure showed: the figure across sessions, shown again, is drawn on ' ...
+        'the new page from its kept figures (%d of %d kept, the "Figure:" pick too), nothing computed: %s'], nK5g, nRes, app.FigurePreviewState));
+    XS5g.Width.Value = X05g(1);
+    XS5g.Height.Value = X05g(2);
+    app.onConfigChanged("export");   % (the figure shown, current: drawn again on the old page from its kept figures)
+    app.onFigureSelected(app.Config.figureIndex(idO5g));   % (the PSTH, kept on the larger page: drawn again from what it holds)
+    app.onRemoveFigure();
+    app.onFigureSelected(app.Config.figureIndex(sid));
     codeFileS = fullfile(root, 'preview_sessions.m');
     codeS = app.onFigureCode(string(codeFileS));
     [FcS, hcS, DcS] = runPreviewCode(codeFileS);
@@ -6919,11 +6962,14 @@ if S.sec("5x", "the preview's badge says Drawn only for a drawing of the figure 
     look5x = struct('role', "rateFill", 'group', "", 'property', "FaceAlpha", 'value', 0.4);
     ctx5x.onRemember(look5x);
     ctx5x.redraw(look5x);
-    remembered5x = app.FigurePreviewState == "drawn" && lookOf5x(k5x) == "fresh" && isscalar(app.Config.Figures(k5x).aesthetics);
+    app.setFigurePreviewState(app.FigurePreviewState);   % the tree's marks made again now (markFigureTree): nothing since the remember did
+    remembered5x = app.FigurePreviewState == "drawn" && lookOf5x(k5x) == "fresh" && isscalar(app.Config.Figures(k5x).aesthetics) ...
+        && isstruct(app.FigurePreviewDrawn) && isequaln(app.FigurePreviewDrawn.figure.aesthetics, app.Config.Figures(k5x).aesthetics);   % the drawing's key holds the look
     app.onUndoRedo("undo");
     check(remembered5x && isempty(app.Config.Figures(k5x).aesthetics) && app.FigurePreviewState == "stale" ...
         && string(app.FigurePreviewBadge.Text.Text) == "Out of date" && lookOf5x(k5x) == "stale", ...
-        sprintf(['a look remembered in the preview''s editor leaves it Drawn (%d); Undo Remember looks with Auto off: ' ...
+        sprintf(['a look remembered in the preview''s editor leaves it Drawn, the drawing''s key holding the look and the tree, ' ...
+        'marked again, plain (%d); Undo Remember looks with Auto off: ' ...
         'the drawing, which shows the look, is Out of date (%s)'], remembered5x, app.FigurePreviewState));
     % ... remembered in an Open in window figure's editor, which draws the window only: the preview follows as after an edit
     app.refreshFigurePreview(Force=true);
@@ -6959,11 +7005,14 @@ if S.sec("5x", "the preview's badge says Drawn only for a drawing of the figure 
         && abs(scaleA - wantA) < 1e-6 && abs(scaleA - scale0) > 1e-3 && lookOf5x(k5x) == "fresh" && lookOf5x(kB5x) == "stale", ...
         sprintf(['a larger Export tab page: the preview drawn again at its new scale (%.3g, was %.3g; previewScale %.3g), nothing computed, ' ...
         'Drawn; the other figure''s kept preview out of date in the tree (%s)'], scaleA, scale0, wantA, lookOf5x(kB5x)));
+    app.FigureAutoSlider.Value = 0;   % (not Auto's: a drawing current but for its page is drawn again from what it holds)
     app.onFigureSelected(kB5x);
     scaleB = previewDrawScale(app.FigurePreviewPanel);
     wantB = wantScale(kB5x);
     check(app.FigurePreviewState == "drawn" && app.FigurePreviewBusyCount == busy5x && abs(scaleB - wantB) < 1e-6 && lookOf5x(kB5x) == "fresh", ...
-        sprintf('shown again (Auto on), that figure is drawn again on the new page from the cache, no busy card (scale %.3g; previewScale %.3g)', scaleB, wantB));
+        sprintf(['shown again (Auto off), that figure is drawn again on the new page from what it holds, nothing computed, ' ...
+        'no busy card: Drawn (scale %.3g; previewScale %.3g)'], scaleB, wantB));
+    app.FigureAutoSlider.Value = 1;
     XC5x.Width.Value = X05x(1);
     XC5x.Height.Value = X05x(2);
     app.onConfigChanged("export");
@@ -7559,6 +7608,13 @@ function pickObservation(app, i)
 %pickObservation  Pick observation I in the drop-down over the preview, as a click does (onFigureObservationChanged).
 app.FigureObservationDropDown.Value = i;
 app.onFigureObservationChanged();
+end
+
+
+function pickSessionFigure(app, j)
+%pickSessionFigure  Pick a session figure's kept figure J in the "Figure:" drop-down under the preview, as a click does (onFigureSessionPicked).
+app.FigureSessionDropDown.Value = j;
+app.onFigureSessionPicked();
 end
 
 

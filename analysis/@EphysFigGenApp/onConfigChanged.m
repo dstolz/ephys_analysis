@@ -35,7 +35,9 @@ function onConfigChanged(obj, what, src)
 %   is drawn again on the new page in the same way when it was current (a
 %   figure across sessions from its kept figures), else as after any edit;
 %   the other figures' kept previews, laid out on the old page, are out of
-%   date (figureViewKey's page; the tree marks them). "ticks" (a Run tick on the Data tab: the
+%   date (figureViewKey's page; the tree marks them) until shown: then
+%   each is drawn again on the new page from what it holds, nothing
+%   computed (previewFigureView). "ticks" (a Run tick on the Data tab: the
 %   config's Selection and Datasets in either mode, gatherSourceSection): the
 %   Alignment and Figures tabs' Dataset drop-downs list the datasets ticked
 %   now (refreshDatasetLabels); when the figure in the editor is a session figure drawn across the ticked
@@ -129,7 +131,7 @@ switch what
         if k >= 1 && k <= numel(cfg.Figures) && ~isequal(figurePage(obj), page0)   % its drawing was laid out and scaled on the old page
             if ~(fresh && obj.redrawFigurePreview(Page=true)); obj.autoFigurePreview(); end   % drawn again from what it holds, else as after any edit
         end
-        markFigureTree(obj);   % the kept previews of the other figures that follow the page: out of date
+        markFigureTree(obj);   % the kept previews of the other figures that follow the page: out of date (drawn again on it when shown: previewFigureView)
     case "ticks"
         refreshDatasetLabels(obj);   % the Dataset drop-downs list the ticked datasets
         k = obj.SelectedFigure;

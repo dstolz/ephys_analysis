@@ -811,10 +811,12 @@ says how to cut a release.
   (Export preview named the file for the observation picked and drew another's). A preview now ends *Drawn* only when
   the key it was computed for is still the figure's (the figure, defaults, dataset, observation, scan, rates,
   filters, variables and, new, the page it is exported on), else *Out of date*; a run marks a drawing *Out of date*
-  when an edit or a pick makes it so; Open in window, Export preview, Save look as design and Forget looks test the
-  key, not the badge. A page change draws the shown preview again from what it computed (a figure across sessions
-  from its kept figures), and the other figures' kept previews are marked out of date. A look remembered from an
-  Open in window figure now updates the preview as an edit does.
+  when an edit or an observation or dataset picked makes it so, and a session figure's *Figure:* pick during a run is
+  not taken (the drop-down goes back to the figure drawn); Open in window, Export preview, Save look as design and
+  Forget looks test the key, not the badge. A page change draws the shown preview again from what it computed (a
+  figure across sessions from its kept figures), and the other figures' kept previews are marked out of date and drawn
+  again on the new page from what they hold when shown, whatever Auto says (a figure across sessions keeps its kept
+  figures). A look remembered from an Open in window figure now updates the preview as an edit does.
 - An analysis run that stopped with an error had no run record and was not recorded for the lab database, though
   its figure files and reports were on disk. `EphysAnalysisRunner.run` now ends such a run like any other: its run
   record (`outcome` `failed`, and a new `error` field, as the pipeline's) and its lab database record (status

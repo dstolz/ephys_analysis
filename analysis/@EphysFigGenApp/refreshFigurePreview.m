@@ -27,11 +27,14 @@ function refreshFigurePreview(obj, opts)
 %   it says Drawn only when the key it was computed for is still the
 %   figure's (finishPreview: figureViewFresh), else Out of date: an edit
 %   (with Auto on or off), another dataset or observation, a scan or a
-%   Preview press made meanwhile. Nothing is computed while a run goes
-%   (the runner is busy): the status line says so, and a drawing that is
-%   no longer the figure as it is now (an edit, an observation or another
-%   of a session figure's figures picked meanwhile) says Out of date
-%   (markStaleDrawing). A compute that throws, the three previews alike
+%   Preview press made meanwhile (an edit undone meanwhile ends Drawn
+%   unless it asked for a redraw: finishPreview). Nothing is computed or
+%   drawn while a run goes (the runner is busy): the status line says so,
+%   and a drawing that is no longer the figure as it is now (an edit, an
+%   observation or a dataset picked meanwhile) says Out of date
+%   (markStaleDrawing); another of a session figure's figures picked
+%   ("Figure:", Redraw) is not taken: the drop-down goes back to the one
+%   drawn (showSessionPick). A compute that throws, the three previews alike
 %   (a local previewFailed), empties the preview but for why: Canceled,
 %   Cannot draw (the runner's skip reason) or Failed (in the Log too).
 %   A session figure (sessions.enabled) is drawn across the ticked (or
@@ -97,10 +100,11 @@ function previewNow(obj, opts)
 %previewNow  The preview of the selected figure, in its container (refreshFigurePreview's work).
 L = obj.FigurePreviewLabel;
 if obj.Running   % nothing is computed or drawn: the drawing left is Out of date when it is not the figure as it is now
-    L.Text = "A run is going: preview the figure when it is done.";
-    if opts.Redraw && obj.FigurePreviewState == "drawn"
-        obj.setFigurePreviewState("stale");   % another of a session figure's kept figures picked ("Figure:"), not drawn
+    if opts.Redraw   % another of a session figure's kept figures picked ("Figure:"): not drawn, so not taken
+        showSessionPick(obj);   % the drop-down back on the one drawn, which stays the figure as it is
+        L.Text = "A run is going: pick the figure under Figure: when it is done.";
     else
+        L.Text = "A run is going: preview the figure when it is done.";
         markStaleDrawing(obj);   % an edit, an observation or a dataset picked meanwhile
     end
     return
@@ -322,6 +326,19 @@ end
 if numel(K.res) > 1; txt = txt + " — " + e.label; end
 if secs > 0; txt = txt + sprintf(" (%.1f s)", secs); end
 finishPreview(obj, spec, F.observation, [], K.key, [], 0, secs, Timed=false, Line=txt, Notes="batch");   % its key, badge (by key) and status line
+end
+
+
+function showSessionPick(obj)
+%showSessionPick  The "Figure:" drop-down back on the kept session figure drawn (FigureSessionResults.label), as drawSessionEntry left it.
+%   A pick made while a run goes draws nothing (previewNow), so it is not
+%   taken: the drawing, its label (what Preview keeps through a compute,
+%   Export preview and Export code name) and the drop-down stay one figure.
+K = obj.FigureSessionResults;
+dd = obj.FigureSessionDropDown;
+if ~(isstruct(K) && isfield(K, 'res') && isfield(K, 'label')) || isempty(dd) || ~isvalid(dd); return; end
+q = find(string({K.res.label}) == K.label, 1);
+if ~isempty(q) && strcmp(dd.Visible, 'on') && numel(dd.Items) == numel(K.res); dd.Value = q; end   % (its ItemsData: 1:n, showSessionPicker)
 end
 
 

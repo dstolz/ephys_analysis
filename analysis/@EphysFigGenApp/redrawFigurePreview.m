@@ -3,8 +3,10 @@ function ok = redrawFigurePreview(obj, opts)
 %   OK = redrawFigurePreview(OBJ) is for an edit that changes how the
 %   figure is drawn but not what it is computed from -- its size
 %   (onFigureSizeEdited), the Export tab's page it follows (onConfigChanged
-%   "export") -- while the preview is drawn and was current before the
-%   edit (the caller checks: figureViewFresh): the result it holds
+%   "export"; previewFigureView for a figure shown after that change, its
+%   kept preview current but for the page) -- while the preview is drawn
+%   and was current before the edit (the caller checks: figureViewFresh,
+%   its PAGE for previewFigureView): the result it holds
 %   (FigurePreviewResult) is rendered again into the container
 %   (renderFigure, as refreshFigurePreview calls it), at the new page's
 %   scale (previewScale), the selected panel outlined again, and the

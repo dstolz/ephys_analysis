@@ -7,7 +7,7 @@ function switched = syncFigureView(obj)
 %   group's tab strip cannot be hidden reliably), made when the figure is
 %   first shown. The preview's state lives in the FigurePreview*
 %   properties while its figure shows (FigurePreviewPanel, Result,
-%   State, Drawn, Seconds, FigureSessionResults and the status line); on
+%   State, Drawn, Tried, Seconds, FigureSessionResults and the status line); on
 %   a switch they are kept in the container's entry of FigureViews and the
 %   next figure's are taken from its own, so its drawing, badge, status
 %   line and "Figure:" drop-down (a session figure's) come back as they
@@ -48,6 +48,7 @@ if ~isempty(i) && ~gone(i)   % the figure left keeps what it shows
     V(i).Result = obj.FigurePreviewResult;
     V(i).State = obj.FigurePreviewState;
     V(i).Drawn = obj.FigurePreviewDrawn;
+    V(i).Tried = obj.FigurePreviewTried;
     V(i).Seconds = obj.FigurePreviewSeconds;
     V(i).Cost = obj.FigurePreviewCost;
     V(i).Sessions = obj.FigureSessionResults;
@@ -87,6 +88,7 @@ v = V(j);
 obj.FigurePreviewPanel = v.Panel;
 obj.FigurePreviewResult = v.Result;
 obj.FigurePreviewDrawn = v.Drawn;
+obj.FigurePreviewTried = v.Tried;
 obj.FigurePreviewSeconds = v.Seconds;
 obj.FigurePreviewCost = v.Cost;
 obj.FigureSessionResults = v.Sessions;

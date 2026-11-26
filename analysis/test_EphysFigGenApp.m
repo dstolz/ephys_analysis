@@ -2165,6 +2165,20 @@ if S.sec("5d.stale", "Out of date with Auto off; Cancel on the busy card")
     check(none5s && app.FigurePreviewState == "canceled" && app.FigurePreviewBusyCount == busy5s && ~isfinite(app.FigurePreviewSeconds), ...
         sprintf(['a cancel with no drawing before it empties the panel, Canceled; with Auto on, coming back to the figure shows it as it was ' ...
         'and computes nothing (%s, %d busy cards since)'], app.FigurePreviewState, app.FigurePreviewBusyCount - busy5s));
+    % ... but after another dataset was picked meanwhile the cancel was about that one, not this: coming back computes it again
+    act5s = app.ActiveIdx;
+    other5s = kF2;
+    if act5s == kF2; other5s = kF1; end
+    app.onFigureSelected(k5s);
+    app.selectDataset(other5s);
+    busyD5s = app.FigurePreviewBusyCount;
+    app.onFigureSelected(kNew5s);
+    stateD5s = app.FigurePreviewState;
+    again5s = app.FigurePreviewBusyCount > busyD5s && stateD5s ~= "canceled";
+    nD5s = app.FigurePreviewBusyCount - busyD5s;
+    app.selectDataset(act5s);
+    check(again5s, sprintf(['after another dataset was picked while another figure showed, coming back to the canceled figure ' ...
+        'computes it again, its badge not speaking of the other dataset (%s, %d busy cards since)'], stateD5s, nD5s));
     app.onRemoveFigure();
     app.onFigureSelected(k5s);
     app.FigureAutoSlider.Value = slider5s;

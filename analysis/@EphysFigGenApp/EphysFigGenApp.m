@@ -435,9 +435,10 @@ classdef EphysFigGenApp < handle
         FigureIdRenames = []                % figures renamed (an automatic id that followed an edit): containers.Map, old id -> new (trackFigureIds)
         FigurePreviewResult = []            % the shown figure's last preview result (computeFigure's F)
         FigurePreviewDrawn = []             % what the shown figure's preview was drawn from (figureViewKey), once drawn
+        FigurePreviewTried = []             % what the shown figure's last preview was for (figureViewKey as it began): its Cannot draw, Failed, Canceled or Press Preview, and an Inf FigurePreviewSeconds, hold for that key alone (previewFigureView, markStaleOutcome)
         FigurePreviewSeconds (1,1) double = 0   % time the shown figure's last preview took (0: forgotten, the next edit redraws; Inf: failed, canceled or waiting)
         FigurePreviewCost (1,1) struct = struct('compute', 0, 'draw', 0, 'key', {[]})   % its two parts, s, and the data key computed (previewDataKey): what previewCost predicts from
-        FigureViews struct = struct([])     % one preview container per figure kept (syncFigureView): Id, Panel, State, Result, Drawn, Seconds, Cost, Sessions, Label, Used; "" = none selected
+        FigureViews struct = struct([])     % one preview container per figure kept (syncFigureView): Id, Panel, State, Result, Drawn, Tried, Seconds, Cost, Sessions, Label, Used; "" = none selected
         FigureViewId (1,1) string = ""      % the figure whose container shows: its State, Result, ... are the FigurePreview* properties meanwhile
         FigureViewTick (1,1) double = 0     % counts the containers shown (FigureViews.Used: the least recently used goes over MaxFigureViews)
         FigurePreviewGeneration (1,1) double = 0   % a scan adds one: every preview drawn before is out of date (figureViewKey)

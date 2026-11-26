@@ -15,10 +15,14 @@ function previewFigureView(obj, opts)
 %   forgotten first (a figure shown is drawn even when its last preview
 %   was slow); so is a figure across sessions on another page while a run
 %   goes (redrawFigurePreview draws none then). Not when the figure was
-%   canceled, failed or waits for a large signal extract (its time is Inf):
-%   it is shown as it was left, its badge and line saying so, and waits for
-%   Preview as after an edit (autoFigurePreview), instead of computing, and
-%   failing or being canceled again, on every return.
+%   canceled, failed or waits for a large signal extract (its time is Inf)
+%   for the figure as it is now (FigurePreviewTried, the key that preview
+%   was for, equals figureViewKey): it is shown as it was left, its badge
+%   and line saying so, and waits for Preview as after an edit
+%   (autoFigurePreview), instead of computing, and failing or being
+%   canceled again, on every return. When that key is another (another
+%   dataset picked meanwhile, a scan, the settings changed), what it said
+%   is not about now: it is drawn as after an edit.
 %   Switched=false (Undo or Redo of the shown figure's own edit) keeps
 %   that time, as an edit does. While a preview computes nothing is done:
 %   refreshFigurePreview shows the selected figure and calls this when it
@@ -41,6 +45,9 @@ if page && obj.redrawFigurePreview(Page=true)   % drawn on the old page: drawn a
     markFigureTree(obj);
     return
 end
-if opts.Switched && ~isinf(obj.FigurePreviewSeconds); obj.FigurePreviewSeconds = 0; end   % (Inf: it was canceled, failed or too large, and waits for Preview)
+if opts.Switched && isinf(obj.FigurePreviewSeconds) && ~isequaln(obj.FigurePreviewTried, figureViewKey(obj, k))
+    obj.FigurePreviewSeconds = 0;   % it failed, was canceled or waited for another dataset, observation, scan or settings: that says nothing of now
+end
+if opts.Switched && ~isinf(obj.FigurePreviewSeconds); obj.FigurePreviewSeconds = 0; end   % (Inf: it was canceled, failed or too large for the figure as it is now, and waits for Preview)
 obj.autoFigurePreview();
 end

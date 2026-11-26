@@ -12,7 +12,9 @@ says how to cut a release.
 
 - EphysFigGenApp, review backlog: Undo of Duplicate figure selects the figure that was copied, not the one after it;
   a preview that was canceled or failed, or waits for a large signal extract, waits for Preview when its figure is
-  shown again (it was computed, and failed or canceled, at every return); Cancel and the size limit keep the drawing
+  shown again, for the dataset, observation, scan and settings it was tried for (it was computed, and failed or
+  canceled, at every return; after another dataset or a scan it is drawn again, so its badge and line never speak of
+  another dataset); Cancel and the size limit keep the drawing
   that was in the panel, Out of date and never Drawn, instead of emptying it; the datasets table reads which files
   exist once per scan, not at every star, note, tick and filter edit (a file that appears or goes away is noticed at
   the next Scan); File > Open recent keeps a config that is not found now (a share not mounted), gray, instead of

@@ -150,7 +150,7 @@ if any(ismember(analysisShots, opts.Shots))
     a.refreshFigureObservations();
     a.refreshFigurePreview(Force=true);
     a.gotoFigureSection("arrangement");   % the Layout section: New panel..., the Page (size, Boxes mean, Padding), the app preferences
-    if license('test', 'Image_Toolbox')   % Arrange needs it
+    if toolboxAvailable("images", "Image_Toolbox")   % Arrange needs it (installed and licensed, as onArrangeToggled asks)
         a.FigureArrangeButton.Value = true;
         a.onArrangeToggled();             % a box over each panel
     end

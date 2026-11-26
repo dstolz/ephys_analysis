@@ -193,6 +193,7 @@ if ~istable(T) || height(T) == 0 || ~isnumeric(i) || i < 1 || i > height(T)
 end
 obs = T(i, :);
 drawnKey = figureViewKey(obj, k);   % what it is drawn from (FigurePreviewDrawn once drawn)
+obj.FigurePreviewTried = drawnKey;   % what this preview is for: a failure, a cancel or the size gate holds for this key alone (previewFigureView)
 dataKey = previewDataKey(obj, k);   % what its data are computed from (FigurePreviewCost)
 if ~opts.Force
     mb = signalMB(spec, src);
@@ -270,6 +271,7 @@ if ~istable(T) || height(T) == 0 || ~isnumeric(i) || i < 1 || i > height(T)
 end
 obs = T(i, :);
 drawnKey = figureViewKey(obj, obj.SelectedFigure);
+obj.FigurePreviewTried = drawnKey;   % (as above)
 what = spec.id + " (" + obs.label + ")";
 L.Text = "Computing " + what + " across " + obs.nSessions + " session(s) ...";
 rn = obj.Runner;

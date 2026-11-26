@@ -125,6 +125,7 @@ function forgetFigurePreview(obj)
 %   (The shown container is the new config's figure's, clearFigureViews having dropped the others.)
 obj.FigurePreviewResult = [];
 obj.FigurePreviewDrawn = [];
+obj.FigurePreviewTried = [];
 obj.FigurePreviewSeconds = 0;
 P = obj.FigurePreviewPanel;
 delete(P.Children);

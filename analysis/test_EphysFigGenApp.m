@@ -1158,11 +1158,19 @@ if S.sec("1h", "a run's datasets and config: a source changed since the scan sto
     edProbe = string(getappdata(groot, 'editProbe'));
     rmappdata(groot, 'editProbe');
     namesH = app.Runner.Names(app.tickedDatasetIndices());
+    pagesH = arrayfun(@(n) ~isempty(dir(fullfile(out1h, n, '*.png'))), namesH);
+    stEd = ""; msgEd = "";   % (a refused Run returns a table with no columns)
+    if istable(Re) && all(ismember({'Status', 'Message'}, Re.Properties.VariableNames))
+        stEd = strjoin(string(Re.Status), ","); msgEd = strjoin(string(Re.Message), " | ");
+    end
+    whyEd = sprintf('probe "%s"; %d row(s) %s; messages "%s"; pages in the start folder %s; new folder made %d; open folder "%s"; config folder "%s"; alerts %d', ...
+        edProbe, height(Re), stEd, msgEd, mat2str(pagesH), isfolder(outEd), app.LastExportFolder, app.Config.Export.Folder, ...
+        numel(AppDialog.captured()));
     check(edProbe == string(fullfile(outEd, '{Name}')) && height(Re) == 2 && all(Re.Status == "done") ...
-        && all(arrayfun(@(n) ~isempty(dir(fullfile(out1h, n, '*.png'))), namesH)) && ~isfolder(outEd) ...
+        && all(pagesH) && ~isfolder(outEd) ...
         && startsWith(app.LastExportFolder, string(out1h)) && app.Config.Export.Folder == string(fullfile(outEd, '{Name}')), ...
         ['an Export folder typed while the run goes reaches the runner but not that run: both datasets'' pages in the folder it ' ...
-        'started with (and Open figure folder), none in the new one; the edit stays for the next run']);
+        'started with (and Open figure folder), none in the new one; the edit stays for the next run (' whyEd ')']);
     % the config's warnings (pages with the same file names: the first dataset's written, the others' not) are said at Run, and the run goes on
     app.ExportControls.Folder.Value = fullfile(root, 'out1h_flat');   % no {Name} and no {OutputFolder} ...
     app.ExportControls.FilenamePattern.Value = '{Plot}';              % ... nor here: the datasets' files would have the same names
@@ -7552,16 +7560,19 @@ if S.sec("5y", "stuck or broken states: an interrupted preview, Run and Scan whi
     tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, appE, @(a) delete(a.Fig)));
     start(tm);
     threwE5y = false;
+    whyE5y = "";
     try
         appE.onRunExport(Figures=idE5y, SessionFigures=string.empty(1, 0), Datasets=kE5y, Export=false, Report=true);
-    catch
+    catch ME5y
         threwE5y = true;
+        whyE5y = string(ME5y.identifier) + ": " + string(ME5y.message);
+        if ~isempty(ME5y.stack); whyE5y = whyE5y + " (at " + string(ME5y.stack(1).name) + " line " + ME5y.stack(1).line + ")"; end
     end
     stop(tm); delete(tm);
     rep5y = appE.Runner.ReportFiles;
     if isappdata(groot, 'runProbe'); rmappdata(groot, 'runProbe'); end
     check(~threwE5y && ~appE.Running && ~isempty(rep5y) && all(isfile(rep5y)), ...
-        sprintf('the window deleted during a run: the progress callback writes nothing to it, the run ends and its report is written (threw %d, %d report file(s))', threwE5y, numel(rep5y)));
+        sprintf('the window deleted during a run: the progress callback writes nothing to it, the run ends and its report is written (threw %d %s, %d report file(s))', threwE5y, whyE5y, numel(rep5y)));
     clear restore5y captureBack5y
     app.Tabs.SelectedTab = app.TabData;
 end

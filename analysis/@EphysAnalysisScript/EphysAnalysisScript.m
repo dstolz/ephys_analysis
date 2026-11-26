@@ -201,7 +201,7 @@ classdef EphysAnalysisScript
             L = [L; EphysPipelineScript.structLiteral("exportOpts", X)];
             L = [L; EphysPipelineScript.structLiteral("reportOpts", P)];
             if X.Enabled
-                L(end+1, 1) = "runFiles = strings(1, 0);   % the figure files this script writes: a page at the path of one of them is neither written over nor kept (as EphysAnalysisRunner)";
+                L(end+1, 1) = "runFiles = strings(1, 0);   % the figure files this script writes: a page at the path of one of them is neither written over nor kept, as a run of the app does";
             end
             doReport = P.Enabled;
             withImages = doReport && P.Format ~= "pdf";   % the HTML report embeds each exported page

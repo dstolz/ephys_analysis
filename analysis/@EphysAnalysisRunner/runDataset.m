@@ -57,7 +57,9 @@ function rows = runDataset(obj, k, opts)
 %   partly written), so the run record and the lab database's record name
 %   them. Its report entry ("error") is added when it can be: one that
 %   cannot is said in the Log and the row's Message, never thrown (the
-%   row and the error that stopped the figure stay).
+%   row and the error that stopped the figure stay). Its Log lines are
+%   written quietly (logQuietly): a LogFcn that throws is a warning, so a
+%   figure done never gets a second, "error" row.
 %   Progress before each observation: "<name>: <id> (<i>/<n>)".
 %
 %   With Workers the pages are drawn on process workers (usePagePool):
@@ -128,7 +130,10 @@ end
 cfg = opts.Config;
 if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.Config; end   % alone: the config now; from run: the one it started with
 looksBack = obj.holdPageLooks();   % alone: the plot design and rules now, for every page; from run: the run's
-if ~isempty(looksBack); obj.WrittenFiles = string.empty(1, 0); end   % alone: the files this call writes (from run: the run's)
+if ~isempty(looksBack)   % alone: the files this call writes (from run: the run's)
+    obj.WrittenFiles = string.empty(1, 0);
+    obj.StrayFiles = string.empty(1, 0);
+end
 fids = EphysAnalysisRunner.idList(opts.Figures, @() cfg.enabledFigures());
 nAll = max(1, numel(fids));   % the figures share the dataset's span
 first = height(obj.Results) + 1;
@@ -174,7 +179,7 @@ for jf = 1:numel(fids)
         end
         if reason ~= ""
             obj.Results(end+1, :) = {name, spec.id, "figure", "skipped", reason, "", 0};
-            obj.log("%s: %s skipped (%s)", name, spec.id, reason);
+            obj.logQuietly("%s: %s skipped (%s)", name, spec.id, reason);
             if opts.Report
                 obj.Report = addReportFigure(obj.Report, rspec, [], Status="skipped", Message=reason);
             end
@@ -262,11 +267,11 @@ for jf = 1:numel(fids)
         msg = sprintf("%d observation(s)", nObs) + EphysAnalysisRunner.keptText(nKept) + EphysAnalysisRunner.overlapText(nMine);
         obj.Results(end+1, :) = {name, spec.id, "figure", "done", msg, strjoin(files, "; "), toc(t0)};
         obj.KeptFiles = [obj.KeptFiles keptFiles];   % in Files, not this run's: the lab database's record leaves them out
-        obj.log("%s: %s done (%s, %d file(s), %.1f s)", name, spec.id, msg, numel(files), toc(t0));
+        obj.logQuietly("%s: %s done (%s, %d file(s), %.1f s)", name, spec.id, msg, numel(files), toc(t0));
     catch ME
         [written, stopped] = obj.stopPages(jobs);   % the pages still on the workers canceled; the files the finished ones wrote
         if stopped > 0
-            obj.log("%s: %s: %d page(s) stopped on the workers while drawn: each may have left a file partly written in %s", ...
+            obj.logQuietly("%s: %s: %d page(s) stopped on the workers while drawn: each may have left a file partly written in %s", ...
                 name, spec.id, stopped, folder);
         end
         if ME.identifier == "EphysAnalysisRunner:Canceled"
@@ -274,7 +279,7 @@ for jf = 1:numel(fids)
             rethrow(ME);
         end
         obj.Results(end+1, :) = {name, spec.id, "figure", "error", string(ME.message), strjoin(written, "; "), toc(t0)};
-        obj.log("%s: %s FAILED: %s", name, spec.id, ME.message);
+        obj.logQuietly("%s: %s FAILED: %s", name, spec.id, ME.message);
         if opts.Report
             obj.addFailureEntry(rspec, "error", string(ME.message), name, spec.id);   % never throws: the row and the error stay
         end
@@ -357,7 +362,7 @@ msg = sprintf("%d tile(s)", height(T)) + EphysAnalysisRunner.keptText(double(~is
     + EphysAnalysisRunner.overlapText(double(job.mine));
 obj.Results(end+1, :) = {name, spec.id, "figure", "done", msg, strjoin(files, "; "), toc(t0)};
 obj.KeptFiles = [obj.KeptFiles job.kept];
-obj.log("%s: %s done (%s, %d file(s), %.1f s)", name, spec.id, msg, numel(files), toc(t0));
+obj.logQuietly("%s: %s done (%s, %d file(s), %.1f s)", name, spec.id, msg, numel(files), toc(t0));
 end
 
 

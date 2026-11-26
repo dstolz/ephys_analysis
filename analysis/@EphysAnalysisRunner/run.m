@@ -153,6 +153,7 @@ obj.Results = EphysAnalysisRunner.emptyResults();
 obj.ReportFiles = string.empty(1, 0);
 obj.KeptFiles = string.empty(1, 0);
 obj.WrittenFiles = string.empty(1, 0);   % the figure files this run writes: none written over, none "kept" (noteWritten)
+obj.StrayFiles = string.empty(1, 0);     % files of pages that failed after writing them, until their figure's row takes them
 for k = idx; obj.Outputs(k).clearReads(); end   % what this run reads: its inputs for the lab database
 P = cfg.Report;
 perDataset = doReport && P.PerDataset;
@@ -263,7 +264,7 @@ if ~isempty(idx)
             Error=why, RunRecord=obj.RunRecordFile, Config=cfg);   % for the lab database, when it is on here: the config the run started with
     catch ME
         warning('EphysAnalysisRunner:LabCapture', 'The run was not noted for the lab database: %s', ME.message);
-        logQuietly(obj, "Lab database: the run was not noted: %s", ME.message);
+        obj.logQuietly("Lab database: the run was not noted: %s", ME.message);
     end
     if ~isempty(noted)
         try   % what was noted, said in the Log: a LogFcn that throws neither hides the run's error nor fails the run
@@ -408,18 +409,7 @@ catch ME
     warning('EphysAnalysisRunner:RunRecord', 'The run record could not be written (%s): %s', file, ME.message);
     file = "";
 end
-if file ~= ""; logQuietly(obj, "Run record: %s", file); end   % (a LogFcn that throws does not unmake the record)
-end
-
-
-function logQuietly(obj, fmt, varargin)
-%logQuietly  obj.log, a LogFcn that throws a warning only (EphysAnalysisRunner:LogFcn): while a run ends, its run record
-%   and its lab database record are written, and the error that stopped it is still to be thrown.
-try
-    obj.log(fmt, varargin{:});
-catch ME
-    warning('EphysAnalysisRunner:LogFcn', 'The Log could not be written: %s', ME.message);
-end
+if file ~= ""; obj.logQuietly("Run record: %s", file); end   % (a LogFcn that throws does not unmake the record)
 end
 
 

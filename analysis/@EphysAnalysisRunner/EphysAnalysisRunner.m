@@ -168,6 +168,7 @@ classdef EphysAnalysisRunner < handle
         PagesSeen (1,1) double = 0       % the pages the run has come to (usePagePool starts the workers at MinPoolPages)
         PoolFailed (1,1) logical = false % the workers could not start this run: its pages are drawn here
         PageLooks = []                   % the design and plot rules every page draws in, here or on a worker (holdPageLooks: taken when a run starts)
+        StrayFiles (1,:) string = string.empty(1, 0)   % the files a page wrote before it failed (its report image or PDF page): the figure's row lists them (takeStrayFiles)
         LastFraction (1,1) double = 0    % the fraction last reported (progress)
     end
 
@@ -352,11 +353,37 @@ classdef EphysAnalysisRunner < handle
             try
                 obj.Report = addReportFigure(obj.Report, rspec, [], Status=status, Message=message);
             catch MR
-                obj.log("%s: %s: its report entry could not be added: %s", label, id, MR.message);
+                obj.logQuietly("%s: %s: its report entry could not be added: %s", label, id, MR.message);
                 if height(obj.Results) > 0
                     obj.Results.Message(end) = obj.Results.Message(end) + "; its report entry could not be added: " + string(MR.message);
                 end
             end
+        end
+
+        function logQuietly(obj, fmt, varargin)
+            %logQuietly  log, but a LogFcn that throws is the warning EphysAnalysisRunner:LogFcn, never an error.
+            %   What a run says while it draws, records and ends: a LogFcn that
+            %   throws must not turn a figure that was drawn into a failure
+            %   (a second row), hide the error that stopped a figure or a run,
+            %   or fail a run that finished.
+            try
+                obj.log(fmt, varargin{:});
+            catch ME
+                warning('EphysAnalysisRunner:LogFcn', 'The Log could not be written: %s', ME.message);
+            end
+        end
+
+        function keepStray(obj, files)
+            %keepStray  FILES a page wrote before it failed (drawExportPage Partial=: its report image or PDF page threw after exportFigure had written them): this run's (noteWritten), and the figure's row's (takeStrayFiles).
+            obj.noteWritten(files);
+            files = reshape(string(files), 1, []);
+            obj.StrayFiles = [obj.StrayFiles files(files ~= "")];
+        end
+
+        function files = takeStrayFiles(obj)
+            %takeStrayFiles  The files pages that failed wrote since the last call (keepStray), and forget them: for the figure's row.
+            files = obj.StrayFiles;
+            obj.StrayFiles = string.empty(1, 0);
         end
 
         function tf = writtenByThisRun(obj, files)

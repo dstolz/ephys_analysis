@@ -836,17 +836,19 @@ says how to cut a release.
   error has none) and its lab database record (status
   failed, `attributes.error`), both listing the files written before the error (`ReportFiles` grows as each report
   file is written); then the error is thrown again. A figure that fails or is canceled part way lists in its
-  result row the files its finished pages wrote (they were in no record), and a report entry that cannot be added
+  result row the files its finished pages wrote (they were in no record; also a page whose report image or PDF
+  page failed after its files were written), and a report entry that cannot be added
   for a failed figure no longer stops the run. A run that drew no figure because every figure it tried failed
   is recorded as failed, not succeeded (`attributes.figure_errors` counts a run's failed figures). Figure files kept
   from an earlier run (`Export.Overwrite` off; the new `EphysAnalysisRunner.KeptFiles`) are no longer recorded as
   outputs of the run, which did not write them (`kept_outputs`); a file the run wrote itself is never kept: when two
   datasets' pages have one file name, the second is no longer taken for "kept from an earlier run" (and left out of
   the record), nor written over the first with `Export.Overwrite` on: it is not written, its row says so, and the
-  file is the first page's, recorded once (`EphysAnalysisRunner.WrittenFiles`). The run's Log says what was noted
+  file is the first page's, recorded once (`EphysAnalysisRunner.WrittenFiles`); the standalone script follows the
+  same rule. The run's Log says what was noted
   (the event, its status, how many files it read and wrote) and which files were left out, by folder: those under
   no mapped storage root and the kept ones (`LabCapture.analysisRun` returns it as a second output); a `LogFcn` that
-  throws then is a warning. The output ledger (`analysis_outputs.json`) is written once per run instead of once
+  throws is a warning, never a second row for a figure done or an error in place of the run's. The output ledger (`analysis_outputs.json`) is written once per run instead of once
   per output file (read for the lookups and again just before the write, to merge), and a ledger that cannot be
   read is no longer written over (warning `LabCapture:OutputLedger`).
 - `setTrialPairing` could record another session's pairing instead of the one it was given. When another session had

@@ -14,6 +14,9 @@ function [files, stopped] = stopPages(obj, jobs)
 %     - a page a worker finished without an error before it could be
 %       canceled (its future "finished", Error empty: drawExportPage
 %       returned there too).
+%     - a page whose report image or PDF page failed after its figure
+%       files were written (drawExportPage Partial=; keepStray noted them:
+%       takeStrayFiles, here or on a worker).
 %   A page canceled, or failed, on its worker is not listed: it may have
 %   stopped while it wrote a file. STOPPED counts the pages that were being
 %   drawn on a worker when they were canceled (each may have left a file
@@ -53,6 +56,7 @@ for j = 1:numel(jobs)
     catch
     end
 end
-files = files(files ~= "");
+files = [files obj.takeStrayFiles()];
+files = unique(files(files ~= ""), 'stable');
 obj.noteWritten(files);
 end

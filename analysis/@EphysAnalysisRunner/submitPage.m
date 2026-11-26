@@ -12,6 +12,11 @@ function job = submitPage(obj, F, spec, onPool, page)
 %   (the analysis app's window stays usable) is the next run's. A worker
 %   reads no preferences of its own. With no looks held (submitPage called
 %   by itself) the page takes them as they are now (pageLooksNow).
+%   A page whose report image or PDF page fails after its figure files
+%   were written (drawExportPage Partial=true) throws that error here (or
+%   in pageOutput, from a worker) after keepStray has noted the files: the
+%   figure's row lists them (takeStrayFiles), and a later page at their
+%   path is neither "kept" nor written over.
 %
 %   See also EphysAnalysisRunner.pageOutput, EphysAnalysisRunner.usePagePool,
 %   EphysAnalysisRunner.holdPageLooks.
@@ -23,10 +28,15 @@ if page.Images || page.Pages
 end
 L = obj.PageLooks;
 if isempty(L); L = EphysAnalysisRunner.pageLooksNow(); end
-args = [args {'Design', L.design, 'UserRules', L.rules}];
+args = [args {'Design', L.design, 'UserRules', L.rules, 'Partial', true}];
 job = struct('future', [], 'out', []);
 if ~onPool
-    job.out = drawExportPage(F, spec, args{:});
+    out = drawExportPage(F, spec, args{:});
+    if ~isempty(out.error)   % its files written, its report image or page failed: named in the figure's row, then the error
+        obj.keepStray(out.files);
+        rethrow(out.error);
+    end
+    job.out = out;
     return
 end
 job.future = parfeval(gcp('nocreate'), @drawExportPage, 1, F, spec, args{:});

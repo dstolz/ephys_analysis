@@ -46,7 +46,10 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %   "sessions: all" listing the files the finished pages wrote (stopPages;
 %   run adds none for it then). A report entry that cannot be added is
 %   said in the Log and the row's Message, never thrown: a label whose
-%   entry fails is an "error" row listing the files its pages wrote.
+%   entry fails is an "error" row listing the files its pages wrote. A
+%   page whose report image or PDF page fails after its figure files were
+%   written has them in its label's row (takeStrayFiles). Its Log lines
+%   are written quietly (logQuietly).
 %   A panel with options.yLimMode "batch" shares one y range over the
 %   figure's every matched observation: they are all computed first (held
 %   for their pages, as Export.Data holds them), measured (figureYExtents,
@@ -76,7 +79,10 @@ end
 cfg = opts.Config;
 if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.Config; end   % alone: the config now; from run: the one it started with
 looksBack = obj.holdPageLooks();   % alone: the plot design and rules now, for every page; from run: the run's
-if ~isempty(looksBack); obj.WrittenFiles = string.empty(1, 0); end   % alone: the files this call writes (from run: the run's)
+if ~isempty(looksBack)   % alone: the files this call writes (from run: the run's)
+    obj.WrittenFiles = string.empty(1, 0);
+    obj.StrayFiles = string.empty(1, 0);
+end
 X = cfg.Export;
 first = height(obj.Results) + 1;
 t0 = tic;
@@ -97,7 +103,7 @@ try
 catch ME
     if ME.identifier == "EphysAnalysisRunner:Canceled"; rethrow(ME); end
     obj.Results(end+1, :) = {"sessions: all", id, "figure", "error", string(ME.message), "", toc(t0)};
-    obj.log("sessions: %s FAILED: %s", id, ME.message);
+    obj.logQuietly("sessions: %s FAILED: %s", id, ME.message);
     if opts.Report
         obj.addFailureEntry(reportSpec(cfg, id, "all", 1), "error", string(ME.message), "sessions: all", id);   % never throws
     end
@@ -106,9 +112,9 @@ catch ME
 end
 if reason ~= ""
     obj.Results(end+1, :) = {"sessions: all", id, "figure", "skipped", reason, "", toc(t0)};
-    obj.log("sessions: %s skipped (%s)", id, reason);
+    obj.logQuietly("sessions: %s skipped (%s)", id, reason);
     if opts.Report
-        obj.Report = addReportFigure(obj.Report, reportSpec(cfg, id, "all", 1, spec), [], Status="skipped", Message=reason);
+        obj.addFailureEntry(reportSpec(cfg, id, "all", 1, spec), "skipped", reason, "sessions: all", id);   % never throws
     end
     rows = obj.Results(first:end, :);
     return
@@ -123,7 +129,7 @@ withPages = opts.Report && obj.Report.options.Format ~= "html";
 withData = X.Data.Enabled;
 nObs = height(T);
 E = struct('label', {}, 'files', {}, 'images', {}, 'pages', {}, 'done', {}, 'why', {}, 'nError', {}, 'F', {}, 'seconds', {}, 'rows', {}, ...
-    'kept', {}, 'nKept', {}, 'nMine', {});   % kept, nKept: the files of the pages kept (Export.Overwrite off) and how many pages; nMine: the pages whose file this run wrote already
+    'kept', {}, 'nKept', {}, 'nMine', {}, 'stray', {});   % kept, nKept: the files of the pages kept (Export.Overwrite off) and how many pages; nMine: the pages whose file this run wrote already
 usedNames = strings(1, 0);   % the file names written in this run: a sanitized name met again gets "_2", "_3", ...
 results = struct('index', {}, 'observation', {}, 'facet', {}, 'group', {}, 'label', {}, 'status', {}, 'message', {}, 'F', {});
 perSession = cell(nObs * withData, height(sessions));
@@ -174,7 +180,7 @@ for i = 1:nObs
         if isempty(q)
             E(end+1) = struct('label', e.label, 'files', string.empty(1, 0), 'images', {cell(1, 0)}, 'pages', strings(1, 0), ...
                 'done', 0, 'why', strings(1, 0), 'nError', 0, 'F', [], 'seconds', 0, 'rows', zeros(1, 0), ...
-                'kept', string.empty(1, 0), 'nKept', 0, 'nMine', 0); %#ok<AGROW>
+                'kept', string.empty(1, 0), 'nKept', 0, 'nMine', 0, 'stray', string.empty(1, 0)); %#ok<AGROW>
             q = numel(E);
         end
         if withData
@@ -209,6 +215,7 @@ for i = 1:nObs
             jobs{end+1} = job; %#ok<AGROW>
         catch ME
             if ME.identifier == "EphysAnalysisRunner:Canceled"; stoppedRow(obj, id, jobs, folder, t0); rethrow(ME); end
+            E(q).stray = [E(q).stray obj.takeStrayFiles()];   % a page that failed after writing its files: in the row
             E(q).why(end+1) = string(T.label(i)) + ": " + string(ME.message);
             E(q).nError = E(q).nError + 1;
         end
@@ -238,6 +245,7 @@ for j = 1:numel(jobs)   % the pages, in order
         E(q).F = job.F;
     catch ME
         if ME.identifier == "EphysAnalysisRunner:Canceled"; stoppedRow(obj, id, jobs, folder, t0); rethrow(ME); end
+        E(q).stray = [E(q).stray obj.takeStrayFiles()];   % a page that failed after writing its files: in the row
         E(q).why(end+1) = string(T.label(job.i)) + ": " + string(ME.message);
         E(q).nError = E(q).nError + 1;
     end
@@ -252,8 +260,8 @@ for q = 1:numel(E)
         if msg == ""; msg = "no observation was drawn"; end
         status = "skipped";
         if E(q).nError > 0 && E(q).nError == numel(E(q).why); status = "error"; end   % only failures: an error
-        obj.Results(end+1, :) = {label, id, "figure", status, msg, "", E(q).seconds};
-        obj.log("%s: %s %s (%s)", label, id, status, msg);
+        obj.Results(end+1, :) = {label, id, "figure", status, msg, strjoin(E(q).stray, "; "), E(q).seconds};   % files of pages that failed after writing them
+        obj.logQuietly("%s: %s %s (%s)", label, id, status, msg);
         if opts.Report
             obj.addFailureEntry(rspec, status, msg, label, id);   % never throws
         end
@@ -267,16 +275,16 @@ for q = 1:numel(E)
                 Caption=figureCaption(spec, T(E(q).rows, :), Sessions=E(q).F.sessions, YShared=nShared, Results={E(q).F.trial}));   % this figure's observations and its facet's sessions
         catch ME
             % its pages are written: an "error" row that lists them (not the kept ones), and the next label goes on
-            written = E(q).files(~ismember(E(q).files, E(q).kept));
+            written = [E(q).files(~ismember(E(q).files, E(q).kept)) E(q).stray];
             obj.Results(end+1, :) = {label, id, "figure", "error", string(ME.message), strjoin(written, "; "), E(q).seconds};
-            obj.log("%s: %s FAILED: %s", label, id, ME.message);
+            obj.logQuietly("%s: %s FAILED: %s", label, id, ME.message);
             obj.addFailureEntry(rspec, "error", string(ME.message), label, id);
             continue
         end
     end
-    obj.Results(end+1, :) = {label, id, "figure", "done", msg, strjoin(E(q).files, "; "), E(q).seconds};
+    obj.Results(end+1, :) = {label, id, "figure", "done", msg, strjoin([E(q).files E(q).stray], "; "), E(q).seconds};   % (and those of its pages that failed after writing them)
     obj.KeptFiles = [obj.KeptFiles E(q).kept];   % in Files, not this run's: the lab database's record leaves them out
-    obj.log("%s: %s done (%d observation(s), %d file(s), %.1f s)", label, id, E(q).done, numel(E(q).files), E(q).seconds);
+    obj.logQuietly("%s: %s done (%d observation(s), %d file(s), %.1f s)", label, id, E(q).done, numel(E(q).files), E(q).seconds);
 end
 
 % --- the session figure's data file (writeAnalysisData) -------------------------------------
@@ -295,7 +303,7 @@ if withData && any([E.done] > 0)
     catch ME
         if ME.identifier == "EphysAnalysisRunner:Canceled"; rethrow(ME); end
         obj.Results.Message(first) = strtrim(obj.Results.Message(first) + " data file: " + string(ME.message));
-        obj.log("sessions: %s data file FAILED: %s", id, ME.message);
+        obj.logQuietly("sessions: %s data file FAILED: %s", id, ME.message);
     end
 end
 rows = obj.Results(first:end, :);
@@ -352,7 +360,7 @@ function stoppedRow(obj, id, jobs, folder, t0)
 %   record and the lab database's record name them; run adds no row of its own for the figure then.
 [written, stopped] = obj.stopPages(jobs);
 if stopped > 0
-    obj.log("sessions: %s: %d page(s) stopped on the workers while drawn: each may have left a file partly written in %s", ...
+    obj.logQuietly("sessions: %s: %d page(s) stopped on the workers while drawn: each may have left a file partly written in %s", ...
         id, stopped, folder);
 end
 obj.Results(end+1, :) = {"sessions: all", id, "figure", "canceled", "canceled", strjoin(written, "; "), toc(t0)};

@@ -200,6 +200,9 @@ classdef EphysAnalysisScript
             L(end+1, 1) = "%% Export and report settings";
             L = [L; EphysPipelineScript.structLiteral("exportOpts", X)];
             L = [L; EphysPipelineScript.structLiteral("reportOpts", P)];
+            if X.Enabled
+                L(end+1, 1) = "runFiles = strings(1, 0);   % the figure files this script writes: a page at the path of one of them is neither written over nor kept (as EphysAnalysisRunner)";
+            end
             doReport = P.Enabled;
             withImages = doReport && P.Format ~= "pdf";   % the HTML report embeds each exported page
             withPages = doReport && P.Format ~= "html";   % the PDF report holds each exported page
@@ -806,12 +809,14 @@ classdef EphysAnalysisScript
             draws = doExport || withImages || withPages;
             if doExport
                 C(end+1, 1) = "            want = base + ""."" + exportOpts.Formats;";
-                C(end+1, 1) = "            kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: not written again";
+                C(end+1, 1) = "            mine = any(ismember(EphysDataset.pathKey(want), EphysDataset.pathKey(runFiles)));   % this script wrote a file at that path (another page): not written over, not kept";
+                C(end+1, 1) = "            kept = ~mine && ~exportOpts.Overwrite && all(isfile(want));   % its files exist from an earlier run: not written again";
                 C(end+1, 1) = "            if kept; E(q).files = [E(q).files want]; E(q).kept = [E(q).kept want]; end   % kept from an earlier run: the report names them apart";
+                C(end+1, 1) = "            if mine; fprintf('sessions: %s: %s not written: this script already wrote a file at that path\n', fspec.id, base); end";
             end
             if draws
                 if doExport && ~withImages && ~withPages
-                    C(end+1, 1) = "            if ~kept";
+                    C(end+1, 1) = "            if ~kept && ~mine";
                     ind = "    ";
                 else
                     ind = "";
@@ -826,9 +831,10 @@ classdef EphysAnalysisScript
                 end
                 D(end+1, 1) = "written = strings(1, 0);";
                 if doExport
-                    D(end+1, 1) = "if ~kept";
+                    D(end+1, 1) = "if ~kept && ~mine";
                     D(end+1, 1) = "    written = exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi);";
                     D(end+1, 1) = "    E(q).files = [E(q).files written];";
+                    D(end+1, 1) = "    runFiles = [runFiles written];";
                     D(end+1, 1) = "end";
                 end
                 if withImages
@@ -947,13 +953,15 @@ classdef EphysAnalysisScript
             draws = doExport || withImages || withPages;
             if doExport
                 B(end+1, 1) = "            want = base + ""."" + exportOpts.Formats;";
-                B(end+1, 1) = "            kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: not written again";
+                B(end+1, 1) = "            mine = any(ismember(EphysDataset.pathKey(want), EphysDataset.pathKey(runFiles)));   % this script wrote a file at that path (another page): not written over, not kept";
+                B(end+1, 1) = "            kept = ~mine && ~exportOpts.Overwrite && all(isfile(want));   % its files exist from an earlier run: not written again";
                 B(end+1, 1) = "            if kept; files = [files want]; end %#ok<AGROW>";
+                B(end+1, 1) = "            if mine; fprintf('%s: %s: %s not written: this script already wrote a file at that path\n', name, fspec.id, base); end";
                 if doReport
                     B(end+1, 1) = "            if kept; keptFiles = [keptFiles want]; end %#ok<AGROW>";
                 end
                 if ~withImages && ~withPages
-                    B(end+1, 1) = "            if kept; continue; end   % ... nor computed";
+                    B(end+1, 1) = "            if kept || mine; continue; end   % ... nor computed";
                 end
             end
             B(end+1, 1) = "            fres = figureCompute(src, fspec, Observation=obsT(i, :));   % that observation's data only";
@@ -971,9 +979,10 @@ classdef EphysAnalysisScript
                 end
                 B(end+1, 1) = "            written = strings(1, 0);";
                 if doExport
-                    B(end+1, 1) = "            if ~kept";
+                    B(end+1, 1) = "            if ~kept && ~mine";
                     B(end+1, 1) = "                written = exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi);";
                     B(end+1, 1) = "                files = [files written]; %#ok<AGROW>";
+                    B(end+1, 1) = "                runFiles = [runFiles written]; %#ok<AGROW>";
                     B(end+1, 1) = "            end";
                 end
                 if withImages
@@ -1043,14 +1052,16 @@ classdef EphysAnalysisScript
             in = "        ";
             if doExport
                 B(end+1, 1) = "        want = base + ""."" + exportOpts.Formats;";
-                B(end+1, 1) = "        kept = ~exportOpts.Overwrite && all(isfile(want));   % its files exist: not written again";
+                B(end+1, 1) = "        mine = any(ismember(EphysDataset.pathKey(want), EphysDataset.pathKey(runFiles)));   % this script wrote a file at that path (another page): not written over, not kept";
+                B(end+1, 1) = "        kept = ~mine && ~exportOpts.Overwrite && all(isfile(want));   % its files exist from an earlier run: not written again";
                 B(end+1, 1) = "        if kept; files = want; end";
+                B(end+1, 1) = "        if mine; fprintf('%s: %s: %s not written: this script already wrote a file at that path\n', name, fspec.id, base); end";
                 if doReport
                     B(end+1, 1) = "        keptFiles = strings(1, 0);   % kept from an earlier run (Overwrite off): the report names them apart";
                     B(end+1, 1) = "        if kept; keptFiles = want; end";
                 end
                 if ~withImages && ~withPages
-                    B(end+1, 1) = "        if ~kept   % ... nor computed";
+                    B(end+1, 1) = "        if ~kept && ~mine   % ... nor computed";
                     in = "            ";
                 end
             end
@@ -1065,9 +1076,10 @@ classdef EphysAnalysisScript
                 end
                 B(end+1, 1) = in + "written = strings(1, 0);";
                 if doExport
-                    B(end+1, 1) = in + "if ~kept";
+                    B(end+1, 1) = in + "if ~kept && ~mine";
                     B(end+1, 1) = in + "    written = exportFigure(fig, base, Format=exportOpts.Formats, Dpi=exportOpts.Dpi);";
                     B(end+1, 1) = in + "    files = [files written];";
+                    B(end+1, 1) = in + "    runFiles = [runFiles written];";
                     B(end+1, 1) = in + "end";
                 end
                 if withImages

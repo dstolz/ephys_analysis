@@ -7,6 +7,9 @@ function out = drawExportPage(F, spec, opts)
 %     image   the HTML report's image (reportImage; [] without Images)
 %     page    the PDF report's page file (reportPdfPage; "" without Pages)
 %     title   the page's title (renderFigure's H.title)
+%     error   [] ; with Partial=true, the error of a report image or PDF
+%             page that failed after the figure files were written (FILES:
+%             those, finished), instead of throwing it
 %   The report reuses a file just written (Base): an Export PNG is the
 %   HTML image (at the Export Dpi), an Export PDF the PDF page, so no page
 %   is written twice. A page whose files were kept (Export.Overwrite off:
@@ -34,6 +37,12 @@ function out = drawExportPage(F, spec, opts)
 %     Design     renderFigure's Design= ("" = the user's design)
 %     UserRules  renderFigure's UserRules= ([] = the user's remembered plot
 %                rules, read from the preferences while the page is drawn)
+%     Partial    true: a report image or PDF page that fails after
+%                exportFigure has written the page's files does not throw:
+%                OUT.error holds the error and OUT.files the files written
+%                (EphysAnalysisRunner.submitPage and pageOutput then name
+%                them in the figure's row before the error goes on); false
+%                (the default): it throws
 %     PrefsFile  an AppPrefs store to read the user's plot rules from ("" =
 %                the store in use): the whole store is switched while the
 %                page is drawn, so pass it only where nothing else reads
@@ -56,6 +65,7 @@ arguments
     opts.Pages (1,1) logical = false
     opts.Design = ""
     opts.UserRules = []
+    opts.Partial (1,1) logical = false
     opts.PrefsFile (1,1) string = ""
 end
 
@@ -67,15 +77,22 @@ end
 fig = newExportFigure(opts.Export, F, spec);
 closer = onCleanup(@() close(fig)); %#ok<NASGU> closes the page on a failure too
 h = renderFigure(F, spec, fig, BatchYLim=opts.BatchYLim, Design=opts.Design, UserRules=opts.UserRules);
-out = struct('files', string.empty(1, 0), 'image', [], 'page', "", 'title', string(h.title));
+out = struct('files', string.empty(1, 0), 'image', [], 'page', "", 'title', string(h.title), 'error', []);
 if opts.Base ~= ""
     out.files = exportFigure(fig, opts.Base, Format=opts.Formats, Dpi=opts.Dpi);
 end
 have = out.files;   % what this run wrote of this page: never a kept file (an earlier run's drawing)
-if opts.Images
-    out.image = reportImage(fig, opts.Report, Title=h.title, Files=have);
-end
-if opts.Pages
-    out.page = reportPdfPage(fig, opts.Report, Files=have);
+try
+    if opts.Images
+        out.image = reportImage(fig, opts.Report, Title=h.title, Files=have);
+    end
+    if opts.Pages
+        out.page = reportPdfPage(fig, opts.Report, Files=have);
+    end
+catch ME
+    if ~opts.Partial || isempty(have); rethrow(ME); end
+    out.image = [];   % the page's files are written and finished: the caller names them, then throws ME
+    out.page = "";
+    out.error = ME;
 end
 end

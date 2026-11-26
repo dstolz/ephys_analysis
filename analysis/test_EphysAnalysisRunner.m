@@ -52,9 +52,12 @@ function test_EphysAnalysisRunner()
 %   remembered while a run goes (its pages drawn in the looks it started
 %   with); a figure that fails or is canceled after its first page was
 %   written (its row listing that page's file; a failed figure's report
-%   entry that cannot be added said in its row, not thrown); two datasets' pages with
+%   entry that cannot be added said in its row, not thrown; a LogFcn that
+%   throws, a warning; a page whose PDF page fails after its file was
+%   written, that file in the error row); two datasets' pages with
 %   one file name (the first written, the second neither "kept" nor
-%   written over, with Export.Overwrite off and on).
+%   written over, with Export.Overwrite off and on, by the run and by the
+%   standalone script).
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -1048,17 +1051,54 @@ check(height(rowPC) == 1 && rowPC.Status == "canceled" && isscalar(fPC) && isfil
     && startsWith(fPC, string(fullfile(outPC, names(1)))) && all(RPC.Status(RPC.Dataset == names(2)) == "canceled") ...
     && all(RPC.Files(RPC.Dataset == names(2)) == ""), ...
     'a figure canceled after its first page was written: its canceled row lists that file; the figures not reached list none');
-rPE = EphysAnalysisRunner(cfgP, LogFcn=[]);
-rPE.run(Datasets=1, Export=false, Report=false);   % a row, and no report to add an entry to
+rPE = EphysAnalysisRunner(cfgP, LogFcn=@throwOnDoneLine);   % a LogFcn that throws on a figure's "done" line
+lastwarn('');
+RPE = rPE.run(Datasets=1, Export=false, Report=false);   % rows, and no report to add an entry to
+[~, widPE] = lastwarn();
 heardPE = "";
 try
+    rPE.LogFcn = @(m) error('test_EphysAnalysisRunner:LogClosed', 'the Log is closed');   % every line now
     rPE.addFailureEntry(cfgP.Figures(1), "error", "the second unit cannot be read", names(1), "card");
 catch ME
     heardPE = string(ME.message);
 end
+rPE.LogFcn = [];
+check(height(RPE) == 1 && RPE.Status == "done" && string(widPE) == "EphysAnalysisRunner:LogFcn", ...
+    sprintf(['a LogFcn that throws on a figure''s "done" line is a warning: the figure stays one "done" row, with no ' ...
+    'second "error" row (%d row(s): %s)'], height(RPE), strjoin(RPE.Status, ", ")));
 check(heardPE == "" && contains(rPE.Results.Message(end), "its report entry could not be added"), ...
-    ['a failed figure''s report entry that cannot be added (here: no report) is no error: the row says so, so its own ' ...
-    'error stays and the run goes on']);
+    ['a failed figure''s report entry that cannot be added (here: no report) is no error, even with a LogFcn that ' ...
+    'throws: the row says so, so its own error stays and the run goes on']);
+% a page whose PDF page cannot be written after its figure file was: that file is in the figure's error row
+outPS = fullfile(root, 'outPageFails');
+cfgPS = cfgP;
+cfgPS.Export.Folder = fullfile(outPS, "{Name}");
+cfgPS.Report.Folder = outPS;
+cfgPS.Report.Format = "pdf";   % each page also goes to the PDF report's page folder
+rPS = EphysAnalysisRunner(cfgPS, LogFcn=[]);
+    function onPageFailsProgress(~, msg)
+        pf = rPS.Report.pageFolder;
+        if msg == names(1) + ": card (1/2)" && ~isfolder(pf) && ~isfile(pf)
+            fid = fopen(pf, 'w'); fclose(fid);   % a file where the page folder goes: the first page's PDF page cannot be written
+        elseif msg == "Dataset " + names(2) && isfile(pf)
+            delete(pf);   % the second dataset's pages, and the report, as usual
+        end
+    end
+rPS.ProgressFcn = @onPageFailsProgress;
+whyPS = "";
+try
+    RPS = rPS.run();
+catch ME
+    RPS = rPS.Results;
+    whyPS = string(ME.message);
+end
+rPS.ProgressFcn = [];
+rowPS = RPS(RPS.Dataset == names(1) & RPS.Plot == "card", :);
+fPS = splitFiles(rowPS.Files);
+check(height(rowPS) == 1 && rowPS.Status == "error" && isscalar(fPS) && isfile(fPS) && endsWith(fPS, ".png") ...
+    && startsWith(fPS, string(fullfile(outPS, names(1)))) && any(rPS.WrittenFiles == fPS) && isempty(rPS.StrayFiles), ...
+    sprintf(['a page whose PDF page fails after its figure file was written: the figure''s error row lists that file ' ...
+    '(and the run counts it as its own) (%s; %s)'], strjoin(RPS.Status, ", "), whyPS));
 
 fprintf('\n== 17. two datasets'' pages with one file name: the first is written, the second neither "kept" nor written over ==\n');
 cfgO = cfg;
@@ -1090,10 +1130,29 @@ check(isequal(splitFiles(RO2.Files(RO2.Dataset == names(1))), fO1) && isempty(sp
     && nnz(any(pxO1 ~= pxO2, 3)) <= 16, ...
     ['Export.Overwrite on: the second dataset''s page is not written over the first''s within the run (the file holds the ' ...
     'first dataset''s page, as its row says), and its row says so']);
+outOS = fullfile(root, 'outOneNameScript');
+cfgOS = cfgO;   % Overwrite on
+cfgOS.Export.Folder = outOS;
+scriptO = fullfile(root, 'scripts', 'one_name_standalone.m');
+txtO = EphysAnalysisScript.standalone(cfgOS, File=scriptO);
+outSO = runScript(scriptO);
+[sameO, pngsO] = samePngs(outO, outOS);
+check(sameO && isscalar(pngsO) && contains(outSO, "not written: this script already wrote a file at that path") ...
+    && contains(txtO, "runFiles = [runFiles written];"), ...
+    ['the standalone script follows the run''s rule: one file, the first dataset''s page, pixel for pixel the run''s; ' ...
+    'the second dataset''s said not written']);
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisRunner:Failures', '%d checks failed.', nFail);
+end
+end
+
+
+function throwOnDoneLine(msg)
+%throwOnDoneLine  A LogFcn that throws on a figure's "done" line.
+if contains(string(msg), " done (")
+    error('test_EphysAnalysisRunner:LogClosed', 'the Log is closed');
 end
 end
 

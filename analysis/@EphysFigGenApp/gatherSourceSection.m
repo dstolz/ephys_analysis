@@ -8,7 +8,10 @@ function S = gatherSourceSection(obj)
 %   aside); otherwise -- before a scan, or after the root, output root,
 %   name pattern, recordings or folders changed, or a config opened whose
 %   source was not scanned -- the config's own selection is kept, so it
-%   never takes another source's ticks. A change of Mode (project <->
+%   never takes another source's ticks. The keys a config opened without
+%   its scan ticks that the datasets listed lack (TickedNotListed:
+%   tickConfigSelection; the listing is older than the config) are kept
+%   after the ticked ones until a scan, so a Save does not drop them. A change of Mode (project <->
 %   folders) starts the selection again at "all": the other mode's keys
 %   name nothing here. Filter is the filter above the datasets table as
 %   set (each field "" when off: blank or "(any)").
@@ -27,12 +30,13 @@ if S.Mode ~= obj.Config.Source.Mode   % the other mode's selection means nothing
     S.Datasets = string.empty(1, 0);
 end
 if ~isempty(obj.Runner) && numel(obj.Ticked) == numel(obj.Runner.Keys) && ~isempty(obj.Ticked) && scanIsCurrent(obj, S)
-    if all(obj.Ticked)
+    unlisted = obj.TickedNotListed;   % a config opened without its scan: its keys the old listing lacks (tickConfigSelection)
+    if all(obj.Ticked) && isempty(unlisted)
         S.Selection = "all";
         S.Datasets = string.empty(1, 0);
     else
         S.Selection = "list";
-        S.Datasets = obj.Runner.Keys(obj.Ticked);
+        S.Datasets = [reshape(obj.Runner.Keys(obj.Ticked), 1, []) reshape(unlisted, 1, [])];
     end
 end
 S.Filter = struct('Subjects', filterText(obj.SubjectFilterDropDown), ...

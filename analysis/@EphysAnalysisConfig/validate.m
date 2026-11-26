@@ -6,8 +6,10 @@ function issues = validate(obj, opts)
 %
 %   Checked
 %     Source    Mode; Root exists (project) or every folder does (folders);
-%               NamePattern parses; a "list" selection names datasets;
-%               Filter.TagMode is "any" or "all"; each Downsample rate is
+%               NamePattern parses; a "list" selection names datasets (a
+%               warning, in folders mode, for a list of a project's keys
+%               saved before folders mode had a selection: every folder
+%               runs, EphysAnalysisRunner.selectedFolders); Filter.TagMode is "any" or "all"; each Downsample rate is
 %               empty or one rate above 0 (Field "Downsample.<signal>");
 %               each enabled SignalFilter's settings (SignalFilter.problems,
 %               Field "SignalFilter.<signal>.<field>"), and its cutoffs
@@ -271,6 +273,13 @@ if ismember(S.Mode, ["project" "folders"])   % both modes: the datasets ticked t
         add("Source", "Selection", "error", "Selection must be ""all"" or ""list"".");
     elseif S.Selection == "list" && isempty(S.Datasets)
         add("Source", "Datasets", "warning", "Selection is ""list"" but no datasets are listed; nothing will run.");
+    elseif S.Mode == "folders" && S.Selection == "list"
+        [~, ~, legacy] = EphysAnalysisRunner.selectedFolders(S);   % the one reading of a folders-mode selection
+        if legacy
+            add("Source", "Datasets", "warning", "Selection lists " + strjoin(string(S.Datasets), ", ") + ", which name no " + ...
+                "folder of Folders: a project's dataset keys, saved before folders mode had a selection of its own. " + ...
+                "Every folder runs, as it ran then; tick the folders to run on the Data tab and save the config.");
+        end
     end
 end
 if ~ismember(S.Filter.TagMode, ["any" "all"])

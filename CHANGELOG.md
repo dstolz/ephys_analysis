@@ -805,7 +805,15 @@ says how to cut a release.
   warnings (files that overwrite each other) are shown at Run, which goes on. A config opened without its scan keeps
   its own ticks; in folders mode the ticks are the config's selection (`Selection "list"` with the folders), which the
   runner, the scripts and a scan follow; a scan matches a config's keys as `EphysProject.findByKey` does (case ignored
-  on Windows) and names the ones it does not find. With `Export.Overwrite` off a report embedded the earlier run's
+  on Windows) and names the ones it does not find. A folders-mode config saved before then, whose selection is the
+  project's keys it was switched from (they name no folder, and folders mode ran every folder), still runs every
+  folder (`EphysAnalysisRunner.selectedFolders`, the one reading of a folders-mode selection: the warning
+  `EphysAnalysisRunner:LegacySelection`, a `validate` warning, every folder ticked in the app, which says so). A
+  config opened while its project cannot be scanned keeps in its selection the datasets the last scan did not list,
+  and says so, so Save no longer drops them. Every page of a run, in this MATLAB as on the workers, is drawn in the
+  plot design and remembered looks as they were when the run started (`renderFigure` and `drawExportPage` take
+  `UserRules=`, `PlotAesthetics.userRules` a snapshot): a design chosen while it runs is the next run's. With
+  `Export.Overwrite` off a report embedded the earlier run's
   file of a kept page under this run's caption: it now holds the page as this run draws it, and the result row,
   the report entry and the HTML say which files were kept.
 - The analysis app's figure preview no longer says *Drawn* for a drawing that is not the figure as it is now. A

@@ -148,6 +148,14 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %     Design          "" (default): the user's design (PlotDesign.current;
 %                     none when UserAesthetics is false); a name; a design
 %     UserAesthetics  the user's design and remembered rules (default true)
+%     UserRules       the user's remembered rules to draw with instead of
+%                     the preferences: a struct, a field per kind, as
+%                     PlotAesthetics' preference group reads whole
+%                     (PlotAesthetics.userRules FROM); [] (default) = the
+%                     preferences. EphysAnalysisRunner draws every page of
+%                     a run with the rules (and the Design) as they were
+%                     when it started, so a look remembered meanwhile is
+%                     the next run's
 %     Editable        "auto" (default: in a visible figure), true or false
 %     OnRemember      called with the figure's new aesthetics rules when the
 %                     editor saves them with the figure (the app puts them
@@ -357,6 +365,7 @@ arguments
     target
     opts.Design = ""
     opts.UserAesthetics (1,1) logical = true
+    opts.UserRules = []
     opts.Editable = "auto"
     opts.OnRemember = []
     opts.OnGoto = []
@@ -674,7 +683,7 @@ PlotAesthetics.apply(root, design.rules);
 kRules = cell(1, np);
 for k = find(drawn)
     r = figureKindRules(design, types(k));
-    if opts.UserAesthetics && isvarname(types(k)); r = [r PlotAesthetics.userRules(types(k))]; end %#ok<AGROW>
+    if opts.UserAesthetics && isvarname(types(k)); r = [r PlotAesthetics.userRules(types(k), opts.UserRules)]; end %#ok<AGROW>
     if types(k) == "raster" && isfield(panels(k).options, 'tickWidth') && panels(k).options.tickWidth > 0
         % the panel's tick width wins over the design's and the user's kind rules (the figure's own rules still win)
         r = [r PlotAesthetics.normalizeRules(struct('role', "rasterTicks", 'group', "", 'property', "LineWidth", ...
@@ -688,7 +697,7 @@ for k = find(drawn)
 end
 PlotDesign.paint(root, design);
 r = figureKindRules(design, "figure");
-if opts.UserAesthetics; r = [r PlotAesthetics.userRules("figure")]; end
+if opts.UserAesthetics; r = [r PlotAesthetics.userRules("figure", opts.UserRules)]; end
 % a panel's note and overlays: their own looks after the design's and the user's, before the figure's own
 ownRules = cell(1, np);
 for k = find(drawn)
@@ -1369,7 +1378,7 @@ Fg = rmfield(F, intersect({'panels' 'id' 'created' 'spec' 'latency'}, fieldnames
 Sg = rmfield(spec, intersect({'panels' 'id' 'autoId' 'enabled' 'title' 'latency' 'layout'}, fieldnames(spec)));
 Sg.titled = spec.title ~= "";
 rules = PlotAesthetics.emptyRules();
-if opts.UserAesthetics; rules = PlotAesthetics.userRules("figure"); end
+if opts.UserAesthetics; rules = PlotAesthetics.userRules("figure", opts.UserRules); end
 sz = [0 0];
 try
     q = getpixelposition(target);
@@ -1387,7 +1396,7 @@ K.start = cell(1, np);
 K.ownTime = false(1, np);
 for k = 1:np
     kind = PlotAesthetics.emptyRules();
-    if opts.UserAesthetics && isvarname(P(k).type); kind = PlotAesthetics.userRules(P(k).type); end
+    if opts.UserAesthetics && isvarname(P(k).type); kind = PlotAesthetics.userRules(P(k).type, opts.UserRules); end
     column = false;   % (drawHeatmapPanel, drawPsthPanel's heat map, drawSpectrogramPanel: a color bar inside)
     heat = P(k).type == "psth" && isfield(P(k).options, 'display') && string(P(k).options.display) == "heatmap";
     if P(k).sharesTime && (ismember(P(k).type, ["heatmap" "spectrogram"]) || heat)

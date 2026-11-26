@@ -93,7 +93,9 @@ function rows = runDataset(obj, k, opts)
 %   it started with, so an edit of Config while the run goes (the app's
 %   window stays usable) does not reach its later datasets. Every read of
 %   the config here is of that one (the figures, Export, the folder tokens:
-%   outputRoot; the source's name pattern: source).
+%   outputRoot; the source's name pattern: source). Likewise every page is
+%   drawn in the plot design and remembered plot rules the run took when it
+%   started (holdPageLooks; called alone, those of when runDataset starts).
 %
 %   See also EphysAnalysisRunner.run, EphysAnalysisRunner.computeFigure,
 %   EphysAnalysisRunner.computeProbeFigure, renderFigure, figureOutputName.
@@ -112,6 +114,7 @@ end
 
 cfg = opts.Config;
 if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.Config; end   % alone: the config now; from run: the one it started with
+looksBack = obj.holdPageLooks(); %#ok<NASGU> alone: the plot design and rules now, for every page; from run: the run's
 fids = EphysAnalysisRunner.idList(opts.Figures, @() cfg.enabledFigures());
 nAll = max(1, numel(fids));   % the figures share the dataset's span
 first = height(obj.Results) + 1;

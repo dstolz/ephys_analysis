@@ -24,7 +24,10 @@ function test_EphysFigGenApp(opts)
 %   other warned of at Run, which goes on; a config opened while its root
 %   is not there keeping its own selection; a config's keys found as the
 %   runner finds them and the ones not found said; folders mode's ticks
-%   in the config, its scripts and its reopened scan); a panel's Filter... (5d.sigfilter:
+%   in the config, its scripts and its reopened scan; a folders-mode
+%   config whose selection is a project's keys, every folder ticked and
+%   said; a config opened without a scan of its own keeping the keys the
+%   listing lacks, said); a panel's Filter... (5d.sigfilter:
 %   the row by type, OK one undo step into options.filter, the preview
 %   read through it, closed with another panel); the Probe... buttons
 %   beside the Channels rows (5d.probepick: the window on the figure's
@@ -709,6 +712,13 @@ if S.sec("1d", "messages: what stops an action is an alert that says what to do;
     check(numel(A) == 1 && A(1).Message == "No processed recordings under " + string(emptyProj) + ". Check the root, or run the pipeline app first." ...
         && contains(app2.ScanLabel.Text, "No processed recordings"), ...
         'Scan of a root with no processed recordings: "No processed recordings under <root>. Check the root, or run the pipeline app first."');
+    app2.RootField.Value = fullfile(root, 'nothere');
+    app2.onConfigChanged("source");
+    changed2 = string(app2.ScanLabel.Text);
+    app2.RootField.Value = emptyProj;
+    app2.onConfigChanged("source");
+    check(contains(changed2, "The source changed") && startsWith(string(app2.ScanLabel.Text), "No processed recordings under " + string(emptyProj)), ...
+        'the root changed and back to the one scanned with no processed recordings: the scan line says so again, not "0 dataset(s) found"');
     closeApp(app2);
     % a run that cannot start: no figure enabled (the config error is named, the Export tab's table lists it), then no dataset ticked
     noFigures();
@@ -1003,7 +1013,7 @@ if S.sec("1g", "Data tab: Filter... (the Filters row, the dialog on the config's
     app.applyConfig(cfg0);
 end
 
-if S.sec("1h", "a run's datasets and config: a source changed since the scan stops Run, Plan, Generate and Test report; an edit while a run goes; warnings at Run; a config's ticks (both modes) and keys not found")
+if S.sec("1h", "a run's datasets and config: a source changed since the scan stops Run, Plan, Generate and Test report; an edit while a run goes; warnings at Run; a config's ticks (both modes), keys not found, a project's keys in folders mode, keys kept without a scan")
     wasCapture1h = AppDialog.capture(true);
     captureBack1h = onCleanup(@() AppDialog.capture(wasCapture1h)); %#ok<NASGU> the tests read the alerts, none is shown
     filterBy(app, '(any)', '(any)', 'any');
@@ -1142,6 +1152,51 @@ if S.sec("1h", "a run's datasets and config: a source changed since the scan sto
         && isequal(app.Ticked, [true false]) && isequal(app.Runner.Keys, F.folders), ...
         ['folders mode: a Run tick goes into the config''s selection; the runner (the compact script), the standalone script ' ...
         'and the config reopened and scanned run that folder alone']);
+    % a folders-mode config saved before folders mode had ticks of its own: its "list" is a project's keys, carried over
+    % from project mode, which name no folder: opened and scanned, every folder is ticked, as such a config ran
+    cL = cF;
+    cL.Source.Selection = "list";
+    cL.Source.Datasets = reshape(string(F.keys), 1, []);
+    fileL = fullfile(root, 'folders_legacy.json');
+    cL.save(fileL);
+    app.openConfigFile(fileL);
+    statusL = string(app.StatusBar.Text);
+    logL = strjoin(string(app.LogArea.Value), newline);
+    SL = app.gatherConfig().Source;
+    check(all(app.Ticked) && isequal(app.Runner.Keys, F.folders) && SL.Selection == "all" && contains(statusL, "Every folder is ticked") ...
+        && contains(logL, "which name no output folder") && contains(logL, F.keys(1)), ...
+        ['a folders-mode config whose selection is a project''s keys (saved before folders mode had ticks) ticks every folder ' ...
+        'when it is opened and scanned, as such a config ran; the status bar and the Log say so, and the next gather saves "all"']);
+    % a config opened while one of its folders is not there is not scanned: the datasets listed, the last scan of its
+    % folders, are ticked by its selection; a folder it ticks that the listing lacks is said, and stays in its selection
+    [~, leafG] = fileparts(F.folders(2));
+    copyG = string(fullfile(root, 'folders_copy', leafG));   % a copy of the second dataset's folder, under its own name
+    mkdir(fileparts(copyG));
+    copyfile(F.folders(2), copyG);
+    cG = cF;
+    cG.Source.Folders = [F.folders(1) copyG];
+    cG.Source.Selection = "all";
+    cG.Source.Datasets = string.empty(1, 0);
+    fileG = fullfile(root, 'folders_copy.json');
+    cG.save(fileG);
+    app.openConfigFile(fileG);   % scanned: the first folder and the copy
+    app.selectDataset(1);        % the copy is not the dataset open: it goes next
+    scannedG = isequal(app.Runner.Keys, [F.folders(1) copyG]);
+    rmdir(fileparts(copyG), 's');
+    cH = cG;
+    cH.Source.Selection = "list";
+    cH.Source.Datasets = [copyG F.folders(2)];   % the copy, and a folder the listing lacks
+    fileH = fullfile(root, 'folders_copy_ticks.json');
+    cH.save(fileH);
+    app.openConfigFile(fileH);   % one of its folders is not there: not scanned
+    statusH = string(app.StatusBar.Text);
+    logH = strjoin(string(app.LogArea.Value), newline);
+    SH = app.gatherConfig().Source;
+    check(scannedG && ~isfolder(copyG) && isequal(app.Ticked, [false true]) && SH.Selection == "list" ...
+        && isequal(SH.Datasets, [copyG F.folders(2)]) && contains(statusH, "1 dataset(s) ticked in the config are not among the datasets listed") ...
+        && contains(statusH, F.folders(2)) && contains(logH, "stay in the config's selection"), ...
+        ['a config opened without a scan of its own, the datasets listed the last scan of its folders: its selection ticks ' ...
+        'them; a folder it ticks that the listing lacks is said (the status bar, the Log) and stays in its selection, so a Save keeps it']);
     % put back: the config, its saved state, the recent list and the last config file; the project scanned, every dataset ticked
     app.applyConfig(c0, MarkSaved=true);
     app.SavedConfigStruct = saved0;

@@ -5,24 +5,30 @@ function job = submitPage(obj, F, spec, onPool, page)
 %   is its result), else on the open process pool (parfeval; JOB.future).
 %   PAGE holds drawExportPage's options (Export, Base, Formats, Dpi,
 %   BatchYLim, Images, Pages); the report's options and page folder are
-%   added. A worker gets the user's design and remembered plot rules as
-%   they are when the run sends its first page (pageLooks): it reads no
-%   preferences of its own.
+%   added. Every page, here or on a worker, is drawn in the user's design
+%   and remembered plot rules as PageLooks holds them (Design=, UserRules=:
+%   taken when the run started, holdPageLooks), never as they are when the
+%   page is drawn: a design chosen or a look remembered while the run goes
+%   (the analysis app's window stays usable) is the next run's. A worker
+%   reads no preferences of its own. With no looks held (submitPage called
+%   by itself) the page takes them as they are now (pageLooksNow).
 %
-%   See also EphysAnalysisRunner.pageOutput, EphysAnalysisRunner.usePagePool.
+%   See also EphysAnalysisRunner.pageOutput, EphysAnalysisRunner.usePagePool,
+%   EphysAnalysisRunner.holdPageLooks.
 
 args = namedArgs(page);
 if page.Images || page.Pages
     R = obj.Report;
     args = [args {'Report', struct('options', R.options, 'pageFolder', R.pageFolder)}];
 end
+L = obj.PageLooks;
+if isempty(L); L = EphysAnalysisRunner.pageLooksNow(); end
+args = [args {'Design', L.design, 'UserRules', L.rules}];
 job = struct('future', [], 'out', []);
 if ~onPool
     job.out = drawExportPage(F, spec, args{:});
     return
 end
-L = pageLooks(obj);
-args = [args {'Design', L.design, 'PrefsFile', L.file}];
 job.future = parfeval(gcp('nocreate'), @drawExportPage, 1, F, spec, args{:});
 end
 
@@ -33,22 +39,4 @@ f = fieldnames(s);
 args = cell(1, 2 * numel(f));
 args(1:2:end) = f;
 args(2:2:end) = struct2cell(s);
-end
-
-
-function L = pageLooks(obj)
-%pageLooks  The user's design and a preference file with their remembered plot rules, for the workers (once per run).
-if ~isempty(obj.PageLooks); L = obj.PageLooks; return; end
-file = string(tempname) + "_page_looks.mat";
-prefs = struct();
-g = char(PlotAesthetics.PrefGroup);
-if AppPrefs.ispref(g); prefs.(g) = AppPrefs.getpref(g); end
-save(file, 'prefs');
-L = struct('design', PlotDesign.current(), 'file', file, 'cleanup', onCleanup(@() deleteQuiet(file)));
-obj.PageLooks = L;
-end
-
-
-function deleteQuiet(file)
-if isfile(file); delete(file); end
 end

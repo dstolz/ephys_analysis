@@ -151,8 +151,11 @@ classdef EphysAnalysisScript
                 L(end+1, 1) = "end";
             else
                 L(end+1, 1) = "root = " + lit(S.Root) + ";";
-                if S.Selection == "list"   % the folders ticked (Source.Datasets), as the runner keeps them (datasets)
-                    L(end+1, 1) = "folders = " + lit(EphysAnalysisRunner.selectedFolders(S)) + ";   % the datasets' output folders ticked to run";
+                [selF, ~, legacyF] = EphysAnalysisRunner.selectedFolders(S);   % the folders ticked (Source.Datasets), as the runner keeps them (datasets)
+                if S.Selection == "list" && legacyF   % a project's keys saved before folders mode had ticks: every folder, as then
+                    L(end+1, 1) = "folders = " + lit(selF) + ";   % every output folder: the config's selection names none of them (a project's keys)";
+                elseif S.Selection == "list"
+                    L(end+1, 1) = "folders = " + lit(selF) + ";   % the datasets' output folders ticked to run";
                 else
                     L(end+1, 1) = "folders = " + lit(S.Folders) + ";   % the datasets' output folders";
                 end

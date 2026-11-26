@@ -370,7 +370,8 @@ See [Lab database](database.md) for the details.
 - **A run** shows a bar, the time left and **Cancel** at the bottom of the
   window; you can look at the other tabs meanwhile, and keep editing: the
   run uses the settings it started with, and your changes are for the next
-  run. A figure that failed is in the results table with its message.
+  run. So does a design you choose, or a look you remember, while it runs.
+  A figure that failed is in the results table with its message.
 - **Run or Scan does nothing and the status bar says a preview is
   computing.** Press **Cancel** over the preview, or wait for it. A run
   and a preview cannot share the computing.
@@ -380,6 +381,15 @@ See [Lab database](database.md) for the details.
 - **The arrow keys move a panel when you meant a field.** They nudge a panel
   only after a click on the preview. Click in the field first and they are
   the field's again.
+- **An old config ticks every output folder.** A config saved in output
+  folder mode by an older version kept a project's dataset list, which
+  names no folder; it ran every folder then, and it does now. The status
+  bar and the Log say so. Untick the folders to leave out, and save.
+- **The status bar says datasets ticked in the config *are not among the
+  datasets listed*.** The config was opened while its project could not be
+  scanned, so the list is the last scan's. Those datasets stay in the
+  config, and **Save** keeps them. Press **Scan** once the project can be
+  reached.
 - **Right-click menus and keys.** **Help → Keyboard shortcuts and
   right-click menus** lists them.
 - **The Log tab** has the details of every run.

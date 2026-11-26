@@ -8,7 +8,8 @@ function ok = openConfigFile(obj, file)
 %   datasets listed stay the last config's scan, their ticks not taken as
 %   its selection while they are another source's (gatherSourceSection,
 %   scanIsCurrent), and set from its selection while they are its
-%   source's (tickConfigSelection). The config's LoadWarnings
+%   source's (tickConfigSelection; the keys it ticks that those lack are
+%   said and stay in its selection until a scan). The config's LoadWarnings
 %   (dropped fields; a version-1 file's migration of its plots and session
 %   plots to figures) go to the status bar and, one line each, to the Log.
 ok = false;

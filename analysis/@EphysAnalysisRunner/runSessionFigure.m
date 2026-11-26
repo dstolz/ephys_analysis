@@ -51,6 +51,8 @@ function rows = runSessionFigure(obj, id, idx, opts)
 %   the figure is drawn, exported and reported with: run passes the one it
 %   started with, so an edit of Config while the run goes does not reach
 %   it (the figure, Export, the folder tokens, the sessions' name pattern).
+%   Its pages are drawn in the plot design and remembered plot rules the
+%   run took when it started (holdPageLooks; alone, those of when it starts).
 %
 %   See also figureSessionCompute, EphysAnalysisRunner.computeSessionFigure,
 %   EphysAnalysisRunner.run.
@@ -67,6 +69,7 @@ end
 
 cfg = opts.Config;
 if ~isa(cfg, 'EphysAnalysisConfig'); cfg = obj.Config; end   % alone: the config now; from run: the one it started with
+looksBack = obj.holdPageLooks(); %#ok<NASGU> alone: the plot design and rules now, for every page; from run: the run's
 X = cfg.Export;
 first = height(obj.Results) + 1;
 t0 = tic;

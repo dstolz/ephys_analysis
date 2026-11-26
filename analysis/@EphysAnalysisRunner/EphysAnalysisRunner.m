@@ -64,7 +64,12 @@ classdef EphysAnalysisRunner < handle
     %                   Each figure's observations are computed here, in turn;
     %                   their pages are drawn on the workers meanwhile and
     %                   put in the report in order (submitPage, pageOutput).
-    %                   EphysFigGenApp sets it from its Workers preference
+    %                   EphysFigGenApp sets it from its Workers preference.
+    %                   Every page of a run, here or on a worker, is drawn
+    %                   in the user's plot design and remembered plot rules
+    %                   as they were when the run started (holdPageLooks):
+    %                   a design chosen or a look remembered while it goes
+    %                   is the next run's
     %     SearchDirs    further folders each dataset's outputs are searched in
     %                   (DatasetOutputs SearchDirs), e.g. a pipeline's
     %                   Signals / Spikes OutputDir; set before datasets()
@@ -150,7 +155,7 @@ classdef EphysAnalysisRunner < handle
         FigureCache = struct('kind', {}, 'dataset', {}, 'key', {}, 'value', {}, 'bytes', {}, 'from', {})   % what the preview's computes found or made (computeFigure Reuse), the most recent first
         PagesSeen (1,1) double = 0       % the pages the run has come to (usePagePool starts the workers at MinPoolPages)
         PoolFailed (1,1) logical = false % the workers could not start this run: its pages are drawn here
-        PageLooks = []                   % the design and plot rules the workers draw in (submitPage; once per run)
+        PageLooks = []                   % the design and plot rules every page draws in, here or on a worker (holdPageLooks: taken when a run starts)
         LastFraction (1,1) double = 0    % the fraction last reported (progress)
     end
 
@@ -288,6 +293,47 @@ classdef EphysAnalysisRunner < handle
             if ~isempty(n); C = C(1:max(numel(K), n - 1)); end
             obj.FigureCache = C;
         end
+
+        function back = holdPageLooks(obj)
+            %holdPageLooks  Take the user's plot design and remembered plot rules once, for every page drawn until BACK is cleared.
+            %   BACK = r.holdPageLooks() keeps them in PageLooks
+            %   (pageLooksNow: PlotDesign.current and the PlotAesthetics
+            %   preference group), unless they are held already, and
+            %   returns an onCleanup that forgets them when this call took
+            %   them ([] otherwise). run() takes them when it starts, so the
+            %   runDataset and runSessionFigure it calls draw in the run's;
+            %   called alone, each takes its own. submitPage draws every
+            %   page in them, in this MATLAB and on the workers alike: a
+            %   design chosen or a look remembered while the pages are
+            %   drawn (EphysFigGenApp's window stays usable during a run)
+            %   is the next run's.
+            back = [];
+            if ~isempty(obj.PageLooks); return; end
+            obj.PageLooks = EphysAnalysisRunner.pageLooksNow();
+            back = onCleanup(@() obj.forgetPageLooks());
+        end
+    end
+
+    methods (Hidden)
+        function forgetPageLooks(obj)
+            %forgetPageLooks  Forget the looks holdPageLooks took (the next pages read them anew).
+            if isvalid(obj); obj.PageLooks = []; end
+        end
+    end
+
+    methods (Static, Hidden)
+        function L = pageLooksNow()
+            %pageLooksNow  The user's plot design and remembered plot rules as they are now: what a run's pages are drawn in.
+            %   L.design: PlotDesign.current() (a design struct: drawExportPage
+            %   Design=); L.rules: the PlotAesthetics preference group as a
+            %   struct, a field per kind (drawExportPage UserRules=;
+            %   PlotAesthetics.userRules FROM), struct() when none is
+            %   remembered.
+            rules = struct();
+            g = PlotAesthetics.PrefGroup;
+            if AppPrefs.ispref(g); rules = AppPrefs.getpref(g); end
+            L = struct('design', PlotDesign.current(), 'rules', rules);
+        end
     end
 
     methods (Static)
@@ -310,7 +356,7 @@ classdef EphysAnalysisRunner < handle
                 'VariableNames', {'Dataset', 'Plot', 'Kind', 'Status', 'Message', 'Files', 'Seconds'});
         end
 
-        function [folders, missing] = selectedFolders(S)
+        function [folders, missing, legacy] = selectedFolders(S)
             %selectedFolders  The output folders a folders-mode Source runs: Folders, or with Selection "list" those Datasets names.
             %   [FOLDERS, MISSING] = EphysAnalysisRunner.selectedFolders(S)
             %   (a config's Source): every folder of S.Folders with Selection
@@ -319,15 +365,38 @@ classdef EphysAnalysisRunner < handle
             %   compared as paths (EphysDataset.pathKey: "\" or "/", a
             %   trailing separator, and on Windows case, alike), in Folders'
             %   order. MISSING: the entries of S.Datasets that name no folder
-            %   of S.Folders. datasets() and EphysAnalysisScript.standalone
-            %   read a folders-mode selection this way.
+            %   of S.Folders.
+            %
+            %   [..., LEGACY] = ... is true for a "list" written before folders
+            %   mode had a selection of its own: a project's dataset keys
+            %   (root-relative, "Subj/Rec") that the analysis app carried into
+            %   folders mode (File > Open from database..., the mode drop-down)
+            %   and that folders mode then ignored, running every folder. Such
+            %   a list names no folder of S.Folders and holds no absolute path
+            %   (the app's folders-mode ticks are Folders entries themselves;
+            %   a folder ticked and then taken off Folders stays absolute), and
+            %   it is not empty. It runs as it ran then: FOLDERS is every
+            %   folder of S.Folders, MISSING none. datasets() warns
+            %   (EphysAnalysisRunner:LegacySelection), validate lists it as a
+            %   warning, and the analysis app says it on its status bar and in
+            %   its Log and ticks every folder.
+            %
+            %   This is the one reading of a folders-mode selection: datasets(),
+            %   EphysAnalysisScript.standalone, validate and the analysis app's
+            %   ticks (selectionTicks) take it from here.
             folders = reshape(string(S.Folders), 1, []);
             missing = string.empty(1, 0);
+            legacy = false;
             if S.Selection ~= "list"; return; end
             want = reshape(string(S.Datasets), 1, []);
             have = EphysDataset.pathKey(folders);
             key = EphysDataset.pathKey(want);
-            missing = want(~ismember(key, have));
+            named = ismember(key, have);
+            if ~isempty(want) && ~any(named) && ~any(isAbsolutePath(want))
+                legacy = true;   % a project's keys from before folders mode had ticks: every folder, as then
+                return
+            end
+            missing = want(~named);
             folders = folders(ismember(have, key));
         end
 
@@ -392,4 +461,19 @@ classdef EphysAnalysisRunner < handle
             f = figureOutputName(pattern, facet, spec, obs, i, n);
         end
     end
+end
+
+
+function tf = isAbsolutePath(p)
+%isAbsolutePath  Whether each path is absolute on some system: "C:\" or "C:/", "\\server", or "/" first (selectedFolders).
+%   A Windows path is absolute on any computer (a config written on one may
+%   be read on another), so the test does not depend on where it runs. A
+%   project's dataset key is relative to the root (EphysProject.datasetKey;
+%   absolute only for a recording outside it, which then is no list of a
+%   project's keys this test can tell from folders).
+p = reshape(string(p), 1, []);
+tf = false(1, numel(p));
+for k = 1:numel(p)
+    tf(k) = ~isempty(regexp(char(p(k)), '^([A-Za-z]:[\\/]|[\\/])', 'once'));
+end
 end

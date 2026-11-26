@@ -42,10 +42,15 @@ function test_EphysAnalysisRunner()
 %   ProgressFcn (a figure renamed, other folders: both datasets, the report
 %   and the run record are the started config's); Overwrite off with a
 %   report (the file on disk kept, the report embedding this run's drawing,
-%   the kept file said so in the row, the entry and the HTML); a run that
+%   the kept file said so in the row, the entry and the HTML); a
+%   folders-mode selection (the folders it names; a project's keys saved
+%   before folders mode had ticks, which run every folder, warned and
+%   listed by validate); a run that
 %   throws while it writes its PDF report (the error reaching the caller,
 %   the HTML written before it in ReportFiles, the run record written with
-%   outcome "failed" and the error).
+%   outcome "failed" and the error); a plot design chosen and a look
+%   remembered while a run goes (its pages drawn in the looks it started
+%   with).
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -880,7 +885,7 @@ check(isscalar(eW) && numel(eW.images) == 1 && eW.images{1}.data ~= string(matla
 check(isequal(rW.KeptFiles, pngW), ...
     'KeptFiles lists the kept file (the lab database''s record of the run leaves it out of its outputs: LabCapture.analysisRun)');
 
-fprintf('\n== 13. folders mode: Selection "list" runs the folders it names (the app''s Run ticks) ==\n');
+fprintf('\n== 13. folders mode: Selection "list" runs the folders it names (the app''s Run ticks); a project''s keys saved before, every folder ==\n');
 cfgF = cfg;
 cfgF.Source.Mode = "folders";
 cfgF.Source.Folders = F.folders;
@@ -898,6 +903,32 @@ check(isequal(rF.Keys, F.folders(2)) && string(widF) == "EphysAnalysisRunner:Unk
     && contains(txtF, "folders = " + EphysPipelineScript.literal(F.folders(2)) + ";"), ...
     ['folders mode with Selection "list": the runner (and so the compact script) and the standalone script take only the ' ...
     'folders Datasets names, a name that is no folder of Folders warned about; "all" takes every folder']);
+% a "list" saved before folders mode had a selection of its own: a project's keys (root-relative), which the app carried
+% into folders mode and folders mode ignored; they name no folder, and every folder runs, as it did then
+cfgF.Source.Selection = "list";
+cfgF.Source.Datasets = reshape(string(F.keys), 1, []);
+lastwarn('');
+rFl = EphysAnalysisRunner(cfgF, LogFcn=[]);
+[~, widFl] = lastwarn();
+[selFl, missFl, legacyFl] = EphysAnalysisRunner.selectedFolders(cfgF.Source);
+txtFl = EphysAnalysisScript.standalone(cfgF);
+IFl = cfgF.validate();
+check(isequal(rFl.Keys, F.folders) && string(widFl) == "EphysAnalysisRunner:LegacySelection" && legacyFl ...
+    && isequal(selFl, F.folders) && isempty(missFl) && contains(txtFl, "folders = " + EphysPipelineScript.literal(F.folders) + ";") ...
+    && any(IFl.Section == "Source" & IFl.Field == "Datasets" & IFl.Severity == "warning" & contains(IFl.Message, "Every folder runs")), ...
+    ['folders mode with Selection "list" of a project''s keys (saved before folders mode had ticks of its own): every folder ' ...
+    'runs, as it did then (the runner, with the warning EphysAnalysisRunner:LegacySelection; the standalone script), ' ...
+    'and validate lists it as a warning']);
+cfgF.Source.Datasets = string(fullfile(root, 'not_a_folder'));   % absolute: a folder ticked, then taken off Folders
+[selFa, missFa, legacyFa] = EphysAnalysisRunner.selectedFolders(cfgF.Source);
+cfgF.Source.Datasets = "nosuch/dataset";   % relative and no folder: a project's key
+[selFr, ~, legacyFr] = EphysAnalysisRunner.selectedFolders(cfgF.Source);
+cfgF.Source.Datasets = string.empty(1, 0);
+[selFe, ~, legacyFe] = EphysAnalysisRunner.selectedFolders(cfgF.Source);
+check(~legacyFa && isempty(selFa) && isequal(missFa, string(fullfile(root, 'not_a_folder'))) ...
+    && legacyFr && isequal(selFr, F.folders) && ~legacyFe && isempty(selFe), ...
+    ['a list holding an absolute path that is no folder of Folders runs nothing and names it missing (a folder ticked, ' ...
+    'then taken off); a list of relative names only, none a folder, is a project''s keys (every folder); an empty list runs nothing']);
 
 fprintf('\n== 14. a run that throws: its run record says so, the files written before the error listed; the error goes on ==\n');
 outX = fullfile(root, 'outFails');
@@ -934,6 +965,38 @@ check(startsWith(rX.RunRecordFile, string(fullfile(outX, "analysis_runs"))) && s
     && string(recX.error) == "test_EphysAnalysisRunner:Stopped: the disk is full" && isequal(string(recX.reportFiles), htmlX) ...
     && numel(recX.results) == 2, ...
     'its run record is written all the same: outcome "failed", the error, the HTML report and both rows');
+
+fprintf('\n== 15. a run draws in the plot design and remembered looks it started with: a change while it goes is the next run''s ==\n');
+prefsLooks = AppPrefs.useTemporary();   % the design and the remembered looks are preferences: a store of the test's own
+outLR = fullfile(root, 'outLooksRef');
+outLE = fullfile(root, 'outLooksEdited');
+cfgLk = cfg;
+cfgLk.Figures = cfgLk.Figures(cfgLk.figureIndex("map"));   % one page per dataset
+cfgLk.Export.Formats = "png";
+cfgLk.Report.Enabled = false;
+cfgLk.Export.Folder = fullfile(outLR, "{Name}");
+EphysAnalysisRunner(cfgLk, LogFcn=[]).run();   % both pages in the Default design, no look remembered
+cfgLk.Export.Folder = fullfile(outLE, "{Name}");
+rLk = EphysAnalysisRunner(cfgLk, LogFcn=[]);   % its pages drawn here (Workers 0)
+nLooks = 0;
+    function onLooksProgress(~, msg)
+        if nLooks == 0 && startsWith(msg, "Dataset " + names(2))   % between the two datasets' pages
+            PlotDesign.use("Night");   % what the app's Design list does while a run goes
+            PlotAesthetics.setUserRules("figure", struct('role', "plotTitle", 'group', "", 'property', "FontSize", 'value', 17));
+            nLooks = 1;
+        end
+    end
+rLk.ProgressFcn = @onLooksProgress;
+RLk = rLk.run();
+rLk.ProgressFcn = [];
+designLk = PlotDesign.currentName();
+rulesLk = PlotAesthetics.userRules("figure");
+clear prefsLooks
+[sameLk, pngsLk] = samePngs(outLR, outLE);
+check(nLooks == 1 && designLk == "Night" && isscalar(rulesLk) && height(RLk) == 2 && all(RLk.Status == "done") ...
+    && sameLk && numel(pngsLk) == 2 && isempty(rLk.PageLooks), ...
+    ['a design chosen and a look remembered while the run goes (from its ProgressFcn, before the second dataset) do not ' ...
+    'reach its pages: both drawn as in a run with neither, pixel for pixel; the run forgets its looks when it ends']);
 
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0

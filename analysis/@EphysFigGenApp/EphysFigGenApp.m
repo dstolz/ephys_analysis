@@ -400,6 +400,7 @@ classdef EphysFigGenApp < handle
         ScannedSource struct = struct()     % Config.Source when the runner last scanned
         ActiveIdx (1,1) double = 0          % the active dataset (index into Runner.Outputs)
         Ticked (1,:) logical = logical.empty(1, 0)   % datasets ticked to run
+        TickedNotListed (1,:) string = string.empty(1, 0)   % keys a config opened without its scan ticks that the datasets listed lack (tickConfigSelection): kept in its selection (gatherSourceSection) until a scan
         DatasetsSort (1,1) struct = TableSort.none()   % the datasets table's header click (a TableSort state), kept as it is filled again
         HoldDatasetViews (1,1) logical = false   % onScan: refreshDatasetsTable and refreshDatasetLabels do nothing (onScan fills both once, after the stars and notes)
         Favorites = []                      % the scanned datasets' stars: a DatasetFavorites each, in Runner order (read on Scan)

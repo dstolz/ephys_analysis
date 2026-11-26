@@ -15,11 +15,13 @@ function out = drawExportPage(F, spec, opts)
 %   other settings, and the report's caption and config are this run's.
 %
 %   EphysAnalysisRunner draws every page of a run through it, in this
-%   MATLAB or on the process workers that draw the pages (Workers): a
-%   worker reads none of the user's preferences, so the runner passes the
-%   design (Design=, a PlotDesign struct) and a preference file holding the
-%   user's remembered plot rules (PrefsFile=; AppPrefs reads it while the
-%   page is drawn).
+%   MATLAB or on the process workers that draw the pages (Workers), and
+%   passes the user's design (Design=, a PlotDesign struct) and remembered
+%   plot rules (UserRules=, the PlotAesthetics preference group as a
+%   struct) as they were when the run started: every page, here or on a
+%   worker, is drawn in them, though the design or a remembered look may
+%   change while the run goes (the analysis app's window stays usable),
+%   and a worker reads none of the user's preferences.
 %
 %   Options
 %     Export     the config's Export section (newExportFigure: the page size)
@@ -30,8 +32,13 @@ function out = drawExportPage(F, spec, opts)
 %                are all that is read)
 %     Images     make the HTML report's image; Pages: the PDF report's page
 %     Design     renderFigure's Design= ("" = the user's design)
+%     UserRules  renderFigure's UserRules= ([] = the user's remembered plot
+%                rules, read from the preferences while the page is drawn)
 %     PrefsFile  an AppPrefs store to read the user's plot rules from ("" =
-%                the store in use)
+%                the store in use): the whole store is switched while the
+%                page is drawn, so pass it only where nothing else reads
+%                preferences meanwhile (a worker); UserRules does not
+%                touch the store
 %
 %   See also EphysAnalysisRunner.runDataset, exportFigure, reportImage,
 %   reportPdfPage.
@@ -48,6 +55,7 @@ arguments
     opts.Images (1,1) logical = false
     opts.Pages (1,1) logical = false
     opts.Design = ""
+    opts.UserRules = []
     opts.PrefsFile (1,1) string = ""
 end
 
@@ -58,7 +66,7 @@ if opts.PrefsFile ~= ""
 end
 fig = newExportFigure(opts.Export, F, spec);
 closer = onCleanup(@() close(fig)); %#ok<NASGU> closes the page on a failure too
-h = renderFigure(F, spec, fig, BatchYLim=opts.BatchYLim, Design=opts.Design);
+h = renderFigure(F, spec, fig, BatchYLim=opts.BatchYLim, Design=opts.Design, UserRules=opts.UserRules);
 out = struct('files', string.empty(1, 0), 'image', [], 'page', "", 'title', string(h.title));
 if opts.Base ~= ""
     out.files = exportFigure(fig, opts.Base, Format=opts.Formats, Dpi=opts.Dpi);

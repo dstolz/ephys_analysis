@@ -62,7 +62,11 @@ function T = run(obj, opts)
 %   records the config it started with -- its figures (a figure renamed
 %   meanwhile is still found), folders and file names, and the config in
 %   the report, the run record and the database. The new Config is the
-%   next run's.
+%   next run's. So are the user's plot design and remembered plot rules
+%   (preferences, not the config): the run takes them when it starts
+%   (holdPageLooks) and draws every page in them, in this MATLAB or on a
+%   worker (submitPage), whatever design is chosen or look remembered
+%   while it goes.
 %
 %   The run record (schema "ephys-analysis-run/2") holds the run id,
 %   outcome (finished | canceled | failed) and error ("<identifier>:
@@ -111,7 +115,8 @@ obj.CancelRequested = false;
 obj.RunRecordFile = "";
 obj.PagesSeen = 0;   % usePagePool: the workers start once the run has enough pages
 obj.PoolFailed = false;
-obj.PageLooks = [];   % the user's looks as they are now, for the workers
+obj.PageLooks = [];   % taken anew: the user's plot design and remembered plot rules as they are now
+looksBack = obj.holdPageLooks(); %#ok<NASGU> every page of the run is drawn in them, here or on a worker (forgotten when it ends)
 started = datetime('now');
 doExport = cfg.Export.Enabled;
 if ~isempty(opts.Export); doExport = logical(opts.Export); end

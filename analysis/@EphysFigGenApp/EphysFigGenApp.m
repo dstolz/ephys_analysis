@@ -390,6 +390,7 @@ classdef EphysFigGenApp < handle
         SavedConfigStruct struct = struct()                   % last saved / opened state
         Applying (1,1) logical = false      % applyConfig is pushing values (suppresses onConfigChanged)
         Closing (1,1) logical = false       % onClose is under way: another close request is ignored
+        CloseWhenRunEnds (1,1) logical = false % Close was asked while a run went: the run is canceled, the window hidden, and closed when the run has ended (onRunExport)
         RecentConfigs (1,:) string = string.empty(1,0)
         ScriptFolder (1,1) string = ""
         PreviewMaxMB (1,1) double = 500     % larger signal extracts are previewed only on request
@@ -457,7 +458,7 @@ classdef EphysFigGenApp < handle
         FigureCorners = []                  % Set corners: struct what ("set", "new", "block"), payload (the panel's id, or onNewPanel's options) and first (the first corner, [] until clicked), else []
         FigureArrangeFocus (1,1) logical = false   % the overlay was clicked last: the arrow keys nudge the selected panel (cleared by an editor edit)
         FigurePanelExtra (1,:) string = strings(1, 0)   % the panels selected with Shift+click (on the preview, or Arrange's boxes) besides SelectedPanel (the primary): the editor shows the rows they share, an edit goes to them all (spreadPanelEdit), Arrange moves, resizes, nudges and removes them with it (selectedPanelIds); cleared by a click selecting one panel, Escape, another figure, a panel added, removed or renamed
-        FigurePanelIds (1,:) string = strings(1, 0)     % the selected figure's panel ids when the editor last showed them (syncFigureEditor): a change lets FigurePanelExtra go
+        FigurePanelIds (1,:) string = strings(1, 0)     % the figure's id, its panel ids and their types when the editor last showed them (syncFigureEditor): a change lets FigurePanelExtra go
         FigureArrangeClick = []             % Arrange: a click on one of several selected boxes waiting for its release (id, the window's oldUp): no drag, and that one alone is selected (onArrangeClicked)
         FigureRectUnits (1,1) string = "cm"  % the Layout section's units for a rect, padding and snap step (EphysAnalysisConfig.RectUnits; pref FigureRectUnits)
         FigureSnap (1,1) logical = true     % Arrange snaps the panels to edges, centers and the step (pref FigureSnap)

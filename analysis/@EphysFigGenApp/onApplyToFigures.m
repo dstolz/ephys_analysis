@@ -8,7 +8,8 @@ function onApplyToFigures(obj, opts)
 %   same edit can go to more of them later, while it is still in effect
 %   in its figure (else the status bar says it was edited again). What it
 %   changed in its figure and selected panel (figureEditChanges: not the
-%   id, title, places, layers or overlays) goes to the figures, or the
+%   id, title, places, layers or overlays; a step that moved figures,
+%   Up and Down, compares the figure with itself: figureBefore) goes to the figures, or the
 %   panels, that can take it (changeTargets: with a panel's option, the
 %   panels whose type takes the value, panelTakes; figure K's other
 %   panels too). The window (applyToFiguresDialog) lists them with their
@@ -66,7 +67,7 @@ if k < 1 || k > numel(after) || numel(before) ~= numel(after) || numel(cfg.Figur
     held(obj, fromCtrl);
     return
 end
-changes = EphysAnalysisConfig.figureEditChanges(before(k), after(k), sel(2));
+changes = EphysAnalysisConfig.figureEditChanges(figureBefore(before, after, k), after(k), sel(2));   % (a figure moved by Up or Down is compared with itself)
 if isempty(changes)
     obj.setStatus("""" + label + """ stays with its figure: an id, title, place, layer, overlay or note text is each figure's own.");
     held(obj, fromCtrl);

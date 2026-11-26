@@ -55,7 +55,7 @@ for i = numel(H.Undo):-1:1
     k = step.Selection(1);
     if k < 1 || k > numel(step.After) || numel(step.Before) ~= numel(step.After)
         why = "it added or removed a figure";
-    elseif isempty(EphysAnalysisConfig.figureEditChanges(step.Before(k), step.After(k), step.Selection(2)))
+    elseif isempty(EphysAnalysisConfig.figureEditChanges(figureBefore(step.Before, step.After, k), step.After(k), step.Selection(2)))
         why = "an id, title, place, layer, overlay or note text is each figure's own";
     end
     return

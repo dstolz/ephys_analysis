@@ -24,7 +24,10 @@ function onKeyPress(obj, evt)
 %                           the shown one alone (after a search's and an
 %                           Arrange drag's Escape)
 %     Arrows (Arrange)      with Arrange on and its overlay clicked last
-%                           (FigureArrangeFocus): nudge the selected
+%                           (FigureArrangeFocus; a click since in a field,
+%                           the tree or a button, found by the window's
+%                           CurrentObject, gives the arrows back to it:
+%                           arrangeHasFocus): nudge the selected
 %                           panel by the snap step; Shift+arrows ten
 %                           steps, Ctrl+arrows one pixel of the preview,
 %                           Alt+arrows resize it (its right or top edge;
@@ -130,6 +133,9 @@ if alt && ~ctrl && ~shift && isDigit
     return
 end
 arrow = ismember(key, ["uparrow" "downarrow" "leftarrow" "rightarrow"]);
+if arrow && obj.FigureArrangeFocus && ~arrangeHasFocus(obj)
+    obj.FigureArrangeFocus = false;   % the last click was in a field, the tree or a button: its arrow keys are its own
+end
 if arrow && obj.FigureArrange && obj.FigureArrangeFocus && ~(ctrl && alt)   % Arrange's nudges (Ctrl+Alt still selects)
     d = [(key == "rightarrow") - (key == "leftarrow"), (key == "uparrow") - (key == "downarrow")];
     if alt

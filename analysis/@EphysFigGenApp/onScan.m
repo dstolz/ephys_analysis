@@ -25,9 +25,13 @@ function onScan(obj)
 %   the project root on the Data tab first."), a root that cannot be read
 %   (the reason, the root to check), or a root with no processed
 %   recordings ("No processed recordings under <root>. Check the root, or
-%   run the pipeline app first."). A scan is refused while a run goes.
+%   run the pipeline app first."). A scan is refused while a run goes or a preview computes.
 if obj.Running
     obj.setStatus("A run is going: scan when it is done (Cancel stops it).");
+    return
+end
+if ismember(obj.FigurePreviewState, ["computing" "drawing"])   % the scan would replace the runner the preview computes with
+    obj.setStatus("A preview is computing: scan when it is done (or cancel it).");
     return
 end
 cfg = obj.gatherConfig();

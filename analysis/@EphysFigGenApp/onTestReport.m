@@ -86,6 +86,7 @@ cfg.Report.Title = "{Name}: test report, " + what;
 obj.setStatus("Making the test report for " + label + " ...");
 R = obj.onRunExport(Datasets=obj.ActiveIdx, Export=false, Report=true, ...
     Config=cfg, Title="Test report: " + label, Observation=obs);   % the session figures are listed as skipped
+if ~windowOpen(obj); return; end   % Close was asked while it ran: the window is gone
 if ~isempty(obj.Runner) && isvalid(obj.Runner)
     obj.Runner.Config = obj.gatherConfig();   % the runner holds the config as the controls show it again
 end

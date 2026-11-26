@@ -204,6 +204,9 @@ function test_EphysFigGenApp(opts)
 %   panel to the page; Space evenly with even gaps and a Gap; one undo
 %   step each, laid out in place; its choices as preferences, the Gap in
 %   the units picked);
+%   the stuck and broken states (5y: an interrupted preview, Run and Scan while one computes, Close with a failing
+%   step or during a run, Max groups above 100, a config a control cannot show, the arrows after a click elsewhere,
+%   the notepad after a re-scan, Apply last change after Up / Down, the Shift+click selection after another figure);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -7006,6 +7009,207 @@ if S.sec("5x", "the preview's badge says Drawn only for a drawing of the figure 
         sprintf('Auto on: a y axis moved right while a run goes computes nothing and leaves the drawing Out of date (%s, %s)', pr5x, app.FigurePreviewState));
     noFigures();
     clear restore5x captureBack5x
+    app.Tabs.SelectedTab = app.TabData;
+end
+
+if S.sec("5y", "stuck or broken states: an interrupted preview, Run and Scan while one computes, Close (a failing step, during a run), a Max groups above 100, a config that cannot be shown, the arrows after a click elsewhere, the notepad after a re-scan, Apply last change after Up / Down, the Shift+click selection after another figure comes")
+    noFigures();
+    exported();
+    wasCapture5y = AppDialog.capture(true);
+    captureBack5y = onCleanup(@() AppDialog.capture(wasCapture5y)); %#ok<NASGU> a run's warnings alert, if any, is read, not shown
+    app.selectTab(app.TabFigures);
+    app.selectDataset(kF1);
+    app.FigureAutoSlider.Value = 1;
+    restore5y = onCleanup(@() resetAutoLimit(app));
+    app.onAddFigure("rasterPsth");
+    k5y = app.SelectedFigure;
+    id5y = app.Config.Figures(k5y).id;
+    app.refreshFigurePreview(Force=true);
+    rn5y = app.Runner;
+
+    % C1: an interrupt (Ctrl+C) in a compute leaves the state as Cancel does. The suite cannot press Ctrl+C: it puts the
+    % app where the interrupt leaves it (computing, the polls on) and runs the check the preview's onCleanup runs
+    % (refreshFigurePreview Interrupted=ID; the cleanup itself, run by MATLAB on the interrupt, is not exercised)
+    app.setFigurePreviewState("computing", Message="Computing ...");
+    rn5y.PollFcn = @() drawnow("limitrate");
+    app.refreshFigurePreview(Interrupted=id5y);
+    check(app.FigurePreviewState == "canceled" && isempty(rn5y.PollFcn) && isempty(app.FigurePreviewResult) && isinf(app.FigurePreviewSeconds) ...
+        && string(app.FigurePreviewBadge.Text.Text) == "Canceled", ...
+        sprintf('an interrupted compute (polls on, state computing): Canceled, the polls off, nothing kept (%s)', app.FigurePreviewState));
+    app.refreshFigurePreview(Force=true);
+    app.refreshFigurePreview(Interrupted=id5y);   % a preview that finished is left alone (Drawn stays)
+    drawn5y = app.FigurePreviewState == "drawn";
+    rn5y.PollFcn = [];
+    app.setFigurePreviewState("computing", Message="Computing ...");
+    app.refreshFigurePreview(Interrupted=id5y);   % computing, but the polls are off (the compute returned): the tail decides
+    check(drawn5y && app.FigurePreviewState == "computing", 'the check acts only when neither the tail nor the catch ran: a Drawn preview stays, a compute whose polls ended is left to its tail');
+
+    % C2: Run and Scan are refused while a preview computes, as Test report and Generate are
+    rn5y.PollFcn = @() drawnow("limitrate");
+    R5y = app.onRunExport(Figures=id5y, SessionFigures=string.empty(1, 0), Datasets=kF1, Export=false, Report=false);
+    msgRun5y = string(app.StatusBar.Text);
+    app.onScan();
+    msgScan5y = string(app.StatusBar.Text);
+    check(isempty(R5y) && ~app.Running && contains(msgRun5y, "A preview is computing") && contains(msgScan5y, "A preview is computing") ...
+        && rn5y == app.Runner, 'Run and Scan while a preview computes: nothing started, the status bar says so, the runner is the same');
+    app.refreshFigurePreview(Interrupted=id5y);
+    app.refreshFigurePreview(Force=true);
+
+    % C5: Max groups above 100 shows as it is (no clamping, no error); a config a control cannot show leaves nothing half applied
+    cfg5y = app.gatherConfig();
+    cfg5y.Defaults.Selection.maxGroups = 150;
+    app.applyConfig(cfg5y);
+    check(app.AlignControls.MaxGroups.Value == 150 && app.Config.Defaults.Selection.maxGroups == 150 ...
+        && app.gatherConfig().Defaults.Selection.maxGroups == 150, 'Max groups 150 (above the old limit of 100) is shown, kept in the config and gathered unchanged');
+    cfg5y.Defaults.Selection.maxGroups = 100;
+    app.applyConfig(cfg5y);
+    bad5y = cfg5y;
+    bad5y.Name = cfg5y.Name + " (other)";
+    bad5y.Defaults.EventRef.n = 0;   % a control that cannot show it (its Limits start at 1)
+    before5y = app.Config;
+    threw5y = false;
+    try
+        app.applyConfig(bad5y);
+    catch
+        threw5y = true;
+    end
+    check(threw5y && string(app.ConfigNameField.Value) == before5y.Name && app.Config.Name == before5y.Name ...
+        && app.Config.Defaults.EventRef.n == before5y.Defaults.EventRef.n && app.AlignControls.N.Value == before5y.Defaults.EventRef.n ...
+        && isequaln(app.gatherConfig().Defaults, before5y.Defaults), ...
+        sprintf('a config whose control throws (threw: %d): the config and the controls stay as they were, not half the other config', threw5y));
+
+    % C6: the arrow keys are Arrange's only while the last click was in the preview; a click in a field or the tree gives them back
+    pressed5y = @(k) struct('Key', k, 'Modifier', {{}}, 'Character', '');
+    app.FigureArrangeFocus = true;
+    app.onKeyPress(pressed5y('leftarrow'));
+    stays5y = app.FigureArrangeFocus;   % (nothing clicked since: the overlay's click is the last)
+    canSet5y = true;
+    try
+        app.Fig.CurrentObject = app.ConfigNameField;
+    catch
+        canSet5y = false;
+    end
+    app.FigureArrangeFocus = true;
+    app.onKeyPress(pressed5y('leftarrow'));
+    if canSet5y
+        check(stays5y && ~app.FigureArrangeFocus, 'an arrow key after a click in a field (the window''s CurrentObject): the arrows are the field''s, Arrange''s focus is cleared; with nothing clicked since the overlay, it stays');
+    else
+        fprintf('  (the window''s CurrentObject cannot be set here: the arrow keys after a click in a field are not exercised)\n');
+        check(stays5y, 'an arrow key with the overlay clicked last keeps Arrange''s focus');
+    end
+    app.FigureArrangeFocus = true;
+    app.onFigureTreeSelected(app.FiguresTree.SelectedNodes);
+    check(~app.FigureArrangeFocus, 'a click in the figure tree takes the arrow keys back from Arrange');
+    try app.Fig.CurrentObject = []; catch; end
+
+    % C7: the notepad open across a re-scan writes through the object the app uses, so neither note is dropped
+    app.selectDataset(kF2);
+    app.onNoteButton("dataset");
+    pad5y = app.NotePadWindow;
+    app.NotePadFollows = "";   % it stays on this dataset's note when the scan makes another dataset active (the case that kept the old object)
+    pad5y.setText("typed in the pad before the scan");   % not written yet: the scan writes it first
+    app.onScan();
+    notes5y = app.Notes(kF2);
+    rebound5y = pad5y.Item.notes == notes5y && notes5y.note("dataset") == "typed in the pad before the scan";
+    notes5y.setNote("channel", 3, "from the app");
+    pad5y.setText("pad again");
+    pad5y.save();
+    J5y = jsondecode(fileread(notes5y.File));
+    again5y = DatasetNotes(app.Runner.Outputs(kF2));   % the file as another reader finds it
+    check(rebound5y && again5y.note("dataset") == "pad again" && again5y.note("channel", 3) == "from the app" && notes5y.note("dataset") == "pad again", ...
+        sprintf('after a re-scan the notepad writes through the app''s DatasetNotes: the pad''s note and the app''s channel note are both in the file (%s)', string(J5y.schema)));
+    pad5y.setText("");
+    pad5y.save();
+    notes5y.setNote("channel", 3, "");
+    delete(pad5y);
+
+    % C8: Apply last change after Up / Down offers nothing: the figure moved is compared with itself
+    app.onAddFigure("psth");
+    app.onAddFigure("rasterPsth");
+    app.onFigureSelected(1);
+    idMoved5y = app.Config.Figures(1).id;
+    app.onMoveFigure(1);
+    moved5y = app.Config.Figures(2).id == idMoved5y;
+    app.onApplyToFigures(Ticked=string.empty(1, 0));
+    msgMove5y = string(app.StatusBar.Text);
+    check(moved5y && contains(msgMove5y, "stays with its figure"), ...
+        sprintf('Apply last change after Move figure down: nothing to give the others ("%s")', msgMove5y));
+    app.onUndoRedo("undo");
+    check(app.Config.Figures(1).id == idMoved5y, 'Undo of the move puts the figure back');
+    noFigures();
+
+    % C9: the panels Shift+click added belong to the figure shown: another figure with the same panel ids does not inherit them
+    app.onAddFigure("rasterPsth");
+    app.onDuplicateFigure();   % two figures with the same panel ids
+    app.onFigureSelected(1);
+    pids5y = [app.Config.Figures(1).panels.id];
+    app.FigurePanelExtra = pids5y(end);
+    app.onRemoveFigure();   % the copy takes its place
+    afterRemove5y = isempty(app.FigurePanelExtra);
+    app.FigurePanelExtra = pids5y(end);
+    app.onUndoRedo("undo");   % the removed figure comes back
+    afterUndo5y = isempty(app.FigurePanelExtra);
+    app.FigurePanelExtra = pids5y(end);
+    app.onUndoRedo("redo");
+    afterRedo5y = isempty(app.FigurePanelExtra);
+    app.FigurePanelExtra = pids5y(end);
+    app.applyConfig(app.gatherConfig(), MarkSaved=true);   % a config opened
+    check(numel(pids5y) >= 2 && afterRemove5y && afterUndo5y && afterRedo5y && isempty(app.FigurePanelExtra), ...
+        sprintf('the Shift+click selection is let go after Remove (%d), Undo (%d), Redo (%d) and a config opened', afterRemove5y, afterUndo5y, afterRedo5y));
+    noFigures();
+
+    % C3: a Close that meets a failing step (the preferences cannot be saved) still closes the window; a Save whose preferences
+    % cannot be written still saves. The fault: a control the preferences read is deleted. (Cancel and a failing Save before the
+    % hide reset Closing in an onCleanup; the suite cannot make confirmDiscard throw without its question.)
+    appC = EphysFigGenApp(F.proj, Datasets=app.Runner.Keys(kF1));
+    closeC = onCleanup(@() closeApp(appC)); %#ok<NASGU>
+    appC.onSaveConfigAs(string(fullfile(root, 'close_5y.json')));
+    delete(appC.FigureAutoSlider);
+    ws5y = warning('off', 'EphysFigGenApp:SavePrefsFailed');
+    lastwarn('');
+    okSave5y = appC.onSaveConfig();
+    saveWarned5y = ~isempty(lastwarn);
+    appC.onClose();
+    warning(ws5y);
+    check(okSave5y && saveWarned5y && ~isvalid(appC.Fig) && ~appC.Closing, ...
+        'preferences that cannot be written: Save still saves (a warning), and Close, whose step fails, still deletes the window');
+
+    % C4: Close during a run: the run is canceled and goes on to its end with the window hidden, its progress writes nothing to
+    % controls, and the window closes then; a window deleted during a run does not stop the run or its report
+    appD = EphysFigGenApp(F.proj, Datasets=app.Runner.Keys(kF1));
+    closeD = onCleanup(@() closeApp(appD)); %#ok<NASGU>
+    appD.onAddFigure("rasterPsth");
+    idD5y = appD.Config.Figures(appD.SelectedFigure).id;
+    appD.onSaveConfigAs(string(fullfile(root, 'close_5y_run.json')));   % saved: Close asks nothing
+    kD5y = find(appD.Runner.Names == F.names(1));
+    setappdata(groot, 'runProbe', "");
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, appD, @(a) a.onClose()));
+    start(tm);
+    RD5y = appD.onRunExport(Figures=idD5y, SessionFigures=string.empty(1, 0), Datasets=kD5y, Export=false, Report=false);
+    stop(tm); delete(tm);
+    check(istable(RD5y) && ~isvalid(appD.Fig) && ~appD.Running && ~appD.CloseWhenRunEnds, ...
+        'Close during a run: the run ended without an error and the window was closed then (not deleted under the run)');
+    appE = EphysFigGenApp(F.proj, Datasets=app.Runner.Keys(kF1));
+    closeE = onCleanup(@() closeApp(appE)); %#ok<NASGU>
+    appE.onAddFigure("rasterPsth");
+    idE5y = appE.Config.Figures(appE.SelectedFigure).id;
+    appE.ReportControls.Folder.Value = fullfile(root, 'report_5y');
+    appE.onConfigChanged("export");
+    kE5y = find(appE.Runner.Names == F.names(1));
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, appE, @(a) delete(a.Fig)));
+    start(tm);
+    threwE5y = false;
+    try
+        appE.onRunExport(Figures=idE5y, SessionFigures=string.empty(1, 0), Datasets=kE5y, Export=false, Report=true);
+    catch
+        threwE5y = true;
+    end
+    stop(tm); delete(tm);
+    rep5y = appE.Runner.ReportFiles;
+    if isappdata(groot, 'runProbe'); rmappdata(groot, 'runProbe'); end
+    check(~threwE5y && ~appE.Running && ~isempty(rep5y) && all(isfile(rep5y)), ...
+        sprintf('the window deleted during a run: the progress callback writes nothing to it, the run ends and its report is written (threw %d, %d report file(s))', threwE5y, numel(rep5y)));
+    clear restore5y captureBack5y
     app.Tabs.SelectedTab = app.TabData;
 end
 

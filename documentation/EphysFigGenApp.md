@@ -349,7 +349,7 @@ Trough onset.
 | **Response** | keep the trials that are any of the selected response words, in a list (Ctrl or Shift selects several; none selected keeps every response) (`Hit`, `Miss`, `CR`, `FA`, `Abort`, `Reward`, `Punish`, `NoResponse`, `Response`: bits of `RespCode`) |
 | **Pairing** | keep the trials with the selected `PairingFlag` values, in a list: `ok` (default), `partial`, `cut`, `unpaired`; none selected keeps every flag |
 | **Group by**, **and** | up to two trial parameters: one group per value, or pair of values |
-| **Order**, **Max groups** | the groups' order (`ascending`, `descending`, `appearance`); more groups than the maximum (12 by default) is an error |
+| **Order**, **Max groups** | the groups' order (`ascending`, `descending`, `appearance`); more groups than the maximum (100 by default; any whole number from 1 up, shown as it is) is an error |
 | **Artifacts**: **Exclude epochs**, **at least (s)** | ticked (default): leave out the epochs whose window (or a panel's baseline) touches an artifact period, the stretches the Signals step erased; unticked: keep them (their signal is the erased stretch). Only periods at least **at least (s)** long count (0 = every one); the [epoch diagram](#epoch-diagram) draws the shorter ones paler |
 
 The stop event's offset, interval length and time range, and the selection's
@@ -792,8 +792,9 @@ off. The boxes are kept, hidden, while Arrange is off, so switching it on again 
 session still takes a second or two on a big figure.
 
 **The arrow keys** nudge the selected panel once you have clicked the
-preview's page or a box; an edit in the editor, the search, F6 or another tab
-gives the arrows back to the controls.
+preview's page or a box; an edit in the editor, the search, F6, another tab, or
+a click since in a field, the tree or a button (the window's `CurrentObject`,
+`arrangeHasFocus`) gives the arrows back to the controls.
 
 | Keys | Move the selected panel by |
 | --- | --- |
@@ -1495,8 +1496,14 @@ leave the one that finishes *Out of date*, whether **Auto** is on or off, and so
 does another dataset or observation picked, a scan or a page changed
 meanwhile: a preview ends **Drawn** only when what it was computed for is
 still the figure as it is (an edit undone meanwhile leaves it **Drawn**;
-`finishPreview`). Closing the app stops it too.
-A preview and a run share the runner's computing and refuse each other (see
+`finishPreview`). Closing the app stops it too. An interrupt (Ctrl+C in the
+Command Window) while it computes or draws leaves it as **Cancel** does:
+*Canceled*, the panel empty but for why, **Preview** computes it again (the
+cleanup that stops the runner's polls does it when neither the tail nor the
+catch ran: `refreshFigurePreview`'s `previewInterrupted`).
+A preview and a run share the runner's computing and refuse each other: **Run**
+(and so Generate and Test report) and **Scan** do nothing while a preview computes or draws, and
+the status bar says so (see
 **Generate selected figure** below). The toolbar's **Preview** shows this tab first, lists the
 selected figure's observations and previews it with **Preview** pressed (so a
 slow preview is seen computing), whichever tab was showing.
@@ -2476,6 +2483,10 @@ selected there observes that kind (as **Favorites** does; the status bar says
 why not, otherwise). A note on a unit of an older sort goes to its dataset only.
 **Edit note** opens the note picked in the notepad, which then stays on it.
 
+A **Scan** makes the notes' objects again; the notepad that is open first has
+its note written, then moves onto the new object of the same file, so a note
+written from the pad and one written from the app are both kept.
+
 A note that cannot be written (a read-only share, a folder that is gone) stays
 in the notepad's box, and the line under it says why; closing the window then
 asks for a second close before the text is dropped. A notes file that cannot be
@@ -2534,7 +2545,7 @@ that is a figure's setting, not a panel type.
 | | **Generate script → Compact (loads the saved config)...** | a short script that loads the saved JSON and runs the runner; unsaved changes are saved first (it asks) |
 | | **Generate script → Standalone (every setting written out)...** | a script that needs no config file and never uses the runner ([Scripts](EphysAnalysis.md#scripts)) |
 | | **Open pipeline app** | launches `EphysPipelineApp` |
-| | **Close** | asks about unsaved changes at once; once answered, the window disappears, then a run under way is canceled and the app closes |
+| | **Close** | asks about unsaved changes at once; once answered, the window disappears, then a preview computing is canceled, the preferences and the note in the notepad are written, and the app closes. A step that fails (preferences that cannot be written, say) is a warning and the others still go: the window is deleted whatever happens, and a **Close** stopped before the window is hidden (Cancel, a **Save** that fails) leaves it open to close again. During a run, **Close** cancels the run and hides the window; the run ends as any canceled one (its finished figures, report and records are written), and the window closes then (`CloseWhenRunEnds`) |
 | Edit | **Undo** *edit* (Ctrl+Z) | takes back the last edit of the figures ([Undo and redo](#undo-and-redo)); the item names it (**Undo Add panel**, **Undo Bin width (ms)**) and is grayed with nothing to undo, or off the Figures tab |
 | | **Redo** *edit* (Ctrl+Y, Ctrl+Shift+Z) | does the last edit undone again; grayed with none |
 | | **Apply last change to figures...** (Ctrl+Shift+A) | offers the last edit of the figures to the other figures or panels that can take it ([Apply a change to other figures](#apply-a-change-to-other-figures)); on with Undo while that edit has something other figures can take. The Figures tab's **Apply last change...** button, above the preview, does the same |
@@ -2898,7 +2909,14 @@ exactly), a PSTH's **Onset line**, the preview taking the latencies once for
 both panels (one `F.latency` entry) and the onset for the PSTH, an edit of the
 method computing the latencies again and nothing else, **Copy settings**
 listing the block, and a figure without a raster, PSTH or heat map hiding the
-section. Section 6 is the preferences remembered (the last
+section. Section 5y is the stuck and broken states: an interrupted preview (the check the
+cleanup runs, called by hand: the suite cannot press Ctrl+C), Run and Scan refused while a
+preview computes, a Max groups of 150 shown and gathered unchanged, a config a control cannot show
+leaving the config and the controls as they were, the arrow keys given back after a click in a field or the tree
+(the window's `CurrentObject`, when it can be set), the notepad written through the new object after a re-scan,
+Apply last change after **Down** offering nothing, the Shift+click selection let go after Remove, Undo, Redo and a config opened,
+Save and Close with preferences that cannot be written, and Close during a run, and a window deleted during a run (its
+report still written). Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never read

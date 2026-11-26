@@ -34,7 +34,16 @@ function R = onRunExport(obj, opts)
 %   Plan, Validate, Generate, Test report and Export preview are off
 %   meanwhile, and the previews compute nothing. The pages are drawn on
 %   as many process workers as the Export tab's Workers says
-%   (EphysAnalysisRunner.Workers).
+%   (EphysAnalysisRunner.Workers). Run is refused while a preview computes
+%   or draws (the status bar says so, as Test report and Generate do): the
+%   run would start inside the preview's polls, on the runner it computes
+%   with.
+%   Close (onClose) during a run cancels it and hides the window; the run
+%   ends as any canceled one (its finished figures, its report and its
+%   records are written), its progress and its end write nothing to the
+%   window (windowOpen), and the window closes when it has ended
+%   (CloseWhenRunEnds). A window deleted some other way during the run
+%   leaves the run going and writing its files in the same way.
 arguments
     obj (1,1) EphysFigGenApp
     opts.Figures = []    % [] = the enabled figures; string.empty(1, 0) = none; else ids
@@ -48,6 +57,10 @@ arguments
 end
 R = table();
 if obj.Running; return; end
+if ismember(obj.FigurePreviewState, ["computing" "drawing"])   % a run would start inside the preview's polls, on the runner it computes with
+    obj.setStatus("A preview is computing: run when it is done (or cancel it).");
+    return
+end
 if isempty(obj.Runner)
     obj.onScan();   % says why when there is nothing to scan (an alert on the Data tab)
     if isempty(obj.Runner); return; end
@@ -96,6 +109,7 @@ set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 
 obj.CancelButton.Enable = 'on';
 obj.ToolbarCancelTool.Enable = 'on';
 cleanup = onCleanup(@() finish(obj));
+closer = onCleanup(@() closeIfAsked(obj)); %#ok<NASGU> Close during the run: the window, hidden, closes when this returns
 t0 = tic;
 try
     R = r.run(Datasets=idx, Figures=opts.Figures, SessionFigures=opts.SessionFigures, ...
@@ -103,6 +117,7 @@ try
 catch ME
     obj.log("Run failed: " + string(ME.message));
     R = r.Results;   % the rows it finished: the table shows them whatever stopped it
+    if ~windowOpen(obj) || obj.CloseWhenRunEnds; return; end   % Close was asked meanwhile: nothing is shown, the window closes
     obj.ResultsTable.Data = withSubjectDate(obj, addRemedy(R));
     obj.RunLabel.Text = "Results of the run that stopped: " + height(R) + " row(s)";
     clear cleanup   % the strip goes before the alert
@@ -111,6 +126,7 @@ catch ME
         Tab=obj.TabExport, Icon="error", Status="The run stopped: " + string(ME.message));
     return
 end
+if ~windowOpen(obj) || obj.CloseWhenRunEnds; return; end   % Close was asked meanwhile: the run ended (its files and records are written), nothing is shown
 obj.ResultsTable.Data = withSubjectDate(obj, addRemedy(R));
 obj.LastReportFiles = r.ReportFiles;
 obj.LastExportFolder = "";
@@ -158,7 +174,7 @@ end
 
 function progress(obj, r, title, clock, fraction, message)
 %progress  The runner's report: the strip's bar and the status bar (setStatus draws, which also lets a Cancel click through).
-if ~isvalid(obj) || ~isvalid(r); return; end
+if ~windowOpen(obj) || ~isvalid(r); return; end   % the window may be gone (isvalid(obj) stays true): the run goes on, writing its files and records
 f = min(max(fraction, 0), 1);
 w = round(1000 * f);
 if w <= 0
@@ -212,11 +228,20 @@ if c; s = a; else; s = b; end
 end
 
 
+function closeIfAsked(obj)
+%closeIfAsked  Close was asked while the run went (onClose: CloseWhenRunEnds): the run is over, so the window closes now.
+if ~isvalid(obj) || ~obj.CloseWhenRunEnds; return; end
+finish(obj);
+if windowOpen(obj); closeWindow(obj); end
+end
+
+
 function finish(obj)
 if ~isvalid(obj); return; end
-showRunBar(obj, false);
 obj.Running = false;
-if ~isempty(obj.Runner); obj.Runner.ProgressFcn = []; end
+if ~isempty(obj.Runner) && isvalid(obj.Runner); obj.Runner.ProgressFcn = []; end
+if ~windowOpen(obj); return; end   % the window was deleted during the run: nothing to set
+showRunBar(obj, false);
 set([obj.RunButton obj.PlanButton obj.ValidateButton], 'Enable', 'on');
 set([obj.ToolbarRunTool obj.ToolbarPlanTool obj.ToolbarValidateTool], 'Enable', 'on');
 has = matlab.lang.OnOffSwitchState(obj.SelectedFigure >= 1 && obj.SelectedFigure <= numel(obj.Config.Figures));

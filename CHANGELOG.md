@@ -8,6 +8,21 @@ says how to cut a release.
 
 ## [Unreleased]
 
+### Fixed
+
+- EphysFigGenApp, stuck or broken states: an interrupt (Ctrl+C) during a preview leaves it Canceled, not
+  "computing" for the session; Run and Scan are refused while a preview computes (as Test report and Generate were);
+  Close no longer leaves a hidden window that cannot be closed (`Closing` is reset on every path that does not close,
+  a failing step after the hide is a warning and the window is deleted anyway, a Save whose preferences cannot be
+  written still saves), and Close during a run cancels it and closes the window when it has ended, so the progress
+  callback never writes to a deleted window and the report and records are written; Max groups above 100 is shown and
+  kept (the spinner's limit is gone) and `applyConfig` is all or nothing (a control that throws restores the config
+  and the controls); the arrow-key nudge acts only while the last click was in the preview; the notepad open across
+  a re-scan writes through the app's `DatasetNotes` (its note is written first, then it moves to the new object), so
+  no note is dropped; Apply last change after Move figure up or down compares the figure with itself and offers
+  nothing wrong; the Shift+click panel selection is let go when another figure comes (Remove, Undo, Redo, a template,
+  a config opened).
+
 ### Changed
 
 - The lab database client moved out to the CarasLabDB repository, as its `+labclient` package, so every toolbox of

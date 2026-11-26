@@ -365,6 +365,15 @@ See [Lab database](database.md) for the details.
   window; you can look at the other tabs meanwhile, and keep editing: the
   run uses the settings it started with, and your changes are for the next
   run. A figure that failed is in the results table with its message.
+- **Run or Scan does nothing and the status bar says a preview is
+  computing.** Press **Cancel** over the preview, or wait for it. A run
+  and a preview cannot share the computing.
+- **You close the window while a run goes.** The run is canceled and the
+  window disappears at once; it closes for good when the run has ended, after
+  it has written the figures it finished, its report and its records.
+- **The arrow keys move a panel when you meant a field.** They nudge a panel
+  only after a click on the preview. Click in the field first and they are
+  the field's again.
 - **Right-click menus and keys.** **Help → Keyboard shortcuts and
   right-click menus** lists them.
 - **The Log tab** has the details of every run.

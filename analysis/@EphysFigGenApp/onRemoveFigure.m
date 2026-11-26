@@ -12,6 +12,7 @@ cfg = cfg.removeFigure(id);
 if isKey(obj.FigureObservation, char(id)); remove(obj.FigureObservation, char(id)); end
 if isa(obj.FigureEditorStates, 'containers.Map') && isKey(obj.FigureEditorStates, char(id)); remove(obj.FigureEditorStates, char(id)); end
 obj.SelectedFigure = min(k, numel(cfg.Figures));
+obj.FigurePanelExtra = strings(1, 0);   % the figure taking its place: its first panel alone
 obj.SelectedPanel = 1;
 obj.SelectedLayer = 1;
 S = [];

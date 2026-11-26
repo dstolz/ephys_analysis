@@ -176,7 +176,7 @@ function syncFigureEditor(obj)
 %   panel says how many it removes, and the section titles count them.
 %   An edit then goes to all of them (onConfigChanged: spreadPanelEdit).
 %   The selection lets go of the others when the figure's panels change
-%   (one added, removed or renamed: FigurePanelIds).
+%   (one added, removed or renamed, or another figure shown: FigurePanelIds).
 %   What is enabled: the binding only where a layer may follow the
 %   observation (figureEditorChoices: Bindable; otherwise it shows Fixed),
 %   the train only on a raster, PSTH or heat map, the response test's rows
@@ -233,8 +233,9 @@ j = obj.SelectedPanel;
 hasPanel = j >= 1 && j <= np;
 pids = strings(1, 0);
 if np > 0; pids = [fig.panels.id]; end
-if ~isequal(obj.FigurePanelIds, pids); obj.FigurePanelExtra = strings(1, 0); end   % a panel added, removed or renamed: the primary alone
-obj.FigurePanelIds = pids;
+ident = [string(fig.id) pids reshape(string([fig.panels.type]), 1, [])];   % which figure and which panels these are: the figure's id, its panel ids and types
+if ~isequal(obj.FigurePanelIds, ident); obj.FigurePanelExtra = strings(1, 0); end   % another figure (one removed, a template, Undo), or a panel added, removed, renamed or of another type: the primary alone
+obj.FigurePanelIds = ident;
 sel = selectedPanelIds(obj);   % the shown panel first, then the others selected with Shift+click
 others = find(ismember(pids, sel(2:end)));
 several = hasPanel && ~isempty(others);   % the rows they all have; an edit goes to every one (spreadPanelEdit)

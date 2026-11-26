@@ -10,7 +10,10 @@ function applyConfig(obj, cfg, opts)
 %   themselves, onUndoRedo) nothing is recorded. The Data tab's scan line
 %   says whether the datasets listed are the scan of the config's source
 %   (showScanLabel: what scannedSource reads, so a config that differs only
-%   in its ticks or filter asks for no scan).
+%   in its ticks or filter asks for no scan). It is all or nothing: when a
+%   control cannot show a value (it throws), the controls and the config
+%   the app holds go back to what they were, the Log says so and the error
+%   goes on, so a Save does not write half of each config.
 arguments
     obj (1,1) EphysFigGenApp
     cfg (1,1) EphysAnalysisConfig
@@ -22,32 +25,26 @@ restore = onCleanup(@() setApplying(obj, false));
 if ~opts.MarkSaved; trackFigureIds(obj, cfg); end   % an edit: an automatic figure id may follow it
 drawn = ~ismember(obj.FigurePreviewState, ["idle" "computing" "drawing"]);   % a preview of the last config shows
 if opts.MarkSaved
+    obj.FigurePanelExtra = strings(1, 0);   % another config's figures: the primary panel alone, whatever the ids
     obj.FigureHistory = obj.FigureHistory.clear();   % another config: its edits start here
     refreshEditMenu(obj);
     if ~ismember(obj.FigurePreviewState, ["computing" "drawing"]); clearFigureViews(obj); end   % its figures' containers and editor states (ids may repeat)
 elseif opts.Action ~= ""
     recordFigureEdit(obj, cfg, opts.Action);
 end
-ratesBefore = sourceRates(obj.Config.Source);
-obj.Config = cfg;
-obj.ConfigNameField.Value = char(cfg.Name);
-obj.ConfigDescField.Value = char(cfg.Description);
-obj.applySourceSection(cfg.Source);
-if ~isequaln(ratesBefore, sourceRates(cfg.Source)) && ~isempty(obj.Runner) && obj.ActiveIdx >= 1
-    obj.refreshDatasetInfo();   % the active dataset's signals: the rate the figures read each at
+prev = obj.Config;
+history = obj.FigureHistory;
+try
+    pushConfig(obj, cfg);
+catch ME   % all or nothing: a control that cannot show a value must not leave the controls (what Save gathers) half one config, half another
+    try
+        pushConfig(obj, prev);   % the controls as they were, the config the app holds with them
+        obj.FigureHistory = history;
+    catch
+    end
+    obj.log("Could not show the config: " + string(ME.message) + " The window keeps the config it had.");
+    rethrow(ME);
 end
-D = cfg.Defaults;
-obj.applyAlignControls(obj.AlignControls, D.EventRef, D.Window, D.Selection);
-obj.applyExportSection(cfg.Export);
-obj.applyReportSection(cfg.Report);
-nf = numel(cfg.Figures);
-if nf == 0
-    obj.SelectedFigure = 0;
-else
-    obj.SelectedFigure = min(max(obj.SelectedFigure, 1), nf);
-end
-obj.refreshFigureList();
-obj.applyFigureEditor();
 if opts.MarkSaved
     obj.SavedConfigStruct = cfg.toStruct();
 end
@@ -68,6 +65,31 @@ end
 obj.refreshAlignPreview();
 obj.refreshEpochDiagram();
 obj.updateTitle();
+end
+
+
+function pushConfig(obj, cfg)
+%pushConfig  Make CFG the app's config and show it in the Data, Export, Report and Figures tabs' controls (applyConfig's all-or-nothing part).
+ratesBefore = sourceRates(obj.Config.Source);
+obj.Config = cfg;
+obj.ConfigNameField.Value = char(cfg.Name);
+obj.ConfigDescField.Value = char(cfg.Description);
+obj.applySourceSection(cfg.Source);
+if ~isequaln(ratesBefore, sourceRates(cfg.Source)) && ~isempty(obj.Runner) && obj.ActiveIdx >= 1
+    obj.refreshDatasetInfo();   % the active dataset's signals: the rate the figures read each at
+end
+D = cfg.Defaults;
+obj.applyAlignControls(obj.AlignControls, D.EventRef, D.Window, D.Selection);
+obj.applyExportSection(cfg.Export);
+obj.applyReportSection(cfg.Report);
+nf = numel(cfg.Figures);
+if nf == 0
+    obj.SelectedFigure = 0;
+else
+    obj.SelectedFigure = min(max(obj.SelectedFigure, 1), nf);
+end
+obj.refreshFigureList();
+obj.applyFigureEditor();
 end
 
 

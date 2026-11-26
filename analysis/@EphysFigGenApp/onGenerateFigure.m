@@ -72,6 +72,7 @@ else
     R = obj.onRunExport(Figures=id, SessionFigures=string.empty(1, 0), Datasets=opts.Datasets, ...
         Export=true, Report=false, Config=cfg, Title="Generating " + id);
 end
+if ~windowOpen(obj); return; end   % Close was asked while it ran: the window is gone
 if ~isempty(obj.Runner) && isvalid(obj.Runner)
     obj.Runner.Config = obj.gatherConfig();   % the runner holds the config as the controls show it again
 end

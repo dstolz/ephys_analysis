@@ -137,7 +137,7 @@ classdef (Abstract) PlotNode < handle
             done = false;
             if ~isempty(rest) && ~ismember(name, dotProperties(obj)); return; end   % a step on the way
             if isempty(rest) && ismember(name, dotSettable(obj))
-                builtin('subsasgn', obj, substruct('.', char(name)), value);
+                obj = builtin('subsasgn', obj, substruct('.', char(name)), value); %#ok<NASGU> (a handle: set in place; MATLAB's subsasgn must be called with an output)
                 done = true;
             elseif ismember(name, [dotProperties(obj) dotMethods(obj)]) || isprop(obj, name)
                 error('PlotConsole:ReadOnly', '%s of %s is read only.', name, nodeWord(obj));

@@ -204,22 +204,24 @@ if okPanel
     if roleP == "zeroLine"; propP = "LineWidth"; end
     valueIn = @(C, id) PlotAesthetics.getValue(C.Handles{find(C.Role == roleP & C.Tile > 0 & C.TileName == id, 1)}(1), propP);
     spec = Cp.spec;
-    spec.aesthetics = [PlotAesthetics.rule(roleP, propP, 6) PlotAesthetics.rule(roleP, propP, 9, Panel=pids(2))];
+    asDrawn = [valueIn(C, pids(1)) valueIn(C, pids(2))];   % without a rule
+    v = ceil(max(asDrawn)) + [2 4 6 8];   % four values that are none of those drawn
+    spec.aesthetics = [PlotAesthetics.rule(roleP, propP, v(1)) PlotAesthetics.rule(roleP, propP, v(2), Panel=pids(2))];
     h = renderFigure(Cp.F, spec, fig, UserAesthetics=false);
     C = PlotAesthetics.components(h.layout);
-    okPanel = valueIn(C, pids(1)) == 6 && valueIn(C, pids(2)) == 9;
-    spec.aesthetics = PlotAesthetics.mergeRules(spec.aesthetics, PlotAesthetics.rule(roleP, propP, 8));
+    okPanel = valueIn(C, pids(1)) == v(1) && valueIn(C, pids(2)) == v(2);
+    spec.aesthetics = PlotAesthetics.mergeRules(spec.aesthetics, PlotAesthetics.rule(roleP, propP, v(3)));
     h = renderFigure(Cp.F, spec, fig, UserAesthetics=false);
     C = PlotAesthetics.components(h.layout);
-    okPanel = okPanel && isscalar(spec.aesthetics) && valueIn(C, pids(1)) == 8 && valueIn(C, pids(2)) == 8;
-    spec.aesthetics = PlotAesthetics.rule(roleP, propP, 9, Panel="no_such_panel");
+    okPanel = okPanel && isscalar(spec.aesthetics) && valueIn(C, pids(1)) == v(3) && valueIn(C, pids(2)) == v(3);
+    spec.aesthetics = PlotAesthetics.rule(roleP, propP, v(4), Panel="no_such_panel");
     h = renderFigure(Cp.F, spec, fig, UserAesthetics=false);
     C = PlotAesthetics.components(h.layout);
-    okPanel = okPanel && valueIn(C, pids(1)) ~= 9 && valueIn(C, pids(2)) ~= 9;
+    okPanel = okPanel && isequal([valueIn(C, pids(1)) valueIn(C, pids(2))], asDrawn);
 end
-check(okPanel, sprintf(['a rule that names a panel sets its part in that panel alone (%s of %s: 6 in %s, 9 in %s); an every-panel rule ' ...
-    'merged after it sets both; a rule for a panel the figure lacks sets nothing'], strjoin(both(1:min(end, 1))), strjoin(pids, " and "), ...
-    strjoin(pids(1:min(end, 1))), strjoin(pids(min(end, 2):end))));
+check(okPanel, sprintf(['a rule that names a panel sets its part in that panel alone (%s of %s: one value in %s, another in %s); an every-panel ' ...
+    'rule merged after it sets both; a rule for a panel the figure lacks sets nothing (both as drawn without a rule)'], ...
+    strjoin(both(1:min(end, 1))), strjoin(pids, " and "), strjoin(pids(1:min(end, 1))), strjoin(pids(min(end, 2):end))));
 cfgP = EphysAnalysisConfig();
 cfgP = cfgP.addFigure(struct('id', "lookp", 'aesthetics', PlotAesthetics.rule("xlabel", "FontSize", 12, Panel="psth_1")));
 fP = string(tempname) + ".json";

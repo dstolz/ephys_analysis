@@ -403,10 +403,13 @@ classdef PlotDesign
         %% --- drawing -------------------------------------------------------------
         function R = rulesFor(D, kind)
             %rulesFor  The rules design D gives plots of KIND: the common ones, then the kind's.
-            R = D.rules;
+            %   Normalized (PlotAesthetics.normalizeRules), so a design made
+            %   by hand joins the user's and a plot's own rules whatever
+            %   fields its rules were given with.
+            R = PlotAesthetics.normalizeRules(D.rules);
             kind = string(kind);
             if isvarname(kind) && isfield(D.kinds, kind)
-                R = [R D.kinds.(kind)];
+                R = [R PlotAesthetics.normalizeRules(D.kinds.(kind))];
             end
         end
 

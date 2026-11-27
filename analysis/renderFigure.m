@@ -723,7 +723,7 @@ else
 end
 for k = find(drawn)   % a note in a band beside the axes: that band is no tile, so its looks are given to it here
     if isempty(bands{k}) || isempty(notes{k}) || isempty(notes{k}.text); continue; end
-    bandRules = [design.rules kRules{k} r notes{k}.rules specRules];
+    bandRules = [PlotAesthetics.normalizeRules(design.rules) kRules{k} r notes{k}.rules specRules];   % (a design given as a struct: its rules as given)
     if ~isempty(bandRules)   % (a rule of one panel: this panel's alone; the band is no tile, so it is given without its panel)
         bandRules = bandRules([bandRules.role] == "note" & ismember([bandRules.panel], ["" panels(k).id]));
         for i = 1:numel(bandRules); bandRules(i).panel = ""; end

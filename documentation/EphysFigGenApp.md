@@ -2797,15 +2797,43 @@ do, by typing: each change goes into the app's config as one step of
 [Undo](#undo-and-redo), the preview follows, and **Save**, runs, reports and
 generated scripts take it like any other edit.
 
+### Start here
+
+With the app open, type these lines in the command window, one at a time.
+They are written for a *Raster over PSTH* figure that is first in the app's
+list (its panels are `raster_1` and `psth_1`). For another figure, use the
+ids and the parts that `p` and `f` list.
+
 ```matlab
 app = EphysFigGenApp.current();     % the app open now (or keep the handle: app = EphysFigGenApp("D:\EPHYS"))
 p = app.Plots;
 p                                   % typed alone: the figures, their panels, how many looks each has
+f = p.Figure(1);                    % the first figure in that list (or by its id: p.Figure("unit_card"))
+f.show();                           % show it on the Figures tab and draw its preview
+f                                   % typed alone: its panels and the parts drawn in it
+pn = f.Panel("psth_1");             % one panel, by its id (or by its number: f.Panel(2))
+
+pn.rateFill.FaceColor = "red";      % one color: the fill of this PSTH's bars
+f.xlabel.FontSize = 11;             % one font size, in every panel: the x labels
+pn.rateFill.FaceColor = [];         % forget the color: drawn as the design has it again
+```
+
+Each change is one step of the app's undo history, so **Edit → Undo** takes it
+back. To make several changes as one step, keep them first:
+
+```matlab
+p.Immediate = false;                % from here on, a change is kept, not made
+pn.axes.Box = "off";
+f.ylabel.FontSize = 11;
+p.Pending                           % the two changes kept
+p.apply();                          % make them together: one undo step, one redraw
+p.Immediate = true;                 % again, each change is made as it is typed
 ```
 
 `EphysFigGenApp.current()` finds the app by its window, so an app opened
 without keeping its handle (from the pipeline app, or `EphysFigGenApp` typed
-alone) can be reached; it is empty when no app is open.
+alone) can be reached; it is empty when no app is open. The sections below
+say what each object holds and what can be set.
 
 ### The objects
 
@@ -2820,11 +2848,14 @@ typed alone, says what it holds and what can follow it.
 | a part | `pn.rate`, `pn.Part("rate")`; one group of it: `pn.rate("Go")` | its properties |
 
 A *part* is what the aesthetics editor calls a component: everything a figure
-draws with one role. `rate` is the PSTH's line (the outline of its bars),
-`rateFill` the fill of its bars, `sem` its error band, `rasterTicks`
-the raster's ticks, `axes` a panel's axes, `xlabel` and `ylabel` its labels,
+draws with one role. `rate` is the PSTH's line, or the outline of its bars
+when they are not filled, `rateFill` the fill of its bars (a new PSTH is
+filled bars, so it draws `rateFill`), `sem` its error band, `rasterTicks`
+the raster's ticks, `axes` a panel's axes (a raster's are `rasterAxes`),
+`xlabel` and `ylabel` its labels,
 `tileTitle` its title, `legend` the legend, `plotTitle` the figure's title;
-`PlotAesthetics.roles()` lists every role with its name for people. A part
+`PlotAesthetics.roles()` lists every role with its name for people, and
+`f.Parts` the ones a figure draws. A part
 named on a panel is that panel's alone; named on the figure, `f.xlabel`, it is
 that part in every panel (and the figure's own parts, such as `plotTitle`).
 The *group* is a trial group's label, a tuning series, a channel: what the
@@ -2855,7 +2886,7 @@ choice is its word or its symbol (`"dashed"` or `"--"`); on / off is `true` /
 pn.rate.Color = "red";                              % the PSTH line of this panel
 pn.rateFill.FaceAlpha = 0.4;                        % the fill of its bars
 pn.rate("Go").LineWidth = 2;                        % of the trial group "Go" only
-f.Panel("raster_1").axes.Box = "off";
+f.Panel("raster_1").rasterAxes.Box = "off";         % a raster's axes
 f.xlabel.FontSize = 11;                             % every panel's x label
 f.legend.FontSize = 8;
 pn.sem.set(FaceAlpha=0.2, EdgeColor="none");        % several, as one change
@@ -2946,6 +2977,13 @@ the warning `PlotConsole:Skipped`.
   marked out of date in the figure tree.
 - The Edit menu names the step (**Undo Command line: psth_1.rate.Color =
   #FF0000**), and the title shows unsaved changes until **Save**.
+
+```matlab
+f2 = p.Figure(2);                   % a figure that is not the one shown
+f2.Settings.style.FontSize = 9;     % changed all the same
+f2.show();                          % show it on the Figures tab and draw it
+f2.Id                               % its id now: f2 looks its figure up each time
+```
 
 An object kept in a variable holds no figure, only where it is (the figure's
 and the panel's id, the part's role and group), and looks it up each time. So

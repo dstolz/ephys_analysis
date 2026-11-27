@@ -33,6 +33,6 @@
     {"page": "Review-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Review"], "status": "generated"},
     {"page": "Synthetic-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Synthetic", "Synthetic test project"], "status": "generated"},
     {"page": "Clean-Up-Tab", "source": "documentation/EphysPipelineApp.md", "sections": ["Clean up"], "status": "generated"},
-    {"page": "Lab-Database", "source": "documentation/database.md", "exclude": ["Where the code is", "Tests"], "status": "candidate"}
+    {"page": "Lab-Database", "source": "documentation/database.md", "exclude": ["Where the code is", "Tests"], "status": "generated"}
   ]
 }

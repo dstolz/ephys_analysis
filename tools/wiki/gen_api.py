@@ -1022,7 +1022,7 @@ PIPE_GROUPS = [
                   "writeNPZ", "readNewLines", "read_Intan_RHD2000_file_modified"]),
     ("Version and provenance", ["ephysVersion", "ephysProvenance", "provenanceForJson"]),
     ("Platforms", ["platformSupport", "openInSystem"]),
-    ("App helpers", ["showAbout", "styleButton"]),
+    ("App helpers", ["showAbout", "styleButton", "fitToScreen", "copyFilesToClipboard"]),
     ("Tests", ["run_all_tests", "findTestSuites"]),
 ]
 

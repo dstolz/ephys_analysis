@@ -90,7 +90,7 @@ function [h, how] = renderProbeFigure(PF, spec, target, opts)
 %            the tiles' axes, the title and the legend again. Nothing is
 %            redrawn.
 %
-%   Options: renderFigure's -- Design, UserAesthetics, Editable,
+%   Options: renderFigure's -- Design, UserAesthetics, UserRules, Editable,
 %   OnRemember, OnGoto, OnAxisEdit, OnSelect, BatchYLim, Reuse, InPlaceOnly,
 %   Scale -- and DataTips, here false by default ("auto" too: a page of
 %   tiles gets data tips only when asked with true). Reuse is accepted and
@@ -129,6 +129,7 @@ arguments
     target
     opts.Design = ""
     opts.UserAesthetics (1,1) logical = true
+    opts.UserRules = []
     opts.Editable = "auto"
     opts.OnRemember = []
     opts.OnGoto = []
@@ -399,7 +400,7 @@ PlotAesthetics.apply(canvas, design.rules);
 for k = 1:np
     if isempty(axsOf{k}); continue; end
     r = figureKindRules(design, types(k));
-    if opts.UserAesthetics && isvarname(types(k)); r = [r PlotAesthetics.userRules(types(k))]; end %#ok<AGROW>
+    if opts.UserAesthetics && isvarname(types(k)); r = [r PlotAesthetics.userRules(types(k), opts.UserRules)]; end %#ok<AGROW>
     if types(k) == "raster" && isfield(panels(k).options, 'tickWidth') && panels(k).options.tickWidth > 0
         r = [r PlotAesthetics.normalizeRules(struct('role', "rasterTicks", 'group', "", 'property', "LineWidth", ...
             'value', panels(k).options.tickWidth))]; %#ok<AGROW>
@@ -408,7 +409,7 @@ for k = 1:np
 end
 PlotDesign.paint(canvas, design);
 r = figureKindRules(design, "figure");
-if opts.UserAesthetics; r = [r PlotAesthetics.userRules("figure")]; end
+if opts.UserAesthetics; r = [r PlotAesthetics.userRules("figure", opts.UserRules)]; end
 PlotAesthetics.apply(canvas, [r specRules]);
 for k = 1:np   % a panel's own box wins
     if panels(k).box ~= "auto" && ~isempty(axsOf{k}); set(axsOf{k}, 'Box', char(panels(k).box)); end

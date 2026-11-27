@@ -5,7 +5,9 @@ function R = onGenerateFigure(obj, opts)
 %   figure in the editor (SelectedFigure) alone, run as the Export tab's
 %   Run runs (onRunExport: EphysAnalysisRunner.run with Figures=<id>, no
 %   session figures, Export on, no report), so the config is
-%   validated first, the progress dialog, the Export tab's Cancel and the
+%   validated first (and refused, an alert saying to press Scan, while the
+%   datasets listed are not the scan of the source the Data tab shows:
+%   scanIsCurrent), its warnings shown, the progress dialog, the Export tab's Cancel and the
 %   toolbar's Cancel (onCancelRun) stop it between observations, only one
 %   run goes at a time and the previews compute nothing meanwhile. Its
 %   files go where a run's go: the Export tab's folder and file names, one
@@ -47,6 +49,7 @@ if k < 1 || k > numel(obj.Config.Figures)
     return
 end
 cfg = obj.gatherConfig();
+if ~isempty(obj.Runner) && ~scanIsCurrent(obj, cfg.Source, Action="Generate", Again="generate the figure"); return; end   % the datasets listed must be the source's
 id = cfg.Figures(k).id;
 wasOff = ~cfg.Figures(k).enabled;
 cfg.Figures(k).enabled = true;   % for this run only: obj.Config keeps it as it is
@@ -69,6 +72,7 @@ else
     R = obj.onRunExport(Figures=id, SessionFigures=string.empty(1, 0), Datasets=opts.Datasets, ...
         Export=true, Report=false, Config=cfg, Title="Generating " + id);
 end
+if ~windowOpen(obj); return; end   % Close was asked while it ran: the window is gone
 if ~isempty(obj.Runner) && isvalid(obj.Runner)
     obj.Runner.Config = obj.gatherConfig();   % the runner holds the config as the controls show it again
 end
@@ -78,7 +82,7 @@ end
 if across
     obj.setStatus(generatedAcross(obj, R, id, wasOff));
 else
-    obj.setStatus(generatedText(obj, R, id, wasOff, cfg.isProbeFigure(id)));
+    obj.setStatus(generatedText(obj, R, id, wasOff, cfg.isProbeFigure(id), cfg));
 end
 end
 
@@ -118,16 +122,16 @@ txt = txt + ".";
 end
 
 
-function txt = generatedText(obj, R, id, wasOff, probe)
+function txt = generatedText(obj, R, id, wasOff, probe, cfg)
 %generatedText  "Generated <id>: <n> observation(s) on <m> dataset(s), <k> file(s) in <folder>", and what did not draw.
 %   PROBE: a probe figure's rows ("<n> tile(s)", a page per dataset) read
-%   "<p> page(s) (<n> tiles) on <m> dataset(s), ...".
+%   "<p> page(s) (<n> tiles) on <m> dataset(s), ...". CFG: the config the
+%   run drew with (its folders), not the runner's now.
 rows = R(R.Kind == "figure" & R.Plot == id, :);
 done = rows(rows.Status == "done", :);
 nObs = 0;
 nFiles = 0;
 folders = strings(1, 0);
-cfg = obj.Runner.Config;
 for i = 1:height(done)
     n = sscanf(char(done.Message(i)), '%d', 1);   % "<n> observation(s)" (a probe figure's "<n> tile(s)")
     if ~isempty(n); nObs = nObs + n; end
@@ -135,7 +139,7 @@ for i = 1:height(done)
     j = obj.Runner.index(done.Dataset(i));
     if j > 0
         folders(end+1) = figureFileName(cfg.Export.Folder, struct('OutputFolder', obj.Runner.datasetFolder(j), ...
-            'OutputRoot', obj.Runner.outputRoot(), 'Root', cfg.Source.Root, 'Name', obj.Runner.Names(j)), Kind="folder"); %#ok<AGROW>
+            'OutputRoot', obj.Runner.outputRoot(cfg), 'Root', cfg.Source.Root, 'Name', obj.Runner.Names(j)), Kind="folder"); %#ok<AGROW>
     end
 end
 folders = unique(folders, 'stable');

@@ -4,7 +4,12 @@ function ok = openConfigFile(obj, file)
 %   is scanned when its root or folders exist (a root on a network share
 %   that does not answer within 5 s is not: folderReachable; the status
 %   bar says so), with its own selection (scanOpened: not the ticks of the
-%   config shown before). The config's LoadWarnings
+%   config shown before). Not scanned, it keeps its own selection too: the
+%   datasets listed stay the last config's scan, their ticks not taken as
+%   its selection while they are another source's (gatherSourceSection,
+%   scanIsCurrent), and set from its selection while they are its
+%   source's (tickConfigSelection; the keys it ticks that those lack are
+%   said and stay in its selection until a scan). The config's LoadWarnings
 %   (dropped fields; a version-1 file's migration of its plots and session
 %   plots to figures) go to the status bar and, one line each, to the Log.
 ok = false;
@@ -27,15 +32,21 @@ for w = cfg.LoadWarnings
     obj.log("Open " + string(file) + ": " + w);   % a version-1 config's migration notes stay in the Log tab after a scan
 end
 S = cfg.Source;
+scanned = false;
 if S.Mode == "project" && S.Root ~= ""
     [there, why] = folderReachable(S.Root, 5);
     if there
         scanOpened(obj);
+        scanned = true;
     else
         obj.setStatus(msg + ". Its project " + S.Root + " was not scanned: " + why + ".");
     end
 elseif S.Mode == "folders" && ~isempty(S.Folders) && all(isfolder(S.Folders))
     scanOpened(obj);
+    scanned = true;
+end
+if ~scanned
+    tickConfigSelection(obj);   % the last scan's datasets, when they are this source's: ticked by its own selection
 end
 ok = true;
 end

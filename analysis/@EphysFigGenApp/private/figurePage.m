@@ -6,9 +6,10 @@ function [pageCm, dpi] = figurePage(obj, fig)
 %   selected. [PAGECM, DPI] = figurePage(OBJ, FIG) is FIG's (a Figures
 %   entry). A panel's rect, the padding and the snap step in cm, in or px
 %   are lengths on that page (figureRectConvert): a pixel is 1 / DPI inch,
-%   as on the exported PNG.
+%   as on the exported PNG. A preview drawn on another page is out of date
+%   (figureViewKey's page).
 %
-%   See also figureExportSize, figureRectConvert, showPanelPlace.
+%   See also figureExportSize, figureRectConvert, showPanelPlace, figureViewKey.
 if nargin < 2
     fig = [];
     k = obj.SelectedFigure;

@@ -17,13 +17,18 @@ function setFigurePreviewState(obj, state, opts)
 %     idle       no preview (no figure, no scan, no dataset)
 %     computing  computeFigure runs for the observation picked (cancelable)
 %     drawing    renderFigure draws it
-%     drawn      the preview is the figure as it is now
-%     stale      the figure, the defaults or the dataset changed since it
-%                was drawn, and it was not redrawn: press Preview
+%     drawn      the preview is the figure as it is now: set only for a
+%                drawing whose key (figureViewKey) is the figure's now
+%                (finishPreview, the tails of every preview; figureViewFresh)
+%     stale      the figure, the defaults, the dataset, the observation or
+%                the page changed since it was drawn (also while it
+%                computed, or while a run went), and it was not redrawn:
+%                press Preview
 %     waiting    a large signal extract waits for the Preview button
 %     skipped    the dataset cannot draw the figure, or has no observation
 %     failed     computing or drawing it failed
-%     canceled   Cancel stopped the compute
+%     canceled   Cancel stopped the compute, or an interrupt (Ctrl+C) the
+%                preview (refreshFigurePreview's cleanup)
 arguments
     obj (1,1) EphysFigGenApp
     state (1,1) string {mustBeMember(state, ["idle" "computing" "drawing" "drawn" "stale" "waiting" "skipped" "failed" "canceled"])}

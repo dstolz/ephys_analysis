@@ -1435,13 +1435,26 @@ outputs are already on disk.
 
 **Analysis runs.** Path: `<report folder>/analysis_runs/<runId>_<name>.json`,
 the report folder being `Report.Folder` resolved for the first dataset
-(whether or not a report was written). Written by `EphysAnalysisRunner.run`;
+(whether or not a report was written). Written by `EphysAnalysisRunner.run`
+when the run ends, whether it finished, was canceled or stopped with an error
+(then before the error goes on to the caller);
 schema `ephys-analysis-run/2`: `runId`, `name`, `outcome` (`finished` |
-`canceled`), `started`, `finished`, `seconds`, `datasets`,
-`figures` (the figure ids the run drew per dataset; a figure drawn across the datasets is not among them), `sessionFigures` (the session figures run: figures with `sessions.enabled`, drawn across the datasets), `reportFiles`, `results` (the runner's Results rows), `fromDatabase` (per
+`canceled` | `failed`), `error` (`<identifier>: <message>` of the error that
+stopped a failed run, the message alone when the error has no identifier,
+else `""`; a pipeline run's record writes `<identifier>: <message>` even
+then), `started`, `finished`, `seconds`, `datasets`,
+`figures` (the figure ids the run drew per dataset; a figure drawn across the datasets is not among them), `sessionFigures` (the session figures run: figures with `sessions.enabled`, drawn across the datasets), `reportFiles` (each report file written, also those written before the error of a failed run), `results` (the runner's Results rows; a failed run's, the rows it finished; an `error` or `canceled` row's `Files` the files its figure wrote before it stopped), `fromDatabase` (per
 dataset, `dataset` and `files`: the files, or a sort's folder, found in folders
 the lab database named because they were not in the dataset's own folders;
-`[]` when none), `provenance` and `config` (the analysis config). `EphysAnalysisRunner.RunRecordFile` names it.
+`[]` when none), `provenance` and `config` (the analysis config the run
+started with: the runner reads its `Config` once, so an edit made while the
+run goes, in the analysis app or from a script, is not in the record, nor in
+the figures, the report or the lab database's record of the run). A
+`results` row of a figure whose pages' files were already on disk with
+`Export.Overwrite` off lists those files in `Files` and says in `Message`
+how many were kept (`"3 observation(s); 2 kept: files on disk from an
+earlier run, not overwritten (Export.Overwrite off)"`); `EphysAnalysisRunner.KeptFiles`
+lists them. `EphysAnalysisRunner.RunRecordFile` names it.
 The pipeline's Analysis step writes one too (its `config.Source` is the
 pipeline's project and selected datasets), and the pipeline run's record
 lists the step's rows (`analysis:<figure id>`, `analysis:report`).
@@ -1462,7 +1475,7 @@ version or schema fails (`EphysAnalysisConfig:BadSchema`); unknown fields
 | Key | Contents |
 | --- | --- |
 | `schema`, `version`, `name`, `description` | identification |
-| `Source` | `Mode` (`project` / `folders`), `Root`, `OutputRoot`, `NamePattern`, `Recordings` (the Open Ephys recording mode), `Selection`, `Datasets`, `Folders` |
+| `Source` | `Mode` (`project` / `folders`), `Root`, `OutputRoot`, `NamePattern`, `Recordings` (the Open Ephys recording mode), `Selection`, `Datasets` (with `Selection` `list`: root-relative keys in project mode, the folders to run in folders mode), `Folders` |
 | `Defaults` | `EventRef`, `Window` (`stop` is `[]` or an event reference), `Selection` |
 | `Figures` | array of figures (a session figure has `sessions.enabled`): `id`, `autoId`, `enabled`, `title`, `size`, `observe` (`data`, `units`, `channels`, `starred`, `perGroup`), `layout` (`boxesMean`, `padding`), `ref` / `window` / `selection` (`"default"` or an object), `sessions` (`enabled`, `datasets`, `datasetKeys`, `facet`, `series`, `colorOrder`, `showMembers`, `error`, `match`, `mappingFile`, `minSessions`, `trialGroups`), `panels` (`id`, `type`, `title`, `box`, `rect` = `[x y width height]` on the page, 0-1 from the bottom left, `ref`, `window`, `selection`, `layers`, `options`, `note`, `overlays`), `style`, `aesthetics` |
 | `Export` | `Enabled`, `Formats`, `Folder`, `FilenamePattern`, `Dpi`, `FigureSizeCm`, `Overwrite`, `SessionsFolder`, `Data` (`Enabled`, `Folder`, `FilenamePattern`, `MatVersion`) |

@@ -3,7 +3,7 @@ function markFigureTree(obj)
 %   A figure's node is styled (uistyle on the node) by figureViewFresh's
 %   look of its preview: as is when its kept preview is current ("fresh"),
 %   amber italic when it is out of date ("stale": drawn from figures,
-%   defaults, a dataset or an observation since changed, or Out of date,
+%   defaults, a dataset, an observation or a page since changed, or Out of date,
 %   canceled, waiting for Preview, computing), red when it failed, gray
 %   when it is not drawn ("none": never shown, dropped by the cap, or the
 %   dataset cannot draw it). The selected figure (SelectedFigure, the one

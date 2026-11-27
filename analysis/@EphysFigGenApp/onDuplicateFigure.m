@@ -13,11 +13,12 @@ cfg = obj.gatherConfig();
 from = cfg.Figures(k).id;
 [cfg, id] = cfg.duplicateFigure(k);
 if isKey(obj.FigureObservation, char(from)); obj.FigureObservation(char(id)) = obj.FigureObservation(char(from)); end
+was = [k obj.SelectedPanel obj.SelectedLayer];   % the step's place: Undo shows the original again, not the figure after it
 saveFigureEditorState(obj);   % the original's editor state, the copy's too
 M = obj.FigureEditorStates;
 if isa(M, 'containers.Map') && isKey(M, char(from)); M(char(id)) = M(char(from)); end
 obj.SelectedFigure = k + 1;
-obj.applyConfig(cfg, Action="Duplicate figure");
+obj.applyConfig(cfg, Action="Duplicate figure", Selection=was);
 obj.setStatus("Duplicated " + from + " as " + id + ".");
 obj.autoFigurePreview();
 end

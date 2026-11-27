@@ -12,6 +12,7 @@ function v = newFigureView(obj, id)
 %     State     its badge's state (setFigurePreviewState): "idle"
 %     Result    computeFigure's F drawn there ([] = none)
 %     Drawn     what it was drawn from (figureViewKey; [] = not drawn)
+%     Tried     what its last preview was for (FigurePreviewTried; [] = none)
 %     Seconds   how long its last preview took (autoFigurePreview)
 %     Cost      its parts, computing and drawing, and the data key
 %               computed (FigurePreviewCost: previewCost)
@@ -33,6 +34,6 @@ else
     g = uigridlayout(P, [1 1]);
     uilabel(g, "Text", msg, "WordWrap", "on", "HorizontalAlignment", "center", "FontColor", [0.4 0.4 0.4]);
 end
-v = struct('Id', string(id), 'Panel', P, 'State', "idle", 'Result', [], 'Drawn', [], 'Seconds', 0, ...
+v = struct('Id', string(id), 'Panel', P, 'State', "idle", 'Result', [], 'Drawn', [], 'Tried', [], 'Seconds', 0, ...
     'Cost', struct('compute', 0, 'draw', 0, 'key', {[]}), 'Sessions', [], 'Label', msg, 'Used', 0);
 end

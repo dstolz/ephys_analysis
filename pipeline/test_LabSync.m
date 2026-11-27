@@ -14,7 +14,17 @@ classdef test_LabSync < matlab.unittest.TestCase
     %   session sent before the step that read its files, and inputs sent
     %   later as an edges record; an unreachable server costs no wait and
     %   leaves the outbox as it was; no sending while suspended; a failed step
-    %   recorded as failed; a discarded record kept, never sent; where a
+    %   recorded as failed; a run of figures (LabCapture.analysisRun): its
+    %   inputs, outputs and replaced reports, the config it started with; a
+    %   run that throws (EphysAnalysisRunner.run: its run record and its
+    %   record failed, with the error, the Log saying what was noted or which
+    %   folder is under no mapped root), a run that drew no figure because
+    %   each failed recorded as failed, a LogFcn that throws as the run ends
+    %   (a warning: the run's error still thrown, a finished run not
+    %   failed), kept figure files (Export.Overwrite
+    %   off) left out of its outputs, the output ledger written
+    %   once per run and never written over when it cannot be read; a
+    %   discarded record kept, never sent; where a
     %   dataset's records stand (labclient.Sync.datasetText, the Review tab's
     %   Database column) and the manifest viewer's Database tab (the steps
     %   and files here and in the database, a file's lineage); a move
@@ -358,13 +368,184 @@ classdef test_LabSync < matlab.unittest.TestCase
             a = jsondecode(char(e.attributes));
             tc.verifyEqual(key(string(a.unrecorded_outputs)), key(away), "listed instead");
 
-            % the next run writes the report again, other bytes: it replaces the first
+            % the next run writes the report again, other bytes: it replaces the first; it records the config it
+            % started with (Config=, as EphysAnalysisRunner.run passes it), not the runner's Config, set meanwhile
             tc.writeBytes(rep, uint8('<html>2</html>'));
-            id2 = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"));
+            ran = EphysAnalysisConfig();
+            ran.Name = "as the run started";
+            id2 = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"), Config=ran);
             labclient.Sync.flush(Budget=10);
             tc.verifyNotEqual(id2, "");
             D = tc.Fake.Dispositions;
             tc.verifyEqual(D.artifact_id(D.disposition == "replaced"), A.artifact_id, "the report the run rewrote: replaced");
+            e2 = tc.Fake.Events(string({tc.Fake.Events.event_id}) == id2);
+            tc.verifySize(e2, [1 1]);
+            a2 = jsondecode(char(e2.attributes));
+            tc.verifyEqual(string(a2.config_name), "as the run started", "the config the run started with, not R.Config");
+            tc.verifyNotEqual(string(r.Config.Name), "as the run started");
+        end
+
+        function aFigureRunThatThrowsIsRecorded(tc)
+            % EphysAnalysisRunner.run stopped by an error at its first dataset: its run record and its record for the
+            % lab database are written all the same (failed, the error), the Log says what was noted, the error goes on
+            ds = tc.dataset();
+            cfg = EphysAnalysisConfig();
+            cfg.Name = "stops";
+            cfg.Source.Mode = "folders";
+            cfg.Source.Folders = string(ds.Folder);
+            cfg.Report.Folder = string(fullfile(tc.Top, "analysis"));   % under the storage root "nas"
+            logged = containers.Map('KeyType', 'double', 'ValueType', 'any');
+            r = EphysAnalysisRunner(cfg, LogFcn=@(m) appendLog(logged, m));
+            r.ProgressFcn = @(~, ~) error("test_LabSync:Stopped", "the disk is full");
+            tc.verifyError(@() r.run(Export=false, Report=false), "test_LabSync:Stopped", "the caller still sees the error");
+            tc.assertNotEqual(r.RunRecordFile, "", "a run that throws still writes its run record");
+            rec = readJsonFile(r.RunRecordFile);
+            tc.verifyEqual(string(rec.outcome), "failed");
+            tc.verifyEqual(string(rec.error), "test_LabSync:Stopped: the disk is full");
+            T = labclient.Outbox.list(State="pending");
+            tc.assertEqual(height(T), 1, "the run, noted for the lab database");
+            b = labclient.Outbox.read(T.id(1));
+            ev = b.record.event;
+            tc.verifyEqual(string(ev.detail.pipeline_name), "ephys_analysis/figures");
+            tc.verifyEqual(string(ev.detail.status), "failed");
+            a = jsondecode(char(ev.attributes_json));
+            tc.verifyEqual(string(a.outcome), "failed");
+            tc.verifyEqual(string(a.error), "test_LabSync:Stopped: the disk is full");
+            key = @(p) EphysDataset.pathKey(string(p));
+            tc.verifyEqual(key([b.record.outputs.path]), key(r.RunRecordFile), "its output: the run record");
+            tc.verifyEmpty(labclient.Bundles.problems(b), "a record the database takes: not held");
+            lines = string(logged.values);
+            tc.verifyTrue(any(contains(lines, "Lab database: the run is noted as analysis event " + T.id(1)) ...
+                & contains(lines, "status failed")), "the Log says what was noted");
+
+            % its run record under no storage root mapped here: nothing to note, and the Log names the folder left out
+            away = string(tempname);
+            mkdir(away);
+            tc.addTeardown(@() rmdir(away, "s"));
+            cfg.Report.Folder = away;
+            logged2 = containers.Map('KeyType', 'double', 'ValueType', 'any');
+            r2 = EphysAnalysisRunner(cfg, LogFcn=@(m) appendLog(logged2, m));
+            r2.ProgressFcn = @(~, ~) error("test_LabSync:Stopped", "the disk is full");
+            tc.verifyError(@() r2.run(Export=false, Report=false), "test_LabSync:Stopped");
+            tc.assertTrue(isfile(r2.RunRecordFile));
+            lines2 = string(logged2.values);
+            tc.verifyTrue(any(startsWith(lines2, "Lab database: nothing noted for this run")), "nothing noted, and said so");
+            tc.verifyTrue(any(contains(lines2, "under no storage root mapped here") ...
+                & contains(lines2, string(fileparts(r2.RunRecordFile)))), "the run record's folder named as under no mapped root");
+            tc.verifyEqual(height(labclient.Outbox.list(State="pending")), 1, "nothing more in the outbox");
+        end
+
+        function aLogThatThrowsHidesNoError(tc)
+            % a LogFcn that throws on the lines the run's end writes ("Lab database: ..."): a warning only, so the
+            % error that stopped the run still reaches the caller, a run that finished does not fail, and each is noted
+            ds = tc.dataset();
+            cfg = EphysAnalysisConfig();
+            cfg.Name = "log throws";
+            cfg.Source.Mode = "folders";
+            cfg.Source.Folders = string(ds.Folder);
+            cfg.Report.Folder = string(fullfile(tc.Top, "analysis"));   % under the storage root "nas"
+            r = EphysAnalysisRunner(cfg, LogFcn=@throwOnLabLine);
+            r.ProgressFcn = @(~, ~) error("test_LabSync:Stopped", "the disk is full");
+            tc.verifyError(@() r.run(Export=false, Report=false), "test_LabSync:Stopped", ...
+                "the error that stopped the run reaches the caller, not the Log's");
+            tc.verifyEqual(height(labclient.Outbox.list(State="pending")), 1, "the run is noted");
+            r.ProgressFcn = [];
+            tc.verifyWarning(@() r.run(Export=false, Report=false), "EphysAnalysisRunner:LogFcn", ...
+                "a run that finished: the Log that throws is a warning, not an error");
+            tc.verifyEqual(height(labclient.Outbox.list(State="pending")), 2, "that run is noted too");
+            tc.verifyTrue(isfile(r.RunRecordFile), "and its run record written");
+        end
+
+        function aFigureRunThatDrewNothingIsFailed(tc)
+            % a run that finished with every figure it tried an "error" row (the other skipped): failed, not
+            % succeeded; one that drew a figure and failed another: succeeded, its failures counted
+            ds = tc.dataset();
+            rep = string(fullfile(ds.outputFolder(), "report.html"));
+            tc.writeBytes(rep, uint8('<html>errors</html>'));
+            rows = @(st) table(repmat(string(ds.Name), numel(st), 1), "f" + (1:numel(st)).', repmat("figure", numel(st), 1), ...
+                reshape(st, [], 1), repmat("", numel(st), 1), repmat("", numel(st), 1), ones(numel(st), 1), ...
+                'VariableNames', {'Dataset', 'Plot', 'Kind', 'Status', 'Message', 'Files', 'Seconds'});
+            r = struct("Outputs", DatasetOutputs(ds), "Names", string(ds.Name), "ReportFiles", rep, ...
+                "Config", EphysAnalysisConfig(), "Results", rows(["error" "error" "skipped"]));
+            [id, info] = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"));
+            tc.assertNotEqual(id, "");
+            b = labclient.Outbox.read(id);
+            tc.verifyEqual(string(b.record.event.detail.status), "failed", "it drew no figure: every one it tried failed");
+            a = jsondecode(char(b.record.event.attributes_json));
+            tc.verifyEqual(string(a.outcome), "finished", "it finished");
+            tc.verifyEqual(a.figure_errors, 2);
+            tc.verifyEqual(info.status, "failed");
+
+            tc.writeBytes(rep, uint8('<html>one drawn</html>'));
+            r.Results = rows(["done" "error"]);
+            [id2, info2] = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"));
+            b2 = labclient.Outbox.read(id2);
+            tc.verifyEqual(string(b2.record.event.detail.status), "succeeded", "a figure drawn: succeeded");
+            tc.verifyEqual(jsondecode(char(b2.record.event.attributes_json)).figure_errors, 1, "its failure counted");
+            tc.verifyEqual(info2.status, "succeeded");
+        end
+
+        function keptFigureFilesAreNoOutputsOfTheRun(tc)
+            % Export.Overwrite off: a figure file on disk from an earlier run is in Results.Files and KeptFiles; the
+            % record leaves it out of its outputs (kept_outputs), so it never claims bytes the run did not write
+            ds = tc.dataset();
+            key = @(p) EphysDataset.pathKey(string(p));
+            old = string(fullfile(ds.outputFolder(), ds.Name + "_map.png"));
+            tc.writeBytes(old, uint8(1:20));
+            new = string(fullfile(ds.outputFolder(), ds.Name + "_card.png"));
+            tc.writeBytes(new, uint8(21:60));
+            r = struct("Outputs", DatasetOutputs(ds), "Names", string(ds.Name), "ReportFiles", strings(1, 0), ...
+                "Config", EphysAnalysisConfig(), "KeptFiles", old, ...
+                "Results", table(string(ds.Name), "f1", "figure", "done", "2 observation(s)" + EphysAnalysisRunner.keptText(1), ...
+                old + "; " + new, 1, 'VariableNames', {'Dataset', 'Plot', 'Kind', 'Status', 'Message', 'Files', 'Seconds'}));
+            [id, info] = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"));
+            tc.assertNotEqual(id, "");
+            b = labclient.Outbox.read(id);
+            tc.verifyEqual(key([b.record.outputs.path]), key(new), "its output: the file it wrote, not the kept one");
+            a = jsondecode(char(b.record.event.attributes_json));
+            tc.verifyEqual(key(string(a.kept_outputs)), key(old), "the kept file listed apart");
+            tc.verifyEqual(key(info.kept), key(old));
+            tc.verifyEqual([info.inputs info.outputs], [0 1]);
+            tc.verifyEmpty(info.unrecorded);
+            tc.verifyEqual(info.why, "");
+        end
+
+        function theOutputLedgerIsKeptWhole(tc)
+            % LabCapture's output ledger, written once per run: an entry another run here noted
+            % stays, every output of this run is noted; a ledger that cannot be read is left as it is (a warning)
+            % and the run is noted all the same
+            ds = tc.dataset();
+            f = string(fullfile(labclient.DB.folder(), "analysis_outputs.json"));
+            otherKey = EphysDataset.pathKey(string(fullfile(tc.Top, "elsewhere", "fig.png")));
+            otherValue = "11111111-2222-4333-8444-555555555555 " + string(repmat('a', 1, 64));
+            writeJsonFile(f, struct("format", "ephys-labdb-outputs/1", "entries", {{struct("path", otherKey, "value", otherValue)}}));
+            rep = string(fullfile(ds.outputFolder(), "report.html"));
+            tc.writeBytes(rep, uint8('<html>1</html>'));
+            fig = string(fullfile(ds.outputFolder(), ds.Name + "_map.png"));
+            tc.writeBytes(fig, uint8(1:30));
+            r = struct("Outputs", DatasetOutputs(ds), "Names", string(ds.Name), "ReportFiles", rep, "Config", EphysAnalysisConfig(), ...
+                "Results", table(string(ds.Name), "f1", "figure", "done", "", fig, 1, ...
+                'VariableNames', {'Dataset', 'Plot', 'Kind', 'Status', 'Message', 'Files', 'Seconds'}));
+            id = LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), Finished=datetime("now"));
+            b = labclient.Outbox.read(id);
+            O = b.record.outputs;
+            tc.assertNumElements(O, 2, "the report and the figure");
+            E = readJsonFile(f).entries;
+            paths = string({E.path});
+            values = string({E.value});
+            tc.verifyNumElements(E, 3, "the entry another run noted, and this run's two outputs");
+            tc.verifyEqual(values(paths == otherKey), otherValue, "the other run's entry, as it was");
+            for j = 1:numel(O)
+                tc.verifyEqual(values(paths == EphysDataset.pathKey(O(j).path)), O(j).artifact_id + " " + O(j).sha256);
+            end
+
+            tc.writeBytes(f, uint8('{not json'));
+            before = fileread(f);
+            tc.writeBytes(rep, uint8('<html>2</html>'));
+            id2 = tc.verifyWarning(@() LabCapture.analysisRun(r, 1, Started=datetime("now") - seconds(5), ...
+                Finished=datetime("now")), "LabCapture:OutputLedger");
+            tc.verifyNotEqual(id2, "", "the run is noted all the same");
+            tc.verifyEqual(fileread(f), before, "a ledger that cannot be read is not written over");
         end
 
         function anUnreachableServerCostsNoWait(tc)
@@ -778,4 +959,18 @@ classdef test_LabSync < matlab.unittest.TestCase
             tc.verifyEqual(tc.events(), 0, "never sent");
         end
     end
+end
+
+
+function appendLog(map, msg)
+%appendLog  A LogFcn that keeps every line in MAP (a containers.Map, a handle), in order.
+map(map.Count + 1) = string(msg); %#ok<NASGU> containers.Map is a handle
+end
+
+
+function throwOnLabLine(msg)
+%throwOnLabLine  A LogFcn that throws on the lines about the lab database's record ("Lab database: ...").
+if startsWith(string(msg), "Lab database:")
+    error("test_LabSync:LogClosed", "the Log is closed");
+end
 end

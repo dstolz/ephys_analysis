@@ -23,6 +23,7 @@ obj.FigureViewId = "";
 obj.FigurePreviewPanel = v.Panel;
 obj.FigurePreviewResult = [];
 obj.FigurePreviewDrawn = [];
+obj.FigurePreviewTried = [];
 obj.FigurePreviewSeconds = 0;
 obj.FigureSessionResults = [];
 obj.FigurePreviewState = "idle";   % (the badge follows with the container shown next: syncFigureView)

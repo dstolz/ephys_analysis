@@ -15,7 +15,10 @@ function onUndoRedo(obj, how)
 %   kept drawing is not the figure as restored (previewFigureView); the
 %   title's "*" goes when the figures are back as saved. The status bar
 %   names the edit (Undid "Add panel".); with nothing to undo or redo it
-%   says so.
+%   says so. The panels Shift+click added to the selection (FigurePanelExtra)
+%   stay while the figure shown is the same figure with the same panels, as
+%   after Undo of an edit they all took; they are let go when another figure
+%   is shown or its panels change (syncFigureEditor: FigurePanelIds).
 arguments
     obj (1,1) EphysFigGenApp
     how (1,1) string {mustBeMember(how, ["undo" "redo"])}
@@ -41,7 +44,7 @@ else
     done = "Redid";
 end
 cfg.Figures = to;
-sel = cameBack(to, from, step.Selection);
+sel =cameBack(to, from, step.Selection);
 was = obj.FigureViewId;
 saveFigureEditorState(obj);   % the editor as the figure shown had it
 obj.SelectedFigure = sel(1);

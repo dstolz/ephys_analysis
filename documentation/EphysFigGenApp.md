@@ -113,7 +113,15 @@ first time it is shown (the Figures tab takes a few seconds then), and the
 Alignment tab's epoch count and diagram are drawn then too. A
 config's project root on a network share that does not answer within 5 s
 is not scanned when the config opens (the status bar says so): **Scan** it
-once it can be reached.
+once it can be reached. Until then the config keeps its own ticks: the
+datasets listed are still the last scan's, and their **Run** ticks are not
+taken into it (when they are the same root's, its own selection ticks them;
+the datasets it ticks that the last scan did not list are named on the
+status bar, *... are not among the datasets listed (the last scan) ...*, and
+in the Log, and stay in its selection, so **Save** keeps them, until a
+scan; meanwhile **Run**, **Plan**, **Generate selected figure** and **Test
+report** stop with an alert to press **Scan**: a run would leave them out
+while its record names them).
 
 **From the pipeline app.** Its **File → Open analysis app...** opens this
 app on the project root, output root, name pattern and Open Ephys recording
@@ -150,7 +158,7 @@ active dataset.
 | **Output folders**, **Add...** | one dataset output folder per line (folders mode), for a machine that holds only the processed files | `Source.Folders` |
 | **Signals**, **Downsample...** | the rate each signal (LFP, MUA, SPIKE, AUX) is brought to before any figure reads it ([below](#downsampling-signals)). The row says the rates set (*every signal at its rate on file*, or *downsampled: LFP 250 Hz, AUX 100 Hz*), and the button is amber while one is | `Source.Downsample` |
 | **Filters**, **Filter...** | the filter each signal is read through by every figure: an EEG band, a line-noise notch, a low- or high-pass ([below](#filtering-signals)). The row says the filters on (*no signal filtered*, or *filtered: LFP Theta 4-8 Hz (the others as recorded)*), and the button is amber while one is | `Source.SignalFilter` |
-| **Scan** | builds a new runner, which finds the datasets (and holds the data it loads). A modal dialog shows it after startup (the splash does at startup): the root, dataset i of n and the time left, then the favorites, the notes and the first dataset. **Cancel** stops it while the datasets are read; the old list stays | |
+| **Scan** | builds a new runner, which finds the datasets (and holds the data it loads). A modal dialog shows it after startup (the splash does at startup): the root, dataset i of n and the time left, then the favorites, the notes and the first dataset. **Cancel** stops it while the datasets are read; the old list stays. Datasets the config ticks that the scan does not find are named on the status bar (*1 dataset(s) ticked in the config were not found, so they are not ticked: ...*) and in the Log. A config of output folders saved by an older version may hold a project's dataset keys as its selection (they name no folder; such a config ran every folder): every folder is ticked, as it ran, and the status bar and the Log say so. A root with no processed recordings says *No processed recordings under ...* on the line under **Scan**, also when the source comes back to it. After a change of the root, output root, name pattern, Open Ephys mode or output folders, the line under it reads *The source changed: Scan to list its datasets.*, and **Run**, **Plan**, **Generate selected figure** and **Test report** stop with an alert that says to press **Scan** first: the datasets listed are the old source's. The Run ticks, the filter, **Downsample...** and **Filter...** are no change of the source. The line comes back when the source is the one scanned again | |
 
 Match the project settings to the pipeline config that wrote the outputs,
 or the datasets' files are not found. Opening the app from the pipeline app
@@ -160,14 +168,14 @@ copies them.
 
 | Column | Meaning |
 | --- | --- |
-| **Run** | tick the datasets a run uses. In project mode the ticks are saved in the config: all ticked is `Selection = "all"`, otherwise `"list"` with the ticked keys. In folders mode every folder listed is ticked after a scan and the ticks are not saved |
+| **Run** | tick the datasets a run uses. The ticks are saved in the config, in either mode: all ticked is `Selection = "all"`, otherwise `"list"` with the ticked keys (project mode: root-relative keys; folders mode: the folders). A scan ticks what the config's selection names (a key as `EphysProject.findByKey` finds it, case ignored on Windows; in folders mode a list of a project's keys, which names no folder, ticks every folder: `EphysAnalysisRunner.selectedFolders`), and a scan of the same source again keeps the ticks; the generated scripts run the ticked datasets alone. Switching between project and output folders starts again from every dataset ticked |
 | **★** | the dataset is starred: tick it to star the dataset, clear it to unstar it ([Favorites](#favorites)). Written at once beside the data, never into the config |
 | **✎** | the dataset has a note. Click it to make the dataset active and open its note in the notepad ([Notes](#notes)) |
 | **Name**, **Key** | the dataset's name and key (the root-relative folder, or the output folder in folders mode) |
 | **Subject**, **Date** | the dataset's `SubjectID` from the name pattern, and the day it was recorded (a project's recording start, else the date in the name) |
 | **Tags** | the dataset's [tags](EphysDataset.md#tags), `, `-joined (read only: tags are edited in the pipeline app's Project tab). From the manifest beside the data, read once per dataset, not the whole source. They also appear in the report (after the dataset's name, and the *Recording* table's **Tags** row) and in the sessions and population exports ([Tags](EphysAnalysis.md#tags)) |
 | **Variables** | the dataset's [variables](EphysDataset.md#variables) in one line (`probeDepth = 1200 µm; cohort = 3`). Click the cell to edit them (`VariableDialog`, a row per dataset and a column per variable); right-click the table, **Variables...**, for the selected rows' (else the active dataset's). OK writes them to the manifests and the sources loaded take the new values (`src.variables`, `src.variableInfo`). **View manifest...** (same menu) opens the dataset's manifest in the manifest viewer, where its Variables tab says when each changed |
-| **LFP**, **MUA**, **Spike band**, **AUX** | ✓ when that signal's extract exists (**Spike band** is the `SPIKE` signal) |
+| **LFP**, **MUA**, **Spike band**, **AUX** | ✓ when that signal's extract exists (**Spike band** is the `SPIKE` signal). Which files exist is checked once per scan (each check is a network round trip over a share, and the table is filled on every star, note, tick and filter edit): a file that appears or goes away is noticed at the next **Scan** |
 | **Units**, **Detected** | the sorting folder holds sorted units; the spikes file holds threshold detections |
 | **Behavior** | `<Name>_behavior.mat` exists |
 | **Trials**, **Pairing**, **Duration (s)** | once the dataset has been loaded (making it active loads it): the number of trials, the pairing (its recorded status, `paired`, or `not paired`) and the recording's length |
@@ -347,7 +355,7 @@ Trough onset.
 | **Response** | keep the trials that are any of the selected response words, in a list (Ctrl or Shift selects several; none selected keeps every response) (`Hit`, `Miss`, `CR`, `FA`, `Abort`, `Reward`, `Punish`, `NoResponse`, `Response`: bits of `RespCode`) |
 | **Pairing** | keep the trials with the selected `PairingFlag` values, in a list: `ok` (default), `partial`, `cut`, `unpaired`; none selected keeps every flag |
 | **Group by**, **and** | up to two trial parameters: one group per value, or pair of values |
-| **Order**, **Max groups** | the groups' order (`ascending`, `descending`, `appearance`); more groups than the maximum (12 by default) is an error |
+| **Order**, **Max groups** | the groups' order (`ascending`, `descending`, `appearance`); more groups than the maximum (100 by default; any whole number from 1 up, shown as it is) is an error |
 | **Artifacts**: **Exclude epochs**, **at least (s)** | ticked (default): leave out the epochs whose window (or a panel's baseline) touches an artifact period, the stretches the Signals step erased; unticked: keep them (their signal is the erased stretch). Only periods at least **at least (s)** long count (0 = every one); the [epoch diagram](#epoch-diagram) draws the shorter ones paler |
 
 The stop event's offset, interval length and time range, and the selection's
@@ -454,8 +462,8 @@ and the preview show, and a figure selected any other way (a favorite, **Go to
 setting**, Undo or Redo, Add, Duplicate, Remove, a config opened) is selected in
 the tree. The nodes are marked (`markFigureTree`): the figure shown is **bold**;
 a figure whose kept preview is out of date is *amber and italic* (its figure,
-the defaults it uses, the active dataset or its observation changed since it was
-drawn, or it waits for **Preview**); one whose preview failed is red; one not
+the defaults it uses, the active dataset, its observation or its page changed
+since it was drawn, or it waits for **Preview**); one whose preview failed is red; one not
 drawn is gray (not shown yet, dropped from the kept previews, or the dataset
 cannot draw it). An edit of one figure marks only that figure; another dataset,
 or a scan, marks every figure, and the dataset chosen back makes the previews
@@ -465,7 +473,9 @@ drawn on it current again.
 (`syncFigureView`), so a figure you switch away from keeps its drawing, badge,
 status line and *Figure:* pick, and switching back shows it at once, without
 computing or drawing it again, unless it is out of date: then it is drawn as
-after an edit (at once with **Auto**, else marked *Out of date*). The eight
+after an edit (at once with **Auto**, else marked *Out of date*), or, when only
+the Export tab's page changed since it was drawn, drawn again on the new page
+from what it holds, nothing computed ([the page](#the-page-a-figure-is-exported-on)). The eight
 figures shown last keep theirs (`EphysFigGenApp.MaxFigureViews`, a constant:
 each holds its computed result and its graphics); a figure beyond them is drawn
 again when it is shown. Removing a figure frees its container, and another
@@ -718,7 +728,7 @@ the panels over the preview with the mouse, snapping them to one another
 | **Position (x, y)**, **Size (w, h)** (the Panel section) | the selected panel's rect in those units, from the page's bottom-left corner. A value typed is one undo step named after its field (*Undo Panel x*, *Undo Panel width*); the rect is kept on the page: a position that would take the panel past an edge moves it back, a size is cut at the edge (*"... Kept on the page."*), and a width or height of 0 or less is refused. A field shows its value rounded (2 decimals in cm, whole px, ...); a value it cannot show is kept as stored until you type in the field (`rect`) |
 | **Boxes mean** (Layout, under Page) | what a rect is, for the whole figure: *plot area (labels kept clear)*: the axes themselves, their labels kept clear of the neighbors and the page edge; *outer box (labels inside)*: the panel with its labels, as a box on a slide (`layout.boxesMean`) |
 | **Padding** (Layout, under Page) | the clear space between a panel's labels and its neighbors or the page edge (outer box: between the rect's edge and the labels), in the units picked, stored in cm (`layout.padding`; 0.15 cm by default) |
-| **Snap**, **every** (Layout, under App preferences) | Arrange snaps a panel moved or resized to the other panels' edges and centers, the page and a grid of this step; the arrow keys nudge the selected panel by the step (Shift: ten). Preferences, not part of the config: no undo step (`FigureSnap`, `FigureSnapStep`) |
+| **Snap**, **every** (Layout, under App preferences) | Arrange snaps a panel moved or resized to the other panels' edges and centers, the page and a grid of this step; the arrow keys nudge the selected panel by the step (Shift: ten). Preferences, not part of the config: no undo step (`FigureSnap`, `FigureSnapStep`). The step keeps its exact length when the units are switched (0.5 cm shown in px and back is 0.5 cm again); the field shows it rounded, and a step typed as shown replaces nothing |
 | **Set corners** (the Panel section) | sets the selected panel's rect with two clicks on the preview: one corner, then the opposite one (snapped as Arrange snaps; Escape or a click off the page cancels). Arrange switches on for it; on while the preview shows the figure. One undo step, *Set corners* |
 | **Remove panel** (the Panel section) | removes the panel; the other panels keep their places, and the space it held is left free (*"Removed psth_1."*). It goes from the preview at once. With several panels selected it reads **Remove 3 panels** and removes them all, one undo step (*Remove panels*) |
 | **Bring forward**, **Send back** (the Panel section) | the drawing order: the panel is drawn after the next panel (over it where they overlap) or before the one drawn before it; each is off at its end of the order. One undo step, *Reorder panel* |
@@ -732,8 +742,9 @@ Shift x10.*
 **Arranging panels on the preview.** Press **Arrange** (on the template row,
 at its right) with the figure previewed: each panel gets a box over the
 preview at its rect, the selected panel's blue (`syncArrangeOverlay`). The
-boxes are the Image Processing Toolbox's `images.roi.Rectangle`: without a
-license for it the button goes back off and the status bar says so. While
+boxes are the Image Processing Toolbox's `images.roi.Rectangle`: without the
+toolbox installed and licensed (`toolboxAvailable`: a license alone is not an
+installation) the button goes back off and the status bar says so. While
 Arrange is on, the plot's data tips and right-click editors wait, the
 selected panel's outline gives way to its blue box, and the gray line under
 the preview lists the keys. The preview must show the figure, drawn or out of
@@ -762,7 +773,9 @@ the nearest panel the same as that panel's gap to the next one, or as the
 gap on its other side); else the nearer of its edges goes to the grid of the
 snap step. A panel you resize snaps only the edge you drag: to the other
 panels' edges, the page's edge, or an equal size (as wide or as tall as
-another panel), else to the grid. A corner clicked snaps as an edge does.
+another panel), else to the grid. A corner clicked snaps as an edge does. A
+press on a box that moves the pointer less than 3 px (no edge farther) is a
+click: the panel stays exactly where it was, not snapped.
 
 **Smart guides**, magenta, while you drag: a line through every edge or
 center that lines up with another panel's, from that panel to yours; the
@@ -790,8 +803,9 @@ off. The boxes are kept, hidden, while Arrange is off, so switching it on again 
 session still takes a second or two on a big figure.
 
 **The arrow keys** nudge the selected panel once you have clicked the
-preview's page or a box; an edit in the editor, the search, F6 or another tab
-gives the arrows back to the controls.
+preview's page or a box; an edit in the editor, the search, F6, another tab, or
+a click since in a field, the tree or a button (the window's `CurrentObject`,
+`arrangeHasFocus`) gives the arrows back to the controls.
 
 | Keys | Move the selected panel by |
 | --- | --- |
@@ -1291,17 +1305,17 @@ only that unit's spikes or that channel's column are read) and
 | --- | --- |
 | **Dataset** | the active dataset (the same one as on the other tabs, which list it the same way), among the datasets ticked on the Data tab (every dataset when none is ticked; the active one is listed even when it is not ticked), with what it holds of spikes: *subj1_day1  (14 units)* (its sorted units, counted the first time it is opened in the session: they are read for the Data tab then, so nothing more is read and a share's folders are never walked for the counts; until then the name alone), *(detected only)* (no sort, a spikes file) or *(no sorting)*. Grayed out for a figure across sessions, which is drawn over the ticked (or listed) datasets, not the active one |
 | **Observation** | what the figure is drawn for: the units, channels or dataset the Observations section keeps, in probe order (*su12  ch 7  -320 µm  (5,210 spikes)*: a sorted unit ends in its number of spikes, a detection channel in its number of detections; a signal's channel and the dataset have no count). With **Per trial group** it lists a row for each unit and trial group (the unit's rows together, in group order, the label ending in a middle dot and the group's label, then the unit's count), the preview draws that group's epochs only, and **>** steps from a unit's group to its next one. Each figure remembers its pick until the app closes, by label (without the count), so it stays through a filter change or another dataset while that label is in the list, else the first is picked. Picking one draws it, whether or not Auto is on. For a figure across sessions it lists the sites, cells or channels matched across the sessions, each ending *(across 3 sessions)* ([below](#sessions-in-the-figures-tab)) |
-| **Open in window** | (**Ctrl+W**) at the right of the status line under the preview, right of **Export code**: draws the figure as previewed into a new regular MATLAB figure window (`figure`), named *figure id: observation (dataset)* and the shape of the figure's export page at its true size on screen ([the page](#the-page-a-figure-is-exported-on); Ctrl+Click on a panel selects it in the editor), with the right-click aesthetics editor and its Design submenu (what it remembers for the figure reaches the config while the app is open). A drawn preview is used as it is; an *Out of date*, canceled or missing one is previewed first, and the status bar says why when that draws nothing. The window is independent of the app: later edits do not follow into it, and closing the app leaves it. Off with no figure selected |
+| **Open in window** | (**Ctrl+W**) at the right of the status line under the preview, right of **Export code**: draws the figure as previewed into a new regular MATLAB figure window (`figure`), named *figure id: observation (dataset)* and the shape of the figure's export page at its true size on screen ([the page](#the-page-a-figure-is-exported-on); Ctrl+Click on a panel selects it in the editor), with the right-click aesthetics editor and its Design submenu (what it remembers for the figure reaches the config while the app is open). A drawn preview is used as it is when it is the figure as it is now (drawn from the figure, defaults, dataset, observation and page it has now: `figureViewFresh`, whatever the badge says); an *Out of date*, canceled or missing one is previewed first, and the status bar says why when that draws nothing (an edit made while it computed: preview again). So a result computed for another observation, dataset or version of the figure is never drawn with the figure as it is now. The window is independent of the app: later edits do not follow into it, and closing the app leaves it. Off with no figure selected |
 | **Redraw All** | (**Ctrl+R**) computes and draws again the preview of every enabled figure (and the shown one, enabled or not), each for its own observation on the active dataset, so that every figure's kept preview is current after an edit of the defaults, a dataset or a scan (see **Redraw All** below). It sits under **Preview**, in the same colors, and is off with no figure selected, while a run goes and while it goes itself. Writing the selected figure's files for every observation is **File → Generate selected figure** (**Ctrl+G**, see **Generate selected figure** below) |
 | **<**, **>** | the previous and next observation (**Page Up**, **Page Down**: a figure has no pages), side by side at the bottom of the column of buttons; off at either end of the list |
 | **☆** / **★** | right of **Dataset**: stars the active dataset. Right of **Observation**: stars what the preview shows -- the sorted unit (with its sort), the channel (a detection channel's star is its channel's) or, for a figure of the dataset, the dataset; off for a figure across sessions. A starred dataset, unit or channel starts with **★** in its drop-down; the pick is still remembered by its label without the mark ([Favorites](#favorites)) |
 | **✎** | right of each star: opens the notepad on the same thing, the active dataset or what the preview shows, and the notepad then follows it as you pick or step. Yellow when it has a note (its first line in the tooltip); a dataset, unit or channel with a note shows **✎** in its drop-down, after any **★** ([Notes](#notes)) |
 | **Favorites** | under **Observation**: a filter field and a drop-down of every starred dataset, channel and unit of the scanned datasets. Picking one makes its dataset active and, when the selected figure observes units (for a unit) or channels or detection channels (for a channel), picks and draws it ([Favorites](#favorites)) |
 | **Export code** | (**Ctrl+E**) left of **Open in window**, at the right of the status line under the preview: opens the code behind the preview in the MATLAB editor, as a new unsaved script (`EphysAnalysisScript.preview`, [Generated scripts](EphysAnalysis.md#a-previewed-figure-as-a-script)). It names the active dataset (a figure across sessions: the ticked or listed datasets), writes the figure's settings out as `spec` (`figureFor`'s, every *default* resolved), finds the observation picked again in `figureObservations` (by its unit id or the extract's column; with **Per trial group**, its group too; across sessions, by its label), loads the data as plain variables to analyze -- every event line, the trials, every spike train, the preview's epochs (`E`, `G`: `figureEpochs`), each unit's spikes and each line's onsets and offsets in every epoch (`spikesIn`, `onsets`, `offsets`), a figure of channels its signal cut into the epochs too; across sessions one `data(j)` per session -- then calls `figureCompute` (`figureSessionCompute` across sessions, keeping the **Figure:** pick) and `renderFigure` into a figure window the size of the preview, in the design chosen. Run it to load the data and draw the figure without the app; change `spec` or pick another row of `obsT` to make it your own. Nothing is computed when you press it, so the preview need not be drawn; the code holds the figure as the editor shows it then, and later edits do not follow into it. Without the desktop's editor (`matlab -batch`) it writes the script to `tempdir` and the status bar names the file. Off with no figure selected |
-| **Export preview** | (**Ctrl+K**) under **Redraw All** in the column of buttons, and again left of **Export code**, at the right of the status line under the preview (its icon alone there). A spot check of the [Export tab](#export-tab)'s settings before a run: the selected figure, for the observation picked (a figure across sessions: the **Figure:** pick too), drawn as a run draws it -- the page at the export size, in the design chosen -- and written in each format ticked, at its dpi, under the name the file-name pattern gives it, but into a preview folder (`ExportPreviewFolder`, `tempdir\ephys_export_preview`, emptied each time), never the figure folder. The Export controls count as they are, saved or not, and **Write figure files** need not be ticked. An *Out of date* preview is computed first. The *Export preview* window shows the PNG as written (one at the dpi is written for it alone when png is not ticked), under the files' names, the page's size in cm, the dpi and the pixels, and the folder a run writes them to (and whether files are there already: kept or replaced, as **Overwrite existing** says); **Open the files** opens each in its own program, **Open the folder** the preview folder. One window, reused by the next preview. Off with no figure selected and while a run goes |
+| **Export preview** | (**Ctrl+K**) under **Redraw All** in the column of buttons, and again left of **Export code**, at the right of the status line under the preview (its icon alone there). A spot check of the [Export tab](#export-tab)'s settings before a run: the selected figure, for the observation picked (a figure across sessions: the **Figure:** pick too), drawn as a run draws it -- the page at the export size, in the design chosen -- and written in each format ticked, at its dpi, under the name the file-name pattern gives it, but into a preview folder (`ExportPreviewFolder`, `tempdir\ephys_export_preview`, emptied each time), never the figure folder. The Export controls count as they are, saved or not, and **Write figure files** need not be ticked. A preview that is not the figure as it is now (*Out of date*, or drawn from another figure, dataset, observation or page: `figureViewFresh`) is computed first, as for **Open in window**, so the file named for the observation picked holds that observation; when an edit comes in while it computes, nothing is written and the status bar says to preview again. The *Export preview* window shows the PNG as written (one at the dpi is written for it alone when png is not ticked), under the files' names, the page's size in cm, the dpi and the pixels, and the folder a run writes them to (and whether files are there already: kept or replaced, as **Overwrite existing** says); **Open the files** opens each in its own program, **Open the folder** the preview folder. One window, reused by the next preview. Off with no figure selected and while a run goes |
 | **Preview** | (**Ctrl+P**) computes now, also for a signal extract above `PreviewMaxMB`, which otherwise waits for it. It is the button at the top left, heading a column of buttons (**Preview**, **Redraw All**, **Export preview**, **Auto**, **<** **>**) left of **Dataset**, **Observation** and **Favorites**, and turns orange while the figure is *Out of date* |
-| **Auto** | (**Ctrl+T**: off, or on again where it was) a slider from off (left end) to every edit (right end): how slow a redraw an edit may start. Left end: every edit waits for **Preview**. Right end: every edit redraws the preview, however long that takes. Between them an edit redraws when that is predicted to take less than the slider's limit: *0.67 s* a quarter of the way, *2 s* in the middle (the default), *6 s* at three quarters, *18 s* at 0.9; the tooltip says the limit, and so does the status bar while you drag (the slider goes in steps of 0.05). The prediction comes from the figure's last preview, timed in two parts: computing its data and drawing them. An edit of colors, fonts, labels, titles or places reuses the data computed, so only the drawing counts; an edit of what is computed (the event, the window, the bins, the trials, the layers) counts both. A figure too slow for the limit says so under the preview: *"slow to compute, so only edits of the look (colors, fonts, labels, places) redraw; the others wait for Preview"*, or *"slow to draw, so edits wait for Preview"*. Remembered (the preference `FigureAutoRedraw`). A figure across sessions, which computes every session, waits for **Preview** (or a pick in the observation list) whatever the setting; so does a preview that failed or was canceled. A figure just shown, a figure on another dataset and the first figure drawn after the app starts (which also loads the graphics) are drawn once, then timed. The limit is `AutoRedrawScale` x T / (1 - T) seconds at the slider's value T (`AutoRedrawScale` = 2, `AutoRedrawDefault` = 0.5: constants of the app) |
-| **Design:** | the look every figure is drawn in (Default, Tufte, Journal, Night, Talk, Gray panel, and yours; the Design menu offers the same): picking one redraws the preview, and every other figure on screen, at once; runs draw their figures in it. It sits right of the **Dataset** drop-down. The Look section's **Design and looks** has the same list, equal to it: choose in either |
+| **Auto** | (**Ctrl+T**: off, or on again where it was) a slider from off (left end) to every edit (right end): how slow a redraw an edit may start. Left end: every edit waits for **Preview**. Right end: every edit redraws the preview, however long that takes. Between them an edit redraws when that is predicted to take less than the slider's limit: *0.67 s* a quarter of the way, *2 s* in the middle (the default), *6 s* at three quarters, *18 s* at 0.9; the tooltip says the limit, and so does the status bar while you drag (the slider goes in steps of 0.05). The prediction comes from the figure's last preview, timed in two parts: computing its data and drawing them. An edit of colors, fonts, labels, titles or places reuses the data computed, so only the drawing counts; an edit of what is computed (the event, the window, the bins, the trials, the layers) counts both. A figure too slow for the limit says so under the preview: *"slow to compute, so only edits of the look (colors, fonts, labels, places) redraw; the others wait for Preview"*, or *"slow to draw, so edits wait for Preview"*. Remembered (the preference `FigureAutoRedraw`). A figure across sessions, which computes every session, waits for **Preview** (or a pick in the observation list) whatever the setting; so does a preview that failed or was canceled (also when you come back to its figure from another, as long as the dataset, the observation, the scan and the settings are those it failed or was canceled on; after another dataset or a scan it is drawn again as after an edit). A figure just shown, a figure on another dataset and the first figure drawn after the app starts (which also loads the graphics) are drawn once, then timed. The limit is `AutoRedrawScale` x T / (1 - T) seconds at the slider's value T (`AutoRedrawScale` = 2, `AutoRedrawDefault` = 0.5: constants of the app) |
+| **Design:** | the look every figure is drawn in (Default, Tufte, Journal, Night, Talk, Gray panel, and yours; the Design menu offers the same): picking one redraws the preview, and every other figure on screen, at once; runs draw their figures in it (a run going when you pick keeps the design it started with, and so do the looks you remember meanwhile: they are for the next run). It sits right of the **Dataset** drop-down. The Look section's **Design and looks** has the same list, equal to it: choose in either |
 | **Template:** | the row above the preview: your figure templates ([Figure templates](#figure-templates)). The list (read again each time it opens; its tooltip gives the picked template's description, its shape -- *2 x 1: raster, psth; observes units* --, when it was saved and what reading it reported; *(!)* after a name that reported something; right-click it for **Open my templates folder**, **Keep my templates in...** and the template issue and feature items), then **Apply...** (green: into the figures you tick, or as a new figure), then as icons alone, each named in its tooltip: **Save as...** (a disk: the figure shown as a new template), **Update** (a page with an arrow into it: the template picked made again from the figure shown, after asking), **Remove** (a red bin, after asking), **Import...** (an arrow into a tray), **Export...** (an arrow out of one); and **Report issue** (a GitHub issue about templates, prefilled). Apply, Update, Remove and Export are off with no template |
 | **Apply last change...** | at the top of the settings column, above **Find a setting by name**, in the same colors as **Preview**: **Edit → Apply last change to figures...** (**Ctrl+Shift+A**) as a button ([Apply a change to other figures](#apply-a-change-to-other-figures)). On and off with the menu item (with Undo, while that edit has something other figures can take; off for a panel moved), its tooltip naming the edit it would give (*Apply last change to figures: Font size (Ctrl+Shift+A)*), as the Undo tool's names its step |
 | **Save look as design...** | (in the Look section **Design and looks**, not in the preview's column) keeps the preview's look -- every property of every component, its ground and its group colors -- as a design of yours, and picks it. The look is read per panel type, from the panels as the preview drew them (not the config, which may have changed since): the rules of a heat map, probe map, unit correlation or spectrogram panel's tile (those axes are drawn their own way) go under the design's `kinds` for that panel type, and those of the figure's other panels are common rules (the same attribution as the preview's right-click **Save this look as a design...**). It saves nothing while the preview is *Out of date* (the status bar says *Preview first: the drawing is out of date*) |
@@ -1395,7 +1409,16 @@ or the height gives the figure a size of its own (`size.source` `"own"`); with
 **Lock ratio** ticked the other side follows, keeping the aspect ratio.
 Changing the units converts the numbers and keeps the page the same size. A
 figure with the Export tab size shows that page in the units, and follows the
-Export tab when it changes. Every export of the figure -- a run, Generate,
+Export tab when it changes: its preview is drawn again on the new page from the
+figure it holds, nothing computed, when it was current (a figure across sessions
+from its kept figures), else it waits as after any edit; the other figures'
+previews kept on the old page are out of date (the tree marks them) until you
+show one: a preview that was current on the old page is then drawn again on the
+new one from what it holds, nothing computed and whatever **Auto** says (a
+figure across sessions from its kept figures, which it keeps;
+`figureViewFresh`, `previewFigureView`), any other as after an edit. While a
+run goes a figure across sessions is not drawn again: it waits as after an
+edit, its kept figures forgotten. Every export of the figure -- a run, Generate,
 **Export preview**, the generated scripts -- draws on that page
 (`figureExportSize`, `newExportFigure`).
 
@@ -1472,21 +1495,50 @@ window (`brokenGraphic`, `brokenGraphicTips`). A colored badge at its left says 
 | --- | --- |
 | **Computing** (amber, spinning) | the figure is being computed for the observation picked on the active dataset |
 | **Drawing** (blue, spinning) | the result is being drawn |
-| **Drawn** (green) | the preview is the figure as it is now, for the observation picked |
-| **Out of date** (amber) | the figure, the defaults or the dataset changed and the preview was not redrawn (Auto is off, the last preview took 2 s or more, the edit was on another tab, or another tab's preview was computing): press **Preview** |
-| **Press Preview** (blue) | a layer, or the observed signal, reads an extract larger than `PreviewMaxMB` |
+| **Drawn** (green) | the preview is the figure as it is now, for the observation picked: drawn from the figure, the defaults, the dataset, the observation and the page they are now (`figureViewKey`) |
+| **Out of date** (amber) | the figure, the defaults, the dataset, the observation or the page changed and the preview was not redrawn (you canceled the compute, or a signal extract is over `PreviewMaxMB`, with a drawing in the panel: see below the table; Auto is off, the last preview took 2 s or more, the edit was on another tab, another tab's preview was computing, the change came while this preview computed, or a run was going): press **Preview** |
+| **Press Preview** (blue) | a layer, or the observed signal, reads an extract larger than `PreviewMaxMB`, and no drawing of the figure was in the panel (else the old drawing stays, *Out of date*) |
 | **Cannot draw** (gray) | the active dataset cannot draw the figure, or no observation passes the filter; the line says why |
 | **Failed** (red) | computing or drawing it failed; the line and the Log tab say why |
-| **Canceled** (gray) | you pressed **Cancel** on the card while it computed; auto-preview leaves it until you press **Preview** |
+| **Canceled** (gray) | you pressed **Cancel** on the card while it computed, with no drawing of the figure in the panel before (else the old drawing stays, *Out of date*, and the line says it was canceled); auto-preview leaves it until you press **Preview** |
 | **No preview** (gray) | no figure is selected, or nothing is scanned or active |
 
 While it computes, a card over the last drawing says what (*"Computing
 figure_1 (su12 ...) on subj1_day1 ..."*) and has a red **Cancel** button. The
 compute stops at its next checkpoint, within about one unit's or one
 channel's work; reading an extract finishes first, and drawing cannot be
-stopped. Edits made while it computes do not start a second preview; they
-leave the one that finishes *Out of date*. Closing the app stops it too.
-A preview and a run share the runner's computing and refuse each other (see
+stopped. **Cancel**, and a signal extract over `PreviewMaxMB`, keep the drawing that
+was in the panel instead of emptying it: it stays, the badge says *Out of date*
+(never *Drawn*: it is the figure as it was), the line under it says what was
+canceled or what waits, and **Preview** computes it. Only a canceled compute
+leaves it whole (nothing is drawn before the compute ends): a failure, or an
+interrupt while it draws, empties the panel as before, and so does a
+cancel with nothing drawn before (*Canceled*). A figure across sessions, which
+forgets its kept figures on a cancel, is emptied too. A canceled, failed or
+too-large preview waits for **Preview** also when you come back to its figure
+from another (it is not computed again, and does not fail or get canceled
+again, at each return); picking another dataset or opening a config while it shows computes it afresh. Edits made while it computes do not start a second preview; they
+leave the one that finishes *Out of date*, whether **Auto** is on or off, and so
+does another dataset or observation picked, a scan or a page changed
+meanwhile: a preview ends **Drawn** only when what it was computed for is
+still the figure as it is (`finishPreview`). An edit undone meanwhile leaves it
+**Drawn** when the edit asked for no redraw (**Auto** off, or a redraw over
+Auto's limit); with **Auto** on (the Figures tab shown, the redraw under its
+limit) the edit asked for one, as a **Preview** press does, and the preview
+ends *Out of date*, undone or not. Closing the app stops it too. An interrupt (Ctrl+C in the
+Command Window) while it computes or draws -- a figure, a figure on the probe,
+a figure across sessions, or one of its kept figures drawn after a **Figure:**
+pick -- leaves it as **Cancel** does: *Canceled*, the panel empty but for why
+(a figure across sessions forgets its kept figures too), **Preview** computes
+it again. Each preview keeps a cleanup to its end (`refreshFigurePreview`'s
+`previewInterrupted`), which stops the runner's polls and acts only while the
+state is still *Computing* or *Drawing*, that is, when neither the tail nor
+the catch ran: a preview that finished is never touched. A redraw from what
+the app holds with no busy card (`quickFigurePreview`) goes back to the badge
+it had instead.
+A preview and a run share the runner's computing and refuse each other: **Run**
+(and so Generate and Test report) and **Scan** do nothing while a preview computes or draws, and
+the status bar says so (see
 **Generate selected figure** below). The toolbar's **Preview** shows this tab first, lists the
 selected figure's observations and previews it with **Preview** pressed (so a
 slow preview is seen computing), whichever tab was showing.
@@ -1513,7 +1565,8 @@ meanwhile stops it too, and that figure stays shown.
 **Generate selected figure** (**File** menu, **Ctrl+G**) draws the selected figure once per observation on every dataset
 ticked on the Data tab, as the Export tab's **Run** would for this figure
 alone: the same validation (errors in the config stop it, and the table on the
-Export tab lists them), the same progress dialog and the same files, in the
+Export tab lists them; its warnings are shown and it goes on; a source changed
+since the scan stops it, with an alert to press **Scan** first), the same progress dialog and the same files, in the
 Export tab's folder with its file-name pattern, a file set per observation
 ([Export tab](#export-tab)). It makes no report. A file that exists is kept unless **Overwrite existing** is on. It
 reads the controls as they are, so unsaved edits are drawn. A figure that is
@@ -1522,7 +1575,7 @@ the config keeps it off and the status bar says so. **Cancel** on the
 progress dialog, the Export tab's **Cancel** and the toolbar's **Cancel run**
 stop it before the next observation; the observations left are *canceled*. One
 run goes at a time: while Generate runs, Validate, Plan, Run, Generate selected figure, Redraw All and
-Export preview are off, and the previews compute nothing and mark a drawn preview *Out of date*;
+Export preview are off, and the previews compute nothing: an edit, or an observation or dataset picked, marks a drawn preview *Out of date* (with **Auto** on, a label's or title's text alone is still set on the drawing); another of a figure across sessions' figures picked under **Figure:** is not drawn, so it is not taken: the drop-down goes back to the one drawn, which stays **Drawn**, and the line under the preview says to pick it when the run is done; an Export tab page of another size draws the shown figure's current preview again on it from what it holds, as at any time (it stays **Drawn**), but a figure across sessions is marked *Out of date* instead, its kept figures forgotten;
 a preview that is computing (or Redraw All going) makes Generate wait too (the status bar says so).
 When it ends, the Export tab's results table holds the
 figure's rows (one per dataset, `Kind` `figure`, `<n> observation(s)` as the
@@ -1565,7 +1618,10 @@ one dataset's observation"*). The report is HTML whatever **Format** says, in
 the report's **Order** (by unit: the unit's figures under its label, then the
 dataset's figures under the dataset's name), titled *<config name>: test
 report, <unit> on <dataset>*, and written to a new temporary folder
-(`tempname`, its run record too), so the output folder is not touched. It
+(`tempname`, its run record too), so the output folder is not touched, even
+by an edit made while it is written (the run keeps the config it started
+with). A source changed since the scan stops it, with an alert to press
+**Scan** first. It
 opens in the browser when it is written; the Export tab's results table then
 shows its rows and **Open report** reopens it until the next run. The status
 bar reads *"Test report for su12  ch 7  -320 µm: 4 figure(s) drawn; left out:
@@ -1633,7 +1689,13 @@ match the preview, and counted by the Design and looks section) or for *Every fi
 preferences)* (group `PlotAesthetics`, one rule set per panel type and one for
 `"figure"`); its **Remembered** tab lists both sets, *This figure* and *My figures*,
 and forgets rules. A look remembered for PSTH panels dresses every PSTH panel of
-every figure. See [Plot aesthetics](EphysAnalysis.md#plot-aesthetics).
+every figure. See [Plot aesthetics](EphysAnalysis.md#plot-aesthetics). A look
+remembered for *This figure* is an edit of the figure (*Undo Remember looks*):
+the preview the editor draws with it stays **Drawn**, and the step undone leaves
+it *Out of date* (it still shows the look), or draws it again with **Auto**
+(`rememberFigureAesthetics`). Remembered from the editor of an **Open in
+window** figure, the look redraws that window only: the preview follows as after
+any edit (drawn again with **Auto**, else *Out of date*).
 
 **Data tips.** Click a point of the preview (a PSTH line, a raster tick, a bar, a
 heat map cell) for a data tip that says what it is, not a bare X and Y: the time
@@ -1719,7 +1781,9 @@ epoch diagram and, with Auto on, the preview follow, as after the edit
 itself. Undone back to the figures as saved, the title loses its `*` (when
 nothing else changed). A new edit after an undo drops what was undone; at most
 100 steps are kept. Opening a config or starting a new one clears the
-history; saving keeps it.
+history; saving keeps it. Undo of **Duplicate** selects the figure that was
+copied, not the figure after it (the step keeps the original's place); Redo
+selects the copy.
 
 The items work with the Figures tab showing: on another tab they are grayed,
 so Ctrl+Z there does nothing in the app. Undo acts on edits entered: a value
@@ -2118,9 +2182,13 @@ datasets.
   when the observation makes several figures (one per subject, or per trial
   group), picks which of them is drawn. They are all kept, so picking another
   draws it without computing; the pick is kept by its label through the next
-  Preview. The kept figures are forgotten, and the drop-down hidden, when
-  another figure is selected or this one is edited, so an entry never redraws
-  a result that is no longer current (press **Preview** again). A figure that
+  Preview. While a run goes a pick draws nothing and is not taken: the
+  drop-down goes back to the figure drawn (pick it again when the run is done).
+  The kept figures stay with the figure when another figure is selected (its
+  own preview container), and an Export tab page of another size draws the one
+  picked again on the new page from them, when it is shown. They are
+  forgotten, and the drop-down hidden, when this figure is edited, so an entry
+  never redraws a result that is no longer current (press **Preview** again). A figure that
   could not be made (too few sessions drew it, or hold the trial group) is
   *Cannot draw*, with the reason.
 - The line under the preview reads *"card, site ch 7 -320 µm across sessions: 3
@@ -2290,7 +2358,7 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | **Folder**, **{x}**, **Browse...** | a folder pattern with `{OutputFolder}` (each dataset's output folder), `{OutputRoot}`, `{Root}`, `{Name}`, `{Date}`. The default is the report's folder, so the figure files and the report are together. **{x}** adds a token ([below](#tokens-from-the-x-button)) | `{OutputRoot}\analysis` |
 | **File names**, **{x}** | a file-name pattern with `{Name}` `{Plot}` `{Kind}` `{Group}` `{Unit}` `{Index}` `{Date}`. A figure writes a file set per observation ([Exported figure names](file-formats.md#exported-figure-names)): `{Plot}` is its id, `{Unit}` the observation's short label (`su12`, `ch7`, `dataset`), `{Index}` its number, and `_<Unit>` is added when the pattern names neither ([Figures in an export](EphysAnalysisConfig.md#figures-in-an-export)). **{x}** adds a token | `{Name}_{Plot}` |
 | **Resolution (dpi, PNG)** | the PNG resolution (`Export.Dpi`) | 150 |
-| **Overwrite existing** | off: a page whose files all exist is not written again | on |
+| **Overwrite existing** | off: a page whose files all exist is kept, not written again. Its row in the results says how many pages were kept (*2 kept: files on disk from an earlier run, not overwritten*), and the report shows the page as this run draws it, its kept files listed apart (*Kept from an earlier run*) | on |
 | **Size (cm)** | the figure's width and height (a page of many tiles is made taller; a figure's page is this size as it is, however many panels it holds); a figure with a [size of its own](#the-page-a-figure-is-exported-on) keeps that | 18 × 12 |
 
 **Report** (the config's `Report` section):
@@ -2301,7 +2369,7 @@ drawn, so you can see why. Examples: a fixed window with *pre* after
 | **Title**, **{x}** | `{Name}` = the config's name, `{Date}` = today. **{x}** adds one | `{Name}` |
 | **Folder**, **{x}**, **Browse...** | folder tokens as above | `{OutputRoot}\analysis` |
 | **File name**, **One per dataset** | `.html` / `.pdf` is added; one report per dataset is named `<FileName>_<dataset>` | `analysis_report`, off |
-| **HTML images**, **Resolution (dpi)** | PNG (base64) or inline SVG in the HTML; the PNG resolution, for a page whose PNG the figure files do not hold (with png ticked above, the HTML embeds that PNG, at its dpi, rather than write the page again) | png, 110 |
+| **HTML images**, **Resolution (dpi)** | PNG (base64) or inline SVG in the HTML; the PNG resolution, for a page whose PNG the figure files do not hold (with png ticked above, the HTML embeds the PNG the run just wrote, at its dpi, rather than write the page again; never a kept file of an earlier run) | png, 110 |
 | **Summary tables**, **Figure parameters**, **The config** | what the report holds besides the figures | all on |
 | **Order** | *By figure (a figure's units together)*: each figure with all its observations in turn; *By unit (a unit's figures together)*: each unit, channel or the dataset under a heading, with all the figures drawn for it in turn ([Report order](EphysAnalysisConfig.md#report-order)) | by figure |
 | **Per page**, paper, orientation | figure pages on one sheet, 1 to 16; *Letter* or *A4*; *Best fit*, *Portrait* or *Landscape*. 1 gives each page its own, at the size it was drawn. More puts up to that many on each sheet of the PDF, in the rows and orientation that draw them largest, all at one scale and never enlarged, and sets them side by side in the HTML ([Figures per page](EphysAnalysisConfig.md#figures-per-page)) | 1, Letter, Best fit |
@@ -2331,9 +2399,9 @@ The report's **File name** takes no tokens, so it has no button.
 | Button | Effect |
 | --- | --- |
 | **Validate** | lists the config's issues (Section, Field, Severity, Message) in the table; errors stop a run. **Double-click a row** to go to the setting it is about: a Source issue to the Data tab's box, a Defaults issue to the Alignment tab, an Export or Report issue to its box, a Figures issue (`<figure>.<panel>.layers(2).source`) to the figure, panel and layer on the Figures tab, with the section or row of the editor that holds it |
-| **Plan** | one row per ticked dataset and [figure](#figures-tab) (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): `Plot` its id, Kind `figure`, Source what it is drawn for (`unit`, `channel` or `dataset`), Enabled whether it will run, the Reason, why not ([skip reasons](#why-is-my-figure-skipped): no sorted units, no LFP extract, no line X, ...), and **WhatToDo**, the reason in plain words with what to do about it (*No LFP signal: switch on LFP in the pipeline's Signals tab and run it*); a double click on a row shows that figure, and its dataset, on the Figures tab; then one row per [session figure](#sessions-in-the-figures-tab) (Dataset `sessions: all`, or `sessions: <subject>`; a figure with *Across datasets* ticked is listed there and not per dataset). Every figure is listed, enabled or not. Cheap: no signals or spikes are loaded, so a unit filter or channel list that leaves nothing to draw shows only when the figure runs. The status bar counts the rows that will draw: *"Plan: 4 of 6 figure run(s) and 2 of 2 session figure run(s) will draw."* (a row whose Dataset starts `sessions: ` is a session figure run; the session part is left out when the plan lists none) |
+| **Plan** | (stops, with an alert to press **Scan**, while the datasets listed are not the scan of the source the Data tab shows) one row per ticked dataset and [figure](#figures-tab) (Dataset, Subject, Date, Plot, Kind, Source, Enabled, Reason): `Plot` its id, Kind `figure`, Source what it is drawn for (`unit`, `channel` or `dataset`), Enabled whether it will run, the Reason, why not ([skip reasons](#why-is-my-figure-skipped): no sorted units, no LFP extract, no line X, ...), and **WhatToDo**, the reason in plain words with what to do about it (*No LFP signal: switch on LFP in the pipeline's Signals tab and run it*); a double click on a row shows that figure, and its dataset, on the Figures tab; then one row per [session figure](#sessions-in-the-figures-tab) (Dataset `sessions: all`, or `sessions: <subject>`; a figure with *Across datasets* ticked is listed there and not per dataset). Every figure is listed, enabled or not. Cheap: no signals or spikes are loaded, so a unit filter or channel list that leaves nothing to draw shows only when the figure runs. The status bar counts the rows that will draw: *"Plan: 4 of 6 figure run(s) and 2 of 2 session figure run(s) will draw."* (a row whose Dataset starts `sessions: ` is a session figure run; the session part is left out when the plan lists none) |
 | **Test report** | a spot check of one unit (or channel): every enabled figure of the active dataset, drawn for the unit or channel picked over the Figures tab's preview only, and the figures of the dataset for the dataset, as an HTML report in a temporary folder that opens in the browser, in the report's **Order**; no figure files ([Figures tab](#figures-tab), **Test report**; **Ctrl+U** there). Off without a dataset or an observation picked, for a figure across sessions or on the probe, and while a run goes |
-| **Run** | validates, then runs every enabled figure on every ticked dataset, and then every enabled [session figure](#sessions-in-the-figures-tab) over them, with its progress in the status bar (a bar, the message and **Cancel**, over any tab; nothing is modal): compute, export, report. What stops a run before it starts is an alert that names the first problem and takes you to the tab that fixes it: a config error (the first one, on the Export tab's table), no dataset ticked or no project root (the Data tab). A run that fails part way still fills the results table with the rows it finished and says which dataset it stopped on. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the status bar names the observation (`<dataset>: <figure> (3/12)`) and, once 1% of the run is done and 5 s have passed, the time left (`<dataset>: <figure> (3/12) · about 4 min left`); writing the report shows its sections and pages (*Writing the report: page 3/12*) in a share of the run of its own. A failing figure is an error row and the rest still run. **File → Generate selected figure** is this run for one figure alone, with no report ([Figures tab](#figures-tab)); its rows land in this table |
+| **Run** | validates, then runs every enabled figure on every ticked dataset, and then every enabled [session figure](#sessions-in-the-figures-tab) over them, with its progress in the status bar (a bar, the message and **Cancel**, over any tab; nothing is modal): compute, export, report. The run uses the config as it was when you pressed **Run**: you can go on editing meanwhile, and the edits are for the next run (the figures, files, report, run record and the lab database's record are all the config the run started with). So does the plot design: every page of the run is drawn in the design and remembered looks as they were when it started, and a design chosen or a look remembered meanwhile is for the next run. What stops a run before it starts is an alert that names the first problem and takes you to the tab that fixes it: a source changed since the scan, or a config naming datasets the last scan did not list (the Data tab: press **Scan** first), a config error (the first one, on the Export tab's table), no dataset ticked or no project root (the Data tab). The config's warnings do not stop it: when it starts, the table lists them, the Log has each one, and an alert names them, those about where the files go first (*the datasets' pages get the same file names: a run writes the first dataset's and leaves the others' unwritten*), while the window stays usable, **Cancel** included; the status bar repeats the count when it ends. A warning about figure files counts only when the run writes them, one about the report only when it writes one. A run that fails part way still fills the results table with the rows it finished and says which dataset it stopped on. A figure is drawn once per observation (a unit, a channel or the dataset), a page each, and the status bar names the observation (`<dataset>: <figure> (3/12)`) and, once 1% of the run is done and 5 s have passed, the time left (`<dataset>: <figure> (3/12) · about 4 min left`); writing the report shows its sections and pages (*Writing the report: page 3/12*) in a share of the run of its own. A failing figure is an error row (its files those of the pages it wrote before it failed; a canceled one's likewise) and the rest still run. Two recordings whose figure files would have one name (no `{Name}` in the folder or file name) do not write over each other: the second row says *not written: this run already wrote a file at that path*. **File → Generate selected figure** is this run for one figure alone, with no report ([Figures tab](#figures-tab)); its rows land in this table |
 | **Workers** | right of **Cancel**: how many process workers draw and write a run's pages (Parallel Computing Toolbox; `EphysAnalysisRunner.Workers`). They start once a run has 20 pages, which takes about half a minute once, and stay open for the next runs; the figures are computed here meanwhile, and the status bar shows `<dataset>: <figure> drawing page 3/12` while it waits for them. 0 draws every page in this MATLAB. Each worker takes about 1-2 GB of memory. 4 by default, remembered (preference `ReportWorkers`) |
 | **Cancel** | stops before the next figure observation; what is left (the rest of that figure's observations too) is *canceled*. It also stops a Generate selected figure, which is a run, and the Figures tab's **Redraw All** |
 | **Open report**, **Open figure folder** | after a run: the report files written, and the first dataset's figure folder. After a run with session figures the button's tooltip names the sessions folder (`Export.SessionsFolder`) too; the button itself still opens the first dataset's folder |
@@ -2341,7 +2409,9 @@ The report's **File name** takes no tokens, so it has no button.
 The results table has one row per dataset and figure: `Dataset`, `Subject`,
 `Date`, `Plot`, `Kind`, `Status` (`done`, `skipped`, `error`, `canceled`), `Message`,
 `Files`, `Seconds`. A figure's row has `Kind` `figure` and, when it is done,
-`<n> observation(s)` as its `Message` and every observation's files in `Files`;
+`<n> observation(s)` as its `Message` (with **Overwrite existing** off, and
+`; <k> kept: files on disk from an earlier run, not overwritten` when some
+pages' files were there already) and every observation's files in `Files`;
 it is `skipped` with the reason, or with `no observation` when its unit filter or
 channel list leaves nothing. The label above it counts each status. A session figure's
 rows read `sessions: all` (or `sessions: <subject>`, or `sessions: <subject> /
@@ -2454,6 +2524,10 @@ selected there observes that kind (as **Favorites** does; the status bar says
 why not, otherwise). A note on a unit of an older sort goes to its dataset only.
 **Edit note** opens the note picked in the notepad, which then stays on it.
 
+A **Scan** makes the notes' objects again; the notepad that is open first has
+its note written, then moves onto the new object of the same file, so a note
+written from the pad and one written from the app are both kept.
+
 A note that cannot be written (a read-only share, a folder that is gone) stays
 in the notepad's box, and the line under it says why; closing the window then
 asks for a second close before the text is dropped. A notes file that cannot be
@@ -2507,12 +2581,12 @@ that is a figure's setting, not a panel type.
 | Menu | Item | Effect |
 | --- | --- | --- |
 | File | **New config** (Ctrl+N) | an empty default config |
-| | **Open config...** (Ctrl+O), **Open recent** | an analysis config JSON; the last 8 are listed. The config's load warnings (dropped unknown fields; for a version 1 file, the notes of its migration to figures) go to the status bar and, one line each, to the Log tab; the status bar's first line then reads *config version 1: N of M plot(s) and ... migrated to figures; saving writes version 2*, and saving writes version 2 ([Loading a version 1 config](EphysAnalysisConfig.md#loading-a-version-1-config)) |
+| | **Open config...** (Ctrl+O), **Open recent** | an analysis config JSON; the last 8 are listed (one not found now, on a share not mounted at the moment, say, stays in the list gray as *<file> (not found)* and cannot be picked; it is listed normally when the file is back). The config's load warnings (dropped unknown fields; for a version 1 file, the notes of its migration to figures) go to the status bar and, one line each, to the Log tab; the status bar's first line then reads *config version 1: N of M plot(s) and ... migrated to figures; saving writes version 2*, and saving writes version 2 ([Loading a version 1 config](EphysAnalysisConfig.md#loading-a-version-1-config)) |
 | | **Save config** (Ctrl+S), **Save config as...** | writes the config JSON. The first save offers `analysis/analysis_configs` when that folder exists, else the `analysis` folder |
 | | **Generate script → Compact (loads the saved config)...** | a short script that loads the saved JSON and runs the runner; unsaved changes are saved first (it asks) |
 | | **Generate script → Standalone (every setting written out)...** | a script that needs no config file and never uses the runner ([Scripts](EphysAnalysis.md#scripts)) |
 | | **Open pipeline app** | launches `EphysPipelineApp` |
-| | **Close** | asks about unsaved changes at once; once answered, the window disappears, then a run under way is canceled and the app closes |
+| | **Close** | asks about unsaved changes at once; once answered, the window disappears, then a preview computing is canceled, the preferences and the note in the notepad are written, and the app closes. A step that fails (preferences that cannot be written, say) is a warning and the others still go: the window is deleted whatever happens, and a **Close** stopped before the window is hidden (Cancel, a **Save** that fails) leaves it open to close again. During a run, **Close** cancels the run and hides the window; the run ends as any canceled one (its finished figures, report and records are written), and the window closes then (`CloseWhenRunEnds`) |
 | Edit | **Undo** *edit* (Ctrl+Z) | takes back the last edit of the figures ([Undo and redo](#undo-and-redo)); the item names it (**Undo Add panel**, **Undo Bin width (ms)**) and is grayed with nothing to undo, or off the Figures tab |
 | | **Redo** *edit* (Ctrl+Y, Ctrl+Shift+Z) | does the last edit undone again; grayed with none |
 | | **Apply last change to figures...** (Ctrl+Shift+A) | offers the last edit of the figures to the other figures or panels that can take it ([Apply a change to other figures](#apply-a-change-to-other-figures)); on with Undo while that edit has something other figures can take. The Figures tab's **Apply last change...** button, above the preview, does the same |
@@ -2625,7 +2699,11 @@ A run writes, for each ticked dataset and enabled figure:
   `<output root>\analysis\data\all_<id>.mat`; [format](file-formats.md#session-figure-data-mat)).
 - **A run record**, `<report folder>/analysis_runs/<runId>_<name>.json`: the
   config, the code version, the machine and the results
-  ([Run records](file-formats.md#run-records)).
+  ([Run records](file-formats.md#run-records)); also for a run that stops
+  with an error (`outcome` `failed`, the error), which the lab database
+  records as failed. With the lab database on, the Log tab says what the run's
+  record holds and which files it left out (under no mapped storage root;
+  kept from an earlier run).
 
 Each figure's caption says what it shows, e.g. *unit_card: 12 observations (sorted
 units: su, mua) of RAT1_260918; panels: raster, PSTH; aligned to Stim onset; window
@@ -2715,12 +2793,12 @@ results, on the Log tab and in the report.
 | --- | --- |
 | building | `buildUI`, `buildMenus`, `buildToolbar` (its icons in `analysis/icons/toolbar`), `buttonIcon` (`analysis/buttonIcon.m`, shared with `DatasetBrowser` and `AlignControls`: the buttons' and section headers' icons, `analysis/icons/buttons/<name>.svg` and their white twins in `light/`, all drawn by `tools/makeButtonIcons.py`; `pipeline/styleButton` swaps a button to the white twin while it is colored), `buildDataTab`, `buildAlignTab`, `buildFiguresTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formSubheading`, `formShow`, `formLayout`, and `formGroup`, `formRowShown` for the sub-headings) |
 | config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherFigureEditor` / `applyFigureEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard`; the undo history `onUndoRedo` (the Edit menu) over `analysis/FigureEditHistory`, fed by `private/recordFigureEdit` at each path that edits the figures, its labels `private/figureEditLabel`, its menu `private/refreshEditMenu` |
-| data | `openSource`, `onScan`, `refreshDatasetsTable` (and the Subject / Tags filter), `onTickDatasets` (Tick shown only, Untick all), `selectDataset`, `refreshDatasetInfo`; **Downsample...** `onDownsample` (the window: `analysis/DownsampleDialog.m`) and the Signals row `showDownsample`; the figures read the rates through `EphysAnalysisConfig.figureFor` (a layer's `downsample`), `analysis/private/figureLayerRate`, `figureSignalLayer` and `figureChronuxLayer`, over `selectChannels`' `Rate` and `DatasetOutputs.resampled` (`resampleSignal`); **Filter...** `onSignalFilter` and the Filters row `showSignalFilter` (`private/sourceFilters`, the rates the dialogs draw at `private/signalReadRates`, the signals the figures read `private/figureSignals`), a panel's **Filter...** `editPanelFilter` (its row `private/showPanelFilter`, closed with another panel by `private/closePanelFilterDialog`); the window `analysis/FilterDialog.m`, the filters `pipeline/SignalFilter.m`; the figures read them through `figureFor` (a layer's `filters`), `analysis/private/figureLayerFilters`, over `selectChannels`' `Filter` and `DatasetOutputs.prepared` |
+| data | `openSource`, `onScan`, `refreshDatasetsTable` (and the Subject / Tags filter; which files exist is `private/datasetFileMarks`, read once per scan), `onTickDatasets` (Tick shown only, Untick all), `selectDataset`, `refreshDatasetInfo`; what a scan reads `private/scannedSource`, whether the datasets listed are the source's `private/scanIsCurrent` (Run, Plan, Generate and Test report stop on it) and the scan line `private/showScanLabel`; the ticks a selection gives `private/selectionTicks` (on Scan), `private/tickConfigSelection` (a config opened without its scan), `private/scanOpened`, gathered by `gatherSourceSection`; **Downsample...** `onDownsample` (the window: `analysis/DownsampleDialog.m`) and the Signals row `showDownsample`; the figures read the rates through `EphysAnalysisConfig.figureFor` (a layer's `downsample`), `analysis/private/figureLayerRate`, `figureSignalLayer` and `figureChronuxLayer`, over `selectChannels`' `Rate` and `DatasetOutputs.resampled` (`resampleSignal`); **Filter...** `onSignalFilter` and the Filters row `showSignalFilter` (`private/sourceFilters`, the rates the dialogs draw at `private/signalReadRates`, the signals the figures read `private/figureSignals`), a panel's **Filter...** `editPanelFilter` (its row `private/showPanelFilter`, closed with another panel by `private/closePanelFilterDialog`); the window `analysis/FilterDialog.m`, the filters `pipeline/SignalFilter.m`; the figures read them through `figureFor` (a layer's `filters`), `analysis/private/figureLayerFilters`, over `selectChannels`' `Filter` and `DatasetOutputs.prepared` |
 | favorites | `refreshFavorites`, `onStarToggled`, `onFavoritePicked`, `onFavoritesFilter`, `onDatasetsTableEdited` (the ★ column); `private/loadFavorites` (on Scan), `private/starItem`, `private/starButton`, `private/syncStarButtons`, `private/observedItem`, `private/buildFavorites`, `private/fillFavorites`, `private/favoriteMarks`, `private/markObservations`, `private/listFavorites` (the entries and their labels), `private/datasetSortKey`; the files: `analysis/DatasetFavorites.m` |
 | notes | `refreshNotes`, `onNoteButton`, `onSearchNotes`, `onDatasetNoteClicked` (the ✎ column); `private/loadNotes` (on Scan), `private/noteButton`, `private/noteTip`, `private/syncNoteButtons` (from `syncStarButtons`; the notepad follows here), `private/openNotePad`, `private/noteMarks`, `private/noteEntries`, `private/goToNote` (over `goToFavorite`); the notepad `analysis/NotePad.m`, the search window `analysis/NoteSearch.m`, the files `analysis/DatasetNotes.m` (the sort a unit's note and star record: `analysis/private/sortIdentity.m`) |
 | previews | `refreshAlignPreview` (the Alignment tab; its count line, bars and excluded epochs are `analysis/EpochGroupCounts.m`'s static `summary`, `drawBars` and `withExcluded`, shared with the dataset browser's *Epochs per group* window); the Figures tab's under its row below; `private/showPreviewState` (the badge and the busy card; its icons in `analysis/icons/status`) |
 | epoch diagram | the window `onShowEpochs`, `refreshEpochDiagram`; the Alignment tab's `refreshAlignPreview`; the diagram itself is `analysis/EpochDiagram.m` (in a window, or `Parent=` a container) |
-| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `onFigureSubheadingToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the panels' places `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`; its saved figures `FigureTemplate.panelTypes`, placed by `EphysAnalysisConfig.placeBlock`; Save as panel type... is `onFigureTemplate("panel")` with `private/askTemplateName`), `onRemovePanel`, `onPanelOrder` (Bring forward, Send back), `onPanelRectEdited` (the Position and Size fields, read back by `gatherFigureEditor`), `onRectUnitsChanged`, `onSnapChanged`, the rows shown by `private/showPanelPlace` (over `private/figurePage`, `private/unitsShown`, `private/rectText`, `private/snapStepIn` and `figureRectConvert`), `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `placeBlock`, `removePanel`, `orderPanel` and `freeRect`; a structural edit ends in `private/commitFigureEdit`), the Arrange button `onArrangeToggled` and `cancelArrange` (also `onKeyPress`'s Escape), its overlay `syncArrangeOverlay` (called by `markFigurePanel` and `setFigurePreviewState`; `private/previewShowsFigure`), the boxes `private/arrangeWidget`, `arrangeWidgetSet`, `arrangeWidgetSelect`, `arrangeWidgetLock` and their menu `private/arrangeMenu`, a drag `onArrangeMoving` / `onArrangeMoved` (the plots moved along `private/arrangeParts`, `private/arrangePartsAt`; the preview laid out on release `private/arrangedPreview`, through `commitFigureEdit`'s `Arrange` and `renderFigure`'s `LayoutOnly`; over `private/arrangeContext`, the snapping `private/snapRect`, reached by the tests as `EphysFigGenApp.snapRectFor`, and the smart guides `private/arrangeCues`), the selected boxes' size labels `private/arrangeSizeLabels`, a click `onArrangeClicked`, Set corners `onSetCorners`, `startCornerMode` and `private/cornerClick` (`private/pageAtPointer`), the arrow keys `nudgePanel`, the align bar `onArrangeAlign` (over `figureAlign`; shown by `private/syncAlignBar`, built by `buildFiguresTab`'s `buildAlignBar`, its icons `analysis/icons/arrange`); the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`), a trials layer's Trial measure window `private/trialMeasureDialog` (closed by `private/closeTrialMeasureDialog` when another layer shows: `applyFigureEditor`), a trial panel's rows `applyFigureEditor`'s `applyTrial`, `gatherFigureEditor`'s `gatherTrial` and `syncFigureEditor`'s `trialEnable`; the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoRedrawChanged` (the Auto slider: `private/autoRedrawLimit`, `private/previewCost`, `private/previewDataKey`, `private/showAutoRedraw`), `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewScale` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Probe layout section's rows (`gatherFigureEditor` / `applyFigureEditor`, `syncFigureEditor`) and its tile count `private/probeTileCount` (over `figureProbeTiles`; its picker is `refreshFigureObservations`' probe branch, its preview `refreshFigurePreview`'s over `EphysAnalysisRunner.computeProbeFigure` and `renderFigure`, which hands it to `renderProbeFigure`; the tree's *On the probe* group `private/figureGroups`; the edit's name `private/figureEditLabel`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
+| Figures tab | `buildFiguresTab`; the tree `refreshFigureList` (over `private/figureGroups`), `onFigureSelected`, `onFigureTreeSelected`, `onFigureTreeClicked` (the check boxes), `onFigureGroupToggled`, `onFigureCheck` (All / None / Invert), `setFiguresEnabled`, `onAddFigure`, `onRemoveFigure`, `onDuplicateFigure`, `onMoveFigure` (Up / Down within a group); the Id row's automatic id `private/showFigureId`, and the renames followed by `private/trackFigureIds` and `private/followedFigureId`; a panel's text note and overlays `onAddFigureOverlay`, `onDuplicateFigureOverlay`, `onRemoveFigureOverlay`, `onFigureOverlayPicked` (the rows are `applyFigureEditor`'s and `gatherFigureEditor`'s); the editor `gatherFigureEditor` / `applyFigureEditor`, `applyFigureEditorDefaults`, `syncFigureEditor` (what shows and what is enabled; what the drop-downs offer: `private/figureEditorChoices`), `layoutFigureEditor`, `onFigureSectionToggled`, `onFigureSubheadingToggled`, `gotoFigureSection`, `onFigureSuperToggled`, `gotoFigureSuper` and `onKeyPress` (Alt+1 ... Alt+3, Ctrl+1 ... Ctrl+0, F6: `focusFigurePane`), the search `onFigureSearch` and `gotoFigureRow` (over `private/figureSearchIndex`, `private/figureSearchPath`, `private/figureRowReason`), the keys window `onFigureKeys`, the panel keys `stepFigurePanel` and the preview's outline `markFigurePanel`, `onFigureAlignEdited`, `onFigureDefaultToggled`, `onPanelAlignEdited`, `onPanelDefaultToggled`, `onPanelSelectionToggled` (the Trial selection as the figure box; local to `buildFiguresTab`); the panels' places `onPanelSelected`, `onNewPanel` (the New panel window `private/newPanelDialog`, its pictures `analysis/icons/panels`, made by `tools/makePanelThumbnails`; its saved figures `FigureTemplate.panelTypes`, placed by `EphysAnalysisConfig.placeBlock`; Save as panel type... is `onFigureTemplate("panel")` with `private/askTemplateName`), `onRemovePanel`, `onPanelOrder` (Bring forward, Send back), `onPanelRectEdited` (the Position and Size fields, read back by `gatherFigureEditor`), `onRectUnitsChanged`, `onSnapChanged`, the rows shown by `private/showPanelPlace` (over `private/figurePage`, `private/unitsShown`, `private/rectText`, `private/snapStepIn` and `figureRectConvert`), `onPanelTypeChanged` (over `EphysAnalysisConfig.placePanel`, `placeBlock`, `removePanel`, `orderPanel` and `freeRect`; a structural edit ends in `private/commitFigureEdit`), the Arrange button `onArrangeToggled` and `cancelArrange` (also `onKeyPress`'s Escape), its overlay `syncArrangeOverlay` (called by `markFigurePanel` and `setFigurePreviewState`; `private/previewShowsFigure`), the boxes `private/arrangeWidget`, `arrangeWidgetSet`, `arrangeWidgetSelect`, `arrangeWidgetLock` and their menu `private/arrangeMenu`, a drag `onArrangeMoving` / `onArrangeMoved` (the plots moved along `private/arrangeParts`, `private/arrangePartsAt`; the preview laid out on release `private/arrangedPreview`, through `commitFigureEdit`'s `Arrange` and `renderFigure`'s `LayoutOnly`; over `private/arrangeContext`, the snapping `private/snapRect`, reached by the tests as `EphysFigGenApp.snapRectFor`, and the smart guides `private/arrangeCues`), the selected boxes' size labels `private/arrangeSizeLabels`, a click `onArrangeClicked`, Set corners `onSetCorners`, `startCornerMode` and `private/cornerClick` (`private/pageAtPointer`), the arrow keys `nudgePanel`, the align bar `onArrangeAlign` (over `figureAlign`; shown by `private/syncAlignBar`, built by `buildFiguresTab`'s `buildAlignBar`, its icons `analysis/icons/arrange`); the layers `onLayerSelected`, `onAddLayer`, `onRemoveLayer`, `onMoveLayer` (`private/layerLabel`), a trials layer's Trial measure window `private/trialMeasureDialog` (closed by `private/closeTrialMeasureDialog` when another layer shows: `applyFigureEditor`), a trial panel's rows `applyFigureEditor`'s `applyTrial`, `gatherFigureEditor`'s `gatherTrial` and `syncFigureEditor`'s `trialEnable`; the preview `refreshFigureObservations`, `onFigureObservationChanged`, `onFigureObservationStep` (and `onKeyPress`: Page Up, Page Down), `refreshFigurePreview`, `autoFigurePreview`, `onFigureAutoRedrawChanged` (the Auto slider: `private/autoRedrawLimit`, `private/previewCost`, `private/previewDataKey`, `private/showAutoRedraw`), `onCancelFigurePreview`, `onOpenFigureWindow`, the page size `onFigureSizeEdited`, `showFigureSize`, `fitFigureViews` (over `private/figureViewBox`), `redrawFigurePreview` and `private/previewScale` (over `figureExportSize`, `figureSizePresets`, `figureSizeParse`, `figureSizeText`, `figureSizeConvert`), a Ctrl+Click on a panel `onFigurePanelClicked`, `rememberFigureAesthetics`, `setFigurePreviewState` (over `private/showPreviewState`); each figure's own preview container `syncFigureView` (`private/newFigureView`, `private/previewFigureView`, `private/figureViewKey`, `private/figureViewFresh`, `private/clearFigureViews`, `private/showSessionPicker`), the preview's tail `private/finishPreview` (every preview's: its time, its key, the badge Drawn or Out of date by the key, the status line; a compute that throws is `refreshFigurePreview`'s local `previewFailed`) and `private/markStaleDrawing` (a drawing no longer current, nothing drawn: Out of date), the tree's marks `private/markFigureTree`, the editor as each figure left it `private/saveFigureEditorState`, `private/restoreFigureEditorState`, `private/scrollFigureEditor`, its observation list `private/keepFigurePicker`, `private/takeFigurePicker`, `private/forgetFigurePickers`; the Sessions section `onPickFigureDatasets`, `onBrowseFigureMapping`, `onEditUnitMapping` (`private/editUnitMapping`, `private/unitMappingTable`), `private/pickSessionDatasets` and `onFigureSessionPicked` (its preview is `refreshFigurePreview`'s session branch over `EphysAnalysisRunner.computeSessionFigure`, its picker `refreshFigureObservations`'s over `sessionFigureObservations`); the Probe layout section's rows (`gatherFigureEditor` / `applyFigureEditor`, `syncFigureEditor`) and its tile count `private/probeTileCount` (over `figureProbeTiles`; its picker is `refreshFigureObservations`' probe branch, its preview `refreshFigurePreview`'s over `EphysAnalysisRunner.computeProbeFigure` and `renderFigure`, which hands it to `renderProbeFigure`; the tree's *On the probe* group `private/figureGroups`; the edit's name `private/figureEditLabel`); the Design row `onDesignChosen` and `onSaveDesign` (below); the epoch diagram window is `onShowEpochs` (the Alignment tab's diagram is `refreshAlignPreview`'s); the figures themselves are `analysis/` functions and `EphysAnalysisConfig` / `EphysAnalysisRunner` methods (`figureObservations`, `figureSkipReason`, `computeFigure`, `renderFigure`: [Figures](EphysAnalysisConfig.md#figures)) |
 | copying figures | `onCopyFigureSettings` (the Figures tab's **Copy settings...**: `private/copySettingsDialog`, then `analysis/copyFigureSettings` over `analysis/figureSettingItems` and `analysis/figureSettingParts`, or `analysis/figureLookToDesign` into a design) |
 | remembered panel options, color swatches | `private/rememberPanelOptions` (called by `private/recordFigureEdit`), `private/rememberedPanelOptions` (read by `onNewPanel` and the New panel window), `onResetPanelOptions`, `onForgetPanelOptions`; `private/colorSwatch`, `private/syncColorSwatches` (`buildFiguresTab`, `syncFigureEditor`, `private/latencyDialog`) |
 | label variables | the **{x}** buttons `private/labelVariableButton` (`buildFiguresTab`), their values `labelVariableValues`, the list window `onLabelVariables` (Help → Label variables); the variables themselves are `analysis/figureLabelVariables`, filled in by `analysis/private/figureLabelFill` in `renderFigure` and `renderProbeFigure`; the special characters (`\mu`: µ) `analysis/private/figureLabelSymbols`, called by `figureLabelFill`, `trialMeasureLabel`, `addReportFigure` and `figureCaption` |
@@ -2755,12 +2833,20 @@ figures' words, OK into `Source.Downsample`, its gather and the runner with no s
 Cancel, **Rates on file**, a config opened with a rate); **Filter...** (1g: the Filters row, the window on the config's
 filters at the active dataset's rates, a preset and a causal phase, OK into `Source.SignalFilter`, its gather and the
 runner with no scan asked for, the button amber, a cutoff past Nyquist refused, Cancel, a config opened with a filter);
+a run's datasets and config (1h: a project root changed since the scan stopping Run, Plan, Generate and Test report
+with an alert to press Scan, the scan line back with the root, a tick and a config applied with it no source change;
+an Export folder typed from a timer while a run goes reaching the runner but not that run; a config whose files
+would get the same names warned of at Run, which goes on; a config opened while its root is not there keeping its own
+selection; a config's keys ticking what the runner finds and the keys not found said; folders mode's ticks in the
+config, the runner, the standalone script and the config reopened; a folders-mode config whose selection is a
+project's keys ticking every folder, said; a config opened without a scan of its own keeping the keys the listing
+lacks in its selection, said, Run and Plan refused meanwhile, the keys forgotten when another config opens);
 the **Probe...** buttons (5d.probepick: the window on the figure's pick and the active dataset's probe, clicks and OK
 as one named undo step into `observe.units`, Cancel, a fixed LFP layer's channels only with a shank click picking its
 channels, AUX grayed out, closed with another panel; the window itself in `test_ProbePickDialog`);
 the Help menu's GitHub issue
 and feature request (1c); what stops an action (1d: the alerts of Scan, Plan and Run
-read through `AppDialog.captured`, the issues and plan tables' double click, the
+read through `AppDialog.captured`, the scan line of a root with no processed recordings back when the root is, the issues and plan tables' double click, the
 empty preview's **Add figure** answered with the saved figure *Raster over PSTH*, no **Add Raster + PSTH**
 button, the skip remedies, the run's bar in the status bar); grouping by Depth from the Alignment controls, with the tab's epoch diagram (2);
 and section 3, the Figures tab: the toolbar's Preview, pressed from another
@@ -2866,7 +2952,19 @@ exactly), a PSTH's **Onset line**, the preview taking the latencies once for
 both panels (one `F.latency` entry) and the onset for the PSTH, an edit of the
 method computing the latencies again and nothing else, **Copy settings**
 listing the block, and a figure without a raster, PSTH or heat map hiding the
-section. Section 6 is the preferences remembered (the last
+section. Section 5y is the stuck and broken states: a figure, a figure on the probe, a figure across sessions and
+its kept figure drawn again each previewed and left **Drawn** with its drawing and result by the cleanup that runs as
+the preview returns (no cancel in the Log), and an interrupted preview (the check the cleanup runs, called by hand:
+the suite cannot press Ctrl+C): computing with the polls on or off, or drawing (a figure across sessions forgetting
+its kept figures), is *Canceled*, a drawn one is left alone; Run and Scan refused while a
+preview computes, a Max groups of 150 shown and gathered unchanged, a config a control cannot show
+leaving the config and the controls as they were, and the undo history and the drawing too (an edit of the figures
+leaves no step, a config opened neither clears the history nor drops the drawing), the arrow keys given back after a
+click in a field or the tree (the window's `CurrentObject`, set by the suite: when it cannot be set the check says
+SKIP; whether a real click sets it is a manual check), the notepad written through the new object after a re-scan,
+Apply last change after **Down** offering nothing, the Shift+click selection let go after Remove, an Undo and a Redo that show another figure, and a config opened,
+Save and Close with preferences that cannot be written, and Close during a run, and a window deleted during a run (its
+report still written). Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never read
@@ -3144,7 +3242,12 @@ merged figure (a `nSessions` result over both sessions, the status line *"...
 across sessions: 2 merged"*, the PSTH drawn, the "Figure:" drop-down hidden for
 one figure). An edit (a figure per subject, a figure per trial group) leaves the
 preview *Out of date* with the *press Preview* line; after **Preview** the
-"Figure:" drop-down picks which figure is drawn without computing, and the
+"Figure:" drop-down picks which figure is drawn without computing. Another
+picked from a timer while a run of the figure goes is not taken (the drop-down
+back on the figure drawn, **Drawn** during the run and after); with a PSTH
+added and shown, an Export tab page 1.5 times larger, the figure across
+sessions shown again is drawn on the new page from its kept figures, the pick
+kept, no busy card. The
 script of **Export code**, run, merges the observation over both datasets and
 gives the figure picked there. **Generate selected figure**
 then writes a page per matched site into the sessions folder
@@ -3187,6 +3290,21 @@ a row clicked says it copied its variable. With a dataset variable on the active
 (*probeDepth* = 1234), the menu has *Dataset variables* with *{probeDepth} Probe Depth (um) (now: 1234)*; picked
 into the X axis it draws *Depth 1234*, and a new value (1500) set on the source, then `autoFigurePreview`, draws
 *Depth 1500*.
+
+Its section 5x drives the preview's badge on a raster over a PSTH: it says **Drawn** only for a drawing of the
+figure as it is now. With Auto off, a title typed from a timer while the preview computes (the runner's polls let
+it in) leaves the preview that finishes *Out of date*, the tree's mark too, its drawing without the title, and
+**Preview** then draws it; another dataset picked while it computes leaves the drawing of the first *Out of date*,
+and **Open in window** computes it again first, so the window is the active dataset's. A look remembered in the
+preview's editor (its OK: `onRemember`, then the redraw) stays **Drawn**, the drawing's key holding the look
+(`FigurePreviewDrawn`) and the tree, marked again, plain, and *Undo Remember looks* leaves the drawing that shows
+it *Out of date*; one remembered in an **Open in window** figure's editor leaves the preview
+*Out of date* too. An Export tab page 1.5 times larger draws the preview again at its new scale (`renderFigure`'s
+`Scale`, as `previewScale` gives it) from the result it holds, nothing computed and no busy card, and marks the
+other figure's kept preview out of date in the tree; shown again with Auto off, that one is drawn on the new page
+from what it holds, nothing computed, no busy card: **Drawn**. While a run goes (one figure on one dataset, from a timer), an observation picked
+draws nothing and leaves the drawing *Out of date*, and **Export preview** then computes the observation picked
+first, its window naming it; with Auto on, a y axis moved to the right while a run goes leaves it *Out of date*.
 
 Its section 5h drives the figure tree and a panel's note and overlays, from no figure (it, too, sets the Auto slider to 1
 for its length). Three figures (two rasters over PSTHs, one continuous

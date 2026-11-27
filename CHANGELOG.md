@@ -8,6 +8,37 @@ says how to cut a release.
 
 ## [Unreleased]
 
+### Fixed
+
+- EphysFigGenApp, review backlog: Undo of Duplicate figure selects the figure that was copied, not the one after it;
+  a preview that was canceled or failed, or waits for a large signal extract, waits for Preview when its figure is
+  shown again, for the dataset, observation, scan and settings it was tried for (it was computed, and failed or
+  canceled, at every return; after another dataset or a scan it is drawn again, so its badge and line never speak of
+  another dataset); Cancel and the size limit keep the drawing
+  that was in the panel, Out of date and never Drawn, instead of emptying it; the datasets table reads which files
+  exist once per scan, not at every star, note, tick and filter edit (a file that appears or goes away is noticed at
+  the next Scan); File > Open recent keeps a config that is not found now (a share not mounted), gray, instead of
+  dropping it for good; `fitToScreen` fits the window to the monitor that holds it, not the primary one; Arrange is
+  off unless the Image Processing Toolbox is installed as well as licensed (`toolboxAvailable`); a click on an Arrange box that moves the pointer under 3 px moves
+  nothing (it was snapped); the snap step keeps its exact length through the units (0.5 cm to px and back was 0.51).
+- EphysFigGenApp, stuck or broken states: an interrupt (Ctrl+C) during a preview leaves it Canceled, not
+  "computing" or "drawing" for the session (a figure across sessions too, also while it draws a kept figure picked
+  under *Figure:*), and a preview that finished is never touched by that cleanup (it runs after the preview's tail);
+  Run and Scan are refused while a preview computes (as Test report and Generate were);
+  Close no longer leaves a hidden window that cannot be closed (`Closing` is reset on every path that does not close,
+  a failing step after the hide is a warning and the window is deleted anyway, a Save whose preferences cannot be
+  written still saves), and Close during a run cancels it and closes the window when it has ended, so the progress
+  callback never writes to a deleted window and the report and records are written; Max groups above 100 is shown and
+  kept (the spinner's limit is gone) and `applyConfig` is all or nothing (a control that throws restores the config
+  and the controls, the undo history -- an edit leaves no step, a config opened does not clear it -- and the figures'
+  kept previews, which a config opened drops only once it shows); the arrow-key nudge acts only while the last click
+  was in the preview; the notepad open across
+  a re-scan writes through the app's `DatasetNotes` (its note is written first, then it moves to the new object), so
+  no note is dropped; Apply last change after Move figure up or down compares the figure with itself and offers
+  nothing wrong; the Shift+click panel selection is let go when another figure is shown in the place of the one it
+  was made on (Remove, an Undo or Redo that brings another figure, a config opened) or that figure's panels change (a
+  template, a panel of another type); an Undo of an edit the selected panels took keeps it.
+
 ### Changed
 
 - The lab database client moved out to the CarasLabDB repository, as its `+labclient` package, so every toolbox of
@@ -786,6 +817,68 @@ says how to cut a release.
 
 ### Fixed
 
+- Analysis runs draw, write and record the config and datasets they started with. `EphysAnalysisRunner.run` read
+  its config once but its steps read `Config` again, and the analysis app sets it on every edit while a run goes (its
+  window stays usable): later datasets were drawn with the new settings, the report could go to another folder, the
+  run record and the lab database's record held the last config, and a figure whose automatic id followed an edit
+  stopped the run. `run` now passes its config to every step (`Config=` on `runDataset`, `runSessionFigure`,
+  `batchYLimits`, `sessionFigureObservations` and `LabCapture.analysisRun`; `source`, `sessionTable` and `outputRoot`
+  take it too), and `run(Config=)` runs the config given: the analysis app passes the one it gathered when Run was
+  pressed, so an edit whose callback runs before the run starts is the next run's too. In the analysis app, Run,
+  Plan, Generate selected figure and Test report stop with an alert to press
+  Scan while the datasets listed are not the scan of the source the Data tab shows (one definition of what a scan
+  reads; a tick, the filter or the signals' rates and filters no longer count as a source change); the config's
+  warnings (the datasets' pages getting the same file names, of which a run writes only the first) are shown at Run,
+  which goes on. A config opened without its scan keeps
+  its own ticks; in folders mode the ticks are the config's selection (`Selection "list"` with the folders), which the
+  runner, the scripts and a scan follow; a scan matches a config's keys as `EphysProject.findByKey` does (case ignored
+  on Windows) and names the ones it does not find. A folders-mode config saved before then, whose selection is the
+  project's keys it was switched from (they name no folder of its absolute folders, and folders mode ran every folder), still runs every
+  folder (`EphysAnalysisRunner.selectedFolders`, the one reading of a folders-mode selection: the warning
+  `EphysAnalysisRunner:LegacySelection`, a `validate` warning, every folder ticked in the app, which says so). A
+  config opened while its project cannot be scanned keeps in its selection the datasets the last scan did not list,
+  and says so, so Save no longer drops them; Run, Plan, Generate and Test report ask for a scan meanwhile, since a
+  run would leave them out while its record names them. Every page of a run, in this MATLAB as on the workers, is drawn in the
+  plot design and remembered looks as they were when the run started (`renderFigure` and `drawExportPage` take
+  `UserRules=`, `PlotAesthetics.userRules` a snapshot): a design chosen while it runs is the next run's. With
+  `Export.Overwrite` off a report embedded the earlier run's
+  file of a kept page under this run's caption: it now holds the page as this run draws it, and the result row,
+  the report entry and the HTML say which files were kept.
+- The analysis app's figure preview no longer says *Drawn* for a drawing that is not the figure as it is now. A
+  preview ended *Drawn* after an edit or another dataset picked while it computed with Auto off, after an edit or an
+  observation picked while a run went, after a remembered look was undone, and after a change of the Export tab's
+  page size; **Open in window** and **Export preview** then drew the old result with the figure's settings of now
+  (Export preview named the file for the observation picked and drew another's). A preview now ends *Drawn* only when
+  the key it was computed for is still the figure's (the figure, defaults, dataset, observation, scan, rates,
+  filters, variables and, new, the page it is exported on), else *Out of date*; a run marks a drawing *Out of date*
+  when an edit or an observation or dataset picked makes it so, and a session figure's *Figure:* pick during a run is
+  not taken (the drop-down goes back to the figure drawn); Open in window, Export preview, Save look as design and
+  Forget looks test the key, not the badge. A page change draws the shown preview again from what it computed (a
+  figure across sessions from its kept figures), and the other figures' kept previews are marked out of date and drawn
+  again on the new page from what they hold when shown, whatever Auto says (a figure across sessions keeps its kept
+  figures). A look remembered from an Open in window figure now updates the preview as an edit does.
+- An analysis run that stopped with an error had no run record and was not recorded for the lab database, though
+  its figure files and reports were on disk. `EphysAnalysisRunner.run` now ends such a run like any other: its run
+  record (`outcome` `failed`, and a new `error` field, `<identifier>: <message>` or the message alone when the
+  error has none) and its lab database record (status
+  failed, `attributes.error`), both listing the files written before the error (`ReportFiles` grows as each report
+  file is written); then the error is thrown again. A figure that fails or is canceled part way lists in its
+  result row the files its finished pages wrote (they were in no record; also a page whose report image or PDF
+  page failed after its files were written), and a report entry that cannot be added
+  for a failed figure no longer stops the run. A run that drew no figure because every figure it tried failed
+  is recorded as failed, not succeeded (`attributes.figure_errors` counts a run's failed figures). Figure files kept
+  from an earlier run (`Export.Overwrite` off; the new `EphysAnalysisRunner.KeptFiles`) are no longer recorded as
+  outputs of the run, which did not write them (`kept_outputs`); a file the run wrote itself is never kept: when two
+  pages of a run have one file name (two datasets', or two observations of one figure), the second is no longer taken for "kept from an earlier run" (and left out of
+  the record), nor written over the first with `Export.Overwrite` on: it is not written, its row says so, and the
+  file is the first page's, recorded once (`EphysAnalysisRunner.WrittenFiles`); the standalone script follows the
+  same rule. The run's Log says what was noted
+  (the event, its status, how many files it read and wrote) and which files were left out, by folder: those under
+  no mapped storage root and the kept ones (`LabCapture.analysisRun` returns it as a second output); a `LogFcn` that
+  throws while a run goes is a warning (every Log line of the run), never a second row for a figure done, a failed
+  run for one canceled, or an error in place of the run's. The output ledger (`analysis_outputs.json`) is written once per run instead of once
+  per output file (read for the lookups and again just before the write, to merge), and a ledger that cannot be
+  read is no longer written over (warning `LabCapture:OutputLedger`).
 - The pipeline app's Prefetch digital lines (Trials tab) failed with a `strjoin` error at the end of a run in which a
   dataset failed or a pairing needed review, instead of showing the list. Copy sessions failed the same way when a
   session failed to copy, and a report too long for the address bar (`IssueReport`) began its note with "20"

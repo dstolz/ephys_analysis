@@ -18,7 +18,7 @@ if ss.datasets == "list"
     idx = arrayfun(@(key) obj.index(key), reshape(ss.datasetKeys, 1, []));
     missing = ss.datasetKeys(idx == 0);
     if ~isempty(missing)
-        obj.log("%s: dataset key(s) not found: %s", spec.id, strjoin(missing, ", "));
+        obj.logQuietly("%s: dataset key(s) not found: %s", spec.id, strjoin(missing, ", "));
     end
     idx = idx(idx > 0);
 elseif isempty(idx)

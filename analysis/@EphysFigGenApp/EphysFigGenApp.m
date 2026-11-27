@@ -98,7 +98,9 @@ classdef EphysFigGenApp < handle
     %                computeSessionFigure; a probe figure every tile:
     %                computeProbeFigure; the Auto slider: an edit redraws it
     %                while that is predicted to take under the slider's
-    %                limit, autoFigurePreview), with its own badge (setFigurePreviewState), drawn
+    %                limit, autoFigurePreview), with its own badge (setFigurePreviewState:
+    %                Drawn only while the drawing's key is the figure's,
+    %                figureViewFresh: figureViewKey, its page included), drawn
     %                in the design picked above it (Design, PlotDesign; Save
     %                look as design...: onSaveDesign; Edit aesthetics...: the
     %                aesthetics editor without a right-click,
@@ -388,6 +390,7 @@ classdef EphysFigGenApp < handle
         SavedConfigStruct struct = struct()                   % last saved / opened state
         Applying (1,1) logical = false      % applyConfig is pushing values (suppresses onConfigChanged)
         Closing (1,1) logical = false       % onClose is under way: another close request is ignored
+        CloseWhenRunEnds (1,1) logical = false % Close was asked while a run went: the run is canceled, the window hidden, and closed when the run has ended (onRunExport)
         RecentConfigs (1,:) string = string.empty(1,0)
         ScriptFolder (1,1) string = ""
         PreviewMaxMB (1,1) double = 500     % larger signal extracts are previewed only on request
@@ -397,8 +400,10 @@ classdef EphysFigGenApp < handle
         ScannedSource struct = struct()     % Config.Source when the runner last scanned
         ActiveIdx (1,1) double = 0          % the active dataset (index into Runner.Outputs)
         Ticked (1,:) logical = logical.empty(1, 0)   % datasets ticked to run
+        TickedNotListed (1,:) string = string.empty(1, 0)   % keys a config opened without its scan ticks that the datasets listed lack (tickConfigSelection): kept in its selection (gatherSourceSection) until a scan
         DatasetsSort (1,1) struct = TableSort.none()   % the datasets table's header click (a TableSort state), kept as it is filled again
         HoldDatasetViews (1,1) logical = false   % onScan: refreshDatasetsTable and refreshDatasetLabels do nothing (onScan fills both once, after the stars and notes)
+        DatasetFileMarks = []               % which files each dataset has, read once per Runner (datasetFileMarks): struct Runner, Marks
         Favorites = []                      % the scanned datasets' stars: a DatasetFavorites each, in Runner order (read on Scan)
         FavoriteEntries = []                % the Favorites drop-downs' entries: table dataset, level, id, label (refreshFavorites)
         Notes = []                          % the scanned datasets' notes: a DatasetNotes each, in Runner order (read on Scan)
@@ -430,9 +435,10 @@ classdef EphysFigGenApp < handle
         FigureIdRenames = []                % figures renamed (an automatic id that followed an edit): containers.Map, old id -> new (trackFigureIds)
         FigurePreviewResult = []            % the shown figure's last preview result (computeFigure's F)
         FigurePreviewDrawn = []             % what the shown figure's preview was drawn from (figureViewKey), once drawn
+        FigurePreviewTried = []             % what the shown figure's last preview was for (figureViewKey as it began): its Cannot draw, Failed, Canceled or Press Preview, and an Inf FigurePreviewSeconds, hold for that key alone (previewFigureView, markStaleOutcome)
         FigurePreviewSeconds (1,1) double = 0   % time the shown figure's last preview took (0: forgotten, the next edit redraws; Inf: failed, canceled or waiting)
         FigurePreviewCost (1,1) struct = struct('compute', 0, 'draw', 0, 'key', {[]})   % its two parts, s, and the data key computed (previewDataKey): what previewCost predicts from
-        FigureViews struct = struct([])     % one preview container per figure kept (syncFigureView): Id, Panel, State, Result, Drawn, Seconds, Cost, Sessions, Label, Used; "" = none selected
+        FigureViews struct = struct([])     % one preview container per figure kept (syncFigureView): Id, Panel, State, Result, Drawn, Tried, Seconds, Cost, Sessions, Label, Used; "" = none selected
         FigureViewId (1,1) string = ""      % the figure whose container shows: its State, Result, ... are the FigurePreview* properties meanwhile
         FigureViewTick (1,1) double = 0     % counts the containers shown (FigureViews.Used: the least recently used goes over MaxFigureViews)
         FigurePreviewGeneration (1,1) double = 0   % a scan adds one: every preview drawn before is out of date (figureViewKey)
@@ -455,7 +461,7 @@ classdef EphysFigGenApp < handle
         FigureCorners = []                  % Set corners: struct what ("set", "new", "block"), payload (the panel's id, or onNewPanel's options) and first (the first corner, [] until clicked), else []
         FigureArrangeFocus (1,1) logical = false   % the overlay was clicked last: the arrow keys nudge the selected panel (cleared by an editor edit)
         FigurePanelExtra (1,:) string = strings(1, 0)   % the panels selected with Shift+click (on the preview, or Arrange's boxes) besides SelectedPanel (the primary): the editor shows the rows they share, an edit goes to them all (spreadPanelEdit), Arrange moves, resizes, nudges and removes them with it (selectedPanelIds); cleared by a click selecting one panel, Escape, another figure, a panel added, removed or renamed
-        FigurePanelIds (1,:) string = strings(1, 0)     % the selected figure's panel ids when the editor last showed them (syncFigureEditor): a change lets FigurePanelExtra go
+        FigurePanelIds (1,:) string = strings(1, 0)     % the figure's id, its panel ids and their types when the editor last showed them (syncFigureEditor): a change lets FigurePanelExtra go
         FigureArrangeClick = []             % Arrange: a click on one of several selected boxes waiting for its release (id, the window's oldUp): no drag, and that one alone is selected (onArrangeClicked)
         FigureRectUnits (1,1) string = "cm"  % the Layout section's units for a rect, padding and snap step (EphysAnalysisConfig.RectUnits; pref FigureRectUnits)
         FigureSnap (1,1) logical = true     % Arrange snaps the panels to edges, centers and the step (pref FigureSnap)
@@ -727,12 +733,12 @@ classdef EphysFigGenApp < handle
         onFigureSizeEdited(obj, part)
         showFigureSize(obj, z)
         fitFigureViews(obj)
-        ok = redrawFigurePreview(obj)
+        ok = redrawFigurePreview(obj, opts)
         onFigurePanelClicked(obj, id, panel, ctrl, fromWindow, shift)
         files = onExportPreview(obj)
         txt = onFigureCode(obj, file)
         setFigurePreviewState(obj, state, opts)
-        rememberFigureAesthetics(obj, id, rules)
+        rememberFigureAesthetics(obj, id, rules, opts)
         onFigureAxisEdited(obj, id, panel, change)
         onPickFigureDatasets(obj, opts)
         onBrowseFigureMapping(obj, file)

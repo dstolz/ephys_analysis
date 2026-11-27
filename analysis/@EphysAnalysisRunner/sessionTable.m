@@ -1,4 +1,4 @@
-function S = sessionTable(obj, idx)
+function S = sessionTable(obj, idx, cfg)
 %sessionTable  The sessions of some datasets, by date: sessionTable over the runner's datasets.
 %   S = r.sessionTable(IDX) (dataset indices, keys or names; left out:
 %   all; an empty IDX: none) is sessionTable(Names, Keys, NamePattern=Source.NamePattern,
@@ -9,12 +9,16 @@ function S = sessionTable(obj, idx)
 %   the datasets' variables (outputVariables: a var_<name> column each,
 %   after the tags) and index the runner's dataset index; sorted by
 %   date, then name, before the labels are made unique.
+%   S = r.sessionTable(IDX, CFG) takes the name pattern from CFG instead of
+%   Config (run passes the config it started with).
 %
 %   See also sessionTable, EphysAnalysisRunner.sessionFigureObservations.
 arguments
     obj (1,1) EphysAnalysisRunner
     idx = []
+    cfg = []
 end
+if isempty(cfg); cfg = obj.Config; end
 if nargin < 2
     idx = 1:numel(obj.Outputs);
 elseif ~isnumeric(idx)
@@ -40,5 +44,5 @@ if ~isempty(obj.Project) && n > 0
     end
 end
 S = sessionTable(reshape(obj.Names(idx), [], 1), reshape(obj.Keys(idx), [], 1), ...
-    NamePattern=obj.Config.Source.NamePattern, AcqDates=acq, Folders=folders, Tags=tags, Variables=vars, Index=idx, Sort=true);
+    NamePattern=cfg.Source.NamePattern, AcqDates=acq, Folders=folders, Tags=tags, Variables=vars, Index=idx, Sort=true);
 end

@@ -37,7 +37,28 @@ function test_EphysAnalysisRunner()
 %   Overwrite off, a cancel between observations, and the standalone
 %   script (figureSessionCompute) writing the same pixels; a trial
 %   figure (trialDist): its caption's statistics (trialStatsText) and, as
-%   a session figure, its data file with both sessions' merged values.
+%   a session figure, its data file with both sessions' merged values; a
+%   run that keeps the config it started with while Config is set from its
+%   ProgressFcn (a figure renamed, other folders: both datasets, the report
+%   and the run record are the started config's); Overwrite off with a
+%   report (the file on disk kept, the report embedding this run's drawing,
+%   the kept file said so in the row, the entry and the HTML); a
+%   folders-mode selection (the folders it names; a project's keys saved
+%   before folders mode had ticks, which run every folder, warned and
+%   listed by validate); a run that
+%   throws while it writes its PDF report (the error reaching the caller,
+%   the HTML written before it in ReportFiles, the run record written with
+%   outcome "failed" and the error); a plot design chosen and a look
+%   remembered while a run goes (its pages drawn in the looks it started
+%   with); a figure that fails or is canceled after its first page was
+%   written (its row listing that page's file; a failed figure's report
+%   entry that cannot be added said in its row, not thrown; a LogFcn that
+%   throws, a warning, also on the run's "Canceled." line; a page whose
+%   PDF page fails after its file was written, that file in the error
+%   row, and in a session figure's canceled row); two datasets' pages with
+%   one file name (the first written, the second neither "kept" nor
+%   written over, with Export.Overwrite off and on, by the run and by the
+%   standalone script).
 %
 %   Usage:  test_EphysAnalysisRunner
 
@@ -730,6 +751,33 @@ if nG >= 2
         && isscalar(dir(fullfile(outGC, "sessions", "all_card_*.png"))), ...
         'cancel() between a session figure''s observations: the first page is written, the figure "canceled"');
 end
+% the first page's PDF page fails after its PNG was written, then a cancel: the canceled row lists that PNG
+outGS = fullfile(root, 'outSesFigStray');
+cfgGS = cfgGC;
+cfgGS.Export.SessionsFolder = fullfile(outGS, "sessions");
+cfgGS.Report.Enabled = true;
+cfgGS.Report.Format = "pdf";   % each page also goes to the PDF report's page folder
+cfgGS.Report.Folder = outGS;
+rGS = EphysAnalysisRunner(cfgGS, LogFcn=[]);
+    function onSesStrayProgress(~, msg)
+        pfS = rGS.Report.pageFolder;
+        if contains(msg, "sessions: card (1/") && ~isfolder(pfS) && ~isfile(pfS)
+            fid = fopen(pfS, 'w'); fclose(fid);   % a file where the page folder goes: the first page's PDF page cannot be written
+        elseif contains(msg, "sessions: card (2/")
+            rGS.cancel();
+        end
+    end
+if nG >= 2
+    rGS.ProgressFcn = @onSesStrayProgress;
+    RGS = rGS.run();
+    rGS.ProgressFcn = [];
+    if isfile(rGS.Report.pageFolder); delete(rGS.Report.pageFolder); end
+    fGS = splitFiles(RGS.Files(RGS.Plot == "card"));
+    check(height(RGS) == 1 && RGS.Status == "canceled" && isscalar(fGS) && isfile(fGS) && endsWith(fGS, ".png") ...
+        && startsWith(fGS, string(fullfile(outGS, "sessions"))) && any(rGS.WrittenFiles == fGS), ...
+        ['a session figure whose first page''s PDF page fails after its PNG was written, then canceled: its canceled row ' ...
+        'lists that PNG (in no row before, though written)']);
+end
 % the standalone script: figureSessionCompute, runner-free, the same pages
 outSG = fullfile(root, 'outSesFigScript');
 cfgSG = cfgG; cfgSG.Export.Folder = fullfile(outSG, "{Name}"); cfgSG.Export.SessionsFolder = fullfile(outSG, "sessions");
@@ -797,10 +845,387 @@ check(height(RTS) == 1 && RTS.Status == "done" && isfile(dT) && LdT.schema == "e
     && isscalar(eTS) && contains(eTS.caption, "across 2 sessions") && contains(eTS.caption, " p = "), ...
     "a session run of a trial figure: its data file holds the merged values of both sessions; the caption its statistics: " + eTS.caption);
 
+fprintf('\n== 11. a run keeps the config it started with: an edit while it goes (a figure renamed, other folders) is the next run''s ==\n');
+outK = fullfile(root, 'outKeep');
+outKE = fullfile(root, 'outKeepEdited');
+cfgK = cfg;
+cfgK.Name = "kept config";
+cfgK.Figures = cfgK.Figures(cfgK.figureIndex("map"));   % one page per dataset
+cfgK.Export.Folder = fullfile(outK, "{Name}");
+cfgK.Export.Formats = "png";
+cfgK.Report.Format = "html";
+cfgK.Report.Folder = outK;
+edited = cfgK;
+edited.Name = "edited while it runs";
+edited.Figures(1).id = "map_renamed";   % an automatic id that followed an edit: the old id names no figure of it
+edited.Export.Folder = fullfile(outKE, "{Name}");
+edited.Export.Formats = "svg";
+edited.Report.Folder = outKE;
+rK = EphysAnalysisRunner(cfgK, LogFcn=[]);
+nEdits = 0;
+    function onKeepProgress(~, ~)
+        rK.Config = edited;   % what the app's edits do while a run goes (onConfigChanged, through setStatus's drawnow)
+        nEdits = nEdits + 1;
+    end
+rK.ProgressFcn = @onKeepProgress;
+whyK = "";
+try
+    RK = rK.run();
+catch ME
+    RK = rK.Results;
+    whyK = string(ME.message);
+end
+rK.ProgressFcn = [];
+recK = struct('name', "", 'config', struct('Figures', struct('id', ""), 'Export', struct('Formats', "")));
+if rK.RunRecordFile ~= "" && isfile(rK.RunRecordFile); recK = jsondecode(fileread(rK.RunRecordFile)); end
+wantK = arrayfun(@(n) string(fullfile(outK, n, n + "_map.png")), names);
+check(whyK == "" && nEdits > 2 && height(RK) == 2 && all(RK.Status == "done") && all(RK.Plot == "map") && all(isfile(wantK)) ...
+    && ~isfolder(outKE), ...
+    sprintf(['a config set while the run goes (its figure renamed, other folders and formats; %d times) does not reach ' ...
+    'it: both datasets drawn, as png into the folder it started with, none into the edited one (%s)'], nEdits, whyK));
+check(isequal(rK.ReportFiles, string(fullfile(outK, "analysis_report.html"))) && startsWith(rK.RunRecordFile, string(fullfile(outK, "analysis_runs"))) ...
+    && string(recK.name) == "kept config" && string(recK.config.Figures(1).id) == "map" && all(string(recK.config.Export.Formats) == "png") ...
+    && rK.Config.Name == "edited while it runs", ...
+    'the report and the run record are the started config''s (its folder, its name, its figure and formats); Config keeps the edit for the next run');
+% run(Config=): the config given, not Config (the analysis app passes the one it gathered when Run was pressed)
+outKC = fullfile(root, 'outKeepGiven');
+cfgKC = cfgK;
+cfgKC.Export.Folder = fullfile(outKC, "{Name}");
+cfgKC.Report.Folder = outKC;
+rK.Config = edited;   % what an edit that reached Config before the run started leaves there
+RKC = rK.run(Config=cfgKC);
+wantKC = arrayfun(@(n) string(fullfile(outKC, n, n + "_map.png")), names);
+check(height(RKC) == 2 && all(RKC.Status == "done") && all(RKC.Plot == "map") && all(isfile(wantKC)) && ~isfolder(outKE) ...
+    && startsWith(rK.RunRecordFile, string(fullfile(outKC, "analysis_runs"))) && rK.Config.Name == "edited while it runs", ...
+    ['run(Config=) runs the config given, not Config (an edit that reached it before the run started): its figure, folders, ' ...
+    'formats and run record; Config is left as it was']);
+
+fprintf('\n== 12. Overwrite off with a report: the report holds the page as this run draws it, its kept files said so ==\n');
+outW = fullfile(root, 'outKeptReport');
+cfgW = cfg;
+cfgW.Figures = cfgW.Figures(cfgW.figureIndex("map"));   % one page per dataset
+cfgW.Export.Folder = fullfile(outW, "{Name}");
+cfgW.Export.Formats = "png";
+cfgW.Report.Enabled = false;
+EphysAnalysisRunner(cfgW, LogFcn=[]).run(Datasets=1);   % its file on disk
+pngW = string(fullfile(outW, names(1), names(1) + "_map.png"));
+imwrite(cat(3, 255 * ones(20, 30, 'uint8'), zeros(20, 30, 'uint8'), zeros(20, 30, 'uint8')), char(pngW));   % an earlier run's file: a red square
+fid = fopen(pngW, 'r'); markBytes = fread(fid, Inf, '*uint8'); fclose(fid);
+cfgW.Export.Overwrite = false;
+cfgW.Report.Enabled = true;
+cfgW.Report.Format = "html";
+cfgW.Report.EmbedFormat = "png";
+cfgW.Report.Folder = outW;
+rW = EphysAnalysisRunner(cfgW, LogFcn=[]);
+RW = rW.run(Datasets=1);
+fid = fopen(pngW, 'r'); nowBytes = fread(fid, Inf, '*uint8'); fclose(fid);
+eW = [rW.Report.datasets.entries];
+eW = eW([eW.plot] == "map");
+HW = string(fileread(rW.ReportFiles(1)));
+check(isfile(pngW) && isequal(nowBytes, markBytes) && height(RW) == 1 && RW.Status == "done" && RW.Files == pngW ...
+    && contains(RW.Message, "1 kept") && contains(RW.Message, "not overwritten"), ...
+    sprintf('Overwrite off: the file on disk is kept as it was, listed in Files, and the row says it was kept ("%s")', RW.Message));
+check(isscalar(eW) && numel(eW.images) == 1 && eW.images{1}.data ~= string(matlab.net.base64encode(markBytes)) ...
+    && isfield(eW, 'kept') && isequal(eW.kept, pngW) && contains(HW, "Kept from an earlier run") && contains(HW, names(1) + "_map.png"), ...
+    ['the report embeds the page this run drew (under this run''s caption and config), not the earlier run''s file; ' ...
+    'its entry and the HTML name that file as kept']);
+check(isequal(rW.KeptFiles, pngW), ...
+    'KeptFiles lists the kept file (the lab database''s record of the run leaves it out of its outputs: LabCapture.analysisRun)');
+
+fprintf('\n== 13. folders mode: Selection "list" runs the folders it names (the app''s Run ticks); a project''s keys saved before, every folder ==\n');
+cfgF = cfg;
+cfgF.Source.Mode = "folders";
+cfgF.Source.Folders = F.folders;
+cfgF.Source.Selection = "list";
+cfgF.Source.Datasets = [F.folders(2) + filesep, string(fullfile(root, 'not_a_folder'))];   % a trailing separator is the same folder
+lastwarn('');
+rF = EphysAnalysisRunner(cfgF, LogFcn=[]);
+[~, widF] = lastwarn();
+[selF, missF] = EphysAnalysisRunner.selectedFolders(cfgF.Source);
+txtF = EphysAnalysisScript.standalone(cfgF);
+cfgF.Source.Selection = "all";
+rFa = EphysAnalysisRunner(cfgF, LogFcn=[]);
+check(isequal(rF.Keys, F.folders(2)) && string(widF) == "EphysAnalysisRunner:UnknownDataset" && isequal(selF, F.folders(2)) ...
+    && isequal(missF, string(fullfile(root, 'not_a_folder'))) && isequal(rFa.Keys, F.folders) ...
+    && contains(txtF, "folders = " + EphysPipelineScript.literal(F.folders(2)) + ";"), ...
+    ['folders mode with Selection "list": the runner (and so the compact script) and the standalone script take only the ' ...
+    'folders Datasets names, a name that is no folder of Folders warned about; "all" takes every folder']);
+% a "list" saved before folders mode had a selection of its own: a project's keys (root-relative), which the app carried
+% into folders mode and folders mode ignored; they name no folder, and every folder runs, as it did then
+cfgF.Source.Selection = "list";
+cfgF.Source.Datasets = reshape(string(F.keys), 1, []);
+lastwarn('');
+rFl = EphysAnalysisRunner(cfgF, LogFcn=[]);
+[~, widFl] = lastwarn();
+[selFl, missFl, legacyFl] = EphysAnalysisRunner.selectedFolders(cfgF.Source);
+txtFl = EphysAnalysisScript.standalone(cfgF);
+IFl = cfgF.validate();
+check(isequal(rFl.Keys, F.folders) && string(widFl) == "EphysAnalysisRunner:LegacySelection" && legacyFl ...
+    && isequal(selFl, F.folders) && isempty(missFl) && contains(txtFl, "folders = " + EphysPipelineScript.literal(F.folders) + ";") ...
+    && any(IFl.Section == "Source" & IFl.Field == "Datasets" & IFl.Severity == "warning" & contains(IFl.Message, "Every folder runs")), ...
+    ['folders mode with Selection "list" of a project''s keys (saved before folders mode had ticks of its own): every folder ' ...
+    'runs, as it did then (the runner, with the warning EphysAnalysisRunner:LegacySelection; the standalone script), ' ...
+    'and validate lists it as a warning']);
+cfgF.Source.Datasets = string(fullfile(root, 'not_a_folder'));   % absolute: a folder ticked, then taken off Folders
+[selFa, missFa, legacyFa] = EphysAnalysisRunner.selectedFolders(cfgF.Source);
+cfgF.Source.Datasets = "nosuch/dataset";   % relative and no folder: a project's key
+[selFr, ~, legacyFr] = EphysAnalysisRunner.selectedFolders(cfgF.Source);
+cfgF.Source.Datasets = string.empty(1, 0);
+[selFe, ~, legacyFe] = EphysAnalysisRunner.selectedFolders(cfgF.Source);
+SR = cfgF.Source;
+SR.Folders = ["recA" "recB"];   % a script's relative folders
+SR.Datasets = "recC";           % a folder taken off them since
+[selFrel, missFrel, legacyFrel] = EphysAnalysisRunner.selectedFolders(SR);
+check(~legacyFa && isempty(selFa) && isequal(missFa, string(fullfile(root, 'not_a_folder'))) ...
+    && legacyFr && isequal(selFr, F.folders) && ~legacyFe && isempty(selFe) ...
+    && ~legacyFrel && isempty(selFrel) && isequal(missFrel, "recC"), ...
+    ['a list holding an absolute path that is no folder of Folders runs nothing and names it missing (a folder ticked, ' ...
+    'then taken off); a list of relative names only, none a folder, is a project''s keys (every folder); an empty list runs nothing; ' ...
+    'with relative Folders (a script''s) a relative name that is no folder of them is missing, not a project''s key']);
+
+fprintf('\n== 14. a run that throws: its run record says so, the files written before the error listed; the error goes on ==\n');
+outX = fullfile(root, 'outFails');
+cfgX = cfg;
+cfgX.Name = "fails at the report";
+cfgX.Figures = cfgX.Figures(cfgX.figureIndex("map"));   % one page per dataset
+cfgX.Export.Folder = fullfile(outX, "{Name}");
+cfgX.Export.Formats = "png";
+cfgX.Report.Format = "both";   % the HTML first, then the PDF, which fails
+cfgX.Report.Folder = outX;
+rX = EphysAnalysisRunner(cfgX, LogFcn=[]);
+    function onFailProgress(~, msg)
+        if startsWith(msg, "Writing the report: joining")   % the PDF's last step: the HTML is written
+            error('test_EphysAnalysisRunner:Stopped', 'the disk is full');
+        end
+    end
+rX.ProgressFcn = @onFailProgress;
+idX = "";
+try
+    rX.run();
+catch ME
+    idX = string(ME.identifier);
+end
+rX.ProgressFcn = [];
+recX = struct('outcome', "", 'error', "", 'reportFiles', {{}}, 'results', {{}});
+if rX.RunRecordFile ~= "" && isfile(rX.RunRecordFile); recX = jsondecode(fileread(rX.RunRecordFile)); end
+htmlX = string(fullfile(outX, "analysis_report.html"));
+pngX = arrayfun(@(n) string(fullfile(outX, n, n + "_map.png")), names);
+check(idX == "test_EphysAnalysisRunner:Stopped" && isequal(rX.ReportFiles, htmlX) && isfile(htmlX) && all(isfile(pngX)) ...
+    && height(rX.Results) == 2 && all(rX.Results.Status == "done") && all(ismember(pngX, rX.Results.Files)), ...
+    sprintf(['a run that throws while it writes the PDF report: the error reaches the caller (%s); the HTML written ' ...
+    'before it is in ReportFiles, both datasets'' figure files in Results'], idX));
+check(startsWith(rX.RunRecordFile, string(fullfile(outX, "analysis_runs"))) && string(recX.outcome) == "failed" ...
+    && string(recX.error) == "test_EphysAnalysisRunner:Stopped: the disk is full" && isequal(string(recX.reportFiles), htmlX) ...
+    && numel(recX.results) == 2, ...
+    'its run record is written all the same: outcome "failed", the error, the HTML report and both rows');
+
+fprintf('\n== 15. a run draws in the plot design and remembered looks it started with: a change while it goes is the next run''s ==\n');
+prefsLooks = AppPrefs.useTemporary();   % the design and the remembered looks are preferences: a store of the test's own
+outLR = fullfile(root, 'outLooksRef');
+outLE = fullfile(root, 'outLooksEdited');
+cfgLk = cfg;
+cfgLk.Figures = cfgLk.Figures(cfgLk.figureIndex("map"));   % one page per dataset
+cfgLk.Export.Formats = "png";
+cfgLk.Report.Enabled = false;
+cfgLk.Export.Folder = fullfile(outLR, "{Name}");
+EphysAnalysisRunner(cfgLk, LogFcn=[]).run();   % both pages in the Default design, no look remembered
+cfgLk.Export.Folder = fullfile(outLE, "{Name}");
+rLk = EphysAnalysisRunner(cfgLk, LogFcn=[]);   % its pages drawn here (Workers 0)
+nLooks = 0;
+    function onLooksProgress(~, msg)
+        if nLooks == 0 && startsWith(msg, "Dataset " + names(2))   % between the two datasets' pages
+            PlotDesign.use("Night");   % what the app's Design list does while a run goes
+            PlotAesthetics.setUserRules("figure", struct('role', "plotTitle", 'group', "", 'property', "FontSize", 'value', 17));
+            nLooks = 1;
+        end
+    end
+rLk.ProgressFcn = @onLooksProgress;
+RLk = rLk.run();
+rLk.ProgressFcn = [];
+designLk = PlotDesign.currentName();
+rulesLk = PlotAesthetics.userRules("figure");
+clear prefsLooks
+[sameLk, pngsLk] = samePngs(outLR, outLE);
+check(nLooks == 1 && designLk == "Night" && isscalar(rulesLk) && height(RLk) == 2 && all(RLk.Status == "done") ...
+    && sameLk && numel(pngsLk) == 2 && isempty(rLk.PageLooks), ...
+    ['a design chosen and a look remembered while the run goes (from its ProgressFcn, before the second dataset) do not ' ...
+    'reach its pages: both drawn as in a run with neither, pixel for pixel; the run forgets its looks when it ends']);
+
+fprintf('\n== 16. a figure that fails or is canceled part way: its row lists the files its finished pages wrote ==\n');
+cfgP = cfg;
+cfgP.Figures = cfgP.Figures(cfgP.figureIndex("card"));   % two units per dataset: a page each
+cfgP.Export.Formats = "png";
+cfgP.Report.Format = "html";
+outP = fullfile(root, 'outPartFailed');
+cfgP.Export.Folder = fullfile(outP, "{Name}");
+cfgP.Report.Folder = outP;
+rP = EphysAnalysisRunner(cfgP, LogFcn=[]);   % its pages drawn here (Workers 0): page 1 is written before page 2 is computed
+    function onPartFailedProgress(~, msg)
+        if msg == names(1) + ": card (2/2)"
+            error('test_EphysAnalysisRunner:SecondUnit', 'the second unit cannot be read');
+        end
+    end
+rP.ProgressFcn = @onPartFailedProgress;
+RP = rP.run();
+rP.ProgressFcn = [];
+rowP = RP(RP.Dataset == names(1) & RP.Plot == "card", :);
+fP = splitFiles(rowP.Files);
+check(height(rowP) == 1 && rowP.Status == "error" && contains(rowP.Message, "the second unit cannot be read") ...
+    && isscalar(fP) && isfile(fP) && startsWith(fP, string(fullfile(outP, names(1)))) && endsWith(fP, ".png") ...
+    && all(RP.Status(RP.Dataset == names(2)) == "done") && ~isempty(rP.ReportFiles) && any(rP.WrittenFiles == fP), ...
+    ['a figure that fails after its first page was written: its error row lists that page''s file (so the run record ' ...
+    'and the lab database''s record name it); the other dataset runs and the report is written']);
+outPC = fullfile(root, 'outPartCanceled');
+cfgP.Export.Folder = fullfile(outPC, "{Name}");
+cfgP.Report.Folder = outPC;
+rPC = EphysAnalysisRunner(cfgP, LogFcn=[]);
+    function onPartCanceledProgress(~, msg)
+        if msg == names(1) + ": card (2/2)"; rPC.cancel(); end
+    end
+rPC.ProgressFcn = @onPartCanceledProgress;
+RPC = rPC.run();
+rPC.ProgressFcn = [];
+rowPC = RPC(RPC.Dataset == names(1) & RPC.Plot == "card", :);
+fPC = splitFiles(rowPC.Files);
+check(height(rowPC) == 1 && rowPC.Status == "canceled" && isscalar(fPC) && isfile(fPC) ...
+    && startsWith(fPC, string(fullfile(outPC, names(1)))) && all(RPC.Status(RPC.Dataset == names(2)) == "canceled") ...
+    && all(RPC.Files(RPC.Dataset == names(2)) == ""), ...
+    'a figure canceled after its first page was written: its canceled row lists that file; the figures not reached list none');
+rPQ = EphysAnalysisRunner(cfgP, LogFcn=@throwOnCanceledLine);   % a LogFcn that throws on the run's "Canceled." line
+    function onQuietCancelProgress(~, msg)
+        if msg == names(1) + ": card (2/2)"; rPQ.cancel(); end
+    end
+rPQ.ProgressFcn = @onQuietCancelProgress;
+whyPQ = "";
+try
+    rPQ.run(Export=false, Report=false);
+catch ME
+    whyPQ = string(ME.message);
+end
+rPQ.ProgressFcn = [];
+recPQ = struct('outcome', "");
+if rPQ.RunRecordFile ~= "" && isfile(rPQ.RunRecordFile); recPQ = jsondecode(fileread(rPQ.RunRecordFile)); end
+check(whyPQ == "" && string(recPQ.outcome) == "canceled", ...
+    sprintf(['a LogFcn that throws on the run''s "Canceled." line is a warning: the run is recorded canceled, not ' ...
+    'failed, and returns (%s)'], whyPQ));
+rPE = EphysAnalysisRunner(cfgP, LogFcn=@throwOnDoneLine);   % a LogFcn that throws on a figure's "done" line
+lastwarn('');
+RPE = rPE.run(Datasets=1, Export=false, Report=false);   % rows, and no report to add an entry to
+[~, widPE] = lastwarn();
+heardPE = "";
+try
+    rPE.LogFcn = @(m) error('test_EphysAnalysisRunner:LogClosed', 'the Log is closed');   % every line now
+    rPE.addFailureEntry(cfgP.Figures(1), "error", "the second unit cannot be read", names(1), "card");
+catch ME
+    heardPE = string(ME.message);
+end
+rPE.LogFcn = [];
+check(height(RPE) == 1 && RPE.Status == "done" && string(widPE) == "EphysAnalysisRunner:LogFcn", ...
+    sprintf(['a LogFcn that throws on a figure''s "done" line is a warning: the figure stays one "done" row, with no ' ...
+    'second "error" row (%d row(s): %s)'], height(RPE), strjoin(RPE.Status, ", ")));
+check(heardPE == "" && contains(rPE.Results.Message(end), "its report entry could not be added"), ...
+    ['a failed figure''s report entry that cannot be added (here: no report) is no error, even with a LogFcn that ' ...
+    'throws: the row says so, so its own error stays and the run goes on']);
+% a page whose PDF page cannot be written after its figure file was: that file is in the figure's error row
+outPS = fullfile(root, 'outPageFails');
+cfgPS = cfgP;
+cfgPS.Export.Folder = fullfile(outPS, "{Name}");
+cfgPS.Report.Folder = outPS;
+cfgPS.Report.Format = "pdf";   % each page also goes to the PDF report's page folder
+rPS = EphysAnalysisRunner(cfgPS, LogFcn=[]);
+    function onPageFailsProgress(~, msg)
+        pf = rPS.Report.pageFolder;
+        if msg == names(1) + ": card (1/2)" && ~isfolder(pf) && ~isfile(pf)
+            fid = fopen(pf, 'w'); fclose(fid);   % a file where the page folder goes: the first page's PDF page cannot be written
+        elseif msg == "Dataset " + names(2) && isfile(pf)
+            delete(pf);   % the second dataset's pages, and the report, as usual
+        end
+    end
+rPS.ProgressFcn = @onPageFailsProgress;
+whyPS = "";
+try
+    RPS = rPS.run();
+catch ME
+    RPS = rPS.Results;
+    whyPS = string(ME.message);
+end
+rPS.ProgressFcn = [];
+rowPS = RPS(RPS.Dataset == names(1) & RPS.Plot == "card", :);
+fPS = splitFiles(rowPS.Files);
+check(height(rowPS) == 1 && rowPS.Status == "error" && isscalar(fPS) && isfile(fPS) && endsWith(fPS, ".png") ...
+    && startsWith(fPS, string(fullfile(outPS, names(1)))) && any(rPS.WrittenFiles == fPS) && isempty(rPS.StrayFiles), ...
+    sprintf(['a page whose PDF page fails after its figure file was written: the figure''s error row lists that file ' ...
+    '(and the run counts it as its own) (%s; %s)'], strjoin(RPS.Status, ", "), whyPS));
+
+fprintf('\n== 17. two datasets'' pages with one file name: the first is written, the second neither "kept" nor written over ==\n');
+cfgO = cfg;
+cfgO.Figures = cfgO.Figures(cfgO.figureIndex("map"));   % one page per dataset
+cfgO.Export.Formats = "png";
+cfgO.Export.FilenamePattern = "{Plot}";   % no {Name} here ...
+outO = fullfile(root, 'outOneName');
+cfgO.Export.Folder = outO;                % ... nor here: both datasets' pages have one file (validate warns of it)
+cfgO.Report.Enabled = false;
+cfgO.Export.Overwrite = false;
+rO = EphysAnalysisRunner(cfgO, LogFcn=[]);
+RO = rO.run();
+fO1 = splitFiles(RO.Files(RO.Dataset == names(1)));
+fO2 = splitFiles(RO.Files(RO.Dataset == names(2)));
+mO2 = RO.Message(RO.Dataset == names(2));
+check(isscalar(fO1) && isfile(fO1) && isempty(fO2) && height(RO) == 2 && all(RO.Status == "done") ...
+    && contains(mO2, "1 not written: this run already wrote a file at that path") && ~contains(mO2, "kept") ...
+    && isempty(rO.KeptFiles) && isequal(rO.WrittenFiles, fO1), ...
+    ['Export.Overwrite off, two datasets'' pages with one file name: the first is written and in its row; the second is ' ...
+    'not written, nor "kept from an earlier run" (KeptFiles empty: the lab database records the file once, the first''s ' ...
+    'output), and its row says so']);
+pxO1 = imread(fO1);   % the first dataset's page
+cfgO.Export.Overwrite = true;
+rO2 = EphysAnalysisRunner(cfgO, LogFcn=[]);
+RO2 = rO2.run();
+pxO2 = imread(fO1);
+check(isequal(splitFiles(RO2.Files(RO2.Dataset == names(1))), fO1) && isempty(splitFiles(RO2.Files(RO2.Dataset == names(2)))) ...
+    && contains(RO2.Message(RO2.Dataset == names(2)), "1 not written") && isequal(size(pxO1), size(pxO2)) ...
+    && nnz(any(pxO1 ~= pxO2, 3)) <= 16, ...
+    ['Export.Overwrite on: the second dataset''s page is not written over the first''s within the run (the file holds the ' ...
+    'first dataset''s page, as its row says), and its row says so']);
+outOS = fullfile(root, 'outOneNameScript');
+cfgOS = cfgO;   % Overwrite on
+cfgOS.Export.Folder = outOS;
+scriptO = fullfile(root, 'scripts', 'one_name_standalone.m');
+txtO = EphysAnalysisScript.standalone(cfgOS, File=scriptO);
+outSO = runScript(scriptO);
+[sameO, pngsO] = samePngs(outO, outOS);
+check(sameO && isscalar(pngsO) && contains(outSO, "not written: this script already wrote a file at that path") ...
+    && contains(txtO, "runFiles = [runFiles written];"), ...
+    ['the standalone script follows the run''s rule: one file, the first dataset''s page, pixel for pixel the run''s; ' ...
+    'the second dataset''s said not written']);
+
 fprintf('\n================  %d passed, %d failed  ================\n', nPass, nFail);
 if nFail > 0
     error('test_EphysAnalysisRunner:Failures', '%d checks failed.', nFail);
 end
+end
+
+
+function throwOnCanceledLine(msg)
+%throwOnCanceledLine  A LogFcn that throws on the run's "Canceled." line.
+if string(msg) == "Canceled."
+    error('test_EphysAnalysisRunner:LogClosed', 'the Log is closed');
+end
+end
+
+
+function throwOnDoneLine(msg)
+%throwOnDoneLine  A LogFcn that throws on a figure's "done" line.
+if contains(string(msg), " done (")
+    error('test_EphysAnalysisRunner:LogClosed', 'the Log is closed');
+end
+end
+
+
+function f = splitFiles(s)
+%splitFiles  A Results row's Files ("a; b") as a string row; none for "".
+f = reshape(strtrim(split(string(s), ";")), 1, []);
+f = f(f ~= "");
 end
 
 

@@ -16,7 +16,19 @@ function test_EphysFigGenApp(opts)
 %   file, a config opened with a rate); the Data tab's Filter... (1g: the
 %   Filters row, the dialog on the config's filters, a cutoff past
 %   Nyquist refused, OK into Source.SignalFilter and the runner, Cancel,
-%   a config opened with a filter); a panel's Filter... (5d.sigfilter:
+%   a config opened with a filter); a run's datasets and config (1h: a
+%   project root changed since the scan stopping Run, Plan, Generate and
+%   Test report with an alert, the scan line back with the root, a tick
+%   no source change; an Export folder typed while a run goes, from a
+%   timer, not reaching that run; a config whose datasets' pages get the
+%   same file names warned of at Run, which goes on; a config opened while its root
+%   is not there keeping its own selection; a config's keys found as the
+%   runner finds them and the ones not found said; folders mode's ticks
+%   in the config, its scripts and its reopened scan; a folders-mode
+%   config whose selection is a project's keys, every folder ticked and
+%   said; a config opened without a scan of its own keeping the keys the
+%   listing lacks, said, Run and Plan refused meanwhile, forgotten when
+%   another config opens); a panel's Filter... (5d.sigfilter:
 %   the row by type, OK one undo step into options.filter, the preview
 %   read through it, closed with another panel); the Probe... buttons
 %   beside the Channels rows (5d.probepick: the window on the figure's
@@ -169,6 +181,16 @@ function test_EphysFigGenApp(opts)
 %   report's Title and Folder, their tokens with their values now, a token
 %   added after a _, as a subfolder, a whole folder at the start, after a
 %   space);
+%   the preview's badge (5x: Drawn only for a drawing of the figure as it
+%   is now -- a title typed and another dataset picked from a timer while
+%   the preview computes with Auto off leave it Out of date; a look
+%   remembered in the preview's editor and undone, and one remembered in
+%   an Open in window figure, too; a larger Export tab page draws it again
+%   at its new scale with nothing computed, and another figure's kept
+%   preview, out of date in the tree, is drawn again from the cache when
+%   shown; an observation picked and a y axis moved from a timer while a
+%   run goes leave it Out of date; Open in window and Export preview
+%   compute such a drawing again first);
 %   Arrange over the preview (5h.arrange: the overlay and a box per panel,
 %   the outline hidden; a drag's step snapped with the guides and the
 %   fields, the figure untouched; its release one undo step, laid out in
@@ -186,6 +208,9 @@ function test_EphysFigGenApp(opts)
 %   panel to the page; Space evenly with even gaps and a Gap; one undo
 %   step each, laid out in place; its choices as preferences, the Gap in
 %   the units picked);
+%   the stuck and broken states (5y: an interrupted preview, Run and Scan while one computes, Close with a failing
+%   step or during a run, Max groups above 100, a config a control cannot show, the arrows after a click elsewhere,
+%   the notepad after a re-scan, Apply last change after Up / Down, the Shift+click selection after another figure);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -257,9 +282,14 @@ needs = ["5d.observe" "5d.add"; "5d.layers" "5d.add"; "5d.keys" "5d.layers"; "5d
     "5d.type" "5d.add"; "5d.applyall" "5d.layers"; "5d.multi" "5d.layers"; "5d.look" "5d.add"; "5d.otherconfig" "5d.add"; ...
     "5d.quick" "5d.layers"; "5d.remove" "5d.layers"; "5d.arrange" "5d.add"; "5d.newpanel" "5d.add"; "5d.follow" "5d.add"; ...
     "5d.probemap" "5d.add"; "5d.eventtrace" "5d.add"; "5d.trialmeasure" "5d.add"; "5d.psth" "5d.remove"; "5d.scan" "5d.add"; ...
-    "5d.saveprefs" "5d.remove"; "1e" "1"; "1f" "1"; "1g" "1"; "5d.sigfilter" "5d.layers"; "5d.probepick" "5d.layers"];
+    "5d.saveprefs" "5d.remove"; "1e" "1"; "1f" "1"; "1g" "1"; "1h" "1"; "1i" "1"; "5d.sigfilter" "5d.layers"; "5d.probepick" "5d.layers"];
 S = TestSections(mfilename, opts.Sections, Needs=needs);
 timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a failure on the way
+
+    function restoreFile1i(from, to)
+        %restoreFile1i  A file section 1i moved away put back, when it is still where it was put.
+        if isfile(from) && ~isfile(to); movefile(from, to); end
+    end
 
     function savedConfig()
         %savedConfig  The config saved to cfgFile once (section 4's Save As): onSaveConfig then saves there instead of opening uiputfile.
@@ -688,6 +718,13 @@ if S.sec("1d", "messages: what stops an action is an alert that says what to do;
     check(numel(A) == 1 && A(1).Message == "No processed recordings under " + string(emptyProj) + ". Check the root, or run the pipeline app first." ...
         && contains(app2.ScanLabel.Text, "No processed recordings"), ...
         'Scan of a root with no processed recordings: "No processed recordings under <root>. Check the root, or run the pipeline app first."');
+    app2.RootField.Value = fullfile(root, 'nothere');
+    app2.onConfigChanged("source");
+    changed2 = string(app2.ScanLabel.Text);
+    app2.RootField.Value = emptyProj;
+    app2.onConfigChanged("source");
+    check(contains(changed2, "The source changed") && startsWith(string(app2.ScanLabel.Text), "No processed recordings under " + string(emptyProj)), ...
+        'the root changed and back to the one scanned with no processed recordings: the scan line says so again, not "0 dataset(s) found"');
     closeApp(app2);
     % a run that cannot start: no figure enabled (the config error is named, the Export tab's table lists it), then no dataset ticked
     noFigures();
@@ -919,6 +956,74 @@ if S.sec("1f", "Data tab: Downsample... (the Signals row, the dialog on the conf
     app.applyConfig(cfg0);
 end
 
+if S.sec("1i", "Data tab and File menu: the files each dataset has are read once per scan; Open recent keeps a config that is not found; the window fits the monitor that holds it; a toolbox is installed and licensed")
+    % the datasets table reads which files exist at a scan, not at every star: a file that goes away is noticed at the next Scan
+    app.selectTab(app.TabData);
+    kO1i = kF2;
+    if app.ActiveIdx == kF2; kO1i = kF1; end
+    rowOf1i = @() find(app.DatasetsTable.Data.Idx == kO1i, 1);
+    fO1i = reshape(string(app.Runner.Outputs(kO1i).signalFile("LFP")), 1, []);
+    app.refreshDatasetsTable();
+    has1i = ~isempty(fO1i) && app.DatasetsTable.Data.LFP(rowOf1i()) == "✓";
+    tmp1i = fO1i + ".moved";
+    movedAway1i = false;
+    if has1i
+        try
+            for q = 1:numel(fO1i); movefile(fO1i(q), tmp1i(q)); end
+            movedAway1i = true;
+        catch
+        end
+    end
+    restore1i = onCleanup(@() arrayfun(@(q) restoreFile1i(tmp1i(q), fO1i(q)), 1:numel(fO1i))); %#ok<NASGU> the extract back, whatever happens
+    T1i = app.DatasetsTable.Data;
+    T1i.Star(rowOf1i()) = true;
+    app.DatasetsTable.Data = T1i;
+    app.onDatasetsTableEdited([]);   % a star: the table is filled again
+    keptMark1i = app.DatasetsTable.Data.LFP(rowOf1i()) == "✓";
+    T1i = app.DatasetsTable.Data;
+    T1i.Star(rowOf1i()) = false;
+    app.DatasetsTable.Data = T1i;
+    app.onDatasetsTableEdited([]);
+    app.onScan();
+    goneMark1i = app.DatasetsTable.Data.LFP(find(app.DatasetsTable.Data.Idx == kO1i, 1)) == "";
+    for q = 1:numel(fO1i); if isfile(tmp1i(q)); movefile(tmp1i(q), fO1i(q)); end; end
+    app.onScan();
+    backMark1i = app.DatasetsTable.Data.LFP(find(app.DatasetsTable.Data.Idx == kO1i, 1)) == "✓";
+    app.onTickDatasets("shown");
+    app.selectDataset(kF1);
+    app.selectTab(app.TabData);
+    check(has1i && movedAway1i && keptMark1i && goneMark1i && backMark1i, ...
+        sprintf(['the datasets table reads which files exist once per scan: an extract moved away still shows after a star (%d), ' ...
+        'is gone at the next Scan (%d) and back at the one after (%d); moved (%d)'], keptMark1i, goneMark1i, backMark1i, movedAway1i));
+
+    % File > Open recent: a config that is not found stays in the list, gray, instead of being dropped for good
+    recent1i = app.RecentConfigs;
+    gone1i = string(fullfile(root, 'unmounted_share', 'analysis.json'));
+    app.RecentConfigs = [gone1i recent1i];
+    app.refreshRecentMenu();
+    items1i = app.RecentMenu.Children;
+    at1i = find(string({items1i.Text}) == gone1i + " (not found)");
+    check(isscalar(at1i) && string(items1i(at1i).Enable) == "off" && any(app.RecentConfigs == gone1i) && numel(app.RecentConfigs) == numel(recent1i) + 1, ...
+        'Open recent keeps a config that is not found, listed as "(not found)" and not pickable, and in the list for the next time');
+    app.RecentConfigs = recent1i;
+    app.refreshRecentMenu();
+
+    % fitToScreen: the monitor that holds most of the window, else the primary one
+    mon1i = [1 1 1920 1080; 1921 1 1280 1024];   % the primary, and a second one at its right
+    on1 = fitToScreen([100 100 800 600], Monitors=mon1i, Primary=mon1i(1, :));
+    on2 = fitToScreen([2100 200 800 600], Monitors=mon1i, Primary=mon1i(1, :));
+    big2 = fitToScreen([1921 1 3000 3000], Monitors=mon1i, Primary=mon1i(1, :));
+    away = fitToScreen([5000 200 800 600], Monitors=mon1i, Primary=mon1i(1, :));
+    check(isequal(on1, [100 100 800 600]) && isequal(on2, [2100 200 800 600]) && isequal(big2, [1930 50 1260 894]) && isequal(away, [1110 200 800 600]), ...
+        sprintf(['a window fits the monitor that holds it (on the second monitor it stays there, a larger one is cut to that monitor), ' ...
+        'and one on no monitor goes to the primary (%s | %s | %s | %s)'], mat2str(on1), mat2str(on2), mat2str(big2), mat2str(away)));
+
+    % toolboxAvailable: installed (ver) and licensed (license), not a license alone
+    check(~toolboxAvailable("noSuchToolbox", "Image_Toolbox") && ~toolboxAvailable("images", "No_Such_Feature") ...
+        && toolboxAvailable("images", "Image_Toolbox") == (~isempty(ver('images')) && license('test', 'Image_Toolbox')), ...
+        'a toolbox is available when it is installed and licensed: a license for a toolbox that is not installed is not enough');
+end
+
 if S.sec("1g", "Data tab: Filter... (the Filters row, the dialog on the config's filters at the active dataset's rates, a cutoff past Nyquist refused, OK into Source.SignalFilter and the runner, Cancel, a config opened with a filter)")
     app.selectTab(app.TabData);
     app.selectDataset(1);
@@ -980,6 +1085,230 @@ if S.sec("1g", "Data tab: Filter... (the Filters row, the dialog on the config's
         && ~contains(app.ScanLabel.Text, "source changed"), ...
         'a config holding a filter shows it in the Filters row and keeps it through a gather; no scan asked for');
     app.applyConfig(cfg0);
+end
+
+if S.sec("1h", "a run's datasets and config: a source changed since the scan stops Run, Plan, Generate and Test report; an edit while a run goes; warnings at Run; a config's ticks (both modes), keys not found, a project's keys in folders mode, keys kept without a scan")
+    wasCapture1h = AppDialog.capture(true);
+    captureBack1h = onCleanup(@() AppDialog.capture(wasCapture1h)); %#ok<NASGU> the tests read the alerts, none is shown
+    filterBy(app, '(any)', '(any)', 'any');
+    app.onTickDatasets("shown");   % every dataset ticked
+    c0 = app.Config;   % put back at the end, with its saved state, the recent list and the last config file
+    saved0 = app.SavedConfigStruct;
+    recent0 = app.RecentConfigs;
+    hadLast = AppPrefs.ispref(g, 'LastConfigFile');
+    last0 = "";
+    if hadLast; last0 = AppPrefs.getpref(g, 'LastConfigFile'); end
+    root0 = string(app.RootField.Value);
+    app.selectTab(app.TabFigures);
+    app.onAddFigure("psth");
+    kH = app.SelectedFigure;
+    idH = app.Config.Figures(kH).id;
+    out1h = fullfile(root, 'out1h');
+    app.ExportControls.Folder.Value = fullfile(out1h, '{Name}');
+    app.onConfigChanged("export");
+    % the source changed since the scan (another project root): nothing runs on the old datasets
+    other = fullfile(root, 'otherproj');
+    mkdir(other);
+    app.RootField.Value = other;
+    app.onConfigChanged("source");
+    changedLine = string(app.ScanLabel.Text);
+    AppDialog.captured(Clear=true);
+    Rr = app.onRunExport(Figures=idH, SessionFigures=string.empty(1, 0), Export=false, Report=false);
+    Ar = AppDialog.captured(Clear=true);
+    Tp = app.onPlan();
+    Ap = AppDialog.captured(Clear=true);
+    app.selectTab(app.TabFigures);
+    app.onFigureSelected(kH);
+    Rg = app.onGenerateFigure();
+    Ag = AppDialog.captured(Clear=true);
+    if isnumeric(app.FigureObservationDropDown.ItemsData) && ismember(1, app.FigureObservationDropDown.ItemsData)
+        app.FigureObservationDropDown.Value = 1;   % the first unit
+        app.onFigureObservationChanged();
+    end
+    [Rt, ft] = app.onTestReport(Open=false);
+    At = AppDialog.captured(Clear=true);
+    refused = @(A, title) numel(A) == 1 && A(1).Title == title && contains(A(1).Message, "changed since the last scan") ...
+        && contains(A(1).Message, "Press Scan");
+    check(contains(changedLine, "The source changed") && height(Rr) == 0 && refused(Ar, "Run") && height(Tp) == 0 && refused(Ap, "Plan") ...
+        && height(Rg) == 0 && refused(Ag, "Generate") && height(Rt) == 0 && ft == "" && refused(At, "Test report") ...
+        && ~app.Running && app.Tabs.SelectedTab == app.TabData && ~isfolder(out1h), ...
+        'the project root changed since the scan: Run, Plan, Generate and Test report draw nothing, an alert says to press Scan first, on the Data tab');
+    app.RootField.Value = root0;
+    app.onConfigChanged("source");
+    backLine = string(app.ScanLabel.Text);
+    T1h = app.DatasetsTable.Data;
+    T1h.Run = T1h.Idx == kF1;
+    app.DatasetsTable.Data = T1h;
+    app.onDatasetsTableEdited([]);   % a tick: the config's selection, no source change
+    app.applyConfig(app.gatherConfig());   % as Undo applies one: its selection the ticks
+    tickLine = string(app.ScanLabel.Text);
+    app.onTickDatasets("shown");
+    AppDialog.captured(Clear=true);
+    Tp2 = app.onPlan();
+    check(~contains(backLine, "source changed") && ~contains(tickLine, "source changed") && height(Tp2) >= 2 ...
+        && isempty(AppDialog.captured(Clear=true)), ...
+        'the root back to the one scanned: the scan line says what the scan found again; a tick and a config applied with it are no source change; Plan plans');
+    % an edit made while the run goes is the next run's: the run keeps the config it started with
+    outEd = fullfile(root, 'out1h_edited');
+    setappdata(groot, 'editProbe', "");
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) editDuringRun(t, app, fullfile(outEd, '{Name}')));
+    start(tm);
+    Re = app.onRunExport(Figures=idH, SessionFigures=string.empty(1, 0), Export=true, Report=false);
+    stop(tm); delete(tm);
+    edProbe = string(getappdata(groot, 'editProbe'));
+    rmappdata(groot, 'editProbe');
+    namesH = app.Runner.Names(app.tickedDatasetIndices());
+    pagesH = arrayfun(@(n) ~isempty(dir(fullfile(out1h, n, '*.png'))), namesH);
+    stEd = ""; msgEd = "";   % (a refused Run returns a table with no columns)
+    if istable(Re) && all(ismember({'Status', 'Message'}, Re.Properties.VariableNames))
+        stEd = strjoin(string(Re.Status), ","); msgEd = strjoin(string(Re.Message), " | ");
+    end
+    whyEd = sprintf('probe "%s"; %d row(s) %s; messages "%s"; pages in the start folder %s; new folder made %d; open folder "%s"; config folder "%s"; alerts %d', ...
+        edProbe, height(Re), stEd, msgEd, mat2str(pagesH), isfolder(outEd), app.LastExportFolder, app.Config.Export.Folder, ...
+        numel(AppDialog.captured()));
+    check(edProbe == string(fullfile(outEd, '{Name}')) && height(Re) == 2 && all(Re.Status == "done") ...
+        && all(pagesH) && ~isfolder(outEd) ...
+        && startsWith(app.LastExportFolder, string(out1h)) && app.Config.Export.Folder == string(fullfile(outEd, '{Name}')), ...
+        ['an Export folder typed while the run goes reaches the runner but not that run: both datasets'' pages in the folder it ' ...
+        'started with (and Open figure folder), none in the new one; the edit stays for the next run (' whyEd ')']);
+    % the config's warnings (pages with the same file names: the first dataset's written, the others' not) are said at Run, and the run goes on
+    app.ExportControls.Folder.Value = fullfile(root, 'out1h_flat');   % no {Name} and no {OutputFolder} ...
+    app.ExportControls.FilenamePattern.Value = '{Plot}';              % ... nor here: the datasets' files would have the same names
+    app.onConfigChanged("export");
+    AppDialog.captured(Clear=true);
+    Rw = app.onRunExport(Figures=idH, SessionFigures=string.empty(1, 0), Datasets=kF1, Export=true, Report=false);
+    Aw = AppDialog.captured(Clear=true);
+    logW = strjoin(string(app.LogArea.Value), newline);
+    check(numel(Aw) == 1 && Aw(1).Title == "Run" && contains(Aw(1).Message, "leaves the others' unwritten") && contains(Aw(1).Message, "the run goes on") ...
+        && height(Rw) == 1 && Rw.Status == "done" && any(contains(app.IssuesTable.Data.Message, "pages get the same file names")) ...
+        && contains(logW, "Run: warning: ") && contains(string(app.StatusBar.Text), "warning(s)"), ...
+        'a config whose datasets'' pages would get the same file names: Run says the first dataset''s are written and the others'' not (an alert, the issues table, the Log, the status bar) and runs');
+    % a config opened while its root is not there keeps its own selection, not the ticks of the config shown before
+    T1h = app.DatasetsTable.Data;
+    T1h.Run = T1h.Idx == kF1;
+    app.DatasetsTable.Data = T1h;
+    app.onDatasetsTableEdited([]);   % only the first dataset ticked
+    cB = app.gatherConfig();
+    cB.Source.Root = string(fullfile(root, 'unreachable_root'));   % not there: not scanned when opened
+    cB.Source.Selection = "list";
+    cB.Source.Datasets = app.Runner.Keys(kF2);
+    fileB = fullfile(root, 'unreachable.json');
+    cB.save(fileB);
+    app.openConfigFile(fileB);
+    statusB = string(app.StatusBar.Text);
+    SB = app.gatherConfig().Source;
+    check(contains(statusB, "was not scanned") && SB.Selection == "list" && isequal(SB.Datasets, app.Runner.Keys(kF2)) ...
+        && contains(string(app.ScanLabel.Text), "The source changed"), ...
+        'a config opened while its root is not there keeps its own selection at the next gather (not the last config''s ticks); the scan line asks for a scan');
+    % its keys tick the datasets as the runner finds them; a key not found is said
+    key1 = app.Runner.Keys(kF1);
+    k1typed = key1;
+    if ispc; k1typed = upper(key1); end   % Windows paths ignore case, as EphysProject.findByKey does
+    cC = cB;
+    cC.Source.Root = root0;
+    cC.Source.Datasets = [k1typed "nosuch/dataset"];
+    fileC = fullfile(root, 'keys_not_found.json');
+    cC.save(fileC);
+    app.openConfigFile(fileC);
+    statusC = string(app.StatusBar.Text);
+    logC = strjoin(string(app.LogArea.Value), newline);
+    check(isequal(app.Ticked, app.Runner.Keys == key1) && contains(statusC, "1 dataset(s) ticked in the config were not found") ...
+        && contains(statusC, "nosuch/dataset") && contains(logC, "nosuch/dataset"), ...
+        'a config''s dataset keys tick the datasets the runner finds by them (case ignored on Windows); a key not found is said on the status bar and in the Log');
+    % folders mode: the ticks are the config's selection, kept by a saved config, its scan and the scripts
+    app.openFolders(F.folders);
+    allOn = all(app.Ticked) && app.Config.Source.Mode == "folders" && isequal(app.Runner.Keys, F.folders);
+    Tf = app.DatasetsTable.Data;
+    Tf.Run = Tf.Idx == 1;
+    app.DatasetsTable.Data = Tf;
+    app.onDatasetsTableEdited([]);
+    SF = app.Config.Source;
+    cF = app.gatherConfig();
+    rF = EphysAnalysisRunner(cF, LogFcn=[]);   % what the compact script runs on the saved config
+    txtF = EphysAnalysisScript.standalone(cF);
+    fileD = fullfile(root, 'folders_ticks.json');
+    cF.save(fileD);
+    app.openConfigFile(fileD);
+    check(allOn && SF.Selection == "list" && isequal(SF.Datasets, F.folders(1)) && isequal(rF.Keys, F.folders(1)) ...
+        && contains(txtF, "folders = " + EphysPipelineScript.literal(F.folders(1)) + ";") ...
+        && isequal(app.Ticked, [true false]) && isequal(app.Runner.Keys, F.folders), ...
+        ['folders mode: a Run tick goes into the config''s selection; the runner (the compact script), the standalone script ' ...
+        'and the config reopened and scanned run that folder alone']);
+    % a folders-mode config saved before folders mode had ticks of its own: its "list" is a project's keys, carried over
+    % from project mode, which name no folder: opened and scanned, every folder is ticked, as such a config ran
+    cL = cF;
+    cL.Source.Selection = "list";
+    cL.Source.Datasets = reshape(string(F.keys), 1, []);
+    fileL = fullfile(root, 'folders_legacy.json');
+    cL.save(fileL);
+    app.openConfigFile(fileL);
+    statusL = string(app.StatusBar.Text);
+    logL = strjoin(string(app.LogArea.Value), newline);
+    SL = app.gatherConfig().Source;
+    check(all(app.Ticked) && isequal(app.Runner.Keys, F.folders) && SL.Selection == "all" && contains(statusL, "Every folder is ticked") ...
+        && contains(logL, "which name no output folder") && contains(logL, F.keys(1)), ...
+        ['a folders-mode config whose selection is a project''s keys (saved before folders mode had ticks) ticks every folder ' ...
+        'when it is opened and scanned, as such a config ran; the status bar and the Log say so, and the next gather saves "all"']);
+    % a config opened while one of its folders is not there is not scanned: the datasets listed, the last scan of its
+    % folders, are ticked by its selection; a folder it ticks that the listing lacks is said, and stays in its selection
+    [~, leafG] = fileparts(F.folders(2));
+    copyG = string(fullfile(root, 'folders_copy', leafG));   % a copy of the second dataset's folder, under its own name
+    mkdir(fileparts(copyG));
+    copyfile(F.folders(2), copyG);
+    cG = cF;
+    cG.Source.Folders = [F.folders(1) copyG];
+    cG.Source.Selection = "all";
+    cG.Source.Datasets = string.empty(1, 0);
+    fileG = fullfile(root, 'folders_copy.json');
+    cG.save(fileG);
+    app.openConfigFile(fileG);   % scanned: the first folder and the copy
+    app.selectDataset(1);        % the copy is not the dataset open: it goes next
+    scannedG = isequal(app.Runner.Keys, [F.folders(1) copyG]);
+    rmdir(fileparts(copyG), 's');
+    cH = cG;
+    cH.Source.Selection = "list";
+    cH.Source.Datasets = [copyG F.folders(2)];   % the copy, and a folder the listing lacks
+    fileH = fullfile(root, 'folders_copy_ticks.json');
+    cH.save(fileH);
+    app.openConfigFile(fileH);   % one of its folders is not there: not scanned
+    statusH = string(app.StatusBar.Text);
+    logH = strjoin(string(app.LogArea.Value), newline);
+    SH = app.gatherConfig().Source;
+    check(scannedG && ~isfolder(copyG) && isequal(app.Ticked, [false true]) && SH.Selection == "list" ...
+        && isequal(SH.Datasets, [copyG F.folders(2)]) && contains(statusH, "1 dataset(s) ticked in the config are not among the datasets listed") ...
+        && contains(statusH, F.folders(2)) && contains(logH, "stay in the config's selection"), ...
+        ['a config opened without a scan of its own, the datasets listed the last scan of its folders: its selection ticks ' ...
+        'them; a folder it ticks that the listing lacks is said (the status bar, the Log) and stays in its selection, so a Save keeps it']);
+    % ... and while it does, Run and Plan stop with an alert to press Scan: a run would leave that dataset out while its
+    % record names it; another config opened forgets those keys
+    AppDialog.captured(Clear=true);
+    Ru1h = app.onRunExport(Export=false, Report=false);
+    Au1h = AppDialog.captured(Clear=true);
+    Tu1h = app.onPlan();
+    Apu1h = AppDialog.captured(Clear=true);
+    app.openConfigFile(fileB);   % another config, its root not there: not scanned
+    check(height(Ru1h) == 0 && numel(Au1h) == 1 && Au1h(1).Title == "Run" && contains(Au1h(1).Message, "the last scan did not list") ...
+        && contains(Au1h(1).Message, "not among its output folders") && contains(Au1h(1).Message, "takes them out of the selection") ...
+        && height(Tu1h) == 0 && numel(Apu1h) == 1 && Apu1h(1).Title == "Plan" && ~app.Running && isempty(app.TickedNotListed), ...
+        ['while the config names a folder the listing lacks, Run and Plan stop with an alert that says what a Scan does in ' ...
+        'folders mode (takes it out of the selection; a run would leave it out while its record names it); another config ' ...
+        'opened forgets those keys']);
+    % put back: the config, its saved state, the recent list and the last config file; the project scanned, every dataset ticked
+    app.applyConfig(c0, MarkSaved=true);
+    app.SavedConfigStruct = saved0;
+    app.updateTitle();
+    app.RecentConfigs = recent0;
+    app.refreshRecentMenu();
+    app.savePreferences();
+    if hadLast
+        AppPrefs.setpref(g, 'LastConfigFile', last0);
+    elseif AppPrefs.ispref(g, 'LastConfigFile')
+        AppPrefs.rmpref(g, 'LastConfigFile');
+    end
+    app.onScan();
+    app.onTickDatasets("shown");
+    app.selectDataset(kF1);
+    app.selectTab(app.TabData);
 end
 
 if S.sec("2", "Alignment: group by Depth")
@@ -1794,19 +2123,65 @@ if S.sec("5d.stale", "Out of date with Auto off; Cancel on the busy card")
         'with Auto off an edit leaves the preview Out of date; Preview draws it with the new title');
     FE.title.Value = '';
     app.onConfigChanged("figure");
+    axBefore5s = figAxes();   % the drawing the cancel must leave
     tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(~, ~) app.onCancelFigurePreview());   % a click on the busy card's Cancel
     start(tm);
     app.refreshFigurePreview(Force=true);
     stop(tm); delete(tm);
-    check(app.FigurePreviewState == "canceled" && string(app.FigurePreviewBadge.Text.Text) == "Canceled" && isempty(app.FigurePreviewResult) ...
+    check(app.FigurePreviewState == "stale" && string(app.FigurePreviewBadge.Text.Text) == "Out of date" && isstruct(app.FigurePreviewResult) ...
+        && ~isempty(axBefore5s) && all(isvalid(axBefore5s)) && numel(figAxes()) == numel(axBefore5s) ...
+        && contains(string(app.FigurePreviewLabel.Text), "was canceled") ...
         && isempty(findall(app.FigurePreviewPanel, 'Tag', 'previewBusyCard')) && isempty(app.Runner.PollFcn) ...
         && ~isfinite(app.FigurePreviewSeconds) && string(app.Fig.Pointer) == "arrow", ...
-        'Cancel on the busy card stops the figure preview while it computes: Canceled, the card and the polling gone');
+        'Cancel on the busy card over a drawing stops the figure preview while it computes: the drawing stays, Out of date (never Drawn), the line says canceled, the card and the polling gone');
     app.autoFigurePreview();
-    canceled = app.FigurePreviewState == "canceled";
+    waits5s = app.FigurePreviewState == "stale" && ~isfinite(app.FigurePreviewSeconds);
     app.refreshFigurePreview(Force=true);
-    check(canceled && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, sprintf(['an edit does not redraw a canceled preview; ' ...
-        'Preview does (canceled after the edit: %d; then %s, %d axes)'], canceled, app.FigurePreviewState, numel(figAxes())));
+    check(waits5s && app.FigurePreviewState == "drawn" && numel(figAxes()) == 3, sprintf(['an edit does not redraw a canceled preview; ' ...
+        'Preview does (waiting after the edit: %d; then %s, %d axes)'], waits5s, app.FigurePreviewState, numel(figAxes())));
+    % the size limit over a drawing: the drawing stays, Out of date, the line says what to do (Preview reads it)
+    app.PreviewMaxMB = -1;   % every extract is over the limit
+    app.refreshFigurePreview();
+    gate5s = app.FigurePreviewState == "stale" && isstruct(app.FigurePreviewResult) && numel(figAxes()) == 3 && ~isfinite(app.FigurePreviewSeconds) ...
+        && contains(string(app.FigurePreviewLabel.Text), "press Preview to read it");
+    app.refreshFigurePreview(Force=true);
+    app.PreviewMaxMB = 500;
+    check(gate5s && app.FigurePreviewState == "drawn", 'a signal extract over the size limit leaves the drawing in the panel, Out of date, not emptied; Preview draws it');
+    % a cancel with no drawing before it: the panel empty but for why, Canceled; and coming back to the figure does not compute it again
+    slider5s = app.FigureAutoSlider.Value;
+    k5s = app.SelectedFigure;
+    app.FigureAutoSlider.Value = 0;
+    app.onAddFigure("rasterPsth");   % a figure not drawn yet (Auto is off)
+    kNew5s = app.SelectedFigure;
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(~, ~) app.onCancelFigurePreview());
+    start(tm);
+    app.refreshFigurePreview(Force=true);
+    stop(tm); delete(tm);
+    none5s = app.FigurePreviewState == "canceled" && string(app.FigurePreviewBadge.Text.Text) == "Canceled" && isempty(app.FigurePreviewResult) && isempty(figAxes());
+    app.FigureAutoSlider.Value = 1;
+    app.onFigureSelected(k5s);
+    busy5s = app.FigurePreviewBusyCount;
+    app.onFigureSelected(kNew5s);
+    check(none5s && app.FigurePreviewState == "canceled" && app.FigurePreviewBusyCount == busy5s && ~isfinite(app.FigurePreviewSeconds), ...
+        sprintf(['a cancel with no drawing before it empties the panel, Canceled; with Auto on, coming back to the figure shows it as it was ' ...
+        'and computes nothing (%s, %d busy cards since)'], app.FigurePreviewState, app.FigurePreviewBusyCount - busy5s));
+    % ... but after another dataset was picked meanwhile the cancel was about that one, not this: coming back computes it again
+    act5s = app.ActiveIdx;
+    other5s = kF2;
+    if act5s == kF2; other5s = kF1; end
+    app.onFigureSelected(k5s);
+    app.selectDataset(other5s);
+    busyD5s = app.FigurePreviewBusyCount;
+    app.onFigureSelected(kNew5s);
+    stateD5s = app.FigurePreviewState;
+    again5s = app.FigurePreviewBusyCount > busyD5s && stateD5s ~= "canceled";
+    nD5s = app.FigurePreviewBusyCount - busyD5s;
+    app.selectDataset(act5s);
+    check(again5s, sprintf(['after another dataset was picked while another figure showed, coming back to the canceled figure ' ...
+        'computes it again, its badge not speaking of the other dataset (%s, %d busy cards since)'], stateD5s, nD5s));
+    app.onRemoveFigure();
+    app.onFigureSelected(k5s);
+    app.FigureAutoSlider.Value = slider5s;
     % the Auto slider: the limit it gives, in steps of 0.05 (0.9: under 18 s); Ctrl+T off and on again where it was
     mods5 = {'control'};
     if ismac; mods5 = {'command'}; end
@@ -2613,6 +2988,18 @@ if S.sec("5d.remove", "Remove panel, Duplicate, Remove")
         'Duplicate copies the figure as "Raster+PSTH units (2)" (the id followed the panel removed), right after it, and selects the copy');
     app.onRemoveFigure();
     check(isscalar(app.Config.Figures) && app.SelectedFigure == 1 && string(FE.id.Value) == "Raster+PSTH units", 'Remove takes the copy away');
+    app.onAddFigure("blank");   % a figure after the one to duplicate: Undo must not land on it
+    app.onFigureSelected(1);
+    app.onDuplicateFigure();
+    check(numel(app.Config.Figures) == 3 && app.SelectedFigure == 2, 'Duplicate of the first of two figures puts the copy second and selects it');
+    app.onUndoRedo("undo");
+    check(numel(app.Config.Figures) == 2 && app.SelectedFigure == 1 && string(FE.id.Value) == "Raster+PSTH units", ...
+        'Undo of Duplicate selects the original figure, not the one after it');
+    app.onUndoRedo("redo");
+    check(numel(app.Config.Figures) == 3 && app.SelectedFigure == 2 && string(FE.id.Value) == "Raster+PSTH units (2)", 'Redo of Duplicate selects the copy');
+    app.onRemoveFigure();
+    app.onRemoveFigure();   % the copy, then the blank figure: the section's figure alone again
+    check(isscalar(app.Config.Figures) && app.SelectedFigure == 1, 'the extra figures taken away');
 end
 
 if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where (the first fills the page, below / above / right / left, the free space, a rect), Remove, the rect's fields in each unit (typed, refused, kept on the page), the units switched, Boxes mean and Padding, Bring forward / Send back, Snap and its step, Arrange's button and Escape, layer and figure Up and Down (Auto off: nothing here needs drawing)")
@@ -2733,6 +3120,19 @@ if S.sec("5d.arrange", "the panels' places on a blank figure: New panel by Where
     unitsTo("cm");
     check(snapPref && stepIn && FE.snapStep.Value == 0.25 && FE.setCorners.Enable == "off" && contains(string(FE.setCorners.Tooltip), "Arrange"), ...
         'Snap and its step are preferences (no edit, no undo step); the step keeps its length in other units; Set corners waits for Arrange');
+    % the step keeps its exact length through the units: 0.123 in is 0.31 cm shown, and 0.123 in again, not 0.122, on the way back
+    unitsTo("in");
+    FE.snapStep.Value = 0.123;
+    FE.snapStep.ValueChangedFcn(FE.snapStep, []);
+    unitsTo("cm");
+    shownCm5a = FE.snapStep.Value;
+    FE.snap.Value = true;
+    FE.snap.ValueChangedFcn(FE.snap, []);   % the Snap box alone does not replace the step by what the box shows
+    exactCm5a = abs(app.FigureSnapStep.value - 0.123 * 2.54) < 1e-9;
+    unitsTo("in");
+    check(shownCm5a == 0.31 && exactCm5a && FE.snapStep.Value == 0.123 && abs(app.FigureSnapStep.value - 0.123) < 1e-9, ...
+        sprintf('the snap step keeps its exact length through the units and the Snap box (0.123 in: %g cm shown, back %g in)', shownCm5a, FE.snapStep.Value));
+    unitsTo("cm");
     FE.snap.Value = true;
     FE.snap.ValueChangedFcn(FE.snap, []);
     FE.snapStep.Value = 0.5;
@@ -3865,7 +4265,7 @@ if S.sec("5f", "Generate a figure; figures on the Export tab")
     clear restoreAutoLimit
 end
 
-if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the preview, Generate")
+if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the preview, a Figure: pick while a run goes, shown again after an Export page change, Generate")
     savedConfig();
     noFigures();
     groupedBy("Depth");
@@ -3943,6 +4343,49 @@ if S.sec("5g", "a figure across sessions: the Sessions section, the picker, the 
     check(app.FigurePreviewState == "drawn" && nRes > 1 && app.FigureSessionDropDown.Visible == "on" ...
         && app.FigureSessionResults.label == app.FigureSessionResults.res(2).label && contains(string(app.FigurePreviewLabel.Text), app.FigureSessionResults.res(2).label), ...
         sprintf('a figure per trial group: the "Figure:" drop-down picks which of the %d is drawn, computing nothing', nRes));
+    % a "Figure:" pick while a run goes draws nothing and is not taken: the drop-down goes back to the figure drawn, which
+    % stays Drawn (its label, which Preview, Export preview and Export code follow, is still the drawing's)
+    exported();   % a run's report folder (its run record goes there)
+    wasCapture5g = AppDialog.capture(true);   % a run's warnings alert, if any, is read, not shown
+    pick5g = app.FigureSessionDropDown.Value;
+    other5g = 1 + mod(pick5g, max(nRes, 1));   % another of its figures
+    setappdata(groot, 'runProbe', "");
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, app, @(a) pickSessionFigure(a, other5g)));
+    start(tm);
+    app.onRunExport(Figures=string.empty(1, 0), SessionFigures=sid, Datasets=app.tickedDatasetIndices(), Export=false, Report=false);
+    stop(tm); delete(tm);
+    AppDialog.capture(wasCapture5g);
+    pr5g = string(getappdata(groot, 'runProbe'));
+    rmappdata(groot, 'runProbe');
+    K5g = app.FigureSessionResults;
+    check(pr5g == "drawn" && ~app.Running && app.FigurePreviewState == "drawn" && app.FigureSessionDropDown.Value == pick5g ...
+        && isstruct(K5g) && isfield(K5g, 'res') && K5g.label == K5g.res(pick5g).label && contains(string(app.FigurePreviewLabel.Text), "when it is done"), ...
+        sprintf(['a "Figure:" pick while a run goes draws nothing and is not taken: the drop-down back on the figure drawn, ' ...
+        'Drawn during the run and after (%s, %s; "%s")'], pr5g, app.FigurePreviewState, string(app.FigurePreviewLabel.Text)));
+    % the Export tab's page changed while another figure shows: shown again, the figure across sessions is drawn on the new
+    % page from its kept figures (the "Figure:" pick too), nothing computed, and they are not forgotten
+    app.onAddFigure("psth");   % another figure, shown
+    idO5g = app.Config.Figures(app.SelectedFigure).id;
+    XS5g = app.ExportControls;
+    X05g = [XS5g.Width.Value XS5g.Height.Value];
+    XS5g.Width.Value = 1.5 * X05g(1);
+    XS5g.Height.Value = 1.5 * X05g(2);
+    app.onConfigChanged("export");   % the PSTH drawn again on the new page; the figure across sessions' kept preview out of date
+    busy5g = app.FigurePreviewBusyCount;
+    app.onFigureSelected(app.Config.figureIndex(sid));
+    K5g = app.FigureSessionResults;
+    nK5g = 0;
+    if isstruct(K5g) && isfield(K5g, 'res'); nK5g = numel(K5g.res); end
+    check(app.FigurePreviewState == "drawn" && app.FigurePreviewBusyCount == busy5g && nK5g == nRes ...
+        && app.FigureSessionDropDown.Visible == "on" && app.FigureSessionDropDown.Value == pick5g && K5g.label == K5g.res(pick5g).label, ...
+        sprintf(['the Export tab''s page changed while another figure showed: the figure across sessions, shown again, is drawn on ' ...
+        'the new page from its kept figures (%d of %d kept, the "Figure:" pick too), nothing computed: %s'], nK5g, nRes, app.FigurePreviewState));
+    XS5g.Width.Value = X05g(1);
+    XS5g.Height.Value = X05g(2);
+    app.onConfigChanged("export");   % (the figure shown, current: drawn again on the old page from its kept figures)
+    app.onFigureSelected(app.Config.figureIndex(idO5g));   % (the PSTH, kept on the larger page: drawn again from what it holds)
+    app.onRemoveFigure();
+    app.onFigureSelected(app.Config.figureIndex(sid));
     codeFileS = fullfile(root, 'preview_sessions.m');
     codeS = app.onFigureCode(string(codeFileS));
     [FcS, hcS, DcS] = runPreviewCode(codeFileS);
@@ -4432,6 +4875,23 @@ if S.sec("5h.arrange", "Arrange: a box per panel over the preview; snapping and 
     check(spaced && sized && rectIs(rectOf5("psth_2"), [0.55 0 0.45 0.5]), ...
         sprintf(['psth_2 moved near an equal spacing snaps to it (both gaps read "%s"); its right edge near raster_1''s ' ...
         'width snaps to it (the readout says "= raster_1", raster_1 outlined)'], strjoin(eqTexts, '", "')));
+
+    % a press that moves the pointer a pixel is a click: the panel is not snapped (to the grid or an edge), nothing is recorded
+    cfgJ = app.gatherConfig();
+    cfgJ.Figures(k5).panels(3).rect = [0.6137 0.0213 0.3 0.3];   % off the grid, away from the other panels' edges
+    app.applyConfig(cfgJ);
+    rJ = rectOf5("psth_2");
+    nUndoJ = numel(app.FigureHistory.Undo);
+    wob = rJ + [px2(1) / 2 0 0 0];   % half of 2 px
+    app.onArrangeMoving("psth_2", roiMove(rJ, wob));
+    app.onArrangeMoved("psth_2", roiMove(rJ, wob));
+    stayed = rectIs(rectOf5("psth_2"), rJ) && numel(app.FigureHistory.Undo) == nUndoJ && contains(app.StatusBar.Text, "is where it was");
+    far = rJ + [2 * px2(1) 0 0 0];   % 4 px: a drag, snapped as before
+    app.onArrangeMoving("psth_2", roiMove(rJ, far));
+    app.onArrangeMoved("psth_2", roiMove(rJ, far));
+    moved = ~rectIs(rectOf5("psth_2"), rJ) && numel(app.FigureHistory.Undo) == nUndoJ + 1;
+    app.applyConfig(cfgA);
+    check(stayed && moved, 'a drag under 3 px is a click: the panel stays exactly where it was, not snapped, no undo step; one of 4 px moves it');
 
     % a resize that parts psth_1 from the raster: the time stack's labels change, but while Arrange is on nothing is drawn
     % or dressed again: the parts are laid out at the new rect (psth_1 alone), the preview out of date until Arrange is off
@@ -6683,6 +7143,454 @@ if S.sec("5w", "label variables: the {x} button beside each label's text, its me
     app.Tabs.SelectedTab = app.TabData;
 end
 
+if S.sec("5x", "the preview's badge says Drawn only for a drawing of the figure as it is now: an edit or another dataset while it computes (Auto off), a remembered look undone or remembered in a window, the Export tab's page, a pick and an edit while a run goes; Open in window and Export preview compute such a drawing again")
+    noFigures();
+    exported();   % a run's report folder (its run record goes there)
+    wasCapture5x = AppDialog.capture(true);
+    captureBack5x = onCleanup(@() AppDialog.capture(wasCapture5x)); %#ok<NASGU> a run's warnings alert, if any, is read, not shown
+    app.selectTab(app.TabFigures);
+    app.selectDataset(kF1);
+    app.FigureAutoSlider.Value = 1;   % drawn at once as it is added
+    restore5x = onCleanup(@() resetAutoLimit(app));
+    app.onAddFigure("rasterPsth");
+    k5x = app.SelectedFigure;
+    id5x = app.Config.Figures(k5x).id;
+    lookOf5x = @(k) app.FigureTreeMarks.look([app.FigureTreeMarks.nodes.NodeData] == k);   % the tree's mark of figure K's preview (figureViewFresh)
+    app.refreshFigurePreview(Force=true);
+    check(app.FigurePreviewState == "drawn" && lookOf5x(k5x) == "fresh", 'a raster over a PSTH, drawn: Drawn, the tree plain');
+
+    % Auto off: an edit made while the preview computes (from a timer, as the runner's polls let it in) leaves the
+    % preview that finishes Out of date, its key not the figure's
+    app.FigureAutoSlider.Value = 0;
+    setappdata(groot, 'previewProbe', false);
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringPreview(t, app, @(a) typeTitle(a, "Typed while computing")));
+    start(tm);
+    app.refreshFigurePreview(Force=true);
+    stop(tm); delete(tm);
+    typed5x = getappdata(groot, 'previewProbe');
+    check(typed5x && app.Config.Figures(k5x).title == "Typed while computing" && app.FigurePreviewState == "stale" ...
+        && string(app.FigurePreviewBadge.Text.Text) == "Out of date" && lookOf5x(k5x) == "stale" && ~contains(figTitle(), "Typed while computing"), ...
+        sprintf(['Auto off: a title typed while the preview computes leaves the preview that finishes Out of date (the tree too), ' ...
+        'drawn without the title (typed: %d; badge %s)'], typed5x, app.FigurePreviewState));
+    app.refreshFigurePreview(Force=true);
+    dsA5x = previewResult(app, "dataset");
+    check(app.FigurePreviewState == "drawn" && contains(figTitle(), "Typed while computing") && lookOf5x(k5x) == "fresh", ...
+        'Preview then draws it with the title: Drawn');
+    % another dataset picked while it computes: the drawing of the one before is Out of date; Open in window computes the new one
+    setappdata(groot, 'previewProbe', false);
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringPreview(t, app, @(a) a.selectDataset(kF2)));
+    start(tm);
+    app.refreshFigurePreview(Force=true);
+    stop(tm); delete(tm);
+    moved5x = getappdata(groot, 'previewProbe');
+    rmappdata(groot, 'previewProbe');
+    check(moved5x && app.ActiveIdx == kF2 && app.FigurePreviewState == "stale" && previewResult(app, "dataset") == dsA5x, ...
+        sprintf('Auto off: another dataset picked while the preview computes: the preview of the first one is Out of date when drawn (picked: %d; %s)', ...
+        moved5x, app.FigurePreviewState));
+    h5x = app.onOpenFigureWindow();
+    dsB5x = previewResult(app, "dataset");
+    check(~isempty(h5x) && isgraphics(h5x, 'figure') && dsB5x ~= dsA5x && contains(string(h5x.Name), "(" + dsB5x + ")") && app.FigurePreviewState == "drawn", ...
+        sprintf('Open in window computes the Out of date drawing again first: the window is the active dataset''s (%s), not the drawing''s (%s)', dsB5x, dsA5x));
+    if isgraphics(h5x); delete(h5x); end
+    app.selectDataset(kF1);
+    app.refreshFigurePreview(Force=true);
+
+    % a look remembered for the figure in the preview's editor (its OK: the rules kept, then the preview drawn with
+    % them) stays Drawn; undone, the drawing still shows the look: Out of date (Auto off)
+    ctx5x = getappdata(app.FigurePreviewPanel, PlotAesthetics.ContextKey);
+    look5x = struct('role', "rateFill", 'group', "", 'property', "FaceAlpha", 'value', 0.4);
+    ctx5x.onRemember(look5x);
+    ctx5x.redraw(look5x);
+    app.setFigurePreviewState(app.FigurePreviewState);   % the tree's marks made again now (markFigureTree): nothing since the remember did
+    remembered5x = app.FigurePreviewState == "drawn" && lookOf5x(k5x) == "fresh" && isscalar(app.Config.Figures(k5x).aesthetics) ...
+        && isstruct(app.FigurePreviewDrawn) && isequaln(app.FigurePreviewDrawn.figure.aesthetics, app.Config.Figures(k5x).aesthetics);   % the drawing's key holds the look
+    app.onUndoRedo("undo");
+    check(remembered5x && isempty(app.Config.Figures(k5x).aesthetics) && app.FigurePreviewState == "stale" ...
+        && string(app.FigurePreviewBadge.Text.Text) == "Out of date" && lookOf5x(k5x) == "stale", ...
+        sprintf(['a look remembered in the preview''s editor leaves it Drawn, the drawing''s key holding the look and the tree, ' ...
+        'marked again, plain (%d); Undo Remember looks with Auto off: ' ...
+        'the drawing, which shows the look, is Out of date (%s)'], remembered5x, app.FigurePreviewState));
+    % ... remembered in an Open in window figure's editor, which draws the window only: the preview follows as after an edit
+    app.refreshFigurePreview(Force=true);
+    hw5x = app.onOpenFigureWindow();
+    cw5x = getappdata(hw5x, PlotAesthetics.ContextKey);
+    cw5x.onRemember(look5x);
+    cw5x.redraw(look5x);
+    check(isscalar(app.Config.Figures(k5x).aesthetics) && app.FigurePreviewState == "stale" && lookOf5x(k5x) == "stale", ...
+        sprintf('a look remembered in an Open in window figure''s editor: the preview, not drawn with it, is Out of date with Auto off (%s)', app.FigurePreviewState));
+    if isgraphics(hw5x); delete(hw5x); end
+    app.onUndoRedo("undo");
+
+    % the Export tab's page: the preview drawn again on it from what it holds (nothing computed), the other figure's
+    % kept preview, laid out on the old page, out of date, and drawn again from the cache (no busy card) when shown
+    app.FigureAutoSlider.Value = 1;
+    app.onAddFigure("psth");
+    kB5x = app.SelectedFigure;
+    bDrawn5x = app.FigurePreviewState == "drawn";
+    app.onFigureSelected(k5x);
+    app.refreshFigurePreview(Force=true);
+    app.FigurePreviewResult.marker = 1;   % computeFigure's result has none: it is still there when nothing was computed again
+    scale0 = previewDrawScale(app.FigurePreviewPanel);
+    busy5x = app.FigurePreviewBusyCount;
+    XC5x = app.ExportControls;
+    X05x = [XC5x.Width.Value XC5x.Height.Value];
+    XC5x.Width.Value = 1.5 * X05x(1);
+    XC5x.Height.Value = 1.5 * X05x(2);   % the same shape, a larger page: the preview the same size, its drawing smaller
+    app.onConfigChanged("export");
+    wantScale = @(k) min(max(app.FigurePreviewPanel.InnerPosition(3) / (pageWidthCm(app, k) / 2.54 * 96), 0.35), 3);   % previewScale's
+    scaleA = previewDrawScale(app.FigurePreviewPanel);
+    wantA = wantScale(k5x);
+    check(bDrawn5x && app.FigurePreviewState == "drawn" && isfield(app.FigurePreviewResult, 'marker') && app.FigurePreviewBusyCount == busy5x ...
+        && abs(scaleA - wantA) < 1e-6 && abs(scaleA - scale0) > 1e-3 && lookOf5x(k5x) == "fresh" && lookOf5x(kB5x) == "stale", ...
+        sprintf(['a larger Export tab page: the preview drawn again at its new scale (%.3g, was %.3g; previewScale %.3g), nothing computed, ' ...
+        'Drawn; the other figure''s kept preview out of date in the tree (%s)'], scaleA, scale0, wantA, lookOf5x(kB5x)));
+    app.FigureAutoSlider.Value = 0;   % (not Auto's: a drawing current but for its page is drawn again from what it holds)
+    app.onFigureSelected(kB5x);
+    scaleB = previewDrawScale(app.FigurePreviewPanel);
+    wantB = wantScale(kB5x);
+    check(app.FigurePreviewState == "drawn" && app.FigurePreviewBusyCount == busy5x && abs(scaleB - wantB) < 1e-6 && lookOf5x(kB5x) == "fresh", ...
+        sprintf(['shown again (Auto off), that figure is drawn again on the new page from what it holds, nothing computed, ' ...
+        'no busy card: Drawn (scale %.3g; previewScale %.3g)'], scaleB, wantB));
+    app.FigureAutoSlider.Value = 1;
+    XC5x.Width.Value = X05x(1);
+    XC5x.Height.Value = X05x(2);
+    app.onConfigChanged("export");
+    app.onFigureSelected(k5x);
+
+    % a run: an observation picked while it goes draws nothing, and the drawing of the one before says Out of date;
+    % Export preview then computes the observation picked first, so the file named for it holds it
+    app.FigureAutoSlider.Value = 0;
+    app.refreshFigurePreview(Force=true);
+    T5x = app.FigureObservations;
+    i05x = app.FigureObservationDropDown.Value;
+    i15x = 1 + mod(i05x, height(T5x));   % another observation
+    setappdata(groot, 'runProbe', "");
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, app, @(a) pickObservation(a, i15x)));
+    start(tm);
+    R5x = app.onRunExport(Figures=id5x, SessionFigures=string.empty(1, 0), Datasets=kF1, Export=false, Report=false);
+    stop(tm); delete(tm);
+    pr5x = string(getappdata(groot, 'runProbe'));
+    check(height(T5x) >= 2 && pr5x == "stale" && height(R5x) == 1 && ~app.Running && app.FigurePreviewState == "stale" ...
+        && app.FigureObservationDropDown.Value == i15x && previewResult(app, "observation") == T5x.label(i05x), ...
+        sprintf('an observation picked while a run goes: nothing computed, the drawing of the one before Out of date during the run and after (%s, %s)', ...
+        pr5x, app.FigurePreviewState));
+    app.ExportPreviewFolder = fullfile(root, 'export_preview_5x');
+    files5x = app.onExportPreview();
+    T5x = app.FigureObservations;
+    w5x = app.ExportPreviewWindow;
+    check(~isempty(files5x) && all(isfile(files5x)) && app.FigurePreviewState == "drawn" && previewResult(app, "observation") == T5x.label(i15x) ...
+        && ~isempty(w5x) && isvalid(w5x) && contains(string(w5x.Name), T5x.label(i15x)), ...
+        sprintf('Export preview of that drawing computes the observation picked first (%s): the files named for it hold it', T5x.label(i15x)));
+    if ~isempty(w5x) && isvalid(w5x); delete(w5x); end
+    % an edit while a run goes, Auto on (a look: not set on the drawing in place): nothing computed, Out of date
+    app.FigureAutoSlider.Value = 1;
+    pid5x = app.Config.Figures(k5x).panels(end).id;
+    setappdata(groot, 'runProbe', "");
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, app, ...
+        @(a) a.onFigureAxisEdited(id5x, pid5x, struct('ySide', "right"))));
+    start(tm);
+    app.onRunExport(Figures=id5x, SessionFigures=string.empty(1, 0), Datasets=kF1, Export=false, Report=false);
+    stop(tm); delete(tm);
+    pr5x = string(getappdata(groot, 'runProbe'));
+    rmappdata(groot, 'runProbe');
+    check(pr5x == "stale" && app.FigurePreviewState == "stale" && app.Config.Figures(k5x).panels(end).ySide == "right", ...
+        sprintf('Auto on: a y axis moved right while a run goes computes nothing and leaves the drawing Out of date (%s, %s)', pr5x, app.FigurePreviewState));
+    noFigures();
+    clear restore5x captureBack5x
+    app.Tabs.SelectedTab = app.TabData;
+end
+
+if S.sec("5y", "stuck or broken states: an interrupted preview, Run and Scan while one computes, Close (a failing step, during a run), a Max groups above 100, a config that cannot be shown, the arrows after a click elsewhere, the notepad after a re-scan, Apply last change after Up / Down, the Shift+click selection after another figure comes")
+    noFigures();
+    exported();
+    wasCapture5y = AppDialog.capture(true);
+    captureBack5y = onCleanup(@() AppDialog.capture(wasCapture5y)); %#ok<NASGU> a run's warnings alert, if any, is read, not shown
+    app.selectTab(app.TabFigures);
+    app.selectDataset(kF1);
+    app.FigureAutoSlider.Value = 1;
+    restore5y = onCleanup(@() resetAutoLimit(app));
+    app.onAddFigure("rasterPsth");
+    k5y = app.SelectedFigure;
+    id5y = app.Config.Figures(k5y).id;
+    app.refreshFigurePreview(Force=true);
+    rn5y = app.Runner;
+
+    % C1, the real cleanup sites: each preview makes an onCleanup (previewInterrupted) before its state becomes computing
+    % or drawing and keeps it to its end, after the tail, so it runs on every return. After a preview that finished it
+    % must change nothing: Drawn, the drawing in the panel, the result kept, the polls off, no cancel in the Log. A
+    % figure, a figure on the probe (whose cleanup once ran before the tail and wiped the drawing), a figure across
+    % sessions and the redraw of its kept figure (drawSessionEntry). Auto off: only Preview computes here.
+    nCanceled5y = @() nnz(contains(string(app.LogArea.Value), "figure preview canceled"));
+    c05y = nCanceled5y();
+    app.FigureAutoSlider.Value = 0;
+    app.refreshFigurePreview(Force=true);
+    check(app.FigurePreviewState == "drawn" && ~isempty(figAxes()) && isstruct(app.FigurePreviewResult) && isempty(rn5y.PollFcn) ...
+        && nCanceled5y() == c05y && string(app.FigurePreviewBadge.Text.Text) == "Drawn", ...
+        sprintf('a figure previewed: the cleanup, run as the preview returns, changes nothing (%s)', app.FigurePreviewState));
+    FE.pages.Value = "probe";
+    app.onConfigChanged("figure", FE.pages);
+    app.refreshFigureObservations(Force=true);
+    app.refreshFigurePreview(Force=true);
+    PF5y = app.FigurePreviewResult;
+    tiles5y = findall(app.FigurePreviewPanel, 'Type', 'axes');
+    tiles5y = tiles5y(arrayfun(@(a) isappdata(a, 'ProbeTile'), tiles5y));
+    check(app.FigurePreviewState == "drawn" && isstruct(PF5y) && isfield(PF5y, 'kind') && string(PF5y.kind) == "probeFigure" ...
+        && ~isempty(tiles5y) && isempty(rn5y.PollFcn) && nCanceled5y() == c05y && contains(string(app.FigurePreviewLabel.Text), " tile"), ...
+        sprintf(['a figure on the probe previewed: the cleanup, run after the tail, changes nothing: Drawn, %d tile axes, the result ' ...
+        'kept, no cancel in the Log ("%s")'], numel(tiles5y), string(app.FigurePreviewLabel.Text)));
+    FE.pages.Value = "sessions";
+    app.onConfigChanged("figure", FE.pages);
+    idS5y = app.Config.Figures(k5y).id;
+    app.refreshFigureObservations(Force=true);
+    app.refreshFigurePreview(Force=true);
+    sessionsKept5y = @() isstruct(app.FigureSessionResults) && isfield(app.FigureSessionResults, 'res') && ~isempty(app.FigureSessionResults.res);
+    sesDrawn5y = app.FigurePreviewState == "drawn" && isstruct(app.FigurePreviewResult) && isfield(app.FigurePreviewResult, 'nSessions') ...
+        && sessionsKept5y() && ~isempty(findall(app.FigurePreviewPanel, 'Type', 'axes')) && isempty(rn5y.PollFcn);
+    app.onFigureSessionPicked();   % the "Figure:" drop-down's redraw of the kept figure (refreshFigurePreview Redraw: drawSessionEntry alone)
+    check(sesDrawn5y && app.FigurePreviewState == "drawn" && sessionsKept5y() && ~isempty(findall(app.FigurePreviewPanel, 'Type', 'axes')), ...
+        sprintf(['a figure across sessions previewed, then its kept figure drawn again: the cleanups (the compute''s, kept to ' ...
+        'its end over the drawing, and the drawing''s) change nothing: Drawn, its kept figures kept (%d, %s)'], sesDrawn5y, app.FigurePreviewState));
+
+    % C1, what the cleanup does on an interrupt. The suite cannot press Ctrl+C: it puts the app where an interrupt leaves it
+    % and runs the check the cleanup runs (refreshFigurePreview Interrupted=ID). A figure across sessions caught drawing
+    % (its kept figure, as drawSessionEntry draws it): Canceled, its kept figures and the "Figure:" drop-down let go
+    app.setFigurePreviewState("drawing", Message="Drawing ...");
+    app.refreshFigurePreview(Interrupted=idS5y, Sessions=true);
+    check(app.FigurePreviewState == "canceled" && ~sessionsKept5y() && app.FigureSessionDropDown.Visible == "off" ...
+        && string(app.FigurePreviewBadge.Text.Text) == "Canceled", ...
+        sprintf('an interrupted drawing of a figure across sessions: Canceled, its kept figures forgotten (%s)', app.FigurePreviewState));
+    FE.pages.Value = "each";
+    app.onConfigChanged("figure", FE.pages);
+    id5y = app.Config.Figures(k5y).id;
+    app.FigureAutoSlider.Value = 1;
+    app.refreshFigurePreview(Force=true);
+    % a figure caught computing (the polls on), caught computing after the polls ended, caught drawing: Canceled each
+    % time, the polls off, nothing kept; a preview that finished is left alone
+    app.setFigurePreviewState("computing", Message="Computing ...");
+    rn5y.PollFcn = @() drawnow("limitrate");
+    app.refreshFigurePreview(Interrupted=id5y);
+    check(app.FigurePreviewState == "canceled" && isempty(rn5y.PollFcn) && isempty(app.FigurePreviewResult) && isinf(app.FigurePreviewSeconds) ...
+        && string(app.FigurePreviewBadge.Text.Text) == "Canceled", ...
+        sprintf('an interrupted compute (polls on, state computing): Canceled, the polls off, nothing kept (%s)', app.FigurePreviewState));
+    app.refreshFigurePreview(Force=true);
+    app.refreshFigurePreview(Interrupted=id5y);   % a preview that finished is left alone (Drawn stays)
+    drawn5y = app.FigurePreviewState == "drawn" && isstruct(app.FigurePreviewResult) && ~isempty(figAxes());
+    rn5y.PollFcn = [];
+    app.setFigurePreviewState("computing", Message="Computing ...");
+    app.refreshFigurePreview(Interrupted=id5y);   % computing, the polls off: an interrupt after the compute returned, before the drawing
+    afterCompute5y = app.FigurePreviewState == "canceled";
+    app.refreshFigurePreview(Force=true);
+    app.setFigurePreviewState("drawing", Message="Drawing ...");
+    app.refreshFigurePreview(Interrupted=id5y);
+    check(drawn5y && afterCompute5y && app.FigurePreviewState == "canceled" && isempty(app.FigurePreviewResult), ...
+        sprintf(['the check acts only while the state is computing or drawing, that is, when neither the tail nor the catch ran: ' ...
+        'a Drawn preview stays (%d), an interrupt between the compute and the drawing (%d) or while it draws is Canceled'], drawn5y, afterCompute5y));
+
+    % C2: Run and Scan are refused while a preview computes, as Test report and Generate are
+    app.refreshFigurePreview(Force=true);
+    app.setFigurePreviewState("computing", Message="Computing ...");   % (as a compute leaves it while its polls let a click in)
+    rn5y.PollFcn = @() drawnow("limitrate");
+    R5y = app.onRunExport(Figures=id5y, SessionFigures=string.empty(1, 0), Datasets=kF1, Export=false, Report=false);
+    msgRun5y = string(app.StatusBar.Text);
+    app.onScan();
+    msgScan5y = string(app.StatusBar.Text);
+    check(isempty(R5y) && ~app.Running && contains(msgRun5y, "A preview is computing") && contains(msgScan5y, "A preview is computing") ...
+        && rn5y == app.Runner, 'Run and Scan while a preview computes: nothing started, the status bar says so, the runner is the same');
+    app.refreshFigurePreview(Interrupted=id5y);
+    app.refreshFigurePreview(Force=true);
+
+    % C5: Max groups above 100 shows as it is (no clamping, no error); a config a control cannot show leaves nothing half applied
+    cfg5y = app.gatherConfig();
+    cfg5y.Defaults.Selection.maxGroups = 150;
+    app.applyConfig(cfg5y);
+    check(app.AlignControls.MaxGroups.Value == 150 && app.Config.Defaults.Selection.maxGroups == 150 ...
+        && app.gatherConfig().Defaults.Selection.maxGroups == 150, 'Max groups 150 (above the old limit of 100) is shown, kept in the config and gathered unchanged');
+    cfg5y.Defaults.Selection.maxGroups = 100;
+    app.applyConfig(cfg5y);
+    bad5y = cfg5y;
+    bad5y.Name = cfg5y.Name + " (other)";
+    bad5y.Defaults.EventRef.n = 0;   % a control that cannot show it (its Limits start at 1)
+    before5y = app.Config;
+    threw5y = false;
+    try
+        app.applyConfig(bad5y);
+    catch
+        threw5y = true;
+    end
+    check(threw5y && string(app.ConfigNameField.Value) == before5y.Name && app.Config.Name == before5y.Name ...
+        && app.Config.Defaults.EventRef.n == before5y.Defaults.EventRef.n && app.AlignControls.N.Value == before5y.Defaults.EventRef.n ...
+        && isequaln(app.gatherConfig().Defaults, before5y.Defaults), ...
+        sprintf('a config whose control throws (threw: %d): the config and the controls stay as they were, not half the other config', threw5y));
+    % ... and the undo history and the kept previews with them: an edit of the figures (Action=) that cannot be shown leaves
+    % no step to undo; a config opened (MarkSaved) that cannot be shown neither clears the history nor drops the drawings
+    app.refreshFigurePreview(Force=true);
+    nUndo5y = numel(app.FigureHistory.Undo);
+    undoText5y = string(app.UndoMenu.Text);
+    badA5y = bad5y;
+    badA5y.Figures(k5y).title = "an edit that cannot be shown";   % the figures differ: the Action records a step first
+    try
+        app.applyConfig(badA5y, Action="Add figure");
+    catch
+    end
+    stepGone5y = numel(app.FigureHistory.Undo) == nUndo5y && string(app.UndoMenu.Text) == undoText5y ...
+        && app.Config.Figures(k5y).title == before5y.Figures(k5y).title;
+    panel5y = app.FigurePreviewPanel;
+    state5y = app.FigurePreviewState;
+    try
+        app.applyConfig(bad5y, MarkSaved=true);
+    catch
+    end
+    check(nUndo5y >= 1 && stepGone5y && numel(app.FigureHistory.Undo) == nUndo5y && string(app.UndoMenu.Text) == undoText5y ...
+        && isvalid(panel5y) && app.FigurePreviewPanel == panel5y && app.FigurePreviewState == state5y && state5y == "drawn" ...
+        && isstruct(app.FigurePreviewResult) && ~isempty(figAxes()) && app.Config.Name == before5y.Name, ...
+        sprintf(['an edit of the figures that cannot be shown leaves no undo step (%d), and a config opened that cannot be shown keeps ' ...
+        'the %d undo step(s) and the drawing in its container (%s)'], stepGone5y, nUndo5y, app.FigurePreviewState));
+
+    % C6: the arrow keys are Arrange's only while the last click was in the preview; a click in a field or the tree gives them back
+    % (what a real click sets is not checked here: whether a click on a field, a spinner or a button of a uifigure sets the
+    % window's CurrentObject is a manual check; the suite sets CurrentObject itself, and says SKIP when it cannot)
+    pressed5y = @(k) struct('Key', k, 'Modifier', {{}}, 'Character', '');
+    canSet5y = true;
+    try
+        app.Fig.CurrentObject = app.FigurePreviewPanel;   % the last click in the preview (the overlay is in its container)
+        inPreview5y = isequal(app.Fig.CurrentObject, app.FigurePreviewPanel);
+        app.Fig.CurrentObject = app.ConfigNameField;      % a click in a field since
+        canSet5y = inPreview5y && isequal(app.Fig.CurrentObject, app.ConfigNameField);
+    catch
+        canSet5y = false;
+    end
+    if canSet5y
+        app.Fig.CurrentObject = app.FigurePreviewPanel;
+        app.FigureArrangeFocus = true;
+        app.onKeyPress(pressed5y('leftarrow'));
+        stays5y = app.FigureArrangeFocus;
+        app.Fig.CurrentObject = app.ConfigNameField;
+        app.FigureArrangeFocus = true;
+        app.onKeyPress(pressed5y('leftarrow'));
+        check(stays5y && ~app.FigureArrangeFocus, ['an arrow key after a click in a field (the window''s CurrentObject): the arrows ' ...
+            'are the field''s, Arrange''s focus is cleared; with the preview clicked last, it stays']);
+    else
+        fprintf('  SKIP: the window''s CurrentObject cannot be set here: the arrow keys after a click in the preview or in a field are not checked\n');
+    end
+    app.FigureArrangeFocus = true;
+    app.onFigureTreeSelected(app.FiguresTree.SelectedNodes);
+    check(~app.FigureArrangeFocus, 'a click in the figure tree takes the arrow keys back from Arrange');
+    try app.Fig.CurrentObject = []; catch; end
+
+    % C7: the notepad open across a re-scan writes through the object the app uses, so neither note is dropped
+    app.selectDataset(kF2);
+    app.onNoteButton("dataset");
+    pad5y = app.NotePadWindow;
+    app.NotePadFollows = "";   % it stays on this dataset's note when the scan makes another dataset active (the case that kept the old object)
+    pad5y.setText("typed in the pad before the scan");   % not written yet: the scan writes it first
+    app.onScan();
+    notes5y = app.Notes(kF2);
+    rebound5y = pad5y.Item.notes == notes5y && notes5y.note("dataset") == "typed in the pad before the scan";
+    notes5y.setNote("channel", 3, "from the app");
+    pad5y.setText("pad again");
+    pad5y.save();
+    J5y = jsondecode(fileread(notes5y.File));
+    again5y = DatasetNotes(app.Runner.Outputs(kF2));   % the file as another reader finds it
+    check(rebound5y && again5y.note("dataset") == "pad again" && again5y.note("channel", 3) == "from the app" && notes5y.note("dataset") == "pad again", ...
+        sprintf('after a re-scan the notepad writes through the app''s DatasetNotes: the pad''s note and the app''s channel note are both in the file (%s)', string(J5y.schema)));
+    pad5y.setText("");
+    pad5y.save();
+    notes5y.setNote("channel", 3, "");
+    delete(pad5y);
+
+    % C8: Apply last change after Up / Down offers nothing: the figure moved is compared with itself
+    app.onAddFigure("psth");
+    app.onAddFigure("rasterPsth");
+    app.onFigureSelected(1);
+    idMoved5y = app.Config.Figures(1).id;
+    app.onMoveFigure(1);
+    moved5y = app.Config.Figures(2).id == idMoved5y;
+    app.onApplyToFigures(Ticked=string.empty(1, 0));
+    msgMove5y = string(app.StatusBar.Text);
+    check(moved5y && contains(msgMove5y, "stays with its figure"), ...
+        sprintf('Apply last change after Move figure down: nothing to give the others ("%s")', msgMove5y));
+    app.onUndoRedo("undo");
+    check(app.Config.Figures(1).id == idMoved5y, 'Undo of the move puts the figure back');
+    noFigures();
+
+    % C9: the panels Shift+click added belong to the figure shown: another figure with the same panel ids does not inherit them
+    app.onAddFigure("rasterPsth");
+    app.onDuplicateFigure();   % two figures with the same panel ids
+    app.onFigureSelected(1);
+    pids5y = [app.Config.Figures(1).panels.id];
+    app.FigurePanelExtra = pids5y(end);
+    app.onRemoveFigure();   % the copy takes its place
+    afterRemove5y = isempty(app.FigurePanelExtra);
+    app.FigurePanelExtra = pids5y(end);
+    app.onUndoRedo("undo");   % the removed figure comes back
+    afterUndo5y = isempty(app.FigurePanelExtra);
+    app.FigurePanelExtra = pids5y(end);
+    app.onUndoRedo("redo");
+    afterRedo5y = isempty(app.FigurePanelExtra);
+    app.FigurePanelExtra = pids5y(end);
+    app.applyConfig(app.gatherConfig(), MarkSaved=true);   % a config opened
+    check(numel(pids5y) >= 2 && afterRemove5y && afterUndo5y && afterRedo5y && isempty(app.FigurePanelExtra), ...
+        sprintf('the Shift+click selection is let go after Remove (%d), Undo (%d), Redo (%d) and a config opened', afterRemove5y, afterUndo5y, afterRedo5y));
+    noFigures();
+
+    % C3: a Close that meets a failing step (the preferences cannot be saved) still closes the window; a Save whose preferences
+    % cannot be written still saves. The fault: a control the preferences read is deleted. (Cancel and a failing Save before the
+    % hide reset Closing in an onCleanup; the suite cannot make confirmDiscard throw without its question.)
+    appC = EphysFigGenApp(F.proj, Datasets=app.Runner.Keys(kF1));
+    closeC = onCleanup(@() closeApp(appC)); %#ok<NASGU>
+    appC.onSaveConfigAs(string(fullfile(root, 'close_5y.json')));
+    delete(appC.FigureAutoSlider);
+    ws5y = warning('off', 'EphysFigGenApp:SavePrefsFailed');
+    lastwarn('');
+    okSave5y = appC.onSaveConfig();
+    saveWarned5y = ~isempty(lastwarn);
+    appC.onClose();
+    warning(ws5y);
+    check(okSave5y && saveWarned5y && ~isvalid(appC.Fig) && ~appC.Closing, ...
+        'preferences that cannot be written: Save still saves (a warning), and Close, whose step fails, still deletes the window');
+
+    % C4: Close during a run: the run is canceled and goes on to its end with the window hidden, its progress writes nothing to
+    % controls, and the window closes then; a window deleted during a run does not stop the run or its report
+    appD = EphysFigGenApp(F.proj, Datasets=app.Runner.Keys(kF1));
+    closeD = onCleanup(@() closeApp(appD)); %#ok<NASGU>
+    appD.onAddFigure("rasterPsth");
+    idD5y = appD.Config.Figures(appD.SelectedFigure).id;
+    appD.onSaveConfigAs(string(fullfile(root, 'close_5y_run.json')));   % saved: Close asks nothing
+    kD5y = find(appD.Runner.Names == F.names(1));
+    setappdata(groot, 'runProbe', "");
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, appD, @(a) a.onClose()));
+    start(tm);
+    RD5y = appD.onRunExport(Figures=idD5y, SessionFigures=string.empty(1, 0), Datasets=kD5y, Export=false, Report=false);
+    stop(tm); delete(tm);
+    check(istable(RD5y) && ~isvalid(appD.Fig) && ~appD.Running && ~appD.CloseWhenRunEnds, ...
+        'Close during a run: the run ended without an error and the window was closed then (not deleted under the run)');
+    appE = EphysFigGenApp(F.proj, Datasets=app.Runner.Keys(kF1));
+    closeE = onCleanup(@() closeApp(appE)); %#ok<NASGU>
+    appE.onAddFigure("rasterPsth");
+    idE5y = appE.Config.Figures(appE.SelectedFigure).id;
+    appE.ReportControls.Folder.Value = fullfile(root, 'report_5y');
+    appE.onConfigChanged("export");
+    kE5y = find(appE.Runner.Names == F.names(1));
+    tm = timer('ExecutionMode', 'fixedRate', 'Period', 0.005, 'TimerFcn', @(t, ~) duringRun(t, appE, @(a) delete(a.Fig)));
+    start(tm);
+    threwE5y = false;
+    whyE5y = "";
+    try
+        appE.onRunExport(Figures=idE5y, SessionFigures=string.empty(1, 0), Datasets=kE5y, Export=false, Report=true);
+    catch ME5y
+        threwE5y = true;
+        whyE5y = string(ME5y.identifier) + ": " + string(ME5y.message);
+        if ~isempty(ME5y.stack); whyE5y = whyE5y + " (at " + string(ME5y.stack(1).name) + " line " + ME5y.stack(1).line + ")"; end
+    end
+    stop(tm); delete(tm);
+    rep5y = appE.Runner.ReportFiles;
+    if isappdata(groot, 'runProbe'); rmappdata(groot, 'runProbe'); end
+    check(~threwE5y && ~appE.Running && ~isempty(rep5y) && all(isfile(rep5y)), ...
+        sprintf('the window deleted during a run: the progress callback writes nothing to it, the run ends and its report is written (threw %d %s, %d report file(s))', threwE5y, whyE5y, numel(rep5y)));
+    clear restore5y captureBack5y
+    app.Tabs.SelectedTab = app.TabData;
+end
+
 if S.sec("6", "close")
     savedConfig();
     app.onSaveConfig();   % the sections run before this one may have left the config dirty: saved, so Close asks nothing (under -batch it could not)
@@ -6987,6 +7895,79 @@ app.refreshFigurePreview(Force=true);
 setappdata(groot, 'genProbe', struct('generate', string(app.GenerateFigureMenu.Enable), 'redraw', string(app.FigureRedrawAllButton.Enable), 'run', string(app.RunButton.Enable), ...
     'cancel', string(app.CancelButton.Enable), 'preview', string(app.FigurePreviewLabel.Text), 'state', app.FigurePreviewState));
 app.CancelButton.ButtonPushedFcn(app.CancelButton, []);   % the Export tab's Cancel, as a click
+end
+
+
+function editDuringRun(tm, app, folder)
+%editDuringRun  Once a run has started (the runner's Results emptied), type FOLDER as the Export tab's folder, as a person would while it goes (appdata editProbe: the runner's Export folder after it).
+if ~app.Running || isempty(app.Runner) || height(app.Runner.Results) > 0; return; end
+stop(tm);
+app.ExportControls.Folder.Value = char(folder);
+app.onConfigChanged("export");
+setappdata(groot, 'editProbe', string(app.Runner.Config.Export.Folder));
+end
+
+
+function duringPreview(tm, app, fcn)
+%duringPreview  Once the figure preview computes (its badge Computing), stop TM and call FCN(APP), as a person acts while it computes (the runner's polls let it in; appdata previewProbe: true once done).
+if ~isvalid(app) || app.FigurePreviewState ~= "computing"; return; end
+stop(tm);
+fcn(app);
+setappdata(groot, 'previewProbe', true);
+end
+
+
+function duringRun(tm, app, fcn)
+%duringRun  Once a run has started (the runner's Results emptied), stop TM and call FCN(APP), as a person acts while it goes (appdata runProbe: the preview's badge state after).
+if ~app.Running || isempty(app.Runner) || height(app.Runner.Results) > 0; return; end
+stop(tm);
+fcn(app);
+setappdata(groot, 'runProbe', app.FigurePreviewState);
+end
+
+
+function typeTitle(app, txt)
+%typeTitle  Type TXT as the selected figure's Title in the editor, as a person does (onConfigChanged, the step named Title).
+app.FigureEditor.title.Value = char(txt);
+app.onConfigChanged("figure", "Title");
+end
+
+
+function pickObservation(app, i)
+%pickObservation  Pick observation I in the drop-down over the preview, as a click does (onFigureObservationChanged).
+app.FigureObservationDropDown.Value = i;
+app.onFigureObservationChanged();
+end
+
+
+function pickSessionFigure(app, j)
+%pickSessionFigure  Pick a session figure's kept figure J in the "Figure:" drop-down under the preview, as a click does (onFigureSessionPicked).
+app.FigureSessionDropDown.Value = j;
+app.onFigureSessionPicked();
+end
+
+
+function v = previewResult(app, field)
+%previewResult  The preview's result's dataset or observation (FIELD "dataset", "observation": its label) as text; "" with no result.
+v = "";
+F = app.FigurePreviewResult;
+if ~isstruct(F); return; end
+if field == "dataset"; v = string(F.dataset); else; v = string(F.observation.label); end
+end
+
+
+function s = previewDrawScale(P)
+%previewDrawScale  The scale the preview in P is drawn at (PlotAesthetics.drawScale of its first panel's axes: renderFigure's Scale); NaN with no axes.
+ax = findall(P, 'Type', 'axes', '-regexp', 'Tag', '^(axes|rasterAxes)$');
+s = NaN;
+if ~isempty(ax); s = PlotAesthetics.drawScale(ax(1)); end
+end
+
+
+function w = pageWidthCm(app, k)
+%pageWidthCm  The width of the page figure K is exported on, cm (figureExportSize, as previewScale reads it).
+cm = figureExportSize(app.Config.Export, [], app.Config.figureFor(k));
+w = cm(1);
 end
 
 

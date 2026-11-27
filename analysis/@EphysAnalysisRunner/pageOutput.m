@@ -3,9 +3,11 @@ function out = pageOutput(obj, job, fraction, message)
 %   OUT = r.pageOutput(JOB, FRACTION, MESSAGE) returns JOB.out, or waits
 %   for JOB.future, reporting progress (FRACTION, MESSAGE) every quarter
 %   second, so cancel() stops the wait (EphysAnalysisRunner:Canceled). A
-%   page that failed on its worker rethrows the worker's error.
+%   page that failed on its worker rethrows the worker's error; one whose
+%   report image or PDF page failed after its figure files were written
+%   rethrows that error after keepStray has noted the files.
 %
-%   See also EphysAnalysisRunner.submitPage, EphysAnalysisRunner.cancelPages.
+%   See also EphysAnalysisRunner.submitPage, EphysAnalysisRunner.stopPages.
 
 if isempty(job.future)
     out = job.out;
@@ -21,4 +23,8 @@ if ~isempty(f.Error)
     throw(ME);
 end
 out = fetchOutputs(f);
+if isfield(out, 'error') && ~isempty(out.error)   % its files written, its report image or page failed (drawExportPage Partial=)
+    obj.keepStray(out.files);
+    rethrow(out.error);
+end
 end

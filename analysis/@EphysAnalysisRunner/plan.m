@@ -46,7 +46,7 @@ errs = strings(1, numel(obj.Outputs));
     function [src, err] = sourceOf(i)
         if isempty(srcs{i}) && errs(i) == ""
             try
-                srcs{i} = obj.source(i);
+                srcs{i} = obj.source(i, cfg);
             catch ME
                 errs(i) = "cannot read the dataset: " + string(ME.message);
             end
@@ -72,7 +72,7 @@ end
 for id = sfids
     if cfg.figureIndex(id) == 0; continue; end
     spec = cfg.figureFor(id);
-    S = obj.sessionTable(obj.sessionFigureIndices(spec, idx));
+    S = obj.sessionTable(obj.sessionFigureIndices(spec, idx), cfg);
     reasons = strings(1, height(S));
     for j = 1:height(S)
         [src, err] = sourceOf(S.index(j));

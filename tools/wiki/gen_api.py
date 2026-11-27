@@ -1071,7 +1071,7 @@ ANALYSIS_GROUPS = [
                                    "newAnalysisReport", "addReportDataset", "addReportSection", "addReportFigure",
                                    "reportSummaryTables", "reportImage", "reportPdfPage", "writeHtmlReport",
                                    "writePdfReport"]),
-    ("App helpers", ["buttonIcon"]),
+    ("App helpers", ["buttonIcon", "toolboxAvailable"]),
 ]
 
 

@@ -8,8 +8,9 @@ function onFigureSelected(obj, k)
 %   still there): the list it kept when its key is the same
 %   (takeFigurePicker), else made again. The tree selects it and the preview shows its own
 %   container (refreshFigureList, syncFigureView): the drawing it kept
-%   when it is still current, else it is drawn again (Auto) or marked Out
-%   of date (previewFigureView). While another preview computes, the
+%   when it is still current, drawn again from what it holds when it is
+%   current but for the Export tab's page, else it is drawn again (Auto)
+%   or marked Out of date (previewFigureView). While another preview computes, the
 %   editor follows at once and the preview when that one is done
 %   (refreshFigurePreview).
 if isempty(k) || ~isnumeric(k); return; end

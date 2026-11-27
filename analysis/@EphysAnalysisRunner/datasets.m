@@ -13,7 +13,15 @@ function outs = datasets(obj)
 %                the output root. Selection "list" keeps the Datasets keys
 %                (root-relative folders)
 %     "folders"  DatasetOutputs(folder) for each of Folders; the key is the
-%                folder, the name its last part
+%                folder, the name its last part. Selection "list" keeps the
+%                folders Datasets names (selectedFolders: the app's Run
+%                ticks); one it names that is not in Folders is warned
+%                about (EphysAnalysisRunner:UnknownDataset). A list that
+%                names no folder and holds no absolute path, the Folders
+%                all absolute (as the app writes them), is a project's
+%                keys saved before folders mode had a selection of its own:
+%                every folder is kept, as such a config ran then, with the
+%                warning EphysAnalysisRunner:LegacySelection
 %   Every DatasetOutputs has CacheData=true: a figure's spikes and signals
 %   are read once per dataset; runDataset clears them afterwards. Each also
 %   searches r.SearchDirs (a pipeline's step output folders). While
@@ -60,10 +68,19 @@ switch S.Mode
             names(end+1) = d.Name; %#ok<AGROW>
         end
     case "folders"
-        for j = 1:numel(S.Folders)
-            f = S.Folders(j);
+        [folders, missing, legacy] = EphysAnalysisRunner.selectedFolders(S);   % Selection "list": the folders ticked
+        if legacy
+            warning('EphysAnalysisRunner:LegacySelection', ['Source.Selection lists %s, which name no folder of Source.Folders: ' ...
+                'a project''s dataset keys, saved before folders mode had a selection of its own. Every folder runs, as it ran ' ...
+                'then; tick the folders to run (the analysis app''s Data tab) and save the config.'], strjoin(string(S.Datasets), ', '));
+        elseif ~isempty(missing)
+            warning('EphysAnalysisRunner:UnknownDataset', 'Dataset folder(s) not among Source.Folders: %s', ...
+                strjoin(missing, ', '));
+        end
+        for j = 1:numel(folders)
+            f = folders(j);
             if ~isempty(obj.ProgressFcn)
-                obj.ProgressFcn((j - 1) / numel(S.Folders), sprintf('Reading dataset %d/%d: %s', j, numel(S.Folders), f));
+                obj.ProgressFcn((j - 1) / numel(folders), sprintf('Reading dataset %d/%d: %s', j, numel(folders), f));
             end
             if ~isfolder(f)
                 error('EphysAnalysisRunner:NoFolder', 'Output folder does not exist: "%s".', f);

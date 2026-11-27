@@ -32,8 +32,8 @@ set([E.rectXYUnits E.rectWHUnits E.paddingUnits E.snapUnits], "Text", word);
 E.snap.Value = obj.FigureSnap;
 st = snapStepIn(obj.FigureSnapStep, u, pageCm, dpi);
 obj.FigureSnapStep = st;
-E.snapStep.Value = st.value;
 [~, d] = unitsShown([], "", u);
+E.snapStep.Value = max(round(st.value, d), 10^-d);   % the box shows the step rounded (never 0); the step keeps its exact value (snapStepIn)
 E.padding.Step = max(10^-d, round(figureRectConvert(0.05, "cm", u, pageCm, dpi, "x"), d));   % a step about 0.5 mm
 k = obj.SelectedFigure;
 if k < 1 || k > numel(obj.Config.Figures); return; end

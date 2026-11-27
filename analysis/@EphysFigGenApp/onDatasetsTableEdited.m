@@ -1,5 +1,5 @@
 function onDatasetsTableEdited(obj, ~)
-%onDatasetsTableEdited  A Run tick changed: the datasets a run (and, in project mode, the config) uses; or a star (★).
+%onDatasetsTableEdited  A Run tick changed: the datasets a run (and the config's selection, in either mode) uses; or a star (★).
 %   A ★ ticked or cleared stars or unstars its dataset, written at once
 %   beside its outputs (starItem); the Run ticks are left alone then. The
 %   datasets the filter hides (not in the table) keep their ticks.

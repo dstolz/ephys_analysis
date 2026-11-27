@@ -73,7 +73,8 @@ and what it does.
    **Project root** and press **Scan**). Click a recording in the table to
    make it the *active* one: the previews show it. The **Dataset** list on
    the Alignment and Figures tabs offers the recordings ticked in the
-   table's **Run** column (all of them when none is ticked).
+   table's **Run** column (all of them when none is ticked). The ticks are
+   saved with the config.
 2. **Alignment.** Pick the **Line** to align to (a stimulus line, say) and
    the **Edge** (onset). Set the window, for example 0.2 s before to 0.8 s
    after. Pick a trial parameter in **Group by** (`Depth`, say) to draw one
@@ -89,8 +90,10 @@ and what it does.
      panel gets a box. Click a box to select its panel: its width and height
      show under it. Drag a box to move it; drag a corner or an edge to
      resize it. The box snaps to the other panels and the page (hold **Alt**
-     to stop that), and magenta lines and distances show what lines up. Arrange
-     needs the Image Processing Toolbox; without it, type the numbers below.
+     to stop that; a click that moves the pointer a pixel or two moves
+     nothing), and magenta lines and distances show what lines up. Arrange
+     needs the Image Processing Toolbox installed and licensed; without it,
+     type the numbers below.
      When you let go, the panel is in its new place at once. If it parts from
      a neighbor, the time labels and ticks catch up when you switch Arrange
      off, and the badge says **Out of date** until then. If it still says
@@ -299,9 +302,15 @@ optional, and the app works the same without it.
   open the Database window.
 - **Find recordings:** **File → Open from database...**. Type a subject,
   pick a project or days, **Search**, select the sessions and **Open**: the
-  app shows their output folders.
+  app shows their output folders, all ticked to run. Untick the ones to
+  leave out; the ticks are saved with the config.
 - **What a run records:** each **Run** is noted with the files it read and
   the report and figure files it wrote (those under a mapped storage root).
+  A run that stops with an error is noted too, as failed, with the files it
+  wrote before. So is a run in which every figure failed. A figure file
+  kept from an earlier run (**Overwrite existing** off) is not counted as
+  this run's. The **Log** tab says what was noted, and which folders hold
+  files that were left out because no storage root is mapped there.
 - **Records wait for you** when the lamp says **· N need you**: open the
   Database window and read the outbox. A folder whose subject the database
   does not have asks for it in a small window: create the subject, or pick
@@ -321,8 +330,19 @@ See [Lab database](database.md) for the details.
   [Why is my figure skipped?](EphysFigGenApp.md#why-is-my-figure-skipped)
 - **The preview says *Out of date*.** The figure changed and was not drawn
   again: **Auto** is off, or the redraw would take longer than Auto allows
-  (the line under the preview says *slow*). Press **Preview**, or drag the
-  **Auto** slider to the right.
+  (the line under the preview says *slow*), or you pressed **Cancel** over
+  a drawing (it stays, and the line says it was canceled). It also says so when you changed
+  something while the preview was computing (the figure, the dataset, the
+  unit or channel, the Export tab's page size) or while a run was going (the
+  figure, the dataset, the unit or channel). A new page size on the Export
+  tab does not make an up-to-date preview out of date: it is drawn again on
+  the new page at once (another figure's when you show it), nothing
+  computed, also during a run, except a figure across sessions during a run,
+  which then waits for **Preview**. Press **Preview**, or drag the **Auto**
+  slider to the right. **Open in window** and **Export preview** compute it
+  again first, so they never show an old drawing.
+- **A pick under *Figure:* does nothing while a run goes.** The figure
+  shown stays as it is. Pick it again when the run is done.
 - **A spectrum drops off at its top end, or Validate warns about *fpass*.**
   The signal was downsampled (Data tab, **Downsample...**), and the filter
   that keeps the lower rate clean also lowers the highest frequencies. Lower
@@ -340,9 +360,56 @@ See [Lab database](database.md) for the details.
   Double-click a row to go to the setting it is about. **Run** stops with a
   message that names the first problem and takes you to the tab that fixes it
   (no recording ticked, no project root, a setting that does not fit).
+- **Run says *the source on the Data tab changed since the last scan*.**
+  You changed the project root, output root, name pattern or output folders
+  and did not scan. The list still shows the old recordings. Press **Scan**,
+  then **Run** again. Plan, Generate and Test report say the same.
+- **Run shows warnings.** The run goes on. Read the window: if it says the
+  pages *get the same file names* (only the first recording's are
+  written), press **Cancel** and give the folder or the file names
+  `{Name}`. The Export tab's table lists every warning.
+- **A results row says *kept*.** **Overwrite existing** is off, so a figure
+  file already on disk was not written again. The report shows the figure as
+  it is drawn now, and lists the old file as kept.
+- **A results row says *not written: this run already wrote a file at that
+  path*.** Two recordings (or figures) got the same file name, so the
+  second would have replaced the first. The first one's file is kept, the
+  second is not written. Put `{Name}` in the figure folder or the file
+  names on the Export tab, and run again.
+- **A failed or canceled row lists files.** Those are the figures it
+  finished before it stopped; they are on disk, and the run's records
+  name them.
 - **A run** shows a bar, the time left and **Cancel** at the bottom of the
-  window; you can look at the other tabs meanwhile. A figure that failed is
-  in the results table with its message.
+  window; you can look at the other tabs meanwhile, and keep editing: the
+  run uses the settings it started with, and your changes are for the next
+  run. So does a design you choose, or a look you remember, while it runs.
+  A figure that failed is in the results table with its message.
+- **Run or Scan does nothing and the status bar says a preview is
+  computing.** Press **Cancel** over the preview, or wait for it. A run
+  and a preview cannot share the computing.
+- **You close the window while a run goes.** The run is canceled and the
+  window disappears at once; it closes for good when the run has ended, after
+  it has written the figures it finished, its report and its records.
+- **The arrow keys move a panel when you meant a field.** They nudge a panel
+  only after a click on the preview. Click in the field first and they are
+  the field's again.
+- **An old config ticks every output folder.** A config saved in output
+  folder mode by an older version kept a project's dataset list, which
+  names no folder; it ran every folder then, and it does now. The status
+  bar and the Log say so. Untick the folders to leave out, and save.
+- **The status bar says datasets ticked in the config *are not among the
+  datasets listed*.** The config was opened while its project could not be
+  scanned, so the list is the last scan's. Those datasets stay in the
+  config, and **Save** keeps them. Press **Scan** once the project can be
+  reached: until then **Run**, **Plan**, **Generate** and **Test report**
+  ask you to.
+- **Run says *the config names datasets the last scan did not list*.**
+  Nothing ran, so that no recording is left out without a word. With a
+  project: it could not be reached when you opened the config. Press
+  **Scan** once it can be (or open the config again then), and run again.
+  With output folders: those recordings are folders that are not in the
+  folder list. Press **Scan** (once every folder in the list can be read):
+  it takes them out of the selection and says which. Then run again.
 - **Right-click menus and keys.** **Help → Keyboard shortcuts and
   right-click menus** lists them.
 - **The Log tab** has the details of every run.

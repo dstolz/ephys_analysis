@@ -19,6 +19,7 @@ classdef PlotAesthetics
     %     R = PlotAesthetics.mergeRules(R, NEW)     NEW added; the rules they cover dropped
     %     n = PlotAesthetics.apply(TARGET, R)       set on what is drawn in TARGET (n: values set)
     %     R = PlotAesthetics.userRules(KIND)        the user's rules for a kind (PlotDesign.kindNames)
+    %     R = PlotAesthetics.userRules(KIND, FROM)  ... from FROM, the preference group as a struct (a snapshot)
     %     PlotAesthetics.setUserRules(KIND, R)      ([] forgets them)
     %   The user's rules are preferences (AppPrefs group "PlotAesthetics",
     %   one per kind: a panel type such as "psth", "figure", or a Chronux
@@ -154,17 +155,35 @@ classdef PlotAesthetics
             end
         end
 
-        function R = userRules(kind)
+        function R = userRules(kind, from)
             %userRules  The user's remembered rules for plots of KIND (preferences).
             %   An unreadable preference gives no rules and the warning
             %   PlotAesthetics:BadPreference.
+            %   R = PlotAesthetics.userRules(KIND, FROM) reads them from FROM
+            %   instead: a struct with a field per kind, as the preference
+            %   group reads whole (AppPrefs.getpref(PlotAesthetics.PrefGroup)),
+            %   e.g. a snapshot taken when an analysis run starts
+            %   (EphysAnalysisRunner: every page of the run drawn with the
+            %   rules as they were then; renderFigure UserRules=). FROM [] =
+            %   the preferences.
             arguments
                 kind (1,1) string
+                from = []
             end
             R = PlotAesthetics.emptyRules();
-            if ~isvarname(kind) || ~AppPrefs.ispref(PlotAesthetics.PrefGroup, kind); return; end
+            if ~isvarname(kind); return; end
+            if isstruct(from)
+                if ~isscalar(from) || ~isfield(from, char(kind)); return; end
+            elseif ~AppPrefs.ispref(PlotAesthetics.PrefGroup, kind)
+                return
+            end
             try
-                R = PlotAesthetics.normalizeRules(AppPrefs.getpref(PlotAesthetics.PrefGroup, kind), kind);
+                if isstruct(from)
+                    v = from.(char(kind));
+                else
+                    v = AppPrefs.getpref(PlotAesthetics.PrefGroup, kind);
+                end
+                R = PlotAesthetics.normalizeRules(v, kind);
             catch ME
                 warning('PlotAesthetics:BadPreference', 'Your remembered %s aesthetics are not readable: %s', kind, ME.message);
             end

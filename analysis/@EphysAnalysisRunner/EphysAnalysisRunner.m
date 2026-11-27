@@ -33,7 +33,16 @@ classdef EphysAnalysisRunner < handle
     %   them), string.empty(1, 0) = none, else the ids (idList).
     %
     %   Properties
-    %     Config        the EphysAnalysisConfig
+    %     Config        the EphysAnalysisConfig. run() reads it once, when it
+    %                   starts, and passes that config down to every step of
+    %                   the run (runDataset, runSessionFigure, batchYLimits,
+    %                   source, sessionTable, outputRoot, the report, the run
+    %                   record and LabCapture.analysisRun: Config=), so Config
+    %                   may be set while a run goes (EphysFigGenApp's edits, a
+    %                   ProgressFcn) and the run still draws, writes and
+    %                   records the config it started with; the new one is
+    %                   the next run's. Each of those methods called alone
+    %                   reads Config
     %     ProgressFcn   ProgressFcn(fraction, message), called before each
     %                   dataset, figure and observation; FRACTION is how far
     %                   the whole run is (dataset j of n spans [(j-1)/n,
@@ -55,7 +64,12 @@ classdef EphysAnalysisRunner < handle
     %                   Each figure's observations are computed here, in turn;
     %                   their pages are drawn on the workers meanwhile and
     %                   put in the report in order (submitPage, pageOutput).
-    %                   EphysFigGenApp sets it from its Workers preference
+    %                   EphysFigGenApp sets it from its Workers preference.
+    %                   Every page of a run, here or on a worker, is drawn
+    %                   in the user's plot design and remembered plot rules
+    %                   as they were when the run started (holdPageLooks):
+    %                   a design chosen or a look remembered while it goes
+    %                   is the next run's
     %     SearchDirs    further folders each dataset's outputs are searched in
     %                   (DatasetOutputs SearchDirs), e.g. a pipeline's
     %                   Signals / Spikes OutputDir; set before datasets()
@@ -65,9 +79,26 @@ classdef EphysAnalysisRunner < handle
     %     Results       last run: Dataset ("sessions: <label>" for a session
     %                   figure), Plot (the figure's id), Kind ("figure"),
     %                   Status (done | skipped | error | canceled), Message,
-    %                   Files, Seconds
+    %                   Files (an error or canceled row's: the files its
+    %                   figure's finished pages wrote, stopPages), Seconds
     %     Report        the last run's report struct (newAnalysisReport)
-    %     ReportFiles   the report files the last run wrote
+    %     ReportFiles   the report files the last run wrote (each one as it is
+    %                   written: a run that throws lists those written before)
+    %     KeptFiles     the figure files of the last run's Results that were on
+    %                   disk already and kept (Export.Overwrite off): listed
+    %                   in Files, not written by the run, so the lab
+    %                   database's record does not make them its outputs
+    %                   (LabCapture.analysisRun: kept_outputs). A file the
+    %                   run itself wrote is never one of them
+    %     WrittenFiles  the figure files the last run wrote, as each page's
+    %                   are taken (also those of a figure that failed or was
+    %                   canceled part way: stopPages). A page of the run
+    %                   whose file is one of them (another dataset's or
+    %                   figure's page at the same path: the file names do not
+    %                   tell them apart) is not written over, whatever
+    %                   Export.Overwrite says: its row's Message says so
+    %                   (overlapText), and the file stays the first page's,
+    %                   in that page's row
     %     RunRecordFile the run record the last run wrote: the config, the code
     %                   version, MATLAB, host, user and the Results rows, in
     %                   <report folder>/analysis_runs (see run)
@@ -124,6 +155,8 @@ classdef EphysAnalysisRunner < handle
         Results table = EphysAnalysisRunner.emptyResults()
         Report = []
         ReportFiles (1,:) string = string.empty(1, 0)
+        KeptFiles (1,:) string = string.empty(1, 0)   % the last run's figure files kept from an earlier run (Export.Overwrite off)
+        WrittenFiles (1,:) string = string.empty(1, 0)   % the figure files the last run wrote (noteWritten): a page whose file is one of them is not written again
         RunRecordFile (1,1) string = ""   % the run record the last run wrote ("" = none)
         BatchYLim = struct('figure', cell(1, 0), 'id', cell(1, 0), 'lim', cell(1, 0), 'n', cell(1, 0))   % the last run's shared y ranges
     end
@@ -134,7 +167,8 @@ classdef EphysAnalysisRunner < handle
         FigureCache = struct('kind', {}, 'dataset', {}, 'key', {}, 'value', {}, 'bytes', {}, 'from', {})   % what the preview's computes found or made (computeFigure Reuse), the most recent first
         PagesSeen (1,1) double = 0       % the pages the run has come to (usePagePool starts the workers at MinPoolPages)
         PoolFailed (1,1) logical = false % the workers could not start this run: its pages are drawn here
-        PageLooks = []                   % the design and plot rules the workers draw in (submitPage; once per run)
+        PageLooks = []                   % the design and plot rules every page draws in, here or on a worker (holdPageLooks: taken when a run starts)
+        StrayFiles (1,:) string = string.empty(1, 0)   % the files a page wrote before it failed (its report image or PDF page): the figure's row lists them (takeStrayFiles)
         LastFraction (1,1) double = 0    % the fraction last reported (progress)
     end
 
@@ -147,7 +181,7 @@ classdef EphysAnalysisRunner < handle
     methods
         % --- methods defined in separate files ---
         outs = datasets(obj)
-        src = source(obj, k)
+        src = source(obj, k, cfg)
         T = plan(obj, opts)
         F = computeFigure(obj, src, spec, opts)
         PF = computeProbeFigure(obj, src, spec, opts)
@@ -158,15 +192,16 @@ classdef EphysAnalysisRunner < handle
         progress(obj, fraction, message)
         checkpoint(obj)
         log(obj, fmt, varargin)
-        S = sessionTable(obj, idx)
+        S = sessionTable(obj, idx, cfg)
         idx = sessionFigureIndices(obj, spec, idx)
-        [T, sessions, sources] = sessionFigureObservations(obj, fig, idx)
+        [T, sessions, sources] = sessionFigureObservations(obj, fig, idx, opts)
         [res, sessions, spec, Fs] = computeSessionFigure(obj, fig, idx, opts)
         rows = runSessionFigure(obj, id, idx, opts)
         B = batchYLimits(obj, idx, spec, opts)
         tf = usePagePool(obj, n)
         job = submitPage(obj, F, spec, onPool, page)
         out = pageOutput(obj, job, fraction, message)
+        [files, stopped] = stopPages(obj, jobs)
 
         function obj = EphysAnalysisRunner(cfg, opts)
             %EphysAnalysisRunner  Find the config's datasets (Scan=false: later, with datasets()).
@@ -199,10 +234,13 @@ classdef EphysAnalysisRunner < handle
             if isempty(k); k = 0; end
         end
 
-        function root = outputRoot(obj)
+        function root = outputRoot(obj, cfg)
             %outputRoot  The {OutputRoot} token: Source.OutputRoot, else Root,
             %   else the folder above the first dataset's output folder.
-            S = obj.Config.Source;
+            %   ROOT = r.outputRoot(CFG) reads CFG's Source (run passes the
+            %   config it started with); without CFG, Config's.
+            if nargin < 2 || isempty(cfg); cfg = obj.Config; end
+            S = cfg.Source;
             root = S.OutputRoot;
             if root == ""; root = S.Root; end
             if root == "" && ~isempty(obj.Outputs)
@@ -269,6 +307,105 @@ classdef EphysAnalysisRunner < handle
             if ~isempty(n); C = C(1:max(numel(K), n - 1)); end
             obj.FigureCache = C;
         end
+
+        function back = holdPageLooks(obj)
+            %holdPageLooks  Take the user's plot design and remembered plot rules once, for every page drawn until BACK is cleared.
+            %   BACK = r.holdPageLooks() keeps them in PageLooks
+            %   (pageLooksNow: PlotDesign.current and the PlotAesthetics
+            %   preference group), unless they are held already, and
+            %   returns an onCleanup that forgets them when this call took
+            %   them ([] otherwise). run() takes them when it starts, so the
+            %   runDataset and runSessionFigure it calls draw in the run's;
+            %   called alone, each takes its own. submitPage draws every
+            %   page in them, in this MATLAB and on the workers alike: a
+            %   design chosen or a look remembered while the pages are
+            %   drawn (EphysFigGenApp's window stays usable during a run)
+            %   is the next run's.
+            back = [];
+            if ~isempty(obj.PageLooks); return; end
+            obj.PageLooks = EphysAnalysisRunner.pageLooksNow();
+            back = onCleanup(@() obj.forgetPageLooks());
+        end
+    end
+
+    methods (Hidden)
+        function forgetPageLooks(obj)
+            %forgetPageLooks  Forget the looks holdPageLooks took (the next pages read them anew).
+            if isvalid(obj); obj.PageLooks = []; end
+        end
+
+        function noteWritten(obj, files)
+            %noteWritten  Add FILES (figure files this run just wrote) to WrittenFiles, each once (EphysDataset.pathKey).
+            files = reshape(string(files), 1, []);
+            files = files(files ~= "");
+            if isempty(files); return; end
+            files = files(~ismember(EphysDataset.pathKey(files), EphysDataset.pathKey(obj.WrittenFiles)));
+            obj.WrittenFiles = [obj.WrittenFiles unique(files, 'stable')];
+        end
+
+        function addFailureEntry(obj, rspec, status, message, label, id)
+            %addFailureEntry  The report entry of a figure that failed or drew nothing (STATUS, MESSAGE); never throws.
+            %   runDataset and runSessionFigure write the figure's Results row
+            %   first: an entry that cannot be added (addReportFigure throws)
+            %   is said in the Log ("<label>: <id>: its report entry could not
+            %   be added: ...") and appended to that row's Message, so the row
+            %   stays and the error that stopped the figure is not hidden.
+            try
+                obj.Report = addReportFigure(obj.Report, rspec, [], Status=status, Message=message);
+            catch MR
+                obj.logQuietly("%s: %s: its report entry could not be added: %s", label, id, MR.message);
+                if height(obj.Results) > 0
+                    obj.Results.Message(end) = obj.Results.Message(end) + "; its report entry could not be added: " + string(MR.message);
+                end
+            end
+        end
+
+        function logQuietly(obj, fmt, varargin)
+            %logQuietly  log, but a LogFcn that throws is the warning EphysAnalysisRunner:LogFcn, never an error.
+            %   What a run says while it draws, records and ends: a LogFcn that
+            %   throws must not turn a figure that was drawn into a failure
+            %   (a second row), hide the error that stopped a figure or a run,
+            %   or fail a run that finished.
+            try
+                obj.log(fmt, varargin{:});
+            catch ME
+                warning('EphysAnalysisRunner:LogFcn', 'The Log could not be written: %s', ME.message);
+            end
+        end
+
+        function keepStray(obj, files)
+            %keepStray  FILES a page wrote before it failed (drawExportPage Partial=: its report image or PDF page threw after exportFigure had written them): this run's (noteWritten), and the figure's row's (takeStrayFiles).
+            obj.noteWritten(files);
+            files = reshape(string(files), 1, []);
+            obj.StrayFiles = [obj.StrayFiles files(files ~= "")];
+        end
+
+        function files = takeStrayFiles(obj)
+            %takeStrayFiles  The files pages that failed wrote since the last call (keepStray), and forget them: for the figure's row.
+            files = obj.StrayFiles;
+            obj.StrayFiles = string.empty(1, 0);
+        end
+
+        function tf = writtenByThisRun(obj, files)
+            %writtenByThisRun  Whether any of FILES is one this run wrote (WrittenFiles, compared as paths).
+            tf = ~isempty(obj.WrittenFiles) && any(ismember(EphysDataset.pathKey(reshape(string(files), 1, [])), ...
+                EphysDataset.pathKey(obj.WrittenFiles)));
+        end
+    end
+
+    methods (Static, Hidden)
+        function L = pageLooksNow()
+            %pageLooksNow  The user's plot design and remembered plot rules as they are now: what a run's pages are drawn in.
+            %   L.design: PlotDesign.current() (a design struct: drawExportPage
+            %   Design=); L.rules: the PlotAesthetics preference group as a
+            %   struct, a field per kind (drawExportPage UserRules=;
+            %   PlotAesthetics.userRules FROM), struct() when none is
+            %   remembered.
+            rules = struct();
+            g = PlotAesthetics.PrefGroup;
+            if AppPrefs.ispref(g); rules = AppPrefs.getpref(g); end
+            L = struct('design', PlotDesign.current(), 'rules', rules);
+        end
     end
 
     methods (Static)
@@ -289,6 +426,85 @@ classdef EphysAnalysisRunner < handle
         function T = emptyResults()
             T = table(strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), strings(0, 1), zeros(0, 1), ...
                 'VariableNames', {'Dataset', 'Plot', 'Kind', 'Status', 'Message', 'Files', 'Seconds'});
+        end
+
+        function [folders, missing, legacy] = selectedFolders(S)
+            %selectedFolders  The output folders a folders-mode Source runs: Folders, or with Selection "list" those Datasets names.
+            %   [FOLDERS, MISSING] = EphysAnalysisRunner.selectedFolders(S)
+            %   (a config's Source): every folder of S.Folders with Selection
+            %   "all"; with "list" the folders of S.Folders that S.Datasets
+            %   names (the analysis app's Run ticks, gatherSourceSection),
+            %   compared as paths (EphysDataset.pathKey: "\" or "/", a
+            %   trailing separator, and on Windows case, alike), in Folders'
+            %   order. MISSING: the entries of S.Datasets that name no folder
+            %   of S.Folders.
+            %
+            %   [..., LEGACY] = ... is true for a "list" written before folders
+            %   mode had a selection of its own: a project's dataset keys
+            %   (root-relative, "Subj/Rec") that the analysis app carried into
+            %   folders mode (File > Open from database..., the mode drop-down)
+            %   and that folders mode then ignored, running every folder. Such
+            %   a list is not empty, names no folder of S.Folders and holds no
+            %   absolute path, and every entry of S.Folders is absolute (the app
+            %   gives absolute folders: Open from database..., Add folder...;
+            %   its folders-mode ticks are Folders entries themselves, so a
+            %   folder ticked and then taken off Folders stays absolute). A
+            %   config whose Folders are relative (a script's: "recA") is never
+            %   read so: there a relative name that is no folder of Folders (one
+            %   taken off since) is missing, as any. It runs as it ran then: FOLDERS is every
+            %   folder of S.Folders, MISSING none. datasets() warns
+            %   (EphysAnalysisRunner:LegacySelection), validate lists it as a
+            %   warning, and the analysis app says it on its status bar and in
+            %   its Log and ticks every folder.
+            %
+            %   This is the one reading of a folders-mode selection: datasets(),
+            %   EphysAnalysisScript.standalone, validate and the analysis app's
+            %   ticks (selectionTicks) take it from here.
+            folders = reshape(string(S.Folders), 1, []);
+            missing = string.empty(1, 0);
+            legacy = false;
+            if S.Selection ~= "list"; return; end
+            want = reshape(string(S.Datasets), 1, []);
+            have = EphysDataset.pathKey(folders);
+            key = EphysDataset.pathKey(want);
+            named = ismember(key, have);
+            if ~isempty(want) && ~any(named) && ~any(isAbsolutePath(want)) && ~isempty(folders) && all(isAbsolutePath(folders))
+                legacy = true;   % a project's keys from before folders mode had ticks: every folder, as then
+                return
+            end
+            missing = want(~named);
+            folders = folders(ismember(have, key));
+        end
+
+        function m = keptText(n)
+            %keptText  What a Results row's Message adds for N pages whose files were kept ("" for none).
+            %   With Export.Overwrite off a page whose files all exist is
+            %   not written again: its files are listed in the row's Files
+            %   all the same, and the Message ("<n> observation(s)", "<n>
+            %   tile(s)") gains "; <N> kept: files on disk from an earlier
+            %   run, not overwritten (Export.Overwrite off)", so a reader can
+            %   tell them from the files this run wrote.
+            m = "";
+            if n > 0
+                m = sprintf("; %d kept: files on disk from an earlier run, not overwritten (Export.Overwrite off)", n);
+            end
+        end
+
+        function m = overlapText(n)
+            %overlapText  What a Results row's Message adds for N pages not written because a file this run wrote is at their path ("" for none).
+            %   Two datasets (or figures) whose pages the file name does not
+            %   tell apart (an Export.FilenamePattern and Folder without {Name}
+            %   or {OutputFolder}; validate warns of it) would write one file:
+            %   the first page's is written, and a later page of the same run
+            %   at that path is not written over, whatever Export.Overwrite
+            %   says (nor is it "kept": the file is this run's, of another
+            %   page). Its row's Message gains "; <N> not written: this run
+            %   already wrote a file at that path (the file names do not tell
+            %   the datasets or figures apart)", and its Files leave it out.
+            m = "";
+            if n > 0
+                m = sprintf("; %d not written: this run already wrote a file at that path (the file names do not tell the datasets or figures apart)", n);
+            end
         end
 
         function files = reportFiles(cfg, tokens)
@@ -338,4 +554,19 @@ classdef EphysAnalysisRunner < handle
             f = figureOutputName(pattern, facet, spec, obs, i, n);
         end
     end
+end
+
+
+function tf = isAbsolutePath(p)
+%isAbsolutePath  Whether each path is absolute on some system: "C:\" or "C:/", "\\server", or "/" first (selectedFolders).
+%   A Windows path is absolute on any computer (a config written on one may
+%   be read on another), so the test does not depend on where it runs. A
+%   project's dataset key is relative to the root (EphysProject.datasetKey;
+%   absolute only for a recording outside it, which then is no list of a
+%   project's keys this test can tell from folders).
+p = reshape(string(p), 1, []);
+tf = false(1, numel(p));
+for k = 1:numel(p)
+    tf(k) = ~isempty(regexp(char(p(k)), '^([A-Za-z]:[\\/]|[\\/])', 'once'));
+end
 end

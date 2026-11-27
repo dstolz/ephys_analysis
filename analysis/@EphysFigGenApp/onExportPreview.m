@@ -12,8 +12,14 @@ function files = onExportPreview(obj)
 %   EphysAnalysisRunner.sessionOutputName). The files go to
 %   ExportPreviewFolder (emptied first), never the Export folder. The
 %   Export controls count as they are (gatherConfig), saved or not, and
-%   Write figure files need not be ticked. An out-of-date preview is
-%   computed first (refreshFigurePreview, Force), as Open in window does.
+%   Write figure files need not be ticked. A preview that is not the
+%   figure as it is now -- not drawn from the key the figure has now
+%   (figureViewFresh: figureViewKey), whatever the badge says -- is
+%   computed first (refreshFigurePreview, Force), as Open in window does,
+%   so the file named for the observation picked is drawn from that
+%   observation's result, never a result computed for another one (or
+%   another dataset or version of the figure); an edit made while it
+%   computes leaves it Out of date and nothing is written.
 %   The Export preview window (ExportPreviewWindow, one, reused) shows the
 %   PNG as written (a PNG at the dpi is written for it alone when png is
 %   not ticked) under a line with the page's size, the dpi, the pixels, the
@@ -40,13 +46,15 @@ if k < 1 || k > numel(obj.Config.Figures)
     obj.setStatus("No figure to preview the export of: pick one on the Figures tab, or add one.");
     return
 end
-if obj.FigurePreviewState ~= "drawn" || isempty(obj.FigurePreviewResult)
+if ~figureViewFresh(obj) || isempty(obj.FigurePreviewResult)   % not the figure as it is now: computed again first
     obj.refreshFigurePreview(Force=true);
 end
 F = obj.FigurePreviewResult;
 id = obj.Config.Figures(k).id;
-if obj.FigurePreviewState ~= "drawn" || isempty(F) || F.id ~= id
-    obj.setStatus("No export preview: " + string(obj.FigurePreviewLabel.Text));
+if ~figureViewFresh(obj) || isempty(F) || F.id ~= id
+    why = string(obj.FigurePreviewLabel.Text);   % why it was not drawn (the preview's line)
+    if obj.FigurePreviewState == "stale"; why = "the figure changed while it was computed: press Preview, then Export preview."; end
+    obj.setStatus("No export preview: " + why);
     return
 end
 cfg = obj.gatherConfig();

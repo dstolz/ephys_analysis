@@ -33,8 +33,11 @@ function refreshDatasetsTable(obj)
 %   per dataset), and FilterLabel says "showing k of n (m ticked hidden)".
 %
 %   Nothing happens while HoldDatasetViews is set (onScan, which fills
-%   the table once): every dataset's files are checked on each fill, a
-%   network round trip each over a share.
+%   the table once). Which files exist (LFP, MUA, SPIKE, AUX, Behavior,
+%   Units and Detected of a source not loaded yet) is read once per scan
+%   (datasetFileMarks: a check is a network round trip over a share, and
+%   the table is filled on every star, note, tick and filter edit), so a
+%   file that appears or goes away is noticed at the next Scan.
 if obj.HoldDatasetViews; return; end
 r = obj.Runner;
 if isempty(r) || isempty(r.Keys)
@@ -64,11 +67,12 @@ Tags = strings(n, 1);
 Vars = strings(n, 1);   % the Variables column (a table cannot have a variable named Variables)
 sets = cell(1, n);   % each dataset's tag set, for the filter
 Duration = NaN(n, 1);
+has = datasetFileMarks(obj);   % the files, as the last scan found them (the table's columns, in datasetFileKinds' order)
 for k = 1:n
     out = r.Outputs(k);
-    LFP(k) = mark(out.has("LFP")); MUA(k) = mark(out.has("MUA"));
-    SPIKE(k) = mark(out.has("SPIKE")); AUX(k) = mark(out.has("AUX"));
-    Behavior(k) = mark(out.has("behavior"));
+    LFP(k) = mark(has(k, 1)); MUA(k) = mark(has(k, 2));
+    SPIKE(k) = mark(has(k, 3)); AUX(k) = mark(has(k, 4));
+    Behavior(k) = mark(has(k, 5));
     key = char(r.Keys(k));
     if isKey(r.Sources, key)
         src = r.Sources(key);
@@ -86,8 +90,8 @@ for k = 1:n
         vs = struct();
         if isfield(src, 'variableInfo'); vs = DatasetVariables.fromInfo(src.variableInfo); end
     else
-        Units(k) = mark(out.has("sorting"));   % the spikes file holds detections only
-        Detected(k) = mark(out.has("spikes"));
+        Units(k) = mark(has(k, 6));   % the spikes file holds detections only
+        Detected(k) = mark(has(k, 7));
         sets{k} = outputTags(out);   % the manifest, read once (CacheData)
         vs = outputVariables(out);
     end

@@ -1,5 +1,6 @@
 function ok = onSaveConfig(obj)
 %onSaveConfig  Save the working config to its file (Save As when it has none).
+%   The preferences are saved after it; a failure there is a warning and a Log line, not a failed save.
 ok = false;
 cfg = obj.gatherConfig();
 if cfg.File == ""
@@ -17,7 +18,12 @@ end
 obj.Config = cfg;
 obj.SavedConfigStruct = cfg.toStruct();
 obj.addRecentConfig(cfg.File);
-obj.savePreferences();
+try
+    obj.savePreferences();   % the config is saved by now: a preferences file that cannot be written does not undo that (nor stop a Close that asked for the save)
+catch ME
+    obj.log("Could not save the preferences: " + string(ME.message));
+    warning('EphysFigGenApp:SavePrefsFailed', 'Could not save preferences: %s', ME.message);
+end
 obj.updateTitle();
 obj.setStatus("Saved " + cfg.File);
 ok = true;

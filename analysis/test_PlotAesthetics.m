@@ -5,7 +5,9 @@ function test_PlotAesthetics()
 %   baseline, waveforms on the probe, stacked signals, boxes, a heat map
 %   of trials, notes and overlays, ordered groups, one group, first-spike
 %   marks, a latency box plot and onset lines). Checks the
-%   rules (normalizeRules, mergeRules, colors as text), that renderFigure
+%   rules (normalizeRules, mergeRules, colors as text; a rule's panel:
+%   rule, its merge, a value as a property takes it, typedValue; a
+%   panel's rule drawn on that panel alone and kept by the config's file), that renderFigure
 %   tags everything every figure draws with a known role (the parts of a
 %   note and of the overlays too, listed by the editor; the first-spike
 %   marks, the box plot's parts and the onset lines on one dataset and on rows merged
@@ -82,6 +84,32 @@ check(numel(M) == 2 && M(2).group == "" && isequal(M(2).value, [0 1 0]), 'mergeR
 check(ok1 && max(abs(c1 - [1 128/255 0])) < 1e-9 && ok2 && isequal(c2, [1 0 0]) && ok3 && c3 == "none" && ~ok4, ...
     'parseColor: hex, r g b in 0-255, a word kept as text, nonsense refused');
 check(PlotAesthetics.valueText([1 0 0]) == "#FF0000" && PlotAesthetics.valueText(2.5) == "2.5", 'valueText: colors as hex');
+% a rule for one panel (its fifth field): every panel by default; merged like a group
+Rq = PlotAesthetics.rule("xlabel", "FontSize", 9);
+Rq1 = PlotAesthetics.rule("xlabel", "FontSize", 12, Panel="psth_1", Group="g");
+check(isequal(string(fieldnames(PlotAesthetics.emptyRules())).', ["role" "group" "property" "value" "panel"]) && all([R.panel] == "") ...
+    && Rq.panel == "" && Rq.group == "" && Rq.value == 9 && Rq1.panel == "psth_1" && Rq1.group == "g" ...
+    && strcmp(errorId(@() PlotAesthetics.rule("xlabel", "Wobble", 1)), 'PlotAesthetics:BadRule') ...
+    && strcmp(errorId(@() PlotAesthetics.normalizeRules(struct('role', "rate", 'property', "Color", 'value', 1, 'panel', 3))), 'PlotAesthetics:BadRule'), ...
+    'a rule has a panel ("" = every panel: what a rule without the field gets); PlotAesthetics.rule makes one; a panel that is not text is refused');
+Mp = PlotAesthetics.mergeRules(Rq, PlotAesthetics.rule("xlabel", "FontSize", 12, Panel="psth_1"));
+Mp2 = PlotAesthetics.mergeRules(Mp, PlotAesthetics.rule("xlabel", "FontSize", 10, Panel="psth_1"));
+Mp3 = PlotAesthetics.mergeRules(Mp2, PlotAesthetics.rule("xlabel", "FontSize", 14, Panel="raster_1"));
+Mp4 = PlotAesthetics.mergeRules(Mp3, PlotAesthetics.rule("xlabel", "FontSize", 11));
+check(numel(Mp) == 2 && isequal([Mp.panel], ["" "psth_1"]) && numel(Mp2) == 2 && Mp2(2).value == 10 && numel(Mp3) == 3 ...
+    && isscalar(Mp4) && Mp4.panel == "" && Mp4.value == 11, ...
+    'mergeRules: a panel''s rule is added to the every-panel one, replaces that panel''s alone, and an every-panel rule replaces them all');
+Cat = PlotAesthetics.catalog();
+tv = @(n, v) PlotAesthetics.typedValue(Cat.(n), v, Strict=true);
+check(isequal(tv("Color", "red"), [1 0 0]) && tv("Color", "none") == "none" && tv("LineStyle", "dashed") == "--" && tv("LineStyle", "--") == "--" ...
+    && tv("Visible", false) == "off" && tv("Visible", "ON") == "on" && tv("LineWidth", 2) == 2 && isequal(tv("TickLength", [0.01 0.02]), [0.01 0.02]) ...
+    && tv("Colormap", "parula") == "parula" && isequal(PlotAesthetics.typedValue(Cat.LineWidth, 500), 500) ...
+    && PlotAesthetics.typedValue(Cat.Visible, true) == "on" && isequal(PlotAesthetics.typedValue(Cat.Color, "#0000FF"), [0 0 1]), ...
+    'typedValue: a color from text, a choice by its label, on / off from true / false; without Strict only those two are made');
+check(all(strcmp(cellfun(@errorId, {@() tv("LineWidth", 500), @() tv("LineWidth", "thick"), @() tv("LineStyle", "wavy"), @() tv("Color", "plaid"), ...
+    @() tv("Color", [2 0 0]), @() tv("Visible", "maybe"), @() tv("TickLength", 1), @() tv("Colormap", "noSuchColormapFunction"), ...
+    @() PlotAesthetics.typedValue(Cat.Color, "plaid")}, 'UniformOutput', false), 'PlotAesthetics:BadValue')), ...
+    'typedValue, Strict: a number outside its limits or not a number, an unknown choice, no color, no on / off, no pair, no colormap are refused');
 
 fprintf('\n== 2. renderFigure names everything it draws ==\n');
 fig = figure('Visible', 'off', 'Position', [100 100 700 800]);
@@ -162,6 +190,46 @@ h = renderFigure(Cp.F, spec, fig);
 [~, wid] = lastwarn();
 warning(w);
 check(~isempty(h.layout) && strcmp(wid, 'PlotAesthetics:BadValue'), 'a value the object refuses warns and the figure is still drawn');
+% a rule that names a panel reaches that panel's components alone; a later every-panel rule wins again
+pids = [Cp.spec.panels.id];
+h = renderFigure(Cp.F, Cp.spec, fig, UserAesthetics=false);
+C = PlotAesthetics.components(h.layout);
+inPanel = @(C, id) C.Role(C.Tile > 0 & C.TileName == id);
+both = ["ylabel" "zeroLine" "xlabel" "tileTitle"];
+both = both(ismember(both, inPanel(C, pids(1))) & ismember(both, inPanel(C, pids(2))));
+okPanel = numel(pids) == 2 && ~isempty(both);
+if okPanel
+    roleP = both(1);
+    propP = "FontSize";
+    if roleP == "zeroLine"; propP = "LineWidth"; end
+    valueIn = @(C, id) PlotAesthetics.getValue(C.Handles{find(C.Role == roleP & C.Tile > 0 & C.TileName == id, 1)}(1), propP);
+    spec = Cp.spec;
+    asDrawn = [valueIn(C, pids(1)) valueIn(C, pids(2))];   % without a rule
+    v = ceil(max(asDrawn)) + [2 4 6 8];   % four values that are none of those drawn
+    spec.aesthetics = [PlotAesthetics.rule(roleP, propP, v(1)) PlotAesthetics.rule(roleP, propP, v(2), Panel=pids(2))];
+    h = renderFigure(Cp.F, spec, fig, UserAesthetics=false);
+    C = PlotAesthetics.components(h.layout);
+    okPanel = valueIn(C, pids(1)) == v(1) && valueIn(C, pids(2)) == v(2);
+    spec.aesthetics = PlotAesthetics.mergeRules(spec.aesthetics, PlotAesthetics.rule(roleP, propP, v(3)));
+    h = renderFigure(Cp.F, spec, fig, UserAesthetics=false);
+    C = PlotAesthetics.components(h.layout);
+    okPanel = okPanel && isscalar(spec.aesthetics) && valueIn(C, pids(1)) == v(3) && valueIn(C, pids(2)) == v(3);
+    spec.aesthetics = PlotAesthetics.rule(roleP, propP, v(4), Panel="no_such_panel");
+    h = renderFigure(Cp.F, spec, fig, UserAesthetics=false);
+    C = PlotAesthetics.components(h.layout);
+    okPanel = okPanel && isequal([valueIn(C, pids(1)) valueIn(C, pids(2))], asDrawn);
+end
+check(okPanel, sprintf(['a rule that names a panel sets its part in that panel alone (%s of %s: one value in %s, another in %s); an every-panel ' ...
+    'rule merged after it sets both; a rule for a panel the figure lacks sets nothing (both as drawn without a rule)'], ...
+    strjoin(both(1:min(end, 1))), strjoin(pids, " and "), strjoin(pids(1:min(end, 1))), strjoin(pids(min(end, 2):end))));
+cfgP = EphysAnalysisConfig();
+cfgP = cfgP.addFigure(struct('id', "lookp", 'aesthetics', PlotAesthetics.rule("xlabel", "FontSize", 12, Panel="psth_1")));
+fP = string(tempname) + ".json";
+cfgP.save(fP);
+backP = EphysAnalysisConfig.load(fP);
+delete(fP);
+check(backP.Figures(backP.figureIndex("lookp")).aesthetics.panel == "psth_1" && backP.isequalConfig(cfgP), ...
+    'a rule''s panel survives the config''s JSON file');
 
 fprintf('\n== 4. the right-click menu ==\n');
 inv = figure('Visible', 'off');   % a new figure, as a run's export is

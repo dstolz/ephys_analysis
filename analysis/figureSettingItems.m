@@ -111,6 +111,7 @@ A = fig.aesthetics;
 for r = 1:numel(A)
     label = PlotAesthetics.roleLabel(A(r).role) + ": " + A(r).property;
     if A(r).group ~= ""; label = label + " (" + A(r).group + ")"; end
+    if A(r).panel ~= ""; label = label + " [panel " + A(r).panel + "]"; end   % a look of one panel: copied, it reaches the panel of that id
     add("looks", strings(1, 0), string(r), label, "looks", r, "aesthetics", true, PlotAesthetics.valueText(A(r).value));
 end
 % Across sessions

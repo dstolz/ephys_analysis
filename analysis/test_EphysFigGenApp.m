@@ -211,6 +211,13 @@ function test_EphysFigGenApp(opts)
 %   the stuck and broken states (5y: an interrupted preview, Run and Scan while one computes, Close with a failing
 %   step or during a run, Max groups above 100, a config a control cannot show, the arrows after a click elsewhere,
 %   the notepad after a re-scan, Apply last change after Up / Down, the Shift+click selection after another figure);
+%   the command line (5z: app.Plots, a PlotConsole, and EphysFigGenApp.current(); a figure, a panel and a part as
+%   objects, by id, number or role, each typed alone saying what it holds; a look set at once on one panel's part,
+%   remembered for that panel as one named undo step and drawn again with nothing computed; a part of the whole
+%   figure, set(...) and a color by name; a panel's look after the figure's, and the figure's again; values,
+%   properties and settings refused, nothing changed; a look forgotten, Undo, forget(); Immediate off keeping a
+%   look, a figure's setting, a panel's and a piece of one, read back as they will be, apply() as one undo step,
+%   show(), discard(), Immediate on again; a figure not shown, a figure removed);
 %   closing (no plot or session preference written). The app's preferences live in a
 %   temporary file for the run (AppPrefs.useTemporary), never the user's.
 %
@@ -339,6 +346,14 @@ timing = onCleanup(@() S.done()); %#ok<NASGU> the sections' times, even after a 
             app.onFigureSelected(1);
             app.onRemoveFigure();
         end
+    end
+
+    function v = drawn5z(panel, role, prop)
+        %drawn5z  Property PROP of the part ROLE the shown preview draws in panel PANEL, as exported ([] when it draws none).
+        v = [];
+        C5z = PlotAesthetics.components(app.FigurePreviewPanel);
+        k5z = find(C5z.Role == role & C5z.Tile > 0 & C5z.TileName == panel, 1);
+        if ~isempty(k5z); v = PlotAesthetics.getValue(C5z.Handles{k5z}(1), prop); end
     end
 
 applyRows = [];    % the Apply to figures window's rows as it opened (answerApply)
@@ -7591,6 +7606,165 @@ if S.sec("5y", "stuck or broken states: an interrupted preview, Run and Scan whi
     app.Tabs.SelectedTab = app.TabData;
 end
 
+if S.sec("5z", "the command line (app.Plots): figures, panels and parts as objects; a look set at once, redrawn with nothing computed; a panel's look, a figure's; settings; Immediate off, apply, discard; Undo")
+    noFigures();
+    app.selectTab(app.TabFigures);
+    app.FigureAutoSlider.Value = 0;   % Auto off: a look alone is still drawn at once, from the result the preview holds
+    app.onAddFigure("rasterPsth");
+    app.refreshFigurePreview(Force=true);
+    fid = app.Config.Figures(1).id;
+    p = app.Plots;
+    cur5z = EphysFigGenApp.current();
+    nApps5z = nnz(arrayfun(@(w) isappdata(w, 'EphysFigGenApp'), findall(groot, '-depth', 1, 'Type', 'figure')));
+    f = p.Figure(fid);
+    pn = f.Panel("psth_1");
+    check(isa(p, 'PlotConsole') && isscalar(cur5z) && isa(cur5z, 'EphysFigGenApp') && (nApps5z > 1 || cur5z == app) ...
+        && isequal(getappdata(app.Fig, 'EphysFigGenApp'), app) && isequal(p.Figures, app.Config.figureIds()) && p.Immediate == "on" ...
+        && height(p.Pending) == 0 && isa(f, 'PlotFigureNode') && f.Id == fid && f.Index == 1 && p.Figure(1).Id == fid && p.Figure().Id == fid ...
+        && isequal(f.Panels, ["raster_1" "psth_1"]) && isa(pn, 'PlotPanelNode') && pn.Id == "psth_1" && pn.Type == "psth" && pn.Index == 2 ...
+        && p.Figure(fid).Panel(1).Id == "raster_1", ...
+        'app.Plots is the console (EphysFigGenApp.current() finds the app); Figure by id, number or none (the one shown), Panel by id or number');
+    check(strcmp(errorId5z(@() p.Figure("no such figure")), 'PlotConsole:NoFigure') && strcmp(errorId5z(@() p.Figure(7)), 'PlotConsole:NoFigure') ...
+        && strcmp(errorId5z(@() f.Panel("nope")), 'PlotConsole:NoPanel') && strcmp(errorId5z(@() f.noSuchPart), 'PlotConsole:NoPart') ...
+        && strcmp(errorId5z(@() pn.noSuchPart), 'PlotConsole:NoPart') && strcmp(errorId5z(@() p.nope), 'PlotConsole:NoSuchName') ...
+        && strcmp(errorId5z(@() subsasgn(f, substruct('.', 'Id'), "x")), 'PlotConsole:ReadOnly') ...
+        && strcmp(errorId5z(@() subsasgn(f, substruct('.', 'xlabel'), 3)), 'PlotConsole:ReadOnly'), ...
+        'a figure, a panel or a part that is not there, and an assignment to what is read only, each raise their own error');
+    T5z = f.Parts;
+    Tp5z = pn.Parts;
+    pt = pn.axes;
+    P5z = pt.Properties;
+    check(height(T5z) > 0 && isequal(string(T5z.Properties.VariableNames), ["Panel" "Part" "Group" "Type" "Label"]) ...
+        && all(ismember(["raster_1" "psth_1"], T5z.Panel)) && height(Tp5z) > 0 && all(Tp5z.Panel == "psth_1") && ismember("axes", Tp5z.Part) ...
+        && isa(pt, 'PlotPartNode') && pt.Role == "axes" && pt.Panel == "psth_1" && pt.Figure == fid && pt.Group == "" && pt.Label == "Axes" ...
+        && isa(pn.Part("axes"), 'PlotPartNode') && all(ismember(["LineWidth" "FontSize" "Box" "XColor"], P5z.Property)) ...
+        && all(P5z.Drawn ~= "") && all(P5z.Remembered == "") && isnumeric(pt.LineWidth) && isscalar(pt.LineWidth) ...
+        && pn.AXES.Role == "axes" && isequal(pt.linewidth, pt.LineWidth), ...
+        'Parts lists what the preview draws, by panel; a part is reached by its role (whatever the case) and lists its properties as drawn');
+    txt5z = string(evalc('disp(p)')) + string(evalc('disp(f)')) + string(evalc('disp(pn)')) + string(evalc('disp(pt)'));
+    check(contains(txt5z, fid) && contains(txt5z, "psth_1") && contains(txt5z, "Parts drawn") && contains(txt5z, "LineWidth") ...
+        && contains(txt5z, "Immediate"), 'each object typed alone says what it holds: the figures, the panels, the parts drawn, the properties');
+
+    % a look set at once: remembered for that panel, one undo step, the preview redrawn from what it holds
+    lwR5z = drawn5z("raster_1", "rasterAxes", "LineWidth");
+    app.FigurePreviewSeconds = 1234;   % a compute would set it
+    pn.axes.LineWidth = 2.5;
+    A5z = app.Config.Figures(1).aesthetics;
+    check(isscalar(A5z) && A5z.role == "axes" && A5z.property == "LineWidth" && A5z.value == 2.5 && A5z.panel == "psth_1" && A5z.group == "" ...
+        && isequal(app.Runner.Config.Figures(1).aesthetics, A5z) && app.FigurePreviewState == "drawn" && app.FigurePreviewSeconds == 1234 ...
+        && isequal(drawn5z("psth_1", "axes", "LineWidth"), 2.5) && isequal(drawn5z("raster_1", "rasterAxes", "LineWidth"), lwR5z) ...
+        && startsWith(app.FigureHistory.undoLabel(), "Command line: psth_1.axes.LineWidth") && startsWith(app.Fig.Name, "*") ...
+        && startsWith(string(FE.looksText.Text), "1 remembered") && pn.axes.LineWidth == 2.5 && p.Figure(fid).Panel("psth_1").axes.LineWidth == 2.5 ...
+        && height(f.Looks) == 1 && f.Looks.Panel == "psth_1" && height(pn.Looks) == 1 && pn.axes.Properties.Remembered(P5z.Property == "LineWidth") == "2.5", ...
+        ['pn.axes.LineWidth = 2.5 is remembered with the figure for that panel, as one named undo step; the preview is drawn again at once ' ...
+        'with Auto off, nothing computed, that panel''s axes alone changed; it reads back']);
+
+    % a part of the whole figure, several properties as one change; then one panel's, then the figure's again
+    both5z = ["ylabel" "zeroLine" "xlabel"];
+    both5z = both5z(ismember(both5z, T5z.Part(T5z.Panel == "raster_1")) & ismember(both5z, T5z.Part(T5z.Panel == "psth_1")));
+    ok5z = ~isempty(both5z);
+    if ok5z
+        role5z = both5z(1);
+        prop5z = "FontSize";
+        if role5z == "zeroLine"; prop5z = "LineWidth"; end
+        fp = f.Part(role5z);
+        fp.set(prop5z, 13, "Color", "red");
+        A5z = app.Config.Figures(1).aesthetics;
+        ok5z = numel(A5z) == 3 && all([A5z(2:3).panel] == "") && all([A5z(2:3).role] == role5z) && isequal(A5z(3).value, [1 0 0]) ...
+            && app.FigureHistory.undoLabel() == "Command line: 2 changes" && isequal(drawn5z("raster_1", role5z, prop5z), 13) ...
+            && isequal(drawn5z("psth_1", role5z, prop5z), 13) && isequal(drawn5z("psth_1", role5z, "Color"), [1 0 0]) ...
+            && isequal(fp.Color, [1 0 0]) && isequal(fp.get(prop5z), 13) && app.FigurePreviewState == "drawn";
+        pp = pn.Part(role5z);
+        pp.set(prop5z, 9);
+        one5z = numel(app.Config.Figures(1).aesthetics) == 4 && isequal(drawn5z("psth_1", role5z, prop5z), 9) ...
+            && isequal(drawn5z("raster_1", role5z, prop5z), 13) && isequal(pp.get(prop5z), 9) && istable(fp.get(prop5z));
+        fp.set(prop5z, 11);
+        A5z = app.Config.Figures(1).aesthetics;
+        ok5z = ok5z && one5z && numel(A5z) == 3 && nnz([A5z.role] == role5z & [A5z.property] == prop5z) == 1 ...
+            && isequal(drawn5z("psth_1", role5z, prop5z), 11) && isequal(drawn5z("raster_1", role5z, prop5z), 11) && isequal(pp.get(prop5z), 11);
+    end
+    check(ok5z, sprintf(['a part named on the figure (%s) is that part in every panel: set(...) sets several properties as one change, ' ...
+        'a color by name; the panel''s own look after it wins there alone (the figure''s part then reads as a table); the figure''s again replaces it'], ...
+        strjoin(both5z(1:min(end, 1)))));
+
+    % what is refused changes nothing; forgetting one look; Undo
+    n5z = numel(app.Config.Figures(1).aesthetics);
+    lastwarn('');
+    check(strcmp(errorId5z(@() pn.axes.set("LineWidth", 500)), 'PlotAesthetics:BadValue') ...
+        && strcmp(errorId5z(@() pn.axes.set("XColor", "plaid")), 'PlotAesthetics:BadValue') ...
+        && strcmp(errorId5z(@() pn.axes.set("Wobble", 1)), 'PlotConsole:NoProperty') ...
+        && strcmp(errorId5z(@() pn.axes.set("LineWidth")), 'PlotConsole:NoProperty') ...
+        && strcmp(errorId5z(@() subsasgn(pn, substruct('.', 'Settings', '.', 'nope'), 1)), 'PlotConsole:NoSetting') ...
+        && strcmp(errorId5z(@() subsasgn(pn, substruct('.', 'Settings', '.', 'id'), "x")), 'PlotConsole:NoSetting') ...
+        && strcmp(errorId5z(@() subsasgn(pn, substruct('.', 'Settings'), struct())), 'PlotConsole:NoSetting') ...
+        && strcmp(errorId5z(@() subsasgn(pn, substruct('.', 'Settings', '.', 'xSide'), "middle")), 'PlotConsole:Invalid') ...
+        && numel(app.Config.Figures(1).aesthetics) == n5z && app.Config.Figures(1).panels(2).xSide == "bottom", ...
+        ['a value a property does not take, a property the part does not have, a name that is no setting, a setting Settings leaves out ' ...
+        'and one the config''s validate refuses are errors, and nothing changes']);
+    pn.axes.LineWidth = [];
+    gone5z = numel(app.Config.Figures(1).aesthetics) == n5z - 1 && height(pn.Looks) == 0 && app.FigurePreviewState == "drawn" ...
+        && ~isequal(drawn5z("psth_1", "axes", "LineWidth"), 2.5);
+    app.onUndoRedo("undo");
+    back5z = numel(app.Config.Figures(1).aesthetics) == n5z && height(pn.Looks) == 1 && pn.axes.LineWidth == 2.5;
+    pn.forget();
+    f.forget();
+    check(gone5z && back5z && isempty(app.Config.Figures(1).aesthetics) && height(f.Looks) == 0 ...
+        && startsWith(string(FE.looksText.Text), "0 remembered") && FE.looksForget.Enable == "off", ...
+        'pn.axes.LineWidth = [] forgets that look and the preview is drawn without it; Edit > Undo brings it back; forget() drops a panel''s, then the figure''s');
+
+    % Immediate off: the changes are kept, read back as they will be, and made together by apply; discard; on again makes them
+    before5z = app.Config.Figures(1);
+    undo5z = app.FigureHistory.undoLabel();
+    p.Immediate = false;
+    pn.axes.FontSize = 7;
+    f.Settings.title = "Unit card";
+    pn.Settings.yLabel = "Rate (sp/s)";
+    pn.Settings.rect(3) = 0.9;
+    kept5z = isequaln(app.Config.Figures(1), before5z) && app.FigureHistory.undoLabel() == undo5z && p.Immediate == "off" ...
+        && height(p.Pending) == 4 && all(p.Pending.Figure == fid) && pn.axes.FontSize == 7 && f.Settings.title == "Unit card" ...
+        && pn.Settings.yLabel == "Rate (sp/s)" && pn.Settings.rect(3) == 0.9 && height(f.Looks) == 1;
+    p.apply();
+    fg5z = app.Config.Figures(1);
+    made5z = height(p.Pending) == 0 && fg5z.title == "Unit card" && fg5z.panels(2).yLabel == "Rate (sp/s)" && fg5z.panels(2).rect(3) == 0.9 ...
+        && isequal(fg5z.panels(2).rect([1 2 4]), before5z.panels(2).rect([1 2 4])) && isscalar(fg5z.aesthetics) && fg5z.aesthetics.value == 7 ...
+        && app.FigureHistory.undoLabel() == "Command line: 4 changes" && string(FE.title.Value) == "Unit card";
+    f.show();
+    axP5z = findPanelAxes(app.FigurePreviewPanel, "psth_1");
+    shown5z = app.FigurePreviewState == "drawn" && strjoin(string(axP5z.YLabel.String), " ") == "Rate (sp/s)" ...
+        && isequal(drawn5z("psth_1", "axes", "FontSize"), 7);
+    app.onUndoRedo("undo");
+    undone5z = isequaln(app.Config.Figures(1), before5z);
+    check(kept5z && made5z && shown5z && undone5z, ...
+        ['Immediate = false keeps the changes (a look, a figure''s setting, a panel''s, a piece of one): the app has none of them, Pending lists ' ...
+        'them, and they read back as they will be; apply() makes them as one undo step, the editor shows them and show() draws them; one Undo takes them all back']);
+    pn.axes.FontSize = 8;
+    dropped5z = height(p.Pending) == 1;
+    p.discard();
+    dropped5z = dropped5z && height(p.Pending) == 0 && isequaln(app.Config.Figures(1), before5z);
+    pn.axes.FontSize = 8;
+    p.Immediate = true;
+    check(dropped5z && p.Immediate == "on" && height(p.Pending) == 0 && isscalar(app.Config.Figures(1).aesthetics) ...
+        && app.Config.Figures(1).aesthetics.value == 8, 'discard() drops the changes kept; Immediate on again makes those kept');
+
+    % a second figure, not shown: changed all the same, its kept preview marked; a figure removed says so
+    app.onAddFigure("psth");
+    id2 = app.Config.Figures(2).id;
+    app.onFigureSelected(1);
+    f2 = p.Figure(id2);
+    warn5z = warning('off', 'PlotConsole:NotDrawn');
+    f2.Panel(1).axes.Box = false;
+    warning(warn5z);
+    other5z = isscalar(app.Config.Figures(2).aesthetics) && app.Config.Figures(2).aesthetics.value == "off" && app.SelectedFigure == 1 ...
+        && f2.Index == 2;
+    app.onFigureSelected(2);
+    app.onRemoveFigure();
+    check(other5z && strcmp(errorId5z(@() f2.Id), 'PlotConsole:Gone') && strcmp(errorId5z(@() f2.Panel(1)), 'PlotConsole:Gone') ...
+        && contains(string(evalc('disp(f2)')), "no longer"), ...
+        'a figure that is not shown is changed all the same (on / off from false); once it is removed, its object says it is gone');
+    noFigures();
+    app.Tabs.SelectedTab = app.TabData;
+end
+
 if S.sec("6", "close")
     savedConfig();
     app.onSaveConfig();   % the sections run before this one may have left the config dirty: saved, so Close asks nothing (under -batch it could not)
@@ -8038,6 +8212,17 @@ try
         delete(app.Fig);
     end
 catch
+end
+end
+
+
+function id = errorId5z(fcn)
+%errorId5z  The identifier of the error FCN raises ('' when it raises none).
+id = '';
+try
+    fcn();
+catch ME
+    id = ME.identifier;
 end
 end
 

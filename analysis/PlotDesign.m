@@ -39,7 +39,7 @@ classdef PlotDesign
     %                 more than two values) and an evoked butterfly's depths
     %     heat        images: heat map, probe map
     %     diverging   signed images: correlation map, auROC heat map
-    %     rules       PlotAesthetics rules (role, group, property, value) for
+    %     rules       PlotAesthetics rules (role, group, property, value; no panel) for
     %                 every plot
     %     kinds       rules for one panel type (or "figure", or a Chronux
     %                 kind: kindNames), drawn after the common ones:
@@ -403,10 +403,13 @@ classdef PlotDesign
         %% --- drawing -------------------------------------------------------------
         function R = rulesFor(D, kind)
             %rulesFor  The rules design D gives plots of KIND: the common ones, then the kind's.
-            R = D.rules;
+            %   Normalized (PlotAesthetics.normalizeRules), so a design made
+            %   by hand joins the user's and a plot's own rules whatever
+            %   fields its rules were given with.
+            R = PlotAesthetics.normalizeRules(D.rules);
             kind = string(kind);
             if isvarname(kind) && isfield(D.kinds, kind)
-                R = [R D.kinds.(kind)];
+                R = [R PlotAesthetics.normalizeRules(D.kinds.(kind))];
             end
         end
 
@@ -722,7 +725,7 @@ for role = unique(T.Role, 'stable').'
         catch
             continue   % not a value a rule can hold
         end
-        R(end+1) = struct('role', role, 'group', "", 'property', nm, 'value', v); %#ok<AGROW>
+        R(end+1) = struct('role', role, 'group', "", 'property', nm, 'value', v, 'panel', ""); %#ok<AGROW>
     end
 end
 end
@@ -921,8 +924,9 @@ end
 
 
 function R = rulesOut(R)
-%rulesOut  Rules as a file holds them: colors as #rrggbb.
+%rulesOut  Rules as a file holds them: colors as #rrggbb, no panel (a design's rules name none).
 C = PlotAesthetics.catalog();
+if isfield(R, 'panel'); R = rmfield(R, 'panel'); end
 for k = 1:numel(R)
     if C.(R(k).property).Type == "color" && isnumeric(R(k).value) && numel(R(k).value) == 3
         R(k).value = PlotAesthetics.valueText(R(k).value);

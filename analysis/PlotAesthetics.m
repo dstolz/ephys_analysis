@@ -7,14 +7,17 @@ classdef PlotAesthetics
     %   through their axes, or their tiled layout (a grid's x and y labels
     %   and the plot's title). A rule -- role, group, property, value -- sets
     %   that property on every component of the role, in every tile; group
-    %   "" means every group. renderFigure applies the user's rules for each
+    %   "" means every group. A rule may also name a panel (its fifth field,
+    %   panel: a figure panel's id): it then reaches that panel's components
+    %   alone; "" (the default) means every panel. renderFigure applies the user's rules for each
     %   panel's type and for "figure" (preferences) and then the figure's
     %   own (its aesthetics field, saved in the config); renderChronux the
     %   user's rules for its result's kind. In a visible figure a
     %   right-click on any component opens PlotAestheticsDialog.
     %
     %   Rules
-    %     R = PlotAesthetics.emptyRules()          1x0 struct: role, group, property, value
+    %     R = PlotAesthetics.emptyRules()          1x0 struct: role, group, property, value, panel
+    %     R = PlotAesthetics.rule(ROLE, PROP, V)   one rule (Group=, Panel=)
     %     R = PlotAesthetics.normalizeRules(V)      from a struct array, a cell (jsondecode) or []
     %     R = PlotAesthetics.mergeRules(R, NEW)     NEW added; the rules they cover dropped
     %     n = PlotAesthetics.apply(TARGET, R)       set on what is drawn in TARGET (n: values set)
@@ -29,6 +32,7 @@ classdef PlotAesthetics
     %   Components
     %     T = PlotAesthetics.components(TARGET)     one row per component (see components)
     %     P = PlotAesthetics.editableProperties(H)  what the editor offers for object H
+    %     v = PlotAesthetics.typedValue(P, V)       V as property P takes it (a color from text, ...)
     %     v = PlotAesthetics.getValue(H, NAME)      PlotAesthetics.setValue(H, NAME, V)
     %   Scale
     %     s = PlotAesthetics.drawScale(H)           the scale H's drawing is shown at (1: as exported)
@@ -63,14 +67,33 @@ classdef PlotAesthetics
     methods (Static)
         %% --- rules ------------------------------------------------------------
         function R = emptyRules()
-            %emptyRules  No rules: a 1x0 struct with fields role, group, property, value.
-            R = repmat(struct('role', "", 'group', "", 'property', "", 'value', []), 1, 0);
+            %emptyRules  No rules: a 1x0 struct with fields role, group, property, value, panel.
+            R = repmat(struct('role', "", 'group', "", 'property', "", 'value', [], 'panel', ""), 1, 0);
+        end
+
+        function R = rule(role, property, value, opts)
+            %rule  One rule: PROPERTY of the components of ROLE set to VALUE.
+            %   R = PlotAesthetics.rule(ROLE, PROPERTY, VALUE) reaches every
+            %   group in every panel; Group=G only the group G (a trial
+            %   group's label, a series, a channel), Panel=ID only the
+            %   components drawn in the figure panel ID. Checked as
+            %   normalizeRules checks it (PlotAesthetics:BadRule).
+            arguments
+                role (1,1) string
+                property (1,1) string
+                value
+                opts.Group (1,1) string = ""
+                opts.Panel (1,1) string = ""
+            end
+            R = PlotAesthetics.normalizeRules(struct('role', role, 'group', opts.Group, 'property', property, ...
+                'value', {value}, 'panel', opts.Panel), "rule");
         end
 
         function R = normalizeRules(v, path)
             %normalizeRules  Rules from a struct array, a cell of structs (jsondecode) or [].
             %   Each rule needs a role and a property the editor knows
-            %   (editableProperties); group defaults to "" (every group). A
+            %   (editableProperties); group defaults to "" (every group) and
+            %   panel to "" (every panel). A
             %   value is a number, a color [r g b] (a column from JSON becomes
             %   a row), or text ("none", "--", "bold", "on"). Raises
             %   PlotAesthetics:BadRule naming PATH (default "aesthetics").
@@ -96,14 +119,16 @@ classdef PlotAesthetics
                 prop = textOf(r.property);
                 group = "";
                 if isfield(r, 'group'); group = textOf(r.group); end
-                if ismissing(role) || role == "" || ismissing(prop) || ismissing(group)
-                    error('PlotAesthetics:BadRule', '%s: role, group and property must be text.', where);
+                panel = "";
+                if isfield(r, 'panel'); panel = textOf(r.panel); end
+                if ismissing(role) || role == "" || ismissing(prop) || ismissing(group) || ismissing(panel)
+                    error('PlotAesthetics:BadRule', '%s: role, group, property and panel must be text.', where);
                 end
                 if ~ismember(prop, known)
                     error('PlotAesthetics:BadRule', '%s: unknown property "%s" (one of %s).', where, prop, strjoin(known, ", "));
                 end
                 R(1, end+1) = struct('role', role, 'group', group, 'property', prop, ...
-                    'value', PlotAesthetics.normalizeValue(r.value, where)); %#ok<AGROW>
+                    'value', PlotAesthetics.normalizeValue(r.value, where), 'panel', panel); %#ok<AGROW>
             end
         end
 
@@ -111,15 +136,18 @@ classdef PlotAesthetics
             %mergeRules  Add NEW to R, each replacing the rules it covers.
             %   A new rule replaces the rules of its role and property for its
             %   group; one for every group (group "") replaces that role and
-            %   property's rules for any group. Later rules win when applied,
-            %   so the order is kept.
+            %   property's rules for any group. The panel counts the same
+            %   way: a rule for one panel replaces that panel's, one for
+            %   every panel (panel "") the rules of any panel. Later rules
+            %   win when applied, so the order is kept.
             R = PlotAesthetics.normalizeRules(R);
             new = PlotAesthetics.normalizeRules(new);
             for n = new
                 if isempty(R)
                     drop = false(1, 0);
                 else
-                    drop = [R.role] == n.role & [R.property] == n.property & (n.group == "" | [R.group] == n.group);
+                    drop = [R.role] == n.role & [R.property] == n.property & (n.group == "" | [R.group] == n.group) ...
+                        & (n.panel == "" | [R.panel] == n.panel);
                 end
                 R = [R(~drop) n];
             end
@@ -127,7 +155,11 @@ classdef PlotAesthetics
 
         function n = apply(target, rules)
             %apply  Set RULES on the components drawn in TARGET; n = values set.
-            %   Rules go in order (later ones win). A rule whose property a
+            %   Rules go in order (later ones win). A rule that names a
+            %   panel reaches the components of the tiles of that name alone
+            %   (components' TileName: renderFigure names a panel's axes by
+            %   its id), so none of the plot's own (its title, a legend
+            %   outside the panels). A rule whose property a
             %   component lacks is skipped there; a value its object refuses
             %   raises the warning PlotAesthetics:BadValue (once per rule).
             n = 0;
@@ -135,7 +167,8 @@ classdef PlotAesthetics
             if isempty(rules); return; end
             T = PlotAesthetics.components(target);
             for r = rules
-                hit = find(T.Role == r.role & (r.group == "" | T.Group == r.group));
+                hit = find(T.Role == r.role & (r.group == "" | T.Group == r.group) ...
+                    & (r.panel == "" | (T.Tile > 0 & T.TileName == r.panel)));
                 failed = "";
                 for i = hit(:).'
                     for h = reshape(T.Handles{i}, 1, [])
@@ -595,6 +628,86 @@ classdef PlotAesthetics
             catch
                 v = [];
                 ok = false;
+            end
+        end
+
+        function v = typedValue(P, v, opts)
+            %typedValue  V as property P takes it: a color from text, on / off from true / false.
+            %   V = PlotAesthetics.typedValue(P, V), P an entry of
+            %   editableProperties (or of catalog), is what the aesthetics
+            %   editor and the command line (PlotPartNode) make of a value
+            %   given for it: a color as text ("red", "#1f77b4", "0.2 0.4
+            %   0.6") becomes [r g b], or stays a word the objects take
+            %   (none, flat, auto, interp: parseColor); true / false (1 / 0)
+            %   for an on / off property becomes "on" / "off". Text that
+            %   is no color raises PlotAesthetics:BadValue.
+            %   Strict=true (the command line, where no control limits
+            %   what is typed) also refuses, with PlotAesthetics:BadValue,
+            %   what the editor's controls cannot give: a color that is
+            %   not three numbers 0-1; a number that is not one finite
+            %   number within P.Limits; a vector that is not two numbers;
+            %   a choice that is none of P.Choices (its ChoiceLabels are
+            %   taken too, "dashed" for "--", whatever the case, and come
+            %   back as the choice); on / off that is neither; a font or
+            %   a colormap that is not one word of text (a colormap: a
+            %   function on the path).
+            arguments
+                P (1,1) struct
+                v
+                opts.Strict (1,1) logical = false
+            end
+            if P.Type == "color" && (isstring(v) || ischar(v))
+                txt = string(v);
+                [v, good] = PlotAesthetics.parseColor(txt);
+                if ~good
+                    error('PlotAesthetics:BadValue', '"%s" is not a color.', strjoin(txt, " "));
+                end
+            elseif P.Type == "onoff" && (islogical(v) || isnumeric(v))
+                v = string(matlab.lang.OnOffSwitchState(v));
+            end
+            if ~opts.Strict; return; end
+            if ischar(v); v = string(v); end
+            isText = isstring(v) && isscalar(v) && ~ismissing(v);
+            bad = "";
+            switch P.Type
+                case "color"
+                    if ~isText && ~(isnumeric(v) && numel(v) == 3 && all(isfinite(v(:)) & v(:) >= 0 & v(:) <= 1))
+                        bad = "a color: a name, #rrggbb, or three numbers 0-1";
+                    end
+                case "number"
+                    if ~(isnumeric(v) && isscalar(v) && isreal(v) && isfinite(v) && v >= P.Limits(1) && v <= P.Limits(2))
+                        bad = sprintf("one number from %g to %g", P.Limits(1), P.Limits(2));
+                    end
+                case "vector"
+                    if ~(isnumeric(v) && numel(v) == 2 && isreal(v) && all(isfinite(v(:))))
+                        bad = "two numbers";
+                    end
+                case "choice"
+                    k = [];
+                    if isText
+                        k = find(strcmpi(P.Choices, v), 1);
+                        if isempty(k); k = find(strcmpi(P.ChoiceLabels, v), 1); end
+                    end
+                    if isempty(k)
+                        bad = "one of " + strjoin(P.Choices, ", ");
+                    else
+                        v = P.Choices(k);
+                    end
+                case "onoff"
+                    if ~(isText && ismember(lower(v), ["on" "off"]))
+                        bad = "on or off (true or false)";
+                    else
+                        v = lower(v);
+                    end
+                case "font"
+                    if ~(isText && strlength(v) > 0); bad = "a font's name"; end
+                case "colormap"
+                    if ~(isText && ismember(exist(char(v)), [2 5])) %#ok<EXIST> a colormap function
+                        bad = "a colormap function's name (parula, turbo, gray, blueWhiteRed, ...)";
+                    end
+            end
+            if bad ~= ""
+                error('PlotAesthetics:BadValue', '%s takes %s.', P.Name, bad);
             end
         end
 

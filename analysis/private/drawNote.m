@@ -85,7 +85,7 @@ if nargin < 4; keep = @(~) true; end
 if isempty(value) || (isstring(value) && ~isscalar(value)) || ~keep(value) || (isstring(value) && value == "")
     return
 end
-rules(1, end+1) = struct('role', "note", 'group', "", 'property', prop, 'value', value);
+rules(1, end+1) = struct('role', "note", 'group', "", 'property', prop, 'value', value, 'panel', "");
 end
 
 

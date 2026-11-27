@@ -19,7 +19,9 @@ function [F, changed, copied] = copyFigureSettings(F, D, from, to, keys)
 %     panel as it is, its place on the page (rect) and id included, and
 %     "arrangement.layout" what the boxes mean and the padding
 %   - the remembered looks picked are added to each figure's own
-%     (PlotAesthetics.mergeRules: each replaces the rules it covers)
+%     (PlotAesthetics.mergeRules: each replaces the rules it covers); a
+%     look of one panel keeps its panel's id, so it reaches the panel of
+%     that id in the figure copied onto (none: it shows on nothing there)
 %   - then each panel setting goes to the panels of each figure (after the
 %     panels, when copied) that take it: an option the panel has and its
 %     type takes (EphysAnalysisConfig.panelTakes). A panel takes them from

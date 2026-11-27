@@ -130,7 +130,10 @@ function [h, how] = renderFigure(F, spec, target, opts)
 %            (the figure's own), the later winning. In a visible figure
 %            (Editable) a right-click on any component opens the aesthetics
 %            editor on the figure (context kind "figure"; its redraw draws
-%            F again with the new SPEC.aesthetics). A panel's box ("on" /
+%            F again with the new SPEC.aesthetics). A rule of
+%            SPEC.aesthetics that names a panel (its panel field: a
+%            panel's id) reaches that panel's components alone
+%            (PlotAesthetics.apply). A panel's box ("on" /
 %            "off"; "auto" leaves the looks' Box) is set last, over all of them.
 %            The trial panels' right-click menus also get "Copy data table"
 %            and "Export data (CSV)..." (TrialDataExport.attach: their
@@ -720,8 +723,12 @@ else
 end
 for k = find(drawn)   % a note in a band beside the axes: that band is no tile, so its looks are given to it here
     if isempty(bands{k}) || isempty(notes{k}) || isempty(notes{k}.text); continue; end
-    bandRules = [design.rules kRules{k} r notes{k}.rules specRules];
-    if ~isempty(bandRules); PlotAesthetics.apply(bands{k}, bandRules([bandRules.role] == "note")); end
+    bandRules = [PlotAesthetics.normalizeRules(design.rules) kRules{k} r notes{k}.rules specRules];   % (a design given as a struct: its rules as given)
+    if ~isempty(bandRules)   % (a rule of one panel: this panel's alone; the band is no tile, so it is given without its panel)
+        bandRules = bandRules([bandRules.role] == "note" & ismember([bandRules.panel], ["" panels(k).id]));
+        for i = 1:numel(bandRules); bandRules(i).panel = ""; end
+        PlotAesthetics.apply(bands{k}, bandRules);
+    end
 end
 for k = find(drawn)   % a panel's own box wins over the design's, the remembered looks' and the figure's rules
     if panels(k).box ~= "auto"; set([axs(k) reshape(extra{k}, 1, [])], 'Box', char(panels(k).box)); end

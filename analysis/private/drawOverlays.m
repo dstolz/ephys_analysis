@@ -84,7 +84,7 @@ for k = 1:numel(overlays)
         O.handles(end+1) = g;
     end
     for p = string(fieldnames(look)).'
-        O.rules(1, end+1) = struct('role', role, 'group', label, 'property', p, 'value', look.(p));
+        O.rules(1, end+1) = struct('role', role, 'group', label, 'property', p, 'value', look.(p), 'panel', "");
     end
 end
 for a = 1:numel(axs)

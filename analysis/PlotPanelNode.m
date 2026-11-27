@@ -4,12 +4,14 @@ classdef PlotPanelNode < PlotNode
     %   (PlotFigureNode.Panel: by id or by number). Typed alone, pn says
     %   what it holds.
     %
-    %     pn.rate                  a part drawn in the panel, by its role
-    %                              (PlotPartNode): .axes, .xlabel, .ylabel,
+    %     pn.rateFill              a part drawn in the panel, by its role
+    %                              (PlotPartNode): .axes (a raster's:
+    %                              .rasterAxes), .xlabel, .ylabel,
     %                              .tileTitle, .sem, .zeroLine, ...;
-    %                              pn.Part("rate") is the same, and
-    %                              pn.rate("Go") one group of it
-    %     pn.rate.Color = "red"    a look of this panel alone, remembered
+    %                              pn.Part("rateFill") is the same, and
+    %                              pn.rateFill("Go") one group of it
+    %     pn.rateFill.FaceColor = "red"
+    %                              a look of this panel alone, remembered
     %                              with the figure
     %     pn.Settings              the panel's settings, as the config
     %                              holds them (title, xLabel, yLabel,
@@ -86,7 +88,7 @@ classdef PlotPanelNode < PlotNode
         end
 
         function p = Part(obj, role, group)
-            %Part  A part drawn in the panel, by its role: Part("rate"), the same as pn.rate; Part("rate", "Go") one group of it.
+            %Part  A part drawn in the panel, by its role: Part("rateFill"), the same as pn.rateFill; Part("rateFill", "Go") one group of it.
             arguments
                 obj (1,1) PlotPanelNode
                 role (1,1) string

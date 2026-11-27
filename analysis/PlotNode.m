@@ -8,8 +8,8 @@ classdef (Abstract) PlotNode < handle
     %   line:
     %
     %     p = app.Plots;
-    %     p.Figure("unit_card").Panel("psth_1").rate.Color           % read
-    %     p.Figure("unit_card").Panel("psth_1").rate.Color = "red";  % assign
+    %     p.Figure("unit_card").Panel("psth_1").rateFill.FaceColor           % read
+    %     p.Figure("unit_card").Panel("psth_1").rateFill.FaceColor = "red";  % assign
     %     p.Figure("unit_card").Panel("psth_1").Settings.options.yLim = [0 50];
     %
     %   A node holds no figure, only where it is: its console and the ids
@@ -24,9 +24,9 @@ classdef (Abstract) PlotNode < handle
     %     .Name         a property of the node (dotProperties: Id, Parts,
     %                   Settings, Immediate, ...)
     %     .name         anything else is the node's own (dotOther): a part
-    %                   of a figure or panel by its role (.rate, .xlabel;
-    %                   .rate("Go") one group of it), a property of a part
-    %                   (.Color)
+    %                   of a figure or panel by its role (.rateFill, .xlabel;
+    %                   .rateFill("Go") one group of it), a property of a part
+    %                   (.FaceColor)
     %     (args)        on the node itself (parenGet): a part's group
     %   and whatever follows is read on the result. An assignment walks
     %   the same steps to its last one and assigns there (assign): a

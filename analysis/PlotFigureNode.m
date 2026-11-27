@@ -9,7 +9,7 @@ classdef PlotFigureNode < PlotNode
     %                             (PlotPartNode): that part in every panel,
     %                             or the figure's own (plotTitle, a legend
     %                             outside the panels). f.Part("xlabel") is
-    %                             the same; f.rate("Go") one group of it
+    %                             the same; f.rateFill("Go") one group of it
     %     f.xlabel.FontSize = 11  a look, remembered with the figure
     %     f.Settings              the figure's settings, as the config
     %                             holds them (title, style, size, observe,
@@ -112,7 +112,7 @@ classdef PlotFigureNode < PlotNode
         end
 
         function p = Part(obj, role, group)
-            %Part  A part of the figure by its role, in every panel: Part("xlabel"), the same as f.xlabel; Part("rate", "Go") one group of it.
+            %Part  A part of the figure by its role, in every panel: Part("xlabel"), the same as f.xlabel; Part("rateFill", "Go") one group of it.
             arguments
                 obj (1,1) PlotFigureNode
                 role (1,1) string

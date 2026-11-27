@@ -221,7 +221,7 @@ classdef EphysFigGenApp < handle
     %   panels, the parts drawn in them and their properties.
     %     app = EphysFigGenApp.current();     % the app open now
     %     p = app.Plots;                      % typed alone: lists the figures
-    %     p.Figure("unit_card").Panel("psth_1").rate.Color = "red";
+    %     p.Figure("unit_card").Panel("psth_1").rateFill.FaceColor = "red";
     %     p.Figure("unit_card").xlabel.FontSize = 11;      % every panel's
     %     p.Immediate = false;                % collect the changes ...
     %     p.apply();                          % ... and make them at once
@@ -401,7 +401,7 @@ classdef EphysFigGenApp < handle
     end
 
     properties
-        Plots = []                          % the figures from the command line (a PlotConsole, made with the window): app.Plots.Figure(id).Panel(id).rate.Color = "red"
+        Plots = []                          % the figures from the command line (a PlotConsole, made with the window): app.Plots.Figure(id).Panel(id).rateFill.FaceColor = "red"
         Config EphysAnalysisConfig = EphysAnalysisConfig()   % working copy
         SavedConfigStruct struct = struct()                   % last saved / opened state
         Applying (1,1) logical = false      % applyConfig is pushing values (suppresses onConfigChanged)

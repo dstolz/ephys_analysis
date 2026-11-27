@@ -2845,7 +2845,7 @@ typed alone, says what it holds and what can follow it.
 | the console | `app.Plots` | the figures; `Immediate`, `Pending`, `apply()`, `discard()` |
 | a figure | `p.Figure("unit_card")`, `p.Figure(2)` (its place in the list), `p.Figure()` (the one shown) | its panels, its parts in every panel, its looks and settings |
 | a panel | `f.Panel("psth_1")`, `f.Panel(2)` | the parts drawn in it, its looks and settings |
-| a part | `pn.rate`, `pn.Part("rate")`; one group of it: `pn.rate("Go")` | its properties |
+| a part | `pn.rateFill`, `pn.Part("rateFill")`; one group of it: `pn.rateFill("Go")` | its properties |
 
 A *part* is what the aesthetics editor calls a component: everything a figure
 draws with one role. `rate` is the PSTH's line, or the outline of its bars
@@ -2865,8 +2865,8 @@ legend names.
 f  = p.Figure("unit_card");
 pn = f.Panel("psth_1");
 f.Parts            % what the preview draws: a table Panel, Part, Group, Type, Label
-pn.rate            % the PSTH line: each property, what it takes, as drawn, as remembered
-pn.rate.Groups     % the groups of it drawn
+pn.rateFill        % the fill of the PSTH's bars: each property, what it takes, as drawn, as remembered
+pn.rateFill.Groups % the groups of it drawn
 f.Looks            % the looks remembered with the figure
 ```
 
@@ -2883,14 +2883,14 @@ choice is its word or its symbol (`"dashed"` or `"--"`); on / off is `true` /
 `false` or `"on"` / `"off"`. Names are matched whatever the case.
 
 ```matlab
-pn.rate.Color = "red";                              % the PSTH line of this panel
-pn.rateFill.FaceAlpha = 0.4;                        % the fill of its bars
-pn.rate("Go").LineWidth = 2;                        % of the trial group "Go" only
+pn.rateFill.FaceColor = "red";                      % the fill of this panel's PSTH bars
+pn.rateFill("Go").FaceAlpha = 0.4;                  % of the trial group "Go" only
+pn.rate.LineWidth = 2;                              % the PSTH's line, when it is drawn as one
 f.Panel("raster_1").rasterAxes.Box = "off";         % a raster's axes
 f.xlabel.FontSize = 11;                             % every panel's x label
 f.legend.FontSize = 8;
-pn.sem.set(FaceAlpha=0.2, EdgeColor="none");        % several, as one change
-p.Figure("unit_card").Panel("psth_1").rate.Color    % read one: as remembered, else as drawn
+pn.sem.set(FaceAlpha=0.2, EdgeColor="none");        % several, as one change (the error band)
+p.Figure("unit_card").Panel("psth_1").rateFill.FaceColor   % read one: as remembered, else as drawn
 ```
 
 A property set this way is remembered with the figure as a look, exactly as
@@ -2909,9 +2909,12 @@ tab, and counted in the Look section's *remembered look(s)* line.
   (`PlotAesthetics:BadValue`) and changes nothing. So is a property the
   part's objects do not have (`PlotConsole:NoProperty`: a line has no font).
 - A part the preview does not draw is set all the same, with the warning
-  `PlotConsole:NotDrawn`.
-- `pn.rate.Color = []` forgets that look (the part is drawn as the
-  [design](EphysAnalysis.md#plot-designs) has it again); `pn.rate.forget()`
+  `PlotConsole:NotDrawn`: the look shows nothing until the figure draws that
+  part. `f.Parts` lists what is drawn. The two that come up first: a PSTH
+  drawn as filled bars has no `rate` (its bars are `rateFill`), and a raster
+  has no `axes` (its axes are `rasterAxes`; the warning says so).
+- `pn.rateFill.FaceColor = []` forgets that look (the part is drawn as the
+  [design](EphysAnalysis.md#plot-designs) has it again); `pn.rateFill.forget()`
   every look of that part, `pn.forget()` the panel's, `f.forget()` the
   figure's, as the editor's **Forget**.
 
@@ -2950,8 +2953,8 @@ One switch chooses when a change reaches the app.
 
 ```matlab
 p.Immediate = false;
-pn.rate.Color = "black";
-pn.sem.FaceAlpha = 0.15;
+pn.rateFill.FaceColor = "black";
+pn.axes.Box = "off";
 f.Settings.style.FontSize = 8;
 p.Pending          % the changes kept: a table Figure, Panel, Change
 p.apply();         % all of them: one undo step ("Command line: 3 changes"), one redraw
@@ -2975,7 +2978,7 @@ the warning `PlotConsole:Skipped`.
   again, or marked *Out of date*); `f.show()` draws it.
 - A figure that is not shown is changed all the same; its kept preview is
   marked out of date in the figure tree.
-- The Edit menu names the step (**Undo Command line: psth_1.rate.Color =
+- The Edit menu names the step (**Undo Command line: psth_1.rateFill.FaceColor =
   #FF0000**), and the title shows unsaved changes until **Save**.
 
 ```matlab

@@ -75,9 +75,9 @@ says how to cut a release.
 - EphysFigGenApp from the command line. Every app has a console, `app.Plots` (`PlotConsole`), and
   `EphysFigGenApp.current()` gives the handle of the app that is open. The figures are a tree of objects, each
   saying what it holds when typed alone: a figure (`p.Figure("unit_card")`, by id, number, or none for the one
-  shown), its panels (`.Panel("psth_1")`), the parts drawn in them by their aesthetics role (`.rate`, `.axes`,
-  `.xlabel`; `.rate("Go")` one group) and each part's properties. Assigning a property,
-  `p.Figure("unit_card").Panel("psth_1").rate.Color = "red"`, remembers it with the figure as a look, for that
+  shown), its panels (`.Panel("psth_1")`), the parts drawn in them by their aesthetics role (`.rateFill`, `.axes`,
+  `.xlabel`; `.rateFill("Go")` one group) and each part's properties. Assigning a property,
+  `p.Figure("unit_card").Panel("psth_1").rateFill.FaceColor = "red"`, remembers it with the figure as a look, for that
   panel; a part named on the figure (`f.xlabel.FontSize = 11`) is that part in every panel; `set(...)` sets
   several as one change, `= []` and `forget()` forget. `Settings` holds a figure's or a panel's settings under the
   config's names (`pn.Settings.options.histStyle = "line"`). One switch, `p.Immediate`, chooses when a change

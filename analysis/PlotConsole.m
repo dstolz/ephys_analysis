@@ -13,24 +13,26 @@ classdef PlotConsole < PlotNode
     %     p                                   the console: typed alone, it lists the figures
     %     p.Figure("unit_card")               a figure, by id or by number (PlotFigureNode); p.Figure() is the one shown
     %       .Panel("psth_1")                  a panel of it, by id or by number (PlotPanelNode)
-    %         .rate                           a part drawn in it, by its role (PlotPartNode): .axes, .xlabel, .sem, ...
+    %         .rateFill                       a part drawn in it, by its role (PlotPartNode): .axes, .xlabel, .sem, ...
     %           ("Go")                        ... of one group only: a trial group, a series, a channel
-    %             .Color                      a property of the part
+    %             .FaceColor                  a property of the part
     %   A part named on a figure, p.Figure("unit_card").xlabel, is that
     %   part in every panel. Each object typed alone says what it holds
     %   and what can follow it; Parts, Looks and Properties list it as a
-    %   table.
+    %   table. Parts names what a figure draws: a PSTH drawn as filled bars
+    %   (a new one) draws rateFill, one drawn as a line (or as unfilled
+    %   bars) rate; a raster's axes are rasterAxes, the other panels' axes.
     %
     %   Changing the look of a part
     %     f = p.Figure("unit_card");
-    %     f.Panel("psth_1").rate.Color = "red";          % the PSTH's line: a name, "#1f77b4", or [r g b]
-    %     f.Panel("psth_1").rateFill.FaceAlpha = 0.4;    % the fill of its bars
-    %     f.Panel("psth_1").rate("Go").LineWidth = 2;    % one trial group's line
-    %     f.Panel("raster_1").axes.Box = "off";
+    %     f.Panel("psth_1").rateFill.FaceColor = "red";  % the fill of the PSTH's bars: a name, "#1f77b4", or [r g b]
+    %     f.Panel("psth_1").rateFill("Go").FaceAlpha = 0.4;   % one trial group's
+    %     f.Panel("psth_1").rate.LineWidth = 2;          % the PSTH's line, when it is drawn as one
+    %     f.Panel("raster_1").rasterAxes.Box = "off";    % a raster's axes
     %     f.xlabel.FontSize = 11;                        % every panel's x label
     %     f.legend.FontSize = 8;
-    %     f.Panel("psth_1").sem.set(FaceAlpha=0.2, EdgeColor="none");   % several at once
-    %     f.Panel("psth_1").rate.Color = [];             % forget it: as the design draws it
+    %     f.Panel("psth_1").sem.set(FaceAlpha=0.2, EdgeColor="none");   % several at once (the error band)
+    %     f.Panel("psth_1").rateFill.FaceColor = [];     % forget it: as the design draws it
     %   Each is remembered with the figure as a look (a PlotAesthetics
     %   rule in its aesthetics, for the panel named), as the aesthetics
     %   editor's "Remember for this figure" does.

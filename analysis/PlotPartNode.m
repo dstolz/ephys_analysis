@@ -1,29 +1,31 @@
 classdef PlotPartNode < PlotNode
     %PlotPartNode  One part of an analysis app's figure, from the command line: its properties read and set.
     %   A part is what the aesthetics editor calls a component: everything
-    %   a figure draws with one role -- the PSTH's line (rate), the fill
-    %   of its bars (rateFill), its error
-    %   band (sem), the raster's ticks (rasterTicks), a panel's axes, its
+    %   a figure draws with one role -- the fill of a PSTH's bars
+    %   (rateFill: a new PSTH is filled bars), its line when it is drawn as
+    %   a line or as unfilled bars (rate), its error
+    %   band (sem), the raster's ticks (rasterTicks), a panel's axes (a
+    %   raster's: rasterAxes), its
     %   x and y label (xlabel, ylabel) and title (tileTitle), the legend,
     %   the figure's title (plotTitle), ...: PlotAesthetics.roles() lists
     %   the roles. It is reached through a figure or a panel:
     %
     %     pn = app.Plots.Figure("unit_card").Panel("psth_1");
-    %     pt = pn.rate;                 % the PSTH line of that panel (pn.Part("rate") is the same)
-    %     pt = pn.rate("Go");           % ... of the trial group "Go" only
+    %     pt = pn.rateFill;             % the fill of that panel's PSTH bars (pn.Part("rateFill") is the same)
+    %     pt = pn.rateFill("Go");       % ... of the trial group "Go" only
     %     pt = app.Plots.Figure("unit_card").xlabel;   % every panel's x label
     %
     %   Typed alone, pt lists its properties: what each takes, its value
     %   as the preview draws it and the value remembered.
     %
-    %     pt.Color                      read one: as remembered, else as drawn
-    %     pt.Color = "red";             set one: a color is a name, "#1f77b4" or [r g b]
+    %     pt.FaceColor                  read one: as remembered, else as drawn
+    %     pt.FaceColor = "red";         set one: a color is a name, "#1f77b4" or [r g b]
     %     pt.LineStyle = "dashed";      a choice by its word or its symbol ("--")
     %     pt.Visible = false;           on / off as true / false or "on" / "off"
-    %     pt.set(Color="red", LineWidth=2);   several, as one change
-    %     pt.get("Color")               the same as pt.Color
-    %     pt.Color = [];                forget one: drawn as the design has it again
-    %     pt.forget()                   forget them all; pt.forget("Color", "LineWidth") those
+    %     pt.set(FaceColor="red", FaceAlpha=0.4);   several, as one change
+    %     pt.get("FaceColor")           the same as pt.FaceColor
+    %     pt.FaceColor = [];            forget one: drawn as the design has it again
+    %     pt.forget()                   forget them all; pt.forget("FaceColor", "FaceAlpha") those
     %     pt("Go")                      the part narrowed to one group
     %     pt.Properties                 the list as a table
     %     pt.Groups                     the groups of it the preview draws
@@ -202,8 +204,8 @@ classdef PlotPartNode < PlotNode
                 case "stale",  fprintf('    The preview is out of date: Drawn is as it was last drawn.\n\n');
             end
             disp(T);
-            fprintf('  pt.Color = "red" sets one, pt.set(Color="red", LineWidth=2) several;\n');
-            fprintf('  pt.Color = [] forgets one, pt.forget() all.\n\n');
+            fprintf('  pt.<Property> = value sets one, pt.set("<Property>", value, ...) several;\n');
+            fprintf('  pt.<Property> = [] forgets one, pt.forget() all.\n\n');
         end
     end
 
@@ -257,7 +259,7 @@ classdef PlotPartNode < PlotNode
                 end
                 if look ~= "none" && look ~= "failed"; why = "The preview draws no part in " + what; end
                 fprintf('    %s: no part is listed (show() draws the figure).\n', why);
-                fprintf('      A part can be named all the same: %s.rate, %s.xlabel (PlotAesthetics.roles() lists the roles).\n', var, var);
+                fprintf('      A part can be named all the same: %s.axes, %s.xlabel (PlotAesthetics.roles() lists the roles).\n', var, var);
                 return
             end
             roles = reshape(unique(T.Role, 'stable'), 1, []);
@@ -392,10 +394,11 @@ classdef PlotPartNode < PlotNode
         end
 
         function H = handlesOf(obj)
-            %handlesOf  The part's objects in the app's preview: H.h (a row), each one's H.panel and H.group; H.drawing says whether the figure has a drawing at all.
+            %handlesOf  The part's objects in the app's preview: H.h (a row), each one's H.panel and H.group; H.drawing says whether the figure has a drawing at all, H.roles the roles it draws where the part is.
             T = drawnParts(obj.Console, obj.FigureId, obj.PanelId);
-            H = struct('h', gobjects(1, 0), 'panel', strings(1, 0), 'group', strings(1, 0), 'drawing', ~isempty(T));
+            H = struct('h', gobjects(1, 0), 'panel', strings(1, 0), 'group', strings(1, 0), 'drawing', ~isempty(T), 'roles', strings(1, 0));
             if isempty(T); return; end
+            H.roles = reshape(unique(T.Role, 'stable'), 1, []);
             rows = find(T.Role == obj.RoleName & (obj.GroupName == "" | T.Group == obj.GroupName)).';
             for r = rows
                 h = reshape(T.Handles{r}, 1, []);
@@ -467,13 +470,21 @@ classdef PlotPartNode < PlotNode
 
         function warnNotDrawn(obj, H)
             %warnNotDrawn  Say so when the figure has a drawing and it shows no object of this part (PlotConsole:NotDrawn): the look is kept all the same.
+            %   For axes it names the axes that are drawn there under
+            %   another role (a raster's rasterAxes, a probe figure's
+            %   probeAxes), since "axes" is what one types first.
             if ~H.drawing || ~isempty(H.h); return; end
-            warning('PlotConsole:NotDrawn', ['The preview drawn shows no %s: the look is remembered, and shows when the figure draws it. ' ...
-                'Parts lists what is drawn.'], whatText(obj));
+            hint = "";
+            other = intersect(["rasterAxes" "probeAxes"], H.roles, 'stable');
+            if obj.RoleName == "axes" && ~isempty(other)
+                hint = " The axes drawn there have the role " + strjoin(other, ", ") + ".";
+            end
+            warning('PlotConsole:NotDrawn', ['The preview drawn shows no %s: the look is remembered, and shows when the figure draws it.%s ' ...
+                'Parts lists what is drawn.'], whatText(obj), hint);
         end
 
         function s = pathText(obj)
-            %pathText  The part as it is typed, for a change's line: psth_1.rate("Go").
+            %pathText  The part as it is typed, for a change's line: psth_1.rateFill("Go").
             s = obj.PanelId;
             if s == ""; s = obj.FigureId; end
             s = s + "." + obj.RoleName;

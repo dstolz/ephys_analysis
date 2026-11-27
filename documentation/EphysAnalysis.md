@@ -1330,7 +1330,7 @@ once they took most of a preview's drawing time. **Edit aesthetics...** opens
 
 In the analysis app the same looks are set by typing, with the figure, its
 panels and their parts as objects:
-`app.Plots.Figure("unit_card").Panel("psth_1").rate.Color = "red"`
+`app.Plots.Figure("unit_card").Panel("psth_1").rateFill.FaceColor = "red"`
 ([From the command line](EphysFigGenApp.md#from-the-command-line)).
 
 From code, `d = PlotAesthetics.edit(h)` opens the editor on component `h`

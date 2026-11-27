@@ -274,14 +274,7 @@ classdef PlotAestheticsDialog < handle
             if ~isnumeric(value) && isscalar(value) && ismissing(value)
                 if isfield(obj.Pending, name); obj.Pending = rmfield(obj.Pending, name); end
             else
-                if P(k).Type == "color" && (isstring(value) || ischar(value))
-                    [value, good] = PlotAesthetics.parseColor(value);
-                    if ~good
-                        error('PlotAesthetics:BadValue', '"%s" is not a color.', string(value));
-                    end
-                elseif P(k).Type == "onoff" && (islogical(value) || isnumeric(value))
-                    value = string(matlab.lang.OnOffSwitchState(value));
-                end
+                value = PlotAesthetics.typedValue(P(k), value);   % a color from text, on / off from true / false
                 obj.Pending.(name) = value;
             end
             obj.retarget(name);
@@ -379,7 +372,7 @@ classdef PlotAestheticsDialog < handle
                     for i = 1:size(pairs, 1)
                         if pairs(i, 1) == ""; continue; end
                         R(end+1) = struct('role', pairs(i, 1), 'group', pairs(i, 2), 'property', nm, ...
-                            'value', e.props.(nm)); %#ok<AGROW>
+                            'value', e.props.(nm), 'panel', ""); %#ok<AGROW>   % (every panel: a rule matches by role and group)
                     end
                 end
             end
@@ -850,6 +843,7 @@ Component = strings(n, 1); Group = strings(n, 1); Property = strings(n, 1); Valu
 C = PlotAesthetics.catalog();
 for i = 1:n
     Component(i) = PlotAesthetics.roleLabel(R(i).role);
+    if R(i).panel ~= ""; Component(i) = Component(i) + " (panel " + R(i).panel + ")"; end   % a rule for one panel (EphysFigGenApp's Plots)
     Group(i) = R(i).group;
     if Group(i) == ""; Group(i) = "(every)"; end
     Property(i) = R(i).property;

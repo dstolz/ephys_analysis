@@ -87,6 +87,7 @@ extract, no paired trials, ...): see
 | `EphysFigGenApp("D:\out\subj1_day1")` | a folder holding `<Name>_manifest.json` or `<Name>_extract*.mat` is one dataset's output folder: the last config with its source switched to folders mode with that folder, scanned (with no last config, a new quick look config) |
 | `EphysFigGenApp("am.json")` | that analysis config as it is (its source scanned when it exists) |
 | `app = EphysFigGenApp(...)` | the same, keeping a handle |
+| `app = EphysFigGenApp.current()` | nothing: the handle of the app that is open (empty when none is), for [the command line](#from-the-command-line) |
 | `EphysFigGenApp(..., Splash=false)` | the same without the startup window |
 
 The detection is in `openSource`. Opened on a folder, the app takes its
@@ -1847,7 +1848,7 @@ edit to others, this gives a figure's settings as they are now.
 | --- | --- |
 | **From** | the figure copied from, any of them (the one selected first), by id and panel count. Another one lists its settings and the other figures |
 | **Copy to** | *The figures ticked* (the list at the right), a design of yours (*Design: Lab look*) or *A new design*, named in **New design's name** (one of yours of that name is replaced) |
-| the settings | a tree of check boxes, one per setting, each with its value now (*Font size = 9*), under the parts: *Observations* (each field: the data observed, the unit filter, the channels, starred only, once per trial group), *Alignment* (event reference, epoch window, trial selection), *First-spike latency* (each field), *Arrangement and panels* (every panel with its type, place, options, own alignment and layers, panel ids too; *Boxes mean and padding*; *Page size*), *Panel settings* (per panel of the figure, its settings in groups: *Axes and limits*, the box, axis sides, y-limits mode, y and color limits, y ticks, scale; *Colors and lines*; *Display and stacks*; *Marks and insets*, first spike, latency box, unit waveform; *Data and analysis*, every other option; *Size and alignment*, its size and place in its cell, its own event, window and selection, its note's look), *Style* (the Style fields in groups: *Lines*, *Colors*, *Text and legend*, *Marks*, *Sorting and labels*), *Remembered looks* (each look, one by one) and *Across sessions* (each field). Ticking a part or a group ticks everything under it. Into a design only what a design holds is shown: the group colors (unless *lines*), the heat colors (when set) and each remembered look |
+| the settings | a tree of check boxes, one per setting, each with its value now (*Font size = 9*), under the parts: *Observations* (each field: the data observed, the unit filter, the channels, starred only, once per trial group), *Alignment* (event reference, epoch window, trial selection), *First-spike latency* (each field), *Arrangement and panels* (every panel with its type, place, options, own alignment and layers, panel ids too; *Boxes mean and padding*; *Page size*), *Panel settings* (per panel of the figure, its settings in groups: *Axes and limits*, the box, axis sides, y-limits mode, y and color limits, y ticks, scale; *Colors and lines*; *Display and stacks*; *Marks and insets*, first spike, latency box, unit waveform; *Data and analysis*, every other option; *Size and alignment*, its size and place in its cell, its own event, window and selection, its note's look), *Style* (the Style fields in groups: *Lines*, *Colors*, *Text and legend*, *Marks*, *Sorting and labels*), *Remembered looks* (each look, one by one; a look of one panel, set from [the command line](#from-the-command-line), says *[panel <id>]* and is copied with that panel's id, so it reaches the panel of that id in the figure copied onto) and *Across sessions* (each field). Ticking a part or a group ticks everything under it. Into a design only what a design holds is shown: the group colors (unless *lines*), the heat colors (when set) and each remembered look |
 | **Find** | shows only the settings whose name, group or value holds the text (*limits*, *color*); the ticks of those it hides stay, and copy |
 | **All**, **None**, **Expand**, **Collapse** | tick every setting shown or none; open or shut every part and group |
 | **Copy onto** | a check box per other figure (the one selected is marked *shown*), with **All** and **None**: one or many. The count says how many settings go onto how many figures |
@@ -2787,10 +2788,177 @@ event is left after the selection* or *none of the N events makes a usable
 epoch (M with a window outside the recording)*: the message is in the
 results, on the Log tab and in the report.
 
+## From the command line
+
+Every open app has a console, `app.Plots` (a `PlotConsole`), that changes its
+figures from the command window or a script. It does what the Figures tab's
+editor and the right-click [aesthetics editor](EphysAnalysis.md#plot-aesthetics)
+do, by typing: each change goes into the app's config as one step of
+[Undo](#undo-and-redo), the preview follows, and **Save**, runs, reports and
+generated scripts take it like any other edit.
+
+```matlab
+app = EphysFigGenApp.current();     % the app open now (or keep the handle: app = EphysFigGenApp("D:\EPHYS"))
+p = app.Plots;
+p                                   % typed alone: the figures, their panels, how many looks each has
+```
+
+`EphysFigGenApp.current()` finds the app by its window, so an app opened
+without keeping its handle (from the pipeline app, or `EphysFigGenApp` typed
+alone) can be reached; it is empty when no app is open.
+
+### The objects
+
+The figures are a tree of objects, as MATLAB's own graphics are. Each one,
+typed alone, says what it holds and what can follow it.
+
+| Object | Reached by | Holds |
+| --- | --- | --- |
+| the console | `app.Plots` | the figures; `Immediate`, `Pending`, `apply()`, `discard()` |
+| a figure | `p.Figure("unit_card")`, `p.Figure(2)` (its place in the list), `p.Figure()` (the one shown) | its panels, its parts in every panel, its looks and settings |
+| a panel | `f.Panel("psth_1")`, `f.Panel(2)` | the parts drawn in it, its looks and settings |
+| a part | `pn.rate`, `pn.Part("rate")`; one group of it: `pn.rate("Go")` | its properties |
+
+A *part* is what the aesthetics editor calls a component: everything a figure
+draws with one role. `rate` is the PSTH's line (the outline of its bars),
+`rateFill` the fill of its bars, `sem` its error band, `rasterTicks`
+the raster's ticks, `axes` a panel's axes, `xlabel` and `ylabel` its labels,
+`tileTitle` its title, `legend` the legend, `plotTitle` the figure's title;
+`PlotAesthetics.roles()` lists every role with its name for people. A part
+named on a panel is that panel's alone; named on the figure, `f.xlabel`, it is
+that part in every panel (and the figure's own parts, such as `plotTitle`).
+The *group* is a trial group's label, a tuning series, a channel: what the
+legend names.
+
+```matlab
+f  = p.Figure("unit_card");
+pn = f.Panel("psth_1");
+f.Parts            % what the preview draws: a table Panel, Part, Group, Type, Label
+pn.rate            % the PSTH line: each property, what it takes, as drawn, as remembered
+pn.rate.Groups     % the groups of it drawn
+f.Looks            % the looks remembered with the figure
+```
+
+`Parts` and a part's drawn values are read from the app's preview of the
+figure, so they are blank until the figure has been previewed
+(`f.show()` shows the figure on the Figures tab and draws it). A part can be
+named and set without a preview: the name must be a role, and the look shows
+when the figure draws that part.
+
+### Changing a look
+
+Assign a property of a part. A color is a name, `"#1f77b4"` or `[r g b]`; a
+choice is its word or its symbol (`"dashed"` or `"--"`); on / off is `true` /
+`false` or `"on"` / `"off"`. Names are matched whatever the case.
+
+```matlab
+pn.rate.Color = "red";                              % the PSTH line of this panel
+pn.rateFill.FaceAlpha = 0.4;                        % the fill of its bars
+pn.rate("Go").LineWidth = 2;                        % of the trial group "Go" only
+f.Panel("raster_1").axes.Box = "off";
+f.xlabel.FontSize = 11;                             % every panel's x label
+f.legend.FontSize = 8;
+pn.sem.set(FaceAlpha=0.2, EdgeColor="none");        % several, as one change
+p.Figure("unit_card").Panel("psth_1").rate.Color    % read one: as remembered, else as drawn
+```
+
+A property set this way is remembered with the figure as a look, exactly as
+the aesthetics editor's **Remember for future figures → This figure** keeps
+it: a rule in the figure's `aesthetics`
+([Figure fields](EphysAnalysisConfig.md#figure-layout-and-observe-fields)), naming the panel when
+the part was reached through one. It is saved with the config, drawn by
+runs, reports and generated scripts, listed in the editor's **Remembered**
+tab, and counted in the Look section's *remembered look(s)* line.
+
+- A later, wider change replaces an earlier, narrower one: the x label of
+  every panel, set after one panel's, replaces that panel's too. A panel's
+  own, set after the figure's, wins in that panel alone.
+- A value is checked as it is typed: a number outside the range the editor's
+  control allows, an unknown choice or text that is no color is an error
+  (`PlotAesthetics:BadValue`) and changes nothing. So is a property the
+  part's objects do not have (`PlotConsole:NoProperty`: a line has no font).
+- A part the preview does not draw is set all the same, with the warning
+  `PlotConsole:NotDrawn`.
+- `pn.rate.Color = []` forgets that look (the part is drawn as the
+  [design](EphysAnalysis.md#plot-designs) has it again); `pn.rate.forget()`
+  every look of that part, `pn.forget()` the panel's, `f.forget()` the
+  figure's, as the editor's **Forget**.
+
+### Changing a setting
+
+`Settings` is a figure's or a panel's settings as the
+[config](EphysAnalysisConfig.md#figures) holds them, under the config's
+names. Read it as a struct; set one value at a time.
+
+```matlab
+f.Settings.title = "Unit {unit}";
+f.Settings.style.FontSize = 9;
+pn.Settings.yLabel = "Rate (sp/s)";
+pn.Settings.options.histStyle = "line";
+pn.Settings.options.yLimMode = "fixed";
+pn.Settings.options.yLim = [0 50];
+pn.Settings.rect(3) = 0.9;                % a piece of a setting: the panel's width
+```
+
+A name that is no setting is an error (`PlotConsole:NoSetting`), and so is a
+value the config refuses: one of the wrong kind
+(`EphysAnalysisConfig:BadValue`), or one its validation calls an error
+(`PlotConsole:Invalid`, with the message **Validate** would show); a new
+warning of the validation is passed on as the warning `PlotConsole:Check`.
+A figure's id, its panels and its looks, and a panel's id and type, are not
+set through `Settings`: looks through the parts, the rest on the Figures tab.
+
+### At once, or together
+
+One switch chooses when a change reaches the app.
+
+| `p.Immediate` | A change |
+| --- | --- |
+| `true` (the default) | is made as it is typed: one undo step, and the preview follows |
+| `false` | is kept: nothing changes in the app until `p.apply()` |
+
+```matlab
+p.Immediate = false;
+pn.rate.Color = "black";
+pn.sem.FaceAlpha = 0.15;
+f.Settings.style.FontSize = 8;
+p.Pending          % the changes kept: a table Figure, Panel, Change
+p.apply();         % all of them: one undo step ("Command line: 3 changes"), one redraw
+p.Immediate = true;
+```
+
+`p.discard()` drops the changes kept instead. Turning `Immediate` on again
+makes them. While changes are kept, what is read (a property, `Settings`,
+`Looks`) is the figure as it will be with them. They are made on the config
+as it is when `apply()` is called, so an edit made in the window meanwhile is
+kept; a change whose figure or panel was removed meanwhile is left out with
+the warning `PlotConsole:Skipped`.
+
+### What the app shows after a change
+
+- A look alone: the figure shown is drawn again at once from the result its
+  preview holds, with nothing computed, whatever **Auto** says, when that
+  preview was current; a preview that was out of date follows **Auto** as
+  after an edit in the editor.
+- A setting: the editor shows it, and the preview follows **Auto** (drawn
+  again, or marked *Out of date*); `f.show()` draws it.
+- A figure that is not shown is changed all the same; its kept preview is
+  marked out of date in the figure tree.
+- The Edit menu names the step (**Undo Command line: psth_1.rate.Color =
+  #FF0000**), and the title shows unsaved changes until **Save**.
+
+An object kept in a variable holds no figure, only where it is (the figure's
+and the panel's id, the part's role and group), and looks it up each time. So
+it follows the app: an edit in the window, an Undo, a figure whose automatic
+id followed an edit. Once its figure or panel is removed, using it is the
+error `PlotConsole:Gone`. With the app's window closed, every use is
+`PlotConsole:Closed`.
+
 ## Where the code is
 
 | Part | Files |
 | --- | --- |
+| command line | `analysis/PlotConsole.m` (`app.Plots`, made in the constructor: the changes kept, `apply`, `discard`, what a change does to a figure), its objects `analysis/PlotFigureNode.m`, `analysis/PlotPanelNode.m` and `analysis/PlotPartNode.m`, and the syntax they share, `analysis/PlotNode.m` (`subsref`, `subsasgn`: a path read or assigned in one line); the app's side is `changeFigures` (a changed config taken as one undo step, the preview following), `figureIndexOf` (a figure by its id, through its renames: `private/followedFigureId`), `figureDrawing` (the preview container holding a figure's drawing) and the static `EphysFigGenApp.current()` (the app found by its window's appdata); a look is a `PlotAesthetics` rule with its `panel`, a value checked by `PlotAesthetics.typedValue` |
 | building | `buildUI`, `buildMenus`, `buildToolbar` (its icons in `analysis/icons/toolbar`), `buttonIcon` (`analysis/buttonIcon.m`, shared with `DatasetBrowser` and `AlignControls`: the buttons' and section headers' icons, `analysis/icons/buttons/<name>.svg` and their white twins in `light/`, all drawn by `tools/makeButtonIcons.py`; `pipeline/styleButton` swaps a button to the white twin while it is colored), `buildDataTab`, `buildAlignTab`, `buildFiguresTab`, `buildExportTab`, `buildLogTab`, `buildAlignControls`; the editor's collapsible sections in `private/` (`formSection`, `formRow`, `formSubheading`, `formShow`, `formLayout`, and `formGroup`, `formRowShown` for the sub-headings) |
 | config model | `gatherConfig` / `applyConfig`, `gather*` / `apply*Section`, `gatherAlignControls` / `applyAlignControls`, `gatherFigureEditor` / `applyFigureEditor`, `onConfigChanged`, `updateTitle`, `confirmDiscard`; the undo history `onUndoRedo` (the Edit menu) over `analysis/FigureEditHistory`, fed by `private/recordFigureEdit` at each path that edits the figures, its labels `private/figureEditLabel`, its menu `private/refreshEditMenu` |
 | data | `openSource`, `onScan`, `refreshDatasetsTable` (and the Subject / Tags filter; which files exist is `private/datasetFileMarks`, read once per scan), `onTickDatasets` (Tick shown only, Untick all), `selectDataset`, `refreshDatasetInfo`; what a scan reads `private/scannedSource`, whether the datasets listed are the source's `private/scanIsCurrent` (Run, Plan, Generate and Test report stop on it) and the scan line `private/showScanLabel`; the ticks a selection gives `private/selectionTicks` (on Scan), `private/tickConfigSelection` (a config opened without its scan), `private/scanOpened`, gathered by `gatherSourceSection`; **Downsample...** `onDownsample` (the window: `analysis/DownsampleDialog.m`) and the Signals row `showDownsample`; the figures read the rates through `EphysAnalysisConfig.figureFor` (a layer's `downsample`), `analysis/private/figureLayerRate`, `figureSignalLayer` and `figureChronuxLayer`, over `selectChannels`' `Rate` and `DatasetOutputs.resampled` (`resampleSignal`); **Filter...** `onSignalFilter` and the Filters row `showSignalFilter` (`private/sourceFilters`, the rates the dialogs draw at `private/signalReadRates`, the signals the figures read `private/figureSignals`), a panel's **Filter...** `editPanelFilter` (its row `private/showPanelFilter`, closed with another panel by `private/closePanelFilterDialog`); the window `analysis/FilterDialog.m`, the filters `pipeline/SignalFilter.m`; the figures read them through `figureFor` (a layer's `filters`), `analysis/private/figureLayerFilters`, over `selectChannels`' `Filter` and `DatasetOutputs.prepared` |
@@ -2964,7 +3132,20 @@ click in a field or the tree (the window's `CurrentObject`, set by the suite: wh
 SKIP; whether a real click sets it is a manual check), the notepad written through the new object after a re-scan,
 Apply last change after **Down** offering nothing, the Shift+click selection let go after Remove, an Undo and a Redo that show another figure, and a config opened,
 Save and Close with preferences that cannot be written, and Close during a run, and a window deleted during a run (its
-report still written). Section 6 is the preferences remembered (the last
+report still written). Section 5z is [the command line](#from-the-command-line): `app.Plots` and
+`EphysFigGenApp.current()`; a figure by id, number or none, a panel by id or number, a part by its role whatever the
+case, each typed alone saying what it holds (`Parts`, a part's `Properties` as drawn); a figure, panel, part,
+property or setting that is not there and an assignment to what is read only each raising their own error;
+`pn.axes.LineWidth = 2.5` remembered for that panel as one named undo step and drawn again at once with **Auto** off,
+nothing computed, that panel's axes alone changed; a part of the whole figure set with `set(...)` (a color by name,
+two properties one step), the panel's own look after it winning there alone and the figure's again replacing it;
+a value out of range, text that is no color, an unknown property, a name that is no setting, a setting `Settings`
+leaves out and one the config's validation refuses changing nothing; a look forgotten (`= []`), brought back by Undo,
+and `forget()` of a panel and of the figure; `Immediate = false` keeping a look, a figure's setting, a panel's and a
+piece of one (the app unchanged, `Pending` listing them, each read back as it will be), `apply()` making them as one
+undo step the editor shows and `show()` draws, one Undo taking them all back; `discard()`; `Immediate` on again
+making what was kept; a figure not shown changed all the same, and a removed figure's object saying it is gone.
+Section 6 is the preferences remembered (the last
 config, the collapsed sections and supersections of the figure editor; none of the retired plot
 or session preferences is written) and closing. The test keeps the app's
 preferences in a temporary file (`AppPrefs`), so the user's own are never read
@@ -3421,6 +3602,7 @@ back by its own name; **Report issue** opens the issue window titled
 <!-- wiki
 ## Related
 
+- [The analysis app from the command line](Analysis-App-Command-Line): `app.Plots`, the figures as objects
 - [Analysis configs](Analysis-Configs): every field of the config the app edits
 - [Analysis scripting](Analysis-Scripting): the runner, generated scripts and the compute / render functions
 - [Output files](Output-Files) and [Loading outputs](Loading-Outputs): what the analysis reads

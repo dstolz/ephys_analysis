@@ -72,6 +72,25 @@ says how to cut a release.
 
 ### Added
 
+- EphysFigGenApp from the command line. Every app has a console, `app.Plots` (`PlotConsole`), and
+  `EphysFigGenApp.current()` gives the handle of the app that is open. The figures are a tree of objects, each
+  saying what it holds when typed alone: a figure (`p.Figure("unit_card")`, by id, number, or none for the one
+  shown), its panels (`.Panel("psth_1")`), the parts drawn in them by their aesthetics role (`.rate`, `.axes`,
+  `.xlabel`; `.rate("Go")` one group) and each part's properties. Assigning a property,
+  `p.Figure("unit_card").Panel("psth_1").rate.Color = "red"`, remembers it with the figure as a look, for that
+  panel; a part named on the figure (`f.xlabel.FontSize = 11`) is that part in every panel; `set(...)` sets
+  several as one change, `= []` and `forget()` forget. `Settings` holds a figure's or a panel's settings under the
+  config's names (`pn.Settings.options.histStyle = "line"`). One switch, `p.Immediate`, chooses when a change
+  reaches the app: on (the default), as it is typed, one undo step each, a look alone drawn again from the result
+  the preview holds; off, the changes are kept (`p.Pending`) until `p.apply()` makes them as one undo step, or
+  `p.discard()` drops them. Values are checked as they are typed (`PlotAesthetics.typedValue`, the config's
+  validation). See [From the command line](documentation/EphysFigGenApp.md#from-the-command-line).
+- An aesthetics rule can name a panel: its fifth field, `panel` (`""`, the default: every panel), a figure panel's
+  id. `renderFigure` applies such a rule to that panel's components alone, `PlotAesthetics.mergeRules` treats a
+  panel as it treats a group, and `PlotAesthetics.rule(role, property, value, Group=, Panel=)` makes one. Configs
+  saved before read as every panel; a config saved now writes `panel` in each rule. The aesthetics editor lists a
+  panel's rule as *X label (panel psth_1)*; Copy settings copies it with its panel's id, and into a design it goes
+  for every panel (a design's rules name none).
 - A probe's default local reference, for new datasets. **Save and use for new datasets** in the Local reference
   window keeps the map on the active dataset and, in the config, as the default of its probe
   (`Reference.LocalDefaultProbes` / `LocalDefaultMaps`, one line per probe such as `"17: 1-16; 40: 33-48"`, on the

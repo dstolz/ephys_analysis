@@ -14,7 +14,8 @@ function [D, copied] = figureLookToDesign(D, fig, keys)
 %                         design's) is not offered
 %     looks.<n>           each remembered look picked, added to the
 %                         design's common rules (PlotAesthetics.mergeRules:
-%                         it replaces the rules it covers)
+%                         it replaces the rules it covers); a look of one
+%                         panel goes in for every panel (a design names none)
 %   COPIED are the keys copied. A key FIG has that a design does not hold
 %   (a panel's option, the font size) is left out; an unknown key raises
 %   figureLookToDesign:BadSetting. D is not saved (PlotDesign.save).
@@ -43,7 +44,9 @@ for i = reshape(find(pick), 1, [])
         case "style.HeatColormap"
             D.heat = string(fig.style.HeatColormap);
         otherwise   % a remembered look
-            D.rules = PlotAesthetics.mergeRules(D.rules, fig.aesthetics(I.Index(i)));
+            look = fig.aesthetics(I.Index(i));
+            look.panel = "";   % a design names no panel
+            D.rules = PlotAesthetics.mergeRules(D.rules, look);
     end
 end
 end

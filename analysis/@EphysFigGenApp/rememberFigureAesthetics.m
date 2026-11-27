@@ -55,10 +55,6 @@ else
 end
 n = numel(cfg.Figures(k).aesthetics);
 obj.setStatus(sprintf("%s: %d remembered aesthetic setting(s), saved with the config.", id, n));
-if k == obj.SelectedFigure
-    E = obj.FigureEditor;
-    E.looksText.Text = sprintf("%d remembered look(s); right-click the preview to edit.", n);
-    E.looksForget.Enable = matlab.lang.OnOffSwitchState(n > 0);
-end
+showLooksCount(obj, k);   % the editor's Design and looks line, when it shows this figure
 obj.updateTitle();
 end

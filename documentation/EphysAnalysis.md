@@ -1243,9 +1243,21 @@ what one drawing holds, and `analysis/private/tagPart.m` does the naming.
 A *rule* sets one property of one role: `role`, `group` (`""` = every
 group), `property` (a color, line style or width, marker, opacity, font,
 visibility, tick direction and length or, for axes, a colormap), `value`
-(a number, two numbers, a color or a word). It applies in every tile.
+(a number, two numbers, a color or a word) and `panel` (`""` = every panel,
+the default). It applies in every tile; with `panel`, a figure panel's id,
+in the tiles of that panel alone (`renderFigure` names a panel's axes by its
+id), so on none of the figure's own components (its title, a legend outside
+the panels). `PlotAesthetics.rule(role, property, value, Group=, Panel=)`
+makes one, and `PlotAesthetics.mergeRules` adds rules to a list, each
+replacing the rules it covers: a rule for every group or every panel
+replaces that role and property's rules for any group or panel, one for a
+group or a panel only that one's. A design's rules name no panel.
 An unknown property is `PlotAesthetics:BadRule`; a value an object refuses
 is the warning `PlotAesthetics:BadValue`, and the figure is still drawn.
+`PlotAesthetics.typedValue(P, value, Strict=true)`, `P` an entry of
+`PlotAesthetics.catalog()`, checks a value before it becomes a rule, as the
+analysis app's command line does: a color from text, a choice by its word,
+a number within the editor's range (`PlotAesthetics:BadValue` otherwise).
 `renderFigure` draws the figure in a [design](#plot-designs) and applies four
 sets of rules after drawing, in this order, so the later win:
 
@@ -1266,6 +1278,8 @@ sets of rules after drawing, in this order, so the later win:
 ```matlab
 spec = cfg.figureFor("unit_card");
 spec.aesthetics = struct('role', "rate", 'group', "Depth = 0.5", 'property', "Color", 'value', [0.8 0 0.6]);
+spec.aesthetics = PlotAesthetics.mergeRules(spec.aesthetics, ...
+    PlotAesthetics.rule("ylabel", "FontSize", 9, Panel="psth_1"));   % the PSTH panel's y label alone
 renderFigure(F, spec, figure);                               % right-click any line, band or text
 PlotAesthetics.setUserRules("psth", struct('role', "sem", 'group', "", 'property', "FaceAlpha", 'value', 0.3));
 renderFigure(F, spec, figure, UserAesthetics=false);         % the figure's rules only
@@ -1305,12 +1319,19 @@ once they took most of a preview's drawing time. **Edit aesthetics...** opens
   to show that. A figure outside a config (no `OnRemember`) can only be
   remembered in the preferences. The window is titled *Figure aesthetics*;
   the Remembered tab calls the two sets *This figure* and *My figures*.
-- **Remembered** tab: the figure's and the user's rules. **Forget selected** /
+- **Remembered** tab: the figure's and the user's rules (a rule for one
+  panel, set from the analysis app's command line, names it: *X label (panel
+  psth_1)*). **Forget selected** /
   **Forget all** drop rules on OK, and the plot is redrawn without them.
   Unremembered edits made in the same window are put back after the
   redraw.
 - **Reset** undoes everything since the window opened; **Cancel** (or
   closing the window) does too and closes it; **OK** keeps the changes.
+
+In the analysis app the same looks are set by typing, with the figure, its
+panels and their parts as objects:
+`app.Plots.Figure("unit_card").Panel("psth_1").rate.Color = "red"`
+([From the command line](EphysFigGenApp.md#from-the-command-line)).
 
 From code, `d = PlotAesthetics.edit(h)` opens the editor on component `h`
 of a figure `renderFigure` drew in a visible figure
@@ -2052,7 +2073,10 @@ figures and one row per enabled session figure (the sessions folder).
 ### Changing a config in code
 
 `EphysAnalysisConfig` is a value class: keep the result of every call. Its
-fields are on [EphysAnalysisConfig](EphysAnalysisConfig.md).
+fields are on [EphysAnalysisConfig](EphysAnalysisConfig.md). To change the
+figures of an *open* analysis app instead, with the preview following and
+each change a step of its Undo, use its console, `app.Plots`
+([From the command line](EphysFigGenApp.md#from-the-command-line)).
 
 ```matlab
 cfg = EphysAnalysisConfig.load("D:\EPHYS\am_quicklook.json");
@@ -2338,7 +2362,7 @@ imagesc(R.sets.lags * 1000, R.sets.x, R.sets.strfRate); axis xy
 | `test_DatasetFavorites` | no fixture: `DatasetFavorites` in temporary folders: no file, the round trip of dataset and channel stars, unit stars kept with their sort (a new sort shows none, the old one back shows them), the last star removing the file, an unreadable file, a read-only folder and a folder gone, the three kinds of target, bad levels and ids, and `sessionTable`'s `starred` |
 | `test_DatasetNotes` | no fixture: `DatasetNotes` in temporary folders (no file, the round trip of dataset and channel notes with line breaks, the same text writing nothing, blank text removing a note, unit notes kept with their sort and `list(AllSorts=true)`, the last note removing the file, an unreadable file, a read-only folder and a folder gone, the three kinds of target, bad levels and ids); the notepad `NotePad`, hidden (written on save, before another note opens and on close; a note that cannot be written kept in the box; an unreadable file not editable); the search window `NoteSearch`, hidden (every word over name, item and text, the snippet, Go to and Edit note, new entries keeping the search) |
 | `test_PopulationAnalysis` | the fixture: `populationAnalysis`' units, rates, PSTHs and per-level rates equal the per-dataset calls (the selection's groups pooled); the summary's counts and means add up; the groupings (none, dataset × shank, depth bins); the correction over every unit or each dataset; each unit's auROC equal to `aurocCurves`' over its dataset, the 95% CI cutoff pooled over every unit (the formula over all of them; `Family="dataset"`: each dataset's own) and, with `AurocGroupBy`, over every unit x group curve, the calls, peaks and summary counts that follow, a test cutoff's p corrected over the family, and the auROC columns and cutoff in the files; the files written; the errors; the stars (`DatasetFavorites`) in `P.units`, `P.datasets`, `GroupBy="starred"`, `unitSummary`, `sessionTable`, the report's summary tables and the HTML and PDF reports; the tags (manifest `tags`) in `loadAnalysisSource`, `outputTags`, `sessionTable`, `P.units`, `P.datasets`, `population_units.csv`, `population.json` and the reports; the dataset variables (manifest `variables`) the same way (`src.variables`, `outputVariables`, the `var_` columns, the report's variables and Recording rows); the shuffle cutoff pooled over the family, and `Workers` on a process pool giving the same result as here |
-| `test_PlotAesthetics` | the fixture (`figureTestCases`: a figure per panel type and per layout that matters): rules (decoded JSON, refused properties, merging, colors as text), `renderFigure` tagging everything every figure draws with a known role (a note's and the overlays' parts too), the user's rules for a panel's type and then the figure's own (and `UserAesthetics=false`; a value an object refuses is a warning, the figure still drawn), the right-click menu only in a visible figure or with `Editable=true`, the editor (live edits, Apply to one / same / role / ticked, Reset, Cancel, OK remembering for the figure or the user as `"figure"` rules, Forget and the redraw, unremembered edits put back), the config's `aesthetics` on a figure through JSON, and the script literal of a rule list |
+| `test_PlotAesthetics` | the fixture (`figureTestCases`: a figure per panel type and per layout that matters): rules (decoded JSON, refused properties, merging, colors as text; a rule's `panel`: `PlotAesthetics.rule`, the default of a rule without one, a panel's rule merged with the every-panel one and replaced by it; `typedValue` and what its `Strict` refuses; a panel's rule drawn on that panel alone, an every-panel rule after it on both, a rule for a panel the figure lacks on none; the panel kept by the config's JSON file), `renderFigure` tagging everything every figure draws with a known role (a note's and the overlays' parts too), the user's rules for a panel's type and then the figure's own (and `UserAesthetics=false`; a value an object refuses is a warning, the figure still drawn), the right-click menu only in a visible figure or with `Editable=true`, the editor (live edits, Apply to one / same / role / ticked, Reset, Cancel, OK remembering for the figure or the user as `"figure"` rules, Forget and the redraw, unremembered edits put back), the config's `aesthetics` on a figure through JSON, and the script literal of a rule list |
 | `test_PlotDesign` | the fixture: the built-in designs (they load, name known roles and only known kinds -- `PlotDesign.kindNames()` --, give the session roles, and every panel type and layout draws in each without a refused value), what a design does to a figure (ground, palette, single and sequential colors, heat and diverging colormaps, rules for every figure and for one panel type; a figure's own colors win), the layering (design, the user's rules for a panel's type, the figure's), choosing a design (the preference, every figure on screen redrawn, listeners, the right-click Design submenu), capturing a figure's look per panel type (`Spec=` or the editing context) and saving, listing, importing and deleting designs, refused files and names (`PlotDesign:UnknownKind` for a retired plot kind), and the editor offering what designs set |
 | `test_FigureTemplate` | no fixture: `FigureTemplate` with the preferences and the templates folder temporary: a figure as a template (every setting but the id, title and enabled; Inf units), `summary`, `figureOf`; saved, listed and loaded back equal (the file's schema, version, no identity fields, Inf as a string; a name in any case; `Exists`, `BadName`, `Unknown`); a template from a newer version with unknown fields read with its notes, a partial figure taking the defaults, what is no template refused (`Bad`), `list`'s reasons; export, import (another name, the file's name field, `Overwrite`), remove; `check` (validate's rows of its figure); applied through `copyFigureSettings` (every setting, one part) and `addFigure`; panel types (the built-in Raster over PSTH, a template saved with `Panel=true` listed by `panelTypes`, a file without `"panel"`, `panelFigure`, its panels placed by `placePanels`) |
 | `test_copyFigureSettings` | no fixture: `figureSettingParts` and `figureSettingItems` (a figure's settings with their parts, groups, paths, values, generic keys and whether a design holds them), `copyFigureSettings` (one setting, a part, a panel's options to the panels that take them, one figure onto many, the layout, remembered looks one by one, panels matched by id then type, a copy that changes nothing, every setting by default; the id, title and `enabled` kept; a copy that validates; `BadSetting`, `BadFigure`; the time onto ten figures) and `figureLookToDesign` |

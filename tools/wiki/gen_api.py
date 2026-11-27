@@ -579,7 +579,7 @@ def load_class(clsdir_or_file):
     return cls
 
 
-HANDLE_CLASSES = {"handle", "EphysReader", "matlab.apps.AppBase"}
+HANDLE_CLASSES = {"handle", "EphysReader", "PlotNode", "matlab.apps.AppBase"}
 
 
 def kind_line(cls):
@@ -1135,6 +1135,14 @@ def main(do_splice=True):
         write_gen(n, sec)
         g += sec
     pages["API-Readers"] = g
+    # the analysis app's command line: the console and its figure, panel and part objects, one page
+    g = []
+    for n in ["PlotConsole", "PlotFigureNode", "PlotPanelNode", "PlotPartNode", "PlotNode"]:
+        cls = load_class(pdir("analysis", n + ".m"))
+        sec = [f"### {n}", ""] + class_section(cls)
+        write_gen(n, sec)
+        g += sec
+    pages["API-PlotConsole"] = g
     # apps
     cls = load_class(pdir("pipeline", "@EphysPipelineApp"))
     g = app_section(cls, {0: "Figure and tab strip", 1: "Project and the active dataset"})

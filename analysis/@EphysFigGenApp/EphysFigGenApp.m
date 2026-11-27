@@ -216,6 +216,20 @@ classdef EphysFigGenApp < handle
     %   Open analysis app), the app takes the last config again with its
     %   source switched to them (openSource).
     %
+    %   Command line: app.Plots (a PlotConsole) changes the figures from
+    %   the command window or a script, as a tree of objects: a figure, its
+    %   panels, the parts drawn in them and their properties.
+    %     app = EphysFigGenApp.current();     % the app open now
+    %     p = app.Plots;                      % typed alone: lists the figures
+    %     p.Figure("unit_card").Panel("psth_1").rate.Color = "red";
+    %     p.Figure("unit_card").xlabel.FontSize = 11;      % every panel's
+    %     p.Immediate = false;                % collect the changes ...
+    %     p.apply();                          % ... and make them at once
+    %   With Immediate on (the default) each change is made at once: it
+    %   goes into the config as one undo step and the preview follows
+    %   (changeFigures). Off, the changes wait (p.Pending) for p.apply(),
+    %   or p.discard(). See PlotConsole.
+    %
     %   Usage
     %     EphysFigGenApp                      % the last config, or defaults
     %     EphysFigGenApp("D:\EPHYS")          % a pipeline project root, with the last config's figures
@@ -225,9 +239,10 @@ classdef EphysFigGenApp < handle
     %     EphysFigGenApp("am_quicklook.json") % an analysis config
     %     EphysFigGenApp(..., Splash=false)   % no startup window
     %     app = EphysFigGenApp(...);          % keep a handle
+    %     app = EphysFigGenApp.current();     % the handle of the app open now
     %
     %   See also EphysAnalysisConfig, EphysAnalysisRunner, EphysAnalysisScript,
-    %   EphysPipelineApp.
+    %   EphysPipelineApp, PlotConsole.
 
     properties
         Fig   matlab.ui.Figure
@@ -386,6 +401,7 @@ classdef EphysFigGenApp < handle
     end
 
     properties
+        Plots = []                          % the figures from the command line (a PlotConsole, made with the window): app.Plots.Figure(id).Panel(id).rate.Color = "red"
         Config EphysAnalysisConfig = EphysAnalysisConfig()   % working copy
         SavedConfigStruct struct = struct()                   % last saved / opened state
         Applying (1,1) logical = false      % applyConfig is pushing values (suppresses onConfigChanged)
@@ -534,6 +550,8 @@ classdef EphysFigGenApp < handle
             unfinished = onCleanup(@() abandonStartup(obj)); %#ok<NASGU>
             obj.Splash.step("window", "Building the window ...");
             obj.buildUI();
+            obj.Plots = PlotConsole(obj);                    % the figures from the command line
+            setappdata(obj.Fig, 'EphysFigGenApp', obj);      % EphysFigGenApp.current() finds the app by its window
             obj.Splash.step("prefs", "Restoring the preferences ...");
             obj.loadPreferences(source == "");
             if source ~= ""
@@ -739,6 +757,9 @@ classdef EphysFigGenApp < handle
         txt = onFigureCode(obj, file)
         setFigurePreviewState(obj, state, opts)
         rememberFigureAesthetics(obj, id, rules, opts)
+        changed = changeFigures(obj, cfg, label)
+        [k, id] = figureIndexOf(obj, id)
+        [P, look] = figureDrawing(obj, id)
         onFigureAxisEdited(obj, id, panel, change)
         onPickFigureDatasets(obj, opts)
         onBrowseFigureMapping(obj, file)
@@ -769,6 +790,26 @@ classdef EphysFigGenApp < handle
         onReportIssue(obj, kind)
         body = issueReport(obj, kind, opts)
         [url, truncated] = issueURL(obj, kind, title, body)
+    end
+
+    methods (Static)
+        function app = current()
+            %current  The analysis app open now, for the command line: app = EphysFigGenApp.current().
+            %   The app whose window is open (the first found when several
+            %   are: the one made or shown last), found by its window, so
+            %   an app started without keeping its handle (from the
+            %   pipeline app, or EphysFigGenApp typed alone) can be reached:
+            %   EphysFigGenApp.current().Plots. Empty (0x0) when none is open.
+            app = EphysFigGenApp.empty;
+            for f = reshape(findall(groot, '-depth', 1, 'Type', 'figure'), 1, [])
+                if ~isappdata(f, 'EphysFigGenApp'); continue; end
+                a = getappdata(f, 'EphysFigGenApp');
+                if isa(a, 'EphysFigGenApp') && isscalar(a) && isvalid(a)
+                    app = a;
+                    return
+                end
+            end
+        end
     end
 
     methods (Static, Hidden)
